@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import styled from 'styled-components';
 import { NavLink } from 'react-router-dom';
 import { CalendarCheck, Dumbbell, History, TrendingUp, Settings as SettingsIcon } from 'lucide-react';
+import { UserButton } from '@clerk/clerk-react';
 import { spacing } from '@setline/design-tokens';
 import { typeScale } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';
@@ -98,6 +99,19 @@ const HistoryNavItem = styled(NavItem)`
   }
 `;
 
+const AccountRow = styled.div`
+  order: -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: ${spacing[8]}px;
+
+  ${mq.tablet} {
+    justify-content: flex-start;
+    padding: 0 ${spacing[12]}px ${spacing[16]}px;
+  }
+`;
+
 const Content = styled.main`
   order: 1;
   flex: 1;
@@ -121,6 +135,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     <Shell>
       <Sidebar aria-label="Primary">
         <Wordmark>Setline</Wordmark>
+        <AccountRow>
+          <UserButton afterSignOutUrl="/sign-in" />
+        </AccountRow>
         {navItems.map(({ to, label, icon: Icon }) => (
           <NavItem key={to} to={to}>
             <Icon size={18} aria-hidden="true" />
