@@ -553,11 +553,96 @@ reps" under Set 3, and a trophy PR badge next to Set 3's rep count
 (same Lucide `trophy`, `Semantic/Action/Primary` stroke, smaller at
 16×16 to fit the denser web row height). Screenshot-verified.
 
+**Not yet done / open questions**: none — Ideas 3–5 are covered in §18
+below.
+
+## 18. Competitive-research-driven additions: progression rule labels, HealthKit trends, pre-workout preview
+
+**Grounding**: `docs/research/competitive-analysis.md`, "Top 5
+Actionable Ideas" — Idea 3 ("plain-language progression rule labels in
+ProgramEditor"), Idea 4 ("curated HealthKit metric grid on Today with
+trend vs. 30-day avg"), and Idea 5 ("pre-workout session preview
+card"). These are new ideas from the research (not refinements of
+Ideas 1–2). User approved implementing all three in this pass.
+
+**Idea 3 — Plain-language progression rule labels**:
+
+- `Screen/Web/ProgramEditor` (`18:12`): the existing "Progression
+  rule: [Double progression ▾]" row in `ProgramDayDetail` was
+  restructured (dropdown row switched from horizontal to vertical
+  parent layout) to add a small secondary-colored description line
+  underneath: "Increase reps each session until you hit the top of the
+  rep range, then add weight and reset to the bottom." Screenshot-
+  verified.
+- `Screen/Mobile/ProgramEditor` (`29:59`): mobile has no progression
+  rule *editor* (deferred to web per §14), but since the rule still
+  applies to the viewed day, added a read-only "Progression rule:
+  Double progression" line + the same plain-language description
+  above the existing "Edit on web..." note. Screenshot-verified.
+- Only the "Double progression" copy was written out as a concrete
+  example (matching the day already shown); the other two rule types
+  from the research doc (Linear, Percentage-based) are documented here
+  as the source copy to reuse once the dropdown becomes interactive:
+  - **Linear (+5lb per session)** — "Add weight every session when you
+    complete all prescribed reps. Best for beginners on compound
+    lifts."
+  - **Percentage-based (%1RM)** — "Sets are prescribed as a % of your
+    estimated max. Adjusts automatically as your strength improves."
+
+**Idea 4 — HealthKit metric grid trend indicators**:
+
+- Both `Screen/Mobile/Today` (`13:3`) and `Screen/Web/Today` (`25:2`)
+  already had a "From Apple Health" 2×2 tile grid (Steps, Active
+  Calories, Exercise Minutes, Calories via MFP) from earlier passes —
+  this pass added the specific piece Idea 4 called for: a small
+  trend-vs-30-day-average line under each tile's value, colored via
+  `Semantic/Status/Success` (green, up-arrow) or
+  `Semantic/Status/Error` (red, down-arrow) depending on direction.
+  Screenshot-verified on both screens.
+- **Bug hit + fixed (web only)**: the web tile-grid wrapper frame
+  (`25:29`) had a hardcoded `FIXED` height (200px) left over from the
+  original build, sized for single-line tiles. Adding the new trend
+  line clipped the bottom row. Fixed by resizing the frame to 240px
+  (kept `FIXED` sizing rather than switching to `AUTO`, since the
+  parent card `25:27` also had a fixed height that would have needed a
+  matching change — a straightforward manual resize was simpler and
+  fully verified via screenshot).
+- **Deferred**: Idea 4's "Connect" dimmed state for unauthorized/
+  missing HealthKit permission was not built this pass — no screen
+  currently models an unauthorized state for any metric, and doing it
+  well needs a decision on where that state belongs (per-tile dimming
+  vs. a banner) that wasn't in scope for this batch. Tracked as an open
+  item below.
+
+**Idea 5 — Pre-workout session preview card**:
+
+- Both `Screen/Mobile/Today` (`13:3`) and `Screen/Web/Today` (`25:2`)
+  already had a "Today's Workout" card with a single "Start Workout"
+  button — enhanced on this pass rather than replaced. Changes on both
+  platforms:
+  - Subtitle line updated from "5 exercises · Last done Aug 15" to
+    "Week 2 · Day 3 · 5 exercises · ~45–55 min", matching the research
+    doc's literal example copy.
+  - Added a secondary "Preview" button (outline style, `Semantic/
+    Border/Subtle` stroke) next to "Start Workout", sized to sit
+    side-by-side (mobile: Start Workout flexes wider at 230px + Preview
+    fixed 88px; web: both auto-sized with 8px gap).
+  - "Preview" is understood to open the exercise list with prescribed
+    sets × reps × weight (per the research doc), matching content
+    already shown elsewhere in `ProgramEditor`'s day-detail view — no
+    new screen was built for this since the destination content
+    already exists; wiring/interaction is out of scope for a static
+    design file.
+  - Screenshot-verified on both `Screen/Mobile/Today` and
+    `Screen/Web/Today`.
+
 **Not yet done / open questions**:
 
-- Research Ideas 3–5 (progression-rule plain-language labels in
-  ProgramEditor, a curated HealthKit metric grid on the Today screens,
-  a pre-workout preview card) are approved-for-later but not started.
+- Idea 4's dimmed "Connect" state for unauthorized HealthKit metrics —
+  needs a design decision on where/how to show it before building.
+- All 5 competitive-research ideas are now applied in some form. No
+  further research-driven work is queued unless the user requests
+  another round or flags additional apps to study.
 
 ## Next steps
 
