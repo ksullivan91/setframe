@@ -498,6 +498,63 @@ verified visually via `get_screenshot` after each step (color ramps,
 typography, spacing, radius, and components were each screenshotted and
 inspected before moving on, catching this early and avoiding rework).
 
+## 17. Competitive-research-driven additions: ghost "last session" text + PR badge + Session Summary screen
+
+**Grounding**: `docs/research/competitive-analysis.md`, "Top 5 Actionable
+Ideas" — Idea 1 ("ghost text of last session's numbers pre-filled/shown
+under each set's inputs, reducing recall burden during a workout") and
+Idea 2 ("a lightweight, immediate PR/achievement signal at the moment
+it happens, plus a post-workout summary screen that reinforces
+progress"). User approved implementing Ideas 1–2 first: "Start applying
+idea 1-2 now (ghost text + PR badge/summary card) — fits current
+screens directly."
+
+**What changed**:
+
+- `Screen/Mobile/WorkoutLogger` (`15:2`): added small "prev 185" /
+  "prev 8" ghost text (weight/reps, `Semantic/Text/Disabled` color,
+  smaller than the live input) under all 3 `SetRow/Editable` rows, and
+  a Lucide `trophy` icon badge (stroke bound to
+  `Semantic/Action/Primary`) on the Set 3 row, marking it as the
+  PR-achieving set. Screenshot-verified.
+- New screen `Screen/Mobile/SessionSummary` (node `43:2`, positioned at
+  `x=1410, y=1750`, directly below `WorkoutLogger` in the mobile row):
+  a post-workout recap with a title/date header, a 3-up stat row
+  (Duration / Volume / PRs), a highlighted PR card (accent-subtle
+  background, trophy icon, "New PR: Barbell Bench Press — 195 lb × 6,
+  up from 185 lb × 8"), a condensed per-exercise set list, and
+  Share/Done actions. Screenshot-verified — renders correctly.
+
+**Bug hit + fixed during this build**: the build script failed twice
+with `getVariableByIdAsync: Property "id" failed validation`. Root
+cause (confirmed via a diagnostic pass that resolved every variable ID
+in the script's `varMap` individually): the hardcoded `varMap` had
+`"Semantic/Action/AccentSubtle"` mapped to `VariableID:3:42`, which
+actually resolves to `Semantic/Action/PrimaryHover`. Corrected to the
+real ID (`VariableID:3:45`, looked up by name via
+`getLocalVariableCollectionsAsync`). A second, unrelated bug then
+surfaced on retry: `Spacing/32` was missing from the same `varMap`
+entirely (thrown as a clean "No mapping for" error thanks to added
+defensive checks) — added the correct ID (`VariableID:3:56`) and the
+build then succeeded cleanly. No orphan debris was left by either
+failed attempt (both errored before the frame was appended, or the
+partial frame was confirmed gone via a full cross-page node search
+before rebuilding). **New practice going forward**: hardcoded `varMap`
+tables should have every entry spot-checked against
+`getLocalVariableCollectionsAsync` before reuse in a new script,
+especially less-common variables (spacing values above `24`,
+`AccentSubtle`, etc.), since a wrong-but-plausible ID fails silently
+until it's actually dereferenced.
+
+**Not yet done / open questions**:
+
+- Web `Screen/Web/Training` (`26:2`) does not yet have equivalent ghost
+  text or a PR badge — not yet discussed with the user whether web
+  should mirror this for parity.
+- Research Ideas 3–5 (progression-rule plain-language labels in
+  ProgramEditor, a curated HealthKit metric grid on the Today screens,
+  a pre-workout preview card) are approved-for-later but not started.
+
 ## Next steps
 
 1. Review the live Figma file directly and confirm the accent ramp,
