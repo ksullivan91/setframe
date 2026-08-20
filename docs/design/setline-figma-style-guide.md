@@ -256,11 +256,12 @@ afterward to confirm zero overlap.
   directly with ad hoc auto-layout rather than composed from shared
   layout primitives first; worth revisiting once more screens exist and
   repeated patterns emerge.
-- **Icon set undecided** — `IconButton` glyphs are text-character
-  placeholders (`+`, `−`, `⧉`, `≡`), not real icons; needs a decision
-  (e.g. Lucide/Phosphor) before implementation.
-- **Web AppShell's Training/History/Progress/Settings nav items** have no
-  corresponding screens yet — only "Today" (mobile) has real content.
+- ~~Icon set undecided~~ — **resolved in §15**: Lucide adopted, all
+  placeholder glyphs replaced with real icons.
+- **Web AppShell's nav items still don't route to real page content in
+  the shell itself** — the shell proves the sidebar/nav structure, but
+  each nav destination now has its own standalone screen elsewhere in
+  the file (see §14) rather than being wired into the AppShell frame.
 - **Session/day/exercise reorder and drag interactions** are shown only
   as static affordance glyphs (`≡`), not interactive prototypes — Figma
   static frames can't demonstrate drag behavior; this is a build-time
@@ -411,9 +412,51 @@ verified both visually and via bounding-box check.
   editing (e.g. simple reorder) should be interactive-feeling in a later
   pass, or if "view + redirect to web" is the permanent mobile answer.
 - Everything else previously listed under earlier "not done yet"
-  sections remains true (icon set undecided, no dark-mode screenshot
-  pass, AppShell content area still a placeholder, no interactive
-  drag-reorder prototyping, etc.).
+  sections remains true (no dark-mode screenshot pass, AppShell content
+  area still a placeholder, no interactive drag-reorder prototyping,
+  etc.) **except the icon set, resolved below in §15.**
+
+## 15. Icon library decision + placeholder glyph replacement
+
+**Grounding**: §17 (Iconography) requires "Use a consistent icon library
+only after checking license and cross-platform practicality... Avoid
+mixing icon styles." This was the last named "not done yet" item
+blocking a clean pass over `IconButton`, `SetRow/Editable`, and every
+screen's reorder-handle affordances (`≡`, `⧉`, `+`, `−` were all plain
+text-character placeholders until now).
+
+**Decision**: adopted **Lucide** (`lucide-react` for web,
+`lucide-react-native` for mobile) — see `docs/adr/0006-icon-library.md`
+for the full license/cross-platform comparison against Phosphor,
+Heroicons, and Font Awesome. Lucide won on: permissive ISC license,
+first-class packages maintained by the same team for both platforms
+(no community-wrapper gap), and a single thin-line style consistent
+with the rest of Setline's restrained visual language.
+
+**Replacement pass** (all done via real Lucide path data, not
+approximations):
+- `IconButton` row in Foundations: `+` → `Plus`, `−` → `Minus`,
+  `⧉` → `Copy`, `≡` → `GripVertical`.
+- `SetRow/Editable` in Foundations: duplicate/remove icons → `Copy`/
+  `Minus`.
+- `Select/Dropdown` chevron → `ChevronDown`.
+- All reorder-handle glyphs across `Screen/Mobile/WorkoutLogger`,
+  `Screen/Web/ProgramEditor`, and `Screen/Mobile/ProgramEditor` (11
+  instances) → `GripVertical`.
+- All duplicate-set glyphs in `Screen/Mobile/WorkoutLogger`'s 3
+  `SetRow/Editable` instances → `Copy`.
+
+**Bug hit + fixed during this pass**: the first batch of
+`GripVertical` replacements on the screen-level reorder handles
+accidentally left a solid fill on the icon's outer wrapper frame
+(inherited from the old text node's frame), which visually covered the
+dot-grid glyph underneath with a flat gray square. Fixed by explicitly
+clearing `fills = []` on each wrapper frame after insertion, verified
+via screenshot on `Screen/Web/ProgramEditor` (dot-grid now renders
+correctly, subtle and small) and `Screen/Mobile/WorkoutLogger`.
+
+No remaining text-glyph placeholders exist anywhere in the file as of
+this pass.
 
 ## How this was built
 
