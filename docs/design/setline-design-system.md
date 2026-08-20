@@ -15,24 +15,44 @@ enterprise SaaS, gamified-for-its-own-sake.
 ## 2. Color direction (proposed, not final)
 
 Following the Fluent "one brand ramp + one neutral ramp" methodology (§4 of
-the audit), not Fluent's actual colors, and rejecting File 3's pink/black
-and File 1's default lavender tint as "not distinctly Setline":
+the audit), rejecting File 3's pink/black and File 1's default lavender
+tint as "not distinctly Setline." The earlier draft of this doc proposed a
+blue/teal accent — the user rejected that ("blue/teal is boring... big fan
+of purple") and requested a purple direction, sourced from a 4th reference
+file (`docs/design/figma-reference-audit.md` §5).
 
-- **One primary accent**, used sparingly (primary actions, active states,
-  key data lines). Proposed direction: a deep, slightly desaturated blue or
-  teal — reads as precise/calm/trustworthy without becoming "electric blue"
-  or a medical-portal blue. Exact hex to be chosen together with you before
-  lock-in (this is the one piece of §13 in the branding prompt that
-  explicitly should not be finalized before this review).
-- **Neutral ramp**: near-black text (`#1c1c1c`-to-`#141414` range, not pure
-  `#000000` — matches the "not pure black" pattern both source files
-  independently converged on) through to off-white/near-white surfaces.
-  Avoid pure white canvas in favor of a very subtle off-white
-  (`~#F7F8FA`-ish) for reduced eye strain during gym/mobile use.
+- **One primary accent, purple/indigo-violet family.** Starting point:
+  `#6979f8` (indigo-violet), found in File 4 as a text-link/tag accent.
+  This reads as genuinely purple/violet rather than blue/teal, while still
+  avoiding neon/cyberpunk saturation — fits the brand brief's "one clear
+  accent, calm/precise/premium" criteria. **Not yet locked**: before
+  implementation, run this hue (and 1–2 nearby variants — e.g. slightly
+  more saturated/"grape," or slightly deeper) through:
+  1. A proper tint/shade ramp generation pass (10-step brand ramp, per
+     File 2's Fluent Theme Designer methodology) so every control state
+     (default/hover/pressed/disabled, light + dark) has a token, not just
+     one hex.
+  2. A WCAG AA contrast check against both near-black text and
+     white/near-white surfaces, in both themes.
+  Confirm the exact final hex + ramp with the user once generated (see §8).
+- **Neutral ramp**: near-black text, anchored on `#151522` (from File 4) —
+  a cool/blue-violet-shifted near-black rather than pure `#000000`. This is
+  now a **3-for-3 cross-file convention** (Files 1, 3, and 4 each
+  independently chose a near-black, never pure black, for primary text),
+  so it's a strong signal to keep regardless of accent hue. Surfaces:
+  off-white/near-white in light theme; File 4 additionally showed the
+  near-black neutral doing double duty as the dark-theme surface color
+  (no separate "dark navy" token needed) — a minimal-palette technique
+  worth adopting.
 - **Semantic status colors** (success/caution/error/info), never used as
-  the only signal (icons/text always pair with color, per master spec §13).
+  the only signal (icons/text always pair with color, per master spec
+  §13). File 4 also incidentally exposed `#00C48C` (green) and `#FF647C`
+  (red/coral) elsewhere in its node tree — reasonable starting points for
+  `status.success`/`status.error` if a fresh pair is wanted, though these
+  are not yet contrast-checked either.
 - Dark theme is a parity requirement from day one (architecture, not just
-  visual reskin), matching File 1 and File 2's dual-theme approach.
+  visual reskin), matching File 1, File 2, and File 4's dual-theme
+  approaches.
 
 Proposed semantic token names (values TBD pending accent approval):
 
@@ -130,15 +150,17 @@ Order of first implementation once approved, straight from the audit's
 
 ## 8. What needs your decision before implementation starts
 
-1. **Accent color** — approve the deep blue/teal direction, or provide a
-   different starting hue.
+1. **Accent color** — direction confirmed: purple/indigo-violet
+   (`#6979f8` starting point, per File 4). Still needs: approval of the
+   generated 10-step ramp + contrast-checked final hex once produced (not
+   yet generated — no token files exist yet).
 2. **Typeface** — approve Inter, or provide a different open-licensed
    preference.
 3. **Radius scale** — approve the proposed 8/16px restrained pair.
-4. Confirm the three "reject" lists in §5 of the audit (pink/black,
-   Microsoft blue/Fluent iconography, Circular Std, absolute-positioning
-   technique) — anything you actually want kept despite the audit's
-   recommendation?
+4. Confirm the "reject" lists in §5 of the audit (pink/black, Microsoft
+   blue/Fluent iconography, Circular Std, SF Pro for web/Android,
+   absolute-positioning technique) — anything you actually want kept
+   despite the audit's recommendation?
 
 No component code, token files, or app screens will be created until these
 are confirmed.
