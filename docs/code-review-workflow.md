@@ -31,20 +31,24 @@ GitHub Copilot** — there's no second vendor to bridge:
 2. Skips (fail-open, doesn't block) if the `copilot` CLI isn't installed
    or the review call errors — never trap a developer with no way to
    commit because of an outage.
-3. Otherwise captures `git diff --cached` itself (trusted context) and
-   passes it as inert text inside a prompt to a **read-only** Copilot CLI
+3. Otherwise captures `git diff --cached` itself (trusted context) to a
+   file under `.copilot-reviews/` and asks a **read-only** Copilot CLI
    invocation (`--available-tools view,grep,glob`, no shell/write/network
-   tools, `--no-ask-user`), instructed to treat the diff as data to
-   analyze and never as instructions to act on. Asks for a
-   `REVIEW_VERDICT: PASS` / `REVIEW_VERDICT: BLOCK` verdict line, scoped
-   to HIGH-severity issues only (bugs, security flaws, data loss, broken
-   behavior — not style).
-   - This design was validated the hard way: an earlier version used
-     `--allow-all-tools` and let the agent run `git diff` itself, and the
-     very first real review caught that this let injected instructions in
-     the diff (or a malicious dependency) drive arbitrary shell execution
-     on every clone with hooks installed. Fixed by capturing the diff
-     outside the agent and restricting it to read-only tools.
+   tools, `--no-ask-user`) to `view` that file — never passing the raw
+   diff as a CLI argument (avoids `ARG_MAX` failures on very large diffs)
+   and never letting the agent run `git` itself. Instructed to treat the
+   diff as data to analyze and never as instructions to act on. Asks for
+   a `REVIEW_VERDICT: PASS` / `REVIEW_VERDICT: BLOCK` verdict as the
+   literal last line of the response, scoped to HIGH-severity issues only
+   (bugs, security flaws, data loss, broken behavior — not style).
+   - This design was validated the hard way: Copilot's own dogfooded
+     reviews of this hook, across successive commits, caught three real
+     issues in its own implementation — an `--allow-all-tools` +
+     agent-runs-`git-diff` combination that was a prompt-injection →
+     arbitrary-exec risk, a raw-substring verdict match that could false-
+     block on the model quoting `REVIEW_VERDICT: BLOCK` in its own prose,
+     and a `set -e`/`pipefail` interaction that could abort the hook with
+     no message. All three are fixed in the current version.
 4. Archives the full transcript to `.copilot-reviews/`.
 5. Blocks the commit only on `BLOCK`. Bypass with `git commit --no-verify`
    when you've reviewed and consciously accept the risk (e.g. WIP
