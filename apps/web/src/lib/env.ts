@@ -12,4 +12,7 @@ export const env = {
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000/v1',
   /** Placeholder key until a real Clerk publishable key is provisioned. */
   clerkPublishableKey: import.meta.env.VITE_CLERK_PUBLISHABLE_KEY ?? 'pk_test_placeholder',
+  /** When true, `npm run dev:mock` starts an MSW worker (see
+   * src/mocks/browser.ts) instead of hitting the real API. */
+  useMocks: import.meta.env.VITE_USE_MOCKS === 'true',
 };

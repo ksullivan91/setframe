@@ -1,11 +1,19 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { GripVertical, Plus } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { spacing, radius } from '@setline/design-tokens';
 import { typeScale } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';
-import type { ProgressionRuleType } from '@setline/schemas';
-import { Card, Select, Badge } from '../components';
+import type {
+  Prescription,
+  ProgressionRuleType,
+  TrainingProgram,
+  WorkoutTemplate,
+  WorkoutTemplateExercise,
+} from '@setline/schemas';
+import { Card, Select, Badge, Button } from '../components';
+import { useApiClient } from '../lib/api-client';
 
 /**
  * ProgramEditor — prescription-type-aware editor + plain-language
@@ -29,12 +37,6 @@ const progressionOptions = [
   { value: 'linear', label: 'Linear (+5lb per session)' },
   { value: 'manual', label: 'Manual' },
 ];
-
-interface ExerciseRow {
-  id: string;
-  name: string;
-  prescriptionSummary: string;
-}
 
 const Header = styled.div`
   display: flex;
@@ -80,44 +82,136 @@ const Description = styled.p`
   margin: ${spacing[4]}px 0 0;
 `;
 
-const exercises: ExerciseRow[] = [
-  { id: 'e1', name: 'Barbell Bench Press', prescriptionSummary: '3 × 5–8 @ 185 lb' },
-  { id: 'e2', name: 'Overhead Press', prescriptionSummary: '3 × 6–10 @ 95 lb' },
-  { id: 'e3', name: 'Triceps Pushdown', prescriptionSummary: '3 × 10–15' },
-];
-
-const days = ['Day 1 — Push', 'Day 2 — Pull', 'Day 3 — Legs'];
+function summarizePrescription(p: Prescription): string {
+  switch (p.kind) {
+    case 'sets_reps':
+    case 'per_side':
+    case 'bodyweight_reps':
+      return `${p.sets} × ${p.repsMin}${p.repsMax ? `–${p.repsMax}` : ''}`;
+    case 'top_set_backoff':
+      return `${p.topSets} × ${p.topRepsMin}–${p.topRepsMax} top, ${p.backoffSets} × ${p.backoffRepsMin}–${p.backoffRepsMax} backoff`;
+    case 'timed':
+      return `${p.sets} × ${p.durationSeconds}s`;
+    case 'distance':
+      return `${p.sets} × ${p.distanceValue}${p.distanceUnit}`;
+    default:
+      return '';
+  }
+}
 
 export function ProgramEditorPage() {
+  const api = useApiClient();
+  const queryClient = useQueryClient();
   const [rule, setRule] = useState<ProgressionRuleType>('double_progression');
+  const [programId, setProgramId] = useState<string | null>(null);
+  const [templateId, setTemplateId] = useState<string | null>(null);
+
+  const { data: programs, isLoading: programsLoading } = useQuery({
+    queryKey: ['programs'],
+    queryFn: () => api.get<TrainingProgram[]>('/programs'),
+  });
+
+  const activeProgram = programs?.find((p) => p.isActive) ?? programs?.[0] ?? null;
+
+  useEffect(() => {
+    if (activeProgram && programId !== activeProgram.id) {
+      setProgramId(activeProgram.id);
+    }
+  }, [activeProgram, programId]);
+
+  const { data: templates } = useQuery({
+    queryKey: ['program-workouts', programId],
+    queryFn: () => api.get<WorkoutTemplate[]>(`/programs/${programId}/workouts`),
+    enabled: !!programId,
+  });
+
+  useEffect(() => {
+    if (templates && templates.length > 0 && !templateId) {
+      setTemplateId(templates[0]!.id);
+    }
+  }, [templates, templateId]);
+
+  const activeTemplate = templates?.find((t) => t.id === templateId) ?? null;
+
+  const { data: templateExercises } = useQuery({
+    queryKey: ['template-exercises', templateId],
+    // TODO: apps/api has no GET /v1/workout-templates/:templateId/exercises
+    // list endpoint — only POST to add one exists (see
+    // apps/api/src/routes/workout-templates.ts). Until that's added we
+    // can't list a template's exercises, so this renders an empty state.
+    queryFn: (): Promise<WorkoutTemplateExercise[]> => Promise.resolve([]),
+    enabled: !!templateId,
+  });
+
+  const createProgramMutation = useMutation({
+    mutationFn: () => api.post<TrainingProgram>('/programs', { name: 'New Program' }),
+    onSuccess: (program) => {
+      queryClient.invalidateQueries({ queryKey: ['programs'] });
+      setProgramId(program.id);
+    },
+  });
+
+  const createTemplateMutation = useMutation({
+    mutationFn: (params: { programId: string; dayLabel: string }) =>
+      api.post<WorkoutTemplate>(`/programs/${params.programId}/workouts`, {
+        name: params.dayLabel,
+        dayLabel: params.dayLabel,
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['program-workouts', programId] }),
+  });
+
+  if (programsLoading) {
+    return <div>Loading program…</div>;
+  }
+
+  if (!activeProgram) {
+    return (
+      <div>
+        <h1>No program yet</h1>
+        <Button
+          variant="primary"
+          onClick={() => createProgramMutation.mutate()}
+          disabled={createProgramMutation.isPending}
+        >
+          Create a program
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div>
       <Header>
-        <h1 style={{ margin: 0 }}>5-Day Upper/Lower Split</h1>
-        <Badge tone="success">Active</Badge>
+        <h1 style={{ margin: 0 }}>{activeProgram.name}</h1>
+        <Badge tone={activeProgram.isActive ? 'success' : 'neutral'}>
+          {activeProgram.isActive ? 'Active' : 'Inactive'}
+        </Badge>
       </Header>
 
       <DayList>
-        {days.map((day) => (
-          <DayRow key={day}>
+        {(templates ?? []).map((template) => (
+          <DayRow key={template.id} onClick={() => setTemplateId(template.id)} style={{ cursor: 'pointer' }}>
             <GripVertical size={16} aria-hidden="true" />
-            {day}
+            {template.dayLabel ?? template.name}
           </DayRow>
         ))}
       </DayList>
 
       <Card>
-        <h2 style={{ marginTop: 0 }}>Day 1 — Push</h2>
-        {exercises.map((ex) => (
-          <ExerciseRowEl key={ex.id}>
-            <GripVertical size={16} aria-hidden="true" />
-            <div style={{ flex: 1 }}>
-              <strong>{ex.name}</strong>
-              <div style={{ fontSize: 13 }}>{ex.prescriptionSummary}</div>
-            </div>
-          </ExerciseRowEl>
-        ))}
+        <h2 style={{ marginTop: 0 }}>{activeTemplate?.dayLabel ?? activeTemplate?.name ?? 'Select a day'}</h2>
+        {(templateExercises ?? []).length === 0 ? (
+          <p>No exercises added to this day yet.</p>
+        ) : (
+          templateExercises!.map((ex) => (
+            <ExerciseRowEl key={ex.id}>
+              <GripVertical size={16} aria-hidden="true" />
+              <div style={{ flex: 1 }}>
+                <strong>{ex.exerciseId}</strong>
+                <div style={{ fontSize: 13 }}>{summarizePrescription(ex.prescription)}</div>
+              </div>
+            </ExerciseRowEl>
+          ))
+        )}
 
         <div style={{ marginTop: spacing[16] }}>
           <Select
@@ -131,6 +225,13 @@ export function ProgramEditorPage() {
 
         <button
           type="button"
+          onClick={() =>
+            programId &&
+            createTemplateMutation.mutate({
+              programId,
+              dayLabel: `Day ${(templates?.length ?? 0) + 1}`,
+            })
+          }
           style={{
             marginTop: spacing[16],
             width: '100%',
@@ -141,7 +242,7 @@ export function ProgramEditorPage() {
             cursor: 'pointer',
           }}
         >
-          <Plus size={16} style={{ marginRight: spacing[4] }} /> Add exercise
+          <Plus size={16} style={{ marginRight: spacing[4] }} /> Add day
         </button>
       </Card>
     </div>

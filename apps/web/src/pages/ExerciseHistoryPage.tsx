@@ -1,9 +1,11 @@
 import styled from 'styled-components';
-import { estimateOneRepMax } from '@setline/domain';
+import { useQuery } from '@tanstack/react-query';
+import { estimateOneRepMax, calculateVolume } from '@setline/domain';
 import { spacing } from '@setline/design-tokens';
 import { typeScale } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';
 import { Card, PRBadge } from '../components';
+import { useApiClient } from '../lib/api-client';
 
 /**
  * ExerciseHistory — web-nav-only per style guide §13/§14. Restrained
@@ -51,50 +53,104 @@ const SetLine = styled.div`
   color: ${(p) => p.theme.text.secondary};
 `;
 
-const topSetWeight = 195;
-const topSetReps = 6;
-const estimated1RM = Math.round(estimateOneRepMax(topSetWeight, topSetReps));
+const sessionsGroupKey = (localDate: string) => localDate;
 
-const sessions = [
-  { date: 'Aug 18, 2026', sets: ['195 × 6', '185 × 8', '185 × 8'], hasPr: true },
-  { date: 'Aug 11, 2026', sets: ['185 × 8', '185 × 8', '175 × 9'], hasPr: false },
-];
+interface HistorySetItem {
+  weightValue: number | null;
+  reps: number | null;
+  sessionLocalDate?: string;
+  isPrWeight?: boolean;
+  isPrReps?: boolean;
+}
+
+interface ExerciseHistoryResponse {
+  items: HistorySetItem[];
+  nextCursor: string | null;
+}
 
 export function ExerciseHistoryPage() {
+  const api = useApiClient();
+
+  const { data: exercises } = useQuery({
+    queryKey: ['exercises'],
+    queryFn: () => api.get<{ id: string; name: string }[]>('/exercises'),
+  });
+  const exercise = exercises?.[0] ?? null;
+
+  const { data: history, isLoading } = useQuery({
+    queryKey: ['exercise-history', exercise?.id],
+    // TODO: apps/api needs to implement GET /v1/exercises/:exerciseId/history
+    // — it's currently a stub that always returns `{ items: [], nextCursor:
+    // null }` (see apps/api/src/routes/exercises.ts), so this page shows an
+    // empty state until real historical set data is available.
+    queryFn: () => api.get<ExerciseHistoryResponse>(`/exercises/${exercise!.id}/history`),
+    enabled: !!exercise,
+  });
+
+  const sets = history?.items ?? [];
+  const topSet = sets.reduce<HistorySetItem | null>((best, s) => {
+    if (s.weightValue == null) return best;
+    if (!best || (best.weightValue ?? 0) < s.weightValue) return s;
+    return best;
+  }, null);
+  const estimated1RM = topSet?.weightValue != null && topSet.reps != null
+    ? Math.round(estimateOneRepMax(topSet.weightValue, topSet.reps))
+    : null;
+
+  const sessionsByDate = new Map<string, HistorySetItem[]>();
+  for (const set of sets) {
+    if (!set.sessionLocalDate) continue;
+    const key = sessionsGroupKey(set.sessionLocalDate);
+    sessionsByDate.set(key, [...(sessionsByDate.get(key) ?? []), set]);
+  }
+  const sessionDates = Array.from(sessionsByDate.keys()).sort().reverse();
+  const lastSessionSets = sessionDates[0] ? sessionsByDate.get(sessionDates[0])! : [];
+  const lastSessionVolume = calculateVolume(lastSessionSets);
+
   return (
     <div>
-      <h1>Barbell Bench Press</h1>
+      <h1>{exercise?.name ?? 'Exercise history'}</h1>
 
       <StatRow>
         <Card>
           <StatLabel>Top Set</StatLabel>
           <StatValue>
-            {topSetWeight} × {topSetReps}
+            {topSet ? `${topSet.weightValue} × ${topSet.reps}` : '—'}
           </StatValue>
         </Card>
         <Card>
           <StatLabel>Est. 1RM</StatLabel>
-          <StatValue>{estimated1RM} lb</StatValue>
+          <StatValue>{estimated1RM != null ? `${estimated1RM} lb` : '—'}</StatValue>
         </Card>
         <Card>
           <StatLabel>Last Session Volume</StatLabel>
-          <StatValue>4,510 lb</StatValue>
+          <StatValue>{lastSessionVolume ? `${lastSessionVolume.toLocaleString()} lb` : '—'}</StatValue>
         </Card>
       </StatRow>
 
-      {sessions.map((session) => (
-        <SessionCard key={session.date}>
-          <SessionHeader>
-            <strong>{session.date}</strong>
-            {session.hasPr ? <PRBadge /> : null}
-          </SessionHeader>
-          {session.sets.map((s, i) => (
-            <SetLine key={i}>
-              Set {i + 1}: {s}
-            </SetLine>
-          ))}
-        </SessionCard>
-      ))}
+      {isLoading ? (
+        <p>Loading history…</p>
+      ) : sessionDates.length === 0 ? (
+        <p>No logged sessions yet for this exercise.</p>
+      ) : (
+        sessionDates.map((date) => {
+          const sessionSets = sessionsByDate.get(date)!;
+          const hasPr = sessionSets.some((s) => s.isPrWeight || s.isPrReps);
+          return (
+            <SessionCard key={date}>
+              <SessionHeader>
+                <strong>{date}</strong>
+                {hasPr ? <PRBadge /> : null}
+              </SessionHeader>
+              {sessionSets.map((s, i) => (
+                <SetLine key={i}>
+                  Set {i + 1}: {s.weightValue} × {s.reps}
+                </SetLine>
+              ))}
+            </SessionCard>
+          );
+        })
+      )}
     </div>
   );
 }

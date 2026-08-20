@@ -5,6 +5,7 @@ import { spacing, radius } from '@setline/design-tokens';
 import { typeScale } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';
 import { Card, Button } from '../components';
+import { useApiClient } from '../lib/api-client';
 
 /**
  * Today — dashboard with a pre-workout preview card (style guide §18
@@ -18,20 +19,31 @@ import { Card, Button } from '../components';
  * `Screen/Web/Today`'s "planned workout + check-in on the left, ... on
  * the right" per style guide §14) only applies from `tablet` up.
  */
-interface TodayData {
-  plannedWorkout: {
-    name: string;
-    weekNumber: number;
-    dayNumber: number;
-    exerciseCount: number;
-    estimatedDurationMinutes: number;
+interface TodayMetric {
+  label: string;
+  value: string;
+  trendDirection: 'up' | 'down';
+  trendLabel: string;
+}
+
+/**
+ * Response shape of GET /v1/dashboard/today (see
+ * apps/api/src/routes/dashboard.ts) — a passthrough aggregate, not yet a
+ * finalized Zod schema. weekLabel/dayLabel/estimatedDurationMinutes are
+ * always null until phase-4 program-activation work lands server-side.
+ */
+interface DashboardTodayResponse {
+  localDate: string;
+  sessions: { id: string; status: string; templateId: string | null }[];
+  activitySummary: {
+    steps: number | null;
+    activeEnergyKcal: string | null;
+    exerciseMinutes: number | null;
   } | null;
-  metrics: {
-    label: string;
-    value: string;
-    trendDirection: 'up' | 'down';
-    trendLabel: string;
-  }[];
+  nutritionSnapshot: { caloriesKcal: string | null } | null;
+  weekLabel: string | null;
+  dayLabel: string | null;
+  estimatedDurationMinutes: number | null;
 }
 
 const Grid = styled.div`
@@ -105,51 +117,97 @@ const TrendRow = styled.div<{ $direction: 'up' | 'down' }>`
   color: ${(p) => (p.$direction === 'up' ? p.theme.status.success : p.theme.status.error)};
 `;
 
-async function fetchToday(): Promise<TodayData> {
-  // Placeholder shape until apps/api's Today endpoint is finalized (see
-  // docs/api.md). Falls back to representative sample data so the page
-  // renders meaningfully during development.
-  return {
-    plannedWorkout: {
-      name: 'Push Day',
-      weekNumber: 2,
-      dayNumber: 3,
-      exerciseCount: 5,
-      estimatedDurationMinutes: 50,
-    },
-    metrics: [
-      { label: 'Steps', value: '8,412', trendDirection: 'up', trendLabel: '+6% vs 30-day avg' },
-      { label: 'Active Calories', value: '410', trendDirection: 'up', trendLabel: '+3% vs 30-day avg' },
-      { label: 'Exercise Minutes', value: '32', trendDirection: 'down', trendLabel: '-8% vs 30-day avg' },
-      { label: 'Calories (MFP)', value: '2,180', trendDirection: 'down', trendLabel: '-2% vs 30-day avg' },
-    ],
-  };
+async function fetchToday(
+  api: ReturnType<typeof useApiClient>,
+  localDate: string,
+): Promise<DashboardTodayResponse> {
+  return api.get<DashboardTodayResponse>(`/dashboard/today?localDate=${localDate}`);
+}
+
+function todaysLocalDate(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 export function TodayPage() {
-  const { data } = useQuery({ queryKey: ['today'], queryFn: fetchToday });
+  const api = useApiClient();
+  const localDate = todaysLocalDate();
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['today', localDate],
+    queryFn: () => fetchToday(api, localDate),
+  });
+
+  const plannedSession = data?.sessions.find((s) => s.status !== 'abandoned') ?? null;
+
+  // TODO: apps/api's /v1/dashboard/today doesn't yet expose 30-day-avg
+  // comparisons (only raw daily_activity_summary/daily_nutrition_snapshot
+  // rows) — trend direction/label are display-only placeholders until a
+  // trend-comparison endpoint exists.
+  const rawMetrics: (TodayMetric | null)[] = data
+    ? [
+        data.activitySummary?.steps != null
+          ? {
+              label: 'Steps',
+              value: data.activitySummary.steps.toLocaleString(),
+              trendDirection: 'up',
+              trendLabel: 'today',
+            }
+          : null,
+        data.activitySummary?.activeEnergyKcal != null
+          ? {
+              label: 'Active Calories',
+              value: Math.round(Number(data.activitySummary.activeEnergyKcal)).toString(),
+              trendDirection: 'up',
+              trendLabel: 'today',
+            }
+          : null,
+        data.activitySummary?.exerciseMinutes != null
+          ? {
+              label: 'Exercise Minutes',
+              value: data.activitySummary.exerciseMinutes.toString(),
+              trendDirection: 'up',
+              trendLabel: 'today',
+            }
+          : null,
+        data.nutritionSnapshot?.caloriesKcal != null
+          ? {
+              label: 'Calories (MFP)',
+              value: Math.round(Number(data.nutritionSnapshot.caloriesKcal)).toLocaleString(),
+              trendDirection: 'up',
+              trendLabel: 'today',
+            }
+          : null,
+      ]
+    : [];
+  const metrics: TodayMetric[] = rawMetrics.filter((m): m is TodayMetric => m !== null);
 
   return (
     <Grid>
       <Section>
         <SectionTitle>Today's Workout</SectionTitle>
         <Card>
-          {data?.plannedWorkout ? (
+          {isLoading ? (
+            <span>Loading…</span>
+          ) : isError ? (
+            <span>Couldn't load today's plan.</span>
+          ) : plannedSession ? (
             <>
-              <strong>{data.plannedWorkout.name}</strong>
+              <strong>Workout in progress</strong>
               <WorkoutSubtitle>
-                Week {data.plannedWorkout.weekNumber} · Day {data.plannedWorkout.dayNumber} ·{' '}
-                {data.plannedWorkout.exerciseCount} exercises · ~
-                {data.plannedWorkout.estimatedDurationMinutes - 5}–
-                {data.plannedWorkout.estimatedDurationMinutes + 5} min
+                Status: {plannedSession.status}
+                {data?.estimatedDurationMinutes ? ` · ~${data.estimatedDurationMinutes} min` : ''}
               </WorkoutSubtitle>
               <ActionRow>
-                <Button variant="primary">Start Workout</Button>
+                <Button variant="primary">Continue Workout</Button>
                 <Button variant="secondary">Preview</Button>
               </ActionRow>
             </>
           ) : (
-            <span>No workout planned today.</span>
+            <>
+              <span>No workout planned today.</span>
+              <ActionRow>
+                <Button variant="primary">Start Ad-hoc Workout</Button>
+              </ActionRow>
+            </>
           )}
         </Card>
       </Section>
@@ -157,19 +215,25 @@ export function TodayPage() {
       <Section>
         <SectionTitle>From Apple Health</SectionTitle>
         <MetricGrid>
-          {data?.metrics.map((metric) => {
-            const TrendIcon = metric.trendDirection === 'up' ? TrendingUp : TrendingDown;
-            return (
-              <MetricTile key={metric.label}>
-                <MetricLabel>{metric.label}</MetricLabel>
-                <MetricValue>{metric.value}</MetricValue>
-                <TrendRow $direction={metric.trendDirection}>
-                  <TrendIcon size={14} aria-hidden="true" />
-                  {metric.trendLabel}
-                </TrendRow>
-              </MetricTile>
-            );
-          })}
+          {isLoading ? (
+            <span>Loading…</span>
+          ) : metrics.length === 0 ? (
+            <span>No Apple Health data synced for today yet.</span>
+          ) : (
+            metrics.map((metric) => {
+              const TrendIcon = metric.trendDirection === 'up' ? TrendingUp : TrendingDown;
+              return (
+                <MetricTile key={metric.label}>
+                  <MetricLabel>{metric.label}</MetricLabel>
+                  <MetricValue>{metric.value}</MetricValue>
+                  <TrendRow $direction={metric.trendDirection}>
+                    <TrendIcon size={14} aria-hidden="true" />
+                    {metric.trendLabel}
+                  </TrendRow>
+                </MetricTile>
+              );
+            })
+          )}
         </MetricGrid>
       </Section>
     </Grid>

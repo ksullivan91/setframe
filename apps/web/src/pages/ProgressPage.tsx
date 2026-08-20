@@ -1,8 +1,10 @@
 import styled from 'styled-components';
+import { useQuery } from '@tanstack/react-query';
 import { spacing } from '@setline/design-tokens';
 import { typeScale } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';
 import { Card } from '../components';
+import { useApiClient } from '../lib/api-client';
 
 /**
  * Progress — trend cards (label + headline + delta + sparkline) and the
@@ -85,54 +87,106 @@ const Dot = styled.div<{ $filled: boolean }>`
   background: ${(p) => (p.$filled ? p.theme.action.primary : p.theme.action.accentSubtle)};
 `;
 
-const trends = [
-  { label: 'Body weight (30 days)', value: '182.4 lb', delta: '-3.1 lb since Jul 21', bars: [40, 55, 50, 60, 45, 65] },
-  { label: 'Bench press top set', value: '195 × 6', delta: 'Est. 1RM 232 lb, +12 lb this month', bars: [30, 40, 50, 55, 60, 70] },
-  { label: 'Weekly volume', value: '18,240 lb', delta: '+8% vs last week', bars: [50, 45, 60, 55, 65, 75] },
-  { label: 'Squat Est. 1RM', value: '285 lb', delta: '+15 lb this month', bars: [35, 45, 55, 60, 65, 80] },
-  { label: 'Workouts this month', value: '14', delta: 'vs 11 last month', bars: [20, 40, 60, 55, 70, 90] },
-];
+interface ConsistencyWeek {
+  weekStart: string;
+  plannedCount: number;
+  completedCount: number;
+  completionRatio: number | null;
+}
 
-// 8 weeks × 4 sessions/week planned; filled = completed session.
-const completedPerWeek = [4, 4, 3, 4, 4, 2, 3, 3];
+interface ProgressPoint {
+  localDate: string;
+  estimatedOneRepMax?: number;
+  volume?: number;
+}
 
 export function ProgressPage() {
+  const api = useApiClient();
+
+  const { data: weeks, isLoading: consistencyLoading } = useQuery({
+    queryKey: ['progress-consistency'],
+    queryFn: () => api.get<ConsistencyWeek[]>('/progress/consistency?weeks=8'),
+  });
+
+  const { data: exercises } = useQuery({
+    queryKey: ['exercises'],
+    queryFn: () => api.get<{ id: string; name: string }[]>('/exercises'),
+  });
+  const primaryExercise = exercises?.[0] ?? null;
+
+  const { data: exerciseProgress } = useQuery({
+    queryKey: ['exercise-progress', primaryExercise?.id],
+    // TODO: apps/api's GET /v1/exercises/:exerciseId/progress is a stub
+    // that always returns `{ points: [] }` (see apps/api/src/routes/
+    // exercises.ts) — the 1RM/volume trend cards below fall back to an
+    // empty state until that route computes real trend data.
+    queryFn: () => api.get<{ points: ProgressPoint[] }>(`/exercises/${primaryExercise!.id}/progress`),
+    enabled: !!primaryExercise,
+  });
+
+  const points = exerciseProgress?.points ?? [];
+  const latestPoint = points[points.length - 1] ?? null;
+
+  const trends = [
+    latestPoint?.estimatedOneRepMax != null
+      ? {
+          label: `${primaryExercise?.name ?? 'Exercise'} Est. 1RM`,
+          value: `${Math.round(latestPoint.estimatedOneRepMax)} lb`,
+          delta: '',
+          bars: points.slice(-6).map((p) => Math.min(100, (p.estimatedOneRepMax ?? 0) / 3)),
+        }
+      : null,
+  ].filter((t): t is NonNullable<typeof t> => t !== null);
+
+  const completedPerWeek = weeks?.map((w) => w.completedCount) ?? [];
+  const plannedPerWeek = weeks?.map((w) => w.plannedCount) ?? [];
   const totalCompleted = completedPerWeek.reduce((a, b) => a + b, 0);
-  const totalPlanned = completedPerWeek.length * 4;
+  const totalPlanned = plannedPerWeek.reduce((a, b) => a + b, 0);
+  const maxDots = Math.max(4, ...completedPerWeek, ...plannedPerWeek);
 
   return (
     <div>
       <h1>Progress</h1>
 
-      <CardGrid>
-        {trends.map((trend) => (
-          <Card key={trend.label}>
-            <TrendLabel>{trend.label}</TrendLabel>
-            <TrendValue>{trend.value}</TrendValue>
-            <TrendDelta>{trend.delta}</TrendDelta>
-            <Sparkline>
-              {trend.bars.map((h, i) => (
-                <Bar key={i} $height={h} />
-              ))}
-            </Sparkline>
-          </Card>
-        ))}
-      </CardGrid>
+      {trends.length > 0 && (
+        <CardGrid>
+          {trends.map((trend) => (
+            <Card key={trend.label}>
+              <TrendLabel>{trend.label}</TrendLabel>
+              <TrendValue>{trend.value}</TrendValue>
+              <TrendDelta>{trend.delta}</TrendDelta>
+              <Sparkline>
+                {trend.bars.map((h, i) => (
+                  <Bar key={i} $height={h} />
+                ))}
+              </Sparkline>
+            </Card>
+          ))}
+        </CardGrid>
+      )}
 
       <Card>
         <h2 style={{ marginTop: 0 }}>Consistency (last 8 weeks)</h2>
-        <StreakGrid>
-          {completedPerWeek.map((completed, weekIndex) => (
-            <WeekColumn key={weekIndex}>
-              {Array.from({ length: 4 }).map((_, dotIndex) => (
-                <Dot key={dotIndex} $filled={dotIndex < completed} />
+        {consistencyLoading ? (
+          <p>Loading…</p>
+        ) : completedPerWeek.length === 0 ? (
+          <p>No workout history yet — complete a workout to see your streak here.</p>
+        ) : (
+          <>
+            <StreakGrid>
+              {completedPerWeek.map((completed, weekIndex) => (
+                <WeekColumn key={weekIndex}>
+                  {Array.from({ length: maxDots }).map((_, dotIndex) => (
+                    <Dot key={dotIndex} $filled={dotIndex < completed} />
+                  ))}
+                </WeekColumn>
               ))}
-            </WeekColumn>
-          ))}
-        </StreakGrid>
-        <p style={{ fontWeight: 600, marginBottom: 0 }}>
-          4-week streak · {totalCompleted} of {totalPlanned} planned sessions completed
-        </p>
+            </StreakGrid>
+            <p style={{ fontWeight: 600, marginBottom: 0 }}>
+              {totalCompleted} of {totalPlanned || totalCompleted} sessions completed
+            </p>
+          </>
+        )}
       </Card>
     </div>
   );

@@ -1,8 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import styled from 'styled-components';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useUser } from '@clerk/clerk-react';
 import { spacing, radius } from '@setline/design-tokens';
 import { typeScale } from '../theme/typeScale';
 import { Card, Button } from '../components';
+import { useApiClient } from '../lib/api-client';
+import type { NotificationPreference, User } from '@setline/schemas';
 
 /**
  * Settings — Account/Preferences/Apple Health sync/Notifications/Danger
@@ -65,9 +69,58 @@ const ToggleButton = styled.button<{ $on: boolean }>`
   }
 `;
 
+interface AppleHealthSyncState {
+  status: string;
+  lastSuccessAt: string | null;
+}
+
 export function SettingsPage() {
+  const api = useApiClient();
+  const queryClient = useQueryClient();
+  const { user: clerkUser } = useUser();
+
+  const { data: me } = useQuery({
+    queryKey: ['me'],
+    queryFn: () => api.get<User>('/me'),
+  });
+
+  const { data: notificationPrefs } = useQuery({
+    queryKey: ['notification-preferences'],
+    queryFn: () => api.get<NotificationPreference>('/me/notification-preferences'),
+  });
+
+  const { data: syncState } = useQuery({
+    queryKey: ['apple-health-sync-state'],
+    queryFn: () => api.get<AppleHealthSyncState>('/integrations/apple-health/sync-state'),
+  });
+
   const [workoutReminders, setWorkoutReminders] = useState(true);
   const [weeklySummary, setWeeklySummary] = useState(true);
+
+  useEffect(() => {
+    if (notificationPrefs) {
+      setWorkoutReminders(notificationPrefs.workoutRemindersEnabled);
+      setWeeklySummary(notificationPrefs.weeklySummaryEnabled);
+    }
+  }, [notificationPrefs]);
+
+  const updateNotificationPrefs = useMutation({
+    mutationFn: (patch: Partial<NotificationPreference>) =>
+      api.patch<NotificationPreference>('/me/notification-preferences', patch),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notification-preferences'] }),
+  });
+
+  function toggleWorkoutReminders() {
+    const next = !workoutReminders;
+    setWorkoutReminders(next);
+    updateNotificationPrefs.mutate({ workoutRemindersEnabled: next });
+  }
+
+  function toggleWeeklySummary() {
+    const next = !weeklySummary;
+    setWeeklySummary(next);
+    updateNotificationPrefs.mutate({ weeklySummaryEnabled: next });
+  }
 
   return (
     <div>
@@ -78,7 +131,7 @@ export function SettingsPage() {
         <Card>
           <Row>
             <span>Email</span>
-            <Value>you@example.com</Value>
+            <Value>{clerkUser?.primaryEmailAddress?.emailAddress ?? '—'}</Value>
           </Row>
           <Row>
             <span>Manage account</span>
@@ -92,11 +145,11 @@ export function SettingsPage() {
         <Card>
           <Row>
             <span>Units</span>
-            <Value>Imperial (lb) &rsaquo;</Value>
+            <Value>{me?.preferredUnits === 'metric' ? 'Metric (kg)' : 'Imperial (lb)'} &rsaquo;</Value>
           </Row>
           <Row>
             <span>Timezone</span>
-            <Value>America/Chicago</Value>
+            <Value>{me?.timezone || '—'}</Value>
           </Row>
         </Card>
       </Section>
@@ -106,11 +159,20 @@ export function SettingsPage() {
         <Card>
           <Row>
             <span>Apple Health sync</span>
-            <Value $tone="success">Connected &rsaquo;</Value>
+            <Value $tone={syncState?.status === 'ok' ? 'success' : undefined}>
+              {syncState?.status === 'ok'
+                ? 'Connected'
+                : syncState?.status === 'never_synced'
+                  ? 'Not connected'
+                  : (syncState?.status ?? 'Unknown')}{' '}
+              &rsaquo;
+            </Value>
           </Row>
           <Row>
             <span>Last synced</span>
-            <Value>2 minutes ago</Value>
+            <Value>
+              {syncState?.lastSuccessAt ? new Date(syncState.lastSuccessAt).toLocaleString() : 'Never'}
+            </Value>
           </Row>
         </Card>
       </Section>
@@ -126,7 +188,7 @@ export function SettingsPage() {
               aria-checked={workoutReminders}
               aria-label="Workout reminders"
               $on={workoutReminders}
-              onClick={() => setWorkoutReminders((v) => !v)}
+              onClick={toggleWorkoutReminders}
             />
           </Row>
           <Row>
@@ -137,7 +199,7 @@ export function SettingsPage() {
               aria-checked={weeklySummary}
               aria-label="Weekly progress summary"
               $on={weeklySummary}
-              onClick={() => setWeeklySummary((v) => !v)}
+              onClick={toggleWeeklySummary}
             />
           </Row>
         </Card>
@@ -151,7 +213,11 @@ export function SettingsPage() {
               <div>Delete account</div>
               <Value $tone="destructive">This cannot be undone</Value>
             </div>
-            <Button variant="destructive">Delete account</Button>
+            {/* TODO: apps/api has no account-deletion endpoint yet — this
+                button is intentionally inert until one exists. */}
+            <Button variant="destructive" disabled>
+              Delete account
+            </Button>
           </Row>
         </Card>
       </Section>

@@ -764,3 +764,20 @@ expected app settings for Notifications:
    context) to validate the tokens against real content sooner.
 3. Ramp the status colors once a concrete use case needs a tint/shade
    (e.g. a toast or badge background).
+
+## 20. Real API wiring + mock-mode dev script
+
+- All `apps/web/src/pages/*.tsx` now call the real Fastify API (via
+  `useApiClient()` + `@tanstack/react-query`) instead of rendering
+  hardcoded sample data. `npm run dev` (the default) requires a running
+  `apps/api` dev server and talks to it directly.
+- For design/feature iteration without a backend, `npm run dev:mock`
+  (sets `VITE_USE_MOCKS=true`) starts an MSW (`msw/browser`) service
+  worker — see `apps/web/src/mocks/handlers.ts` for the mocked routes and
+  `apps/web/src/mocks/browser.ts` for the worker setup. The old hardcoded
+  page mock data was moved into these handlers rather than discarded.
+- Some routes exposed by the real API are still stubs returning empty
+  data (`GET /v1/exercises/:exerciseId/history` and `/progress`, and
+  there's no `GET` list endpoint for a template's exercises) — pages
+  using them show an empty/loading state with a `// TODO: apps/api needs
+  to expose X` comment at the call site until the backend fills those in.

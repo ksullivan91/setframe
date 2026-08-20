@@ -15,19 +15,34 @@ const queryClient = new QueryClient();
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('Root element not found');
 
-createRoot(rootElement).render(
-  <StrictMode>
-    <ClerkProvider publishableKey={env.clerkPublishableKey}>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider theme={getTheme('light')}>
-          <GlobalStyle />
-          <ToastProvider>
-            <BrowserRouter>
-              <App />
-            </BrowserRouter>
-          </ToastProvider>
-        </ThemeProvider>
-      </QueryClientProvider>
-    </ClerkProvider>
-  </StrictMode>,
-);
+/**
+ * `npm run dev:mock` sets VITE_USE_MOCKS=true so design/feature iteration
+ * can happen against MSW-mocked responses (src/mocks/handlers.ts) without
+ * a running apps/api backend or live DB. `npm run dev` (the default)
+ * leaves this off and talks to the real API.
+ */
+async function prepare() {
+  if (env.useMocks) {
+    const { worker } = await import('./mocks/browser');
+    await worker.start({ onUnhandledRequest: 'bypass' });
+  }
+}
+
+prepare().then(() => {
+  createRoot(rootElement).render(
+    <StrictMode>
+      <ClerkProvider publishableKey={env.clerkPublishableKey}>
+        <QueryClientProvider client={queryClient}>
+          <ThemeProvider theme={getTheme('light')}>
+            <GlobalStyle />
+            <ToastProvider>
+              <BrowserRouter>
+                <App />
+              </BrowserRouter>
+            </ToastProvider>
+          </ThemeProvider>
+        </QueryClientProvider>
+      </ClerkProvider>
+    </StrictMode>,
+  );
+});
