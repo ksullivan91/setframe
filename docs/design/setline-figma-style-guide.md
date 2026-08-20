@@ -546,11 +546,15 @@ especially less-common variables (spacing values above `24`,
 `AccentSubtle`, etc.), since a wrong-but-plausible ID fails silently
 until it's actually dereferenced.
 
+**Web parity (added same pass)**: `Screen/Web/Training` (`26:2`) now
+mirrors the same pattern — "prev 180 lb" / "prev 8 reps" ghost text
+under Set 1 and Set 2's weight/reps values, "prev 175 lb" / "prev 9
+reps" under Set 3, and a trophy PR badge next to Set 3's rep count
+(same Lucide `trophy`, `Semantic/Action/Primary` stroke, smaller at
+16×16 to fit the denser web row height). Screenshot-verified.
+
 **Not yet done / open questions**:
 
-- Web `Screen/Web/Training` (`26:2`) does not yet have equivalent ghost
-  text or a PR badge — not yet discussed with the user whether web
-  should mirror this for parity.
 - Research Ideas 3–5 (progression-rule plain-language labels in
   ProgramEditor, a curated HealthKit metric grid on the Today screens,
   a pre-workout preview card) are approved-for-later but not started.
