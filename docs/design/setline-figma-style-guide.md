@@ -644,6 +644,116 @@ Ideas 1–2). User approved implementing all three in this pass.
   further research-driven work is queued unless the user requests
   another round or flags additional apps to study.
 
+> **Note**: all `x=`/`y=` coordinates and "mobile row"/"web row"
+> references in earlier sections (§10–§18) describe the file as it
+> existed on the old single `📱 Screens` page, which no longer exists
+> as of §19 below. See §19.2 for current page/frame organization.
+
+## 19. File-wide audit, page reorganization, and dashboard enrichment
+
+**Grounding**: user request to review the current designs for color
+correctness, reorganize screens into a real user-flow order instead of
+build-order sprawl, split mobile/web onto their own Figma pages, and
+enrich sparse screens (Progress, Settings) with more dashboard content.
+
+### 19.1 Color/style audit
+
+Ran a full programmatic scan of every fill/stroke on every node across
+all 19 screens, checking for paints not bound to a design-system
+variable. Found and fixed 7 issues:
+
+- **6 stray hardcoded white fills** on icon-wrapper frames (the Lucide
+  `trophy` PR-badge icons added in §17, on
+  `Screen/Mobile/WorkoutLogger`, `Screen/Web/Training`, and
+  `Screen/Mobile/SessionSummary`) — same root cause as the §15 grip-icon
+  bug: a wrapper frame inherited a solid fill from the text node it
+  replaced. Fixed by clearing `fills = []` on each wrapper.
+- **1 hardcoded black text fill** on the "Progression rule: Double
+  progression" label added to `Screen/Mobile/ProgramEditor` in §18 —
+  was never bound to `Semantic/Text/Primary` when it was written.
+  Fixed by binding it properly.
+
+Re-ran the scan after fixes: **zero unbound colors remain anywhere in
+the file.** This audit + fix should be treated as a periodic practice
+after any batch of programmatic component/icon insertions, since the
+wrapper-inherited-fill bug has now recurred twice (§15, §19) with the
+same shape (icon replaces a text node, wrapper frame keeps the old
+fill).
+
+### 19.2 Page reorganization: Mobile/Web split + flow order
+
+The single `📱 Screens` page (19 frames placed in build order across
+two rows) was split into two dedicated pages:
+
+- **`📱 Mobile`** (10 frames) — SignIn → SignUp → Today →
+  WorkoutLogger → SessionSummary → ProgramEditor → ExerciseHistory →
+  Progress → Settings → `Shell/Mobile/TabBar`, left-to-right in a single
+  row, ordered to match the real signup-to-daily-use user flow rather
+  than the order screens were originally built in.
+- **`🖥️ Web`** (9 frames) — SignIn → SignUp → Today → Training →
+  ProgramEditor → ExerciseHistory → Progress → Settings →
+  `Shell/Web/AppShell`, same flow-ordered single row.
+
+The old `📱 Screens` page was deleted once confirmed empty. Verified
+via a programmatic bounding-box collision check on both new pages:
+**zero overlaps** on either page after the move (frame heights grew on
+some screens per §19.3 below, but the flat single-row layout with
+120px x-gaps has no vertical collision risk since every frame starts
+at `y=0`).
+
+### 19.3 Dashboard enrichment (Progress + Settings)
+
+Both screens were flagged as visually sparse. Enriched both platforms
+identically:
+
+**Progress** (`Screen/Mobile/Progress` node `19:2`,
+`Screen/Web/Progress` node `29:2`) — grounded in the domain functions
+already named in §9 (`estimateOneRepMax`, `calculateVolume`) and daily
+manual inputs in §10:
+
+- Added **2 new trend cards** reusing the exact card pattern from the
+  original 3 (label + big value + delta subtitle + 6-bar sparkline):
+  "Squat Est. 1RM" (285 lb, +15 lb this month) and "Workouts This
+  Month" (14, vs 11 last month).
+- Added a new **"Consistency (last 8 weeks)" streak widget** — 8
+  columns of 4 dots each (one dot per week of a theoretical 4-session
+  program), filled dots bound to `Semantic/Action/Primary`, empty dots
+  to `Semantic/Action/AccentSubtle`, plus a bold summary line ("4-week
+  streak · 27 of 32 planned sessions completed").
+- Web version required wrapping the trend-card row (`layoutWrap:
+  "WRAP"`, fixed width, explicit `counterAxisSpacing`) since 5 cards no
+  longer fit one 1280px-wide row — this was not needed on mobile since
+  cards were already stacked vertically.
+- Screenshot-verified on both platforms.
+
+**Settings** (`Screen/Mobile/Settings` node `20:2`,
+`Screen/Web/Settings` node `29:38`) — grounded in the
+`integration_sync_state` data model entity (master prompt "Integration
+sync state" section) for the new Health Sync section, plus standard
+expected app settings for Notifications:
+
+- Added an **"Apple Health sync" section**: "Apple Health sync —
+  Connected ›" (value text bound to `Semantic/Status/Success`, green)
+  and "Last synced — 2 minutes ago".
+- Added a **"Notifications" section**: "Workout reminders — On ›" and
+  "Weekly progress summary — On ›".
+- Both new sections were built by cloning the existing
+  Units/Timezone card (identical bordered-card-of-label/value-rows
+  pattern) and editing the cloned text nodes, keeping the section
+  visually and structurally consistent with Account/Preferences/Danger
+  zone rather than introducing a new card style.
+- Screenshot-verified on both platforms.
+
+**Not yet done / open questions**:
+
+- Idea 4's dimmed "Connect" state for unauthorized HealthKit metrics
+  (still open from §18).
+- Further dashboard enrichment (e.g. richer ExerciseHistory, a
+  Today-screen weekly-mini-calendar) was not requested this pass but
+  could be a natural next step if more screens still feel sparse after
+  review.
+- No dark-mode pass yet (still deferred per earlier user direction).
+
 ## Next steps
 
 1. Review the live Figma file directly and confirm the accent ramp,
