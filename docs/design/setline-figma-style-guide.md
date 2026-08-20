@@ -84,6 +84,51 @@ All built with auto-layout (Flexbox-equivalent), not absolute positioning
   "most important component," Setline-original (not sourced from any
   reference file).
 
+### 6. Second round of foundation components — grounded in real MVP flows
+
+Every component below was built to satisfy a specific, cited requirement
+in `github-copilot-fitness-app-master-prompt.md` — not speculative UI:
+
+- **`Card`** (node `8:2`) — the audit/design-system doc explicitly warns
+  against "everything is a floating card" (File 1's tendency); to avoid
+  building a decorative wrapper, this is demonstrated as an **exercise
+  block** grouping 3 sets under one exercise name, matching §5's
+  "genuinely distinct groupings" rule and §13's exercise-history/session
+  display needs.
+- **`TextField/Numeric`** (node `8:18`) — labeled numeric input with a
+  unit suffix (`lb`), directly for §10's manual daily inputs (morning
+  weight, systolic/diastolic BP) and §13/§15's numeric-keyboard entry
+  requirement. Unit suffix matters because weight, reps, and BP are all
+  unitless numbers without it.
+- **`Checkbox/Checked` + `Checkbox/Unchecked`** (nodes `8:23`, `8:25`) —
+  §13's "quick completion" for inline set rows: a single tap to mark a
+  set done, explicitly *not* a modal per set.
+- **`IconButton`** ×4 (nodes `8:26`–`8:32`, add/remove/duplicate/reorder)
+  — §13's "add/remove/reorder, duplicate previous set" actions. Sized
+  28–32px circular tap targets (icon-only, no label) to stay compact in
+  an inline row while still meeting §15's "large targets" mobile intent.
+  Icon glyphs are text placeholders pending a real icon set decision.
+- **`SyncStatusPill`** ×3 states — synced / syncing / needs-attention
+  (nodes `8:34`, `8:37`, `8:40`) — §13's Today-screen requirement to show
+  "last sync state," an unobtrusive "Updating health data…" indicator
+  during reconciliation, and the master spec's rule to show *actionable*
+  status (not generic failure) when HealthKit needs attention — hence a
+  distinct caution-colored "Health access needed" state rather than a
+  single generic error pill.
+- **`SetRow/Editable`** (node `8:43`) — the fuller version of the
+  master-spec's flagged "most important component." Combines checkbox +
+  set number + weight input + "×" + reps input + duplicate/remove icons
+  in one inline row, directly implementing §13's line: "inline editable
+  set rows; no modal per set... numeric keyboard, next-field navigation,
+  quick completion, add/remove/reorder, duplicate previous set." The
+  earlier static `SetRow` (read-only, with PR badge) remains as the
+  **history/log display variant** — the two are deliberately different
+  components for different contexts (editing live vs. reviewing past
+  sessions), not a duplicate.
+
+All of the above are bound to `Semantic/*` and `Spacing`/`Radius`
+variables, no hardcoded hex/px, and were screenshot-verified.
+
 ## What's intentionally not done yet
 
 - **Status color ramp**: only single swatches exist for
@@ -99,10 +144,15 @@ All built with auto-layout (Flexbox-equivalent), not absolute positioning
 - **No dark-mode screenshot verification** — modes are wired correctly
   (semantic aliases flip), but no screenshot has been taken with the
   Dark mode active to visually confirm it end-to-end.
-- **No Card/Stack/Inline/NumericText primitives** as named in
-  `setline-design-system.md` §7 — `MetricTile` and `SetRow` were built
-  directly rather than composed from lower-level primitives first; worth
-  revisiting once more screens exist and repeated patterns emerge.
+- **`Card` now exists** (see §6 above), but `Stack`/`Inline`/`NumericText`
+  as named low-level primitives in `setline-design-system.md` §7 still
+  don't — `MetricTile`, `SetRow`, and the new components were built
+  directly with ad hoc auto-layout rather than composed from shared
+  layout primitives first; worth revisiting once more screens exist and
+  repeated patterns emerge.
+- **Icon set undecided** — `IconButton` glyphs are text-character
+  placeholders (`+`, `−`, `⧉`, `≡`), not real icons; needs a decision
+  (e.g. Lucide/Phosphor) before implementation.
 - **No web `AppShell` or mobile tab shell** yet (§7 items 4–5) — still
   foundation-only, per the user's "start designing" request scoped to
   style guide + first components, not full screens.
