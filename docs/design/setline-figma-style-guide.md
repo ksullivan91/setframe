@@ -331,13 +331,89 @@ authenticated-app screens).
 
 ## What's intentionally not done yet (updated)
 
-- **Web nav items without screens**: "Training" (day-by-day workout
-  list) and web-width equivalents of Progress/Settings — only mobile
-  versions of those two exist so far.
 - Everything else previously listed under §"What's intentionally not
   done yet" above remains true (icon set undecided, no dark-mode
   screenshot pass, AppShell content area still a placeholder, etc.) —
   see that section for the full list.
+
+## 14. Layout reorganization + full mobile/web parity pass
+
+**Trigger**: user flagged that screens were still landing on top of
+each other (`Screen/Web/SignUp` had landed at the same `x=0, y=900` as
+`Screen/Mobile/Today`), and asked to organize mobile vs. web screens
+more clearly, building out whichever platform was missing a given
+screen.
+
+**Spec re-check before building**: §13 confirms `Web nav: Today,
+Training, History, Progress, Settings` vs. `Mobile tabs: Today,
+Training, Progress, Settings` — the two nav lists are identical except
+History is web-only. §13's Program Editor line adds: *"Web can be
+richer; mobile may have lighter editing initially."* This means, per
+spec, every screen except Exercise History needs both a mobile and web
+version — Exercise History is intentionally web-nav-only, but the user
+asked for a lightweight mobile version too (reachable as a drill-in, not
+a tab-bar destination).
+
+**Canvas reorganization**: all screens repositioned into two aligned
+rows on `📱 Screens`, ordered by nav sequence (Sign In → Sign Up →
+Today → Training → Program Editor → History → Progress → Settings →
+Shell):
+- Web row at `y=0`, mobile row at `y=900`.
+- Verified programmatically (bounding-box overlap check across all 18
+  frames) — zero collisions after the pass.
+
+**New screens built to close parity gaps:**
+- `Screen/Web/Today` (node `25:2`) — same §13 fields as mobile, but a
+  2-column layout (planned workout + check-in on the left, Apple Health
+  metric grid on the right) since web width allows parallel content
+  without the vertical scroll mobile needs.
+- `Screen/Web/Training` (node `26:2`) — the web counterpart to
+  `WorkoutLogger`. Main column reuses the same exercise-block/set-row
+  pattern as mobile for consistency; adds a persistent "Session Summary"
+  sidebar (elapsed time, sets completed, volume so far) that mobile's
+  width can't afford as a standing panel — a "web can be richer"
+  enrichment, not a new requirement.
+- `Screen/Mobile/ProgramEditor` (node `29:59`) — the "lighter" mobile
+  editing experience §13 explicitly calls for: program title/status
+  pill, weekly day sequence (view + reorder handles), one expanded
+  day's exercise list as view-only prescriptions, and an explicit note
+  ("Edit on web for reorder, prescriptions, and progression rules")
+  rather than replicating web's inline progression-rule dropdown.
+- `Screen/Mobile/ExerciseHistory` (node `29:91`) — explicitly NOT a tab
+  bar destination (History stays web-nav-only per §13); built as a
+  drill-in screen (e.g. tapping an exercise name from a past session)
+  with a condensed single-row stat strip instead of web's 3 separate
+  tiles, and a shorter session list.
+- `Screen/Web/Progress` (node `29:2`) — same 3 trend cards as mobile
+  (§11), arranged in a 3-column row instead of stacked, since web width
+  fits all three without scrolling.
+- `Screen/Web/Settings` (node `29:38`) — same content as mobile (§33
+  deletion allowance, Clerk hand-off, `preferred_units`), but centered
+  in a single ~560px column rather than full-bleed — settings content
+  doesn't benefit from extra horizontal space the way data-dense
+  screens do.
+- `Screen/Mobile/SignIn` (node `29:117`) and `Screen/Mobile/SignUp`
+  (node `29:128`) — same Clerk-chrome pattern as the existing web
+  versions (§10/§13), just narrower `AuthCard` (342px vs. 360px) to fit
+  the 390px mobile frame.
+
+**Result**: 18 total frames on `📱 Screens`, full mobile+web parity for
+every screen except Exercise History (web = full stat/history nav
+destination, mobile = lighter drill-in only, by design), zero overlaps
+verified both visually and via bounding-box check.
+
+## What's intentionally not done yet (as of §14)
+
+- **Mobile Program Editor's "+ Add exercise" and progression-rule
+  editing** are explicitly deferred to web — the mobile screen shows a
+  note pointing users to web rather than a stubbed-out lighter version
+  of those flows. Worth a follow-up decision on whether *any* mobile
+  editing (e.g. simple reorder) should be interactive-feeling in a later
+  pass, or if "view + redirect to web" is the permanent mobile answer.
+- Everything else previously listed under earlier "not done yet"
+  sections remains true (icon set undecided, no dark-mode screenshot
+  pass, AppShell content area still a placeholder, no interactive
+  drag-reorder prototyping, etc.).
 
 ## How this was built
 
