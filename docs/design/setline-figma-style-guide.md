@@ -200,6 +200,36 @@ established rather than inventing new visual language — validates that
 the token/component set from §5–§8 holds up under denser, more realistic
 content.
 
+### 10. Sign In + Program Editor — completing the named §13 screen list
+
+- **`Screen/Web/SignIn`** (node `17:2`) — this does **not** redesign
+  Clerk's own `<SignIn/>` component (per §11.5, Clerk owns the actual
+  auth UI/logic); it documents the page chrome around Clerk's mount
+  point: centered card, Setline wordmark + tagline, minimal surrounding
+  layout. Field/button styling is illustrative of Clerk's appearance-API
+  theming target, not custom-built production form fields.
+- **`Screen/Web/ProgramEditor`** (node `18:12`) — the last named MVP
+  screen from §13 ("Create program, weekly/day sequence, workouts,
+  exercises, reorder, prescriptions, progression rule, activation. Web
+  can be richer"). Includes: program title + Active-status pill +
+  Archive action; a `ProgramDayCard` weekly sequence list (drag handles
+  for day reorder, exercise counts per day); an expanded
+  `ProgramDayDetail` card for "Day 1 — Push" showing per-exercise
+  prescriptions (sets × reps @ weight) with drag handles (exercise
+  reorder), a `Select/Dropdown`-based progression-rule picker, and the
+  same "+ Add exercise" convention used in the Workout Logger screen for
+  consistency.
+
+**Layout correction**: all 7 screen/shell frames were initially created
+without explicit `x`/`y` coordinates and stacked at the same origin
+(invisible overlap, only visible once placed side-by-side or scrolled).
+Fixed by auditing every frame's actual parent page (2 shells and 1 screen
+had also silently landed on the wrong page — `📖 Cover` instead of
+`📱 Screens` — because the current-page context wasn't re-set before
+those specific `use_figma` calls) and assigning each a distinct grid
+position with generous gutters. Screenshotted the whole `📱 Screens` page
+afterward to confirm zero overlap.
+
 ## What's intentionally not done yet
 
 - **Status color ramp**: only single swatches exist for
@@ -231,13 +261,15 @@ content.
   (e.g. Lucide/Phosphor) before implementation.
 - **Web AppShell's Training/History/Progress/Settings nav items** have no
   corresponding screens yet — only "Today" (mobile) has real content.
-- **Program editor screen** (§13: create program, weekly/day sequence,
-  reorder, prescriptions, progression rule via `Select/Dropdown`,
-  activation) not yet built — the remaining named MVP screen from §13.
-- **Session reorder and exercise-block drag interactions** are shown only
+- **Session/day/exercise reorder and drag interactions** are shown only
   as static affordance glyphs (`≡`), not interactive prototypes — Figma
   static frames can't demonstrate drag behavior; this is a build-time
   concern for the real app, not a design-file gap.
+- **Progress screen** (the 3rd mobile tab / 4th web nav item) and
+  **Settings screen** (account deletion per §33, unit preference toggle,
+  Clerk-managed profile) not yet built — remaining nav destinations.
+- **Sign Up screen** (Clerk `<SignUp/>` chrome) not yet built — only Sign
+  In exists so far; same page-chrome-only approach will apply.
 
 ## How this was built
 
