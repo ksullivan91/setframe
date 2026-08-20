@@ -265,11 +265,79 @@ afterward to confirm zero overlap.
   as static affordance glyphs (`≡`), not interactive prototypes — Figma
   static frames can't demonstrate drag behavior; this is a build-time
   concern for the real app, not a design-file gap.
-- **Progress screen** (the 3rd mobile tab / 4th web nav item) and
-  **Settings screen** (account deletion per §33, unit preference toggle,
-  Clerk-managed profile) not yet built — remaining nav destinations.
-- **Sign Up screen** (Clerk `<SignUp/>` chrome) not yet built — only Sign
-  In exists so far; same page-chrome-only approach will apply.
+- **Web AppShell's Training/History nav items** still have no
+  corresponding screens — Progress and Settings destinations are now
+  covered (mobile), but "Training" (the day-by-day workout list feeding
+  into the logger) and web-width "History"/"Progress"/"Settings"
+  equivalents remain unbuilt.
+
+## 11. Progress screen (`Screen/Mobile/Progress`, node `19:2`)
+
+**Grounding**: unlike Today/WorkoutLogger/ExerciseHistory/ProgramEditor,
+§13 names "Progress" as a nav destination but doesn't spell out its
+fields. This screen is instead grounded in: the branding prompt's stated
+thesis "make progression obvious over time"; the Exercise History
+screen's "restrained charts" precedent (reused rather than reinvented —
+see §9); and §10's body-weight manual input as the one other
+longitudinal, user-owned metric besides lift numbers. **This is an
+interpretation, not a spec-literal build — flagged for your
+confirmation.**
+
+Three trend cards, each with a label, a headline metric, a delta/context
+line, and a small 6-bar "sparkline" row (bars bound to
+`Semantic/Action/AccentSubtle`, varying height, no axis/gridlines — kept
+deliberately restrained rather than a full charting component):
+
+- **Body weight (30 days)** — headline weight + "-3.1 lb since Jul 21"
+- **Bench press top set** — headline "195 × 6" + "Est. 1RM 232 lb, +12 lb
+  this month"
+- **Weekly volume** — headline total lb + "+8% vs last week"
+
+Positioned at `x=1410, y=900` in the mobile row on the `📱 Screens` page.
+
+## 12. Settings screen (`Screen/Mobile/Settings`, node `20:2`)
+
+**Grounding**: §13 lists "Settings" in both the web nav (5 items) and
+mobile tab bar (4 items). Content grounded in: §33 ("Design account
+deletion feasibility... No need for polished deletion UI in first pass")
+— so deletion gets a simple, clearly-labeled destructive row rather than
+a multi-step confirmation flow; §11.5 (Clerk owns user identity/profile
+editing — we only surface a read-only summary + hand-off, never rebuild
+Clerk's own UI); and the data model's `preferred_units` enum
+(imperial/metric, defaulting to imperial per the confirmed ADR decision).
+
+Three grouped sections, each a bordered card of label/value rows:
+
+- **Account** — Email (read-only), "Manage account → Clerk"
+- **Preferences** — Units ("Imperial (lb) ›"), Timezone
+- **Danger zone** — "Delete account" / "This cannot be undone", label
+  text bound to `Semantic/Action/Destructive` (red) to keep it
+  unambiguous without needing a heavier UI treatment
+
+Positioned at `x=1880, y=900` in the mobile row.
+
+## 13. Sign Up screen (`Screen/Web/SignUp`, node `21:2`)
+
+**Grounding**: same as Sign In (§10) — per §11.5, Clerk owns the actual
+`<SignUp/>` component; this is page chrome only (wordmark, tagline,
+centered `AuthCard`) around Clerk's mount point. Email/password fields
+shown are illustrative placeholders for Clerk's hosted fields, not
+custom form fields to implement. CTA reads "Create Account"; footer
+links back to Sign In ("Already have an account? Sign in").
+
+Positioned at `x=0, y=900` in the web row on `📱 Screens` (reuses the
+Sign In row's y-coordinate space since both are auth entry points, not
+authenticated-app screens).
+
+## What's intentionally not done yet (updated)
+
+- **Web nav items without screens**: "Training" (day-by-day workout
+  list) and web-width equivalents of Progress/Settings — only mobile
+  versions of those two exist so far.
+- Everything else previously listed under §"What's intentionally not
+  done yet" above remains true (icon set undecided, no dark-mode
+  screenshot pass, AppShell content area still a placeholder, etc.) —
+  see that section for the full list.
 
 ## How this was built
 
