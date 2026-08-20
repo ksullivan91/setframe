@@ -258,10 +258,13 @@ afterward to confirm zero overlap.
   repeated patterns emerge.
 - ~~Icon set undecided~~ — **resolved in §15**: Lucide adopted, all
   placeholder glyphs replaced with real icons.
-- **Web AppShell's nav items still don't route to real page content in
-  the shell itself** — the shell proves the sidebar/nav structure, but
-  each nav destination now has its own standalone screen elsewhere in
-  the file (see §14) rather than being wired into the AppShell frame.
+- ~~Web AppShell content area is a placeholder~~ — **resolved in §16**:
+  real Today content now mounted inside the shell, "Today" nav item
+  shows an active state. Training/History/Progress/Settings nav items
+  still link out to their standalone screens rather than being mounted
+  in-shell (standalone screens exist per §14) — acceptable for a
+  design-reference file; a real app would swap content in-place via
+  routing.
 - **Session/day/exercise reorder and drag interactions** are shown only
   as static affordance glyphs (`≡`), not interactive prototypes — Figma
   static frames can't demonstrate drag behavior; this is a build-time
@@ -457,6 +460,34 @@ correctly, subtle and small) and `Screen/Mobile/WorkoutLogger`.
 
 No remaining text-glyph placeholders exist anywhere in the file as of
 this pass.
+
+## 16. AppShell wired to real content (`Shell/Web/AppShell`, node `14:65`)
+
+**Grounding**: the AppShell previously only proved the sidebar/nav
+structure with a text placeholder ("Page content mounts here...") in
+its content area — flagged as a gap in the prior "not done yet" list.
+
+**What changed**: removed the placeholder text and mounted a real
+Today-screen layout directly inside the shell's content frame (same
+2-column pattern as the standalone `Screen/Web/Today`, resized to fit
+the shell's 1040px content width vs. the standalone screen's full
+1280px). The "Today" sidebar nav item now shows an active state
+(background tint bound to `Semantic/Action/Primary`, semi-bold white
+label) so the shell reads as a believable in-context screenshot rather
+than an abstract nav diagram.
+
+**Bug hit + fixed**: the active nav item's label was first left on its
+default dark `Semantic/Text/Primary` color, which read as low-contrast
+dark-on-blue. Fixed by rebinding the label's fill to
+`Semantic/Action/PrimaryText` (white) to match the same
+button-on-accent contrast pattern used everywhere else in the file.
+
+**Scope decision**: only "Today" was mounted in-shell. Training,
+History, Progress, and Settings nav items remain unmounted (still just
+styled nav rows) — their content already exists as standalone screens
+elsewhere in the file (§14), and duplicating all five into the shell
+would be repetitive busywork for a static design file with no routing.
+This is noted as an acceptable, intentional scope limit, not a gap.
 
 ## How this was built
 
