@@ -126,8 +126,79 @@ in `github-copilot-fitness-app-master-prompt.md` — not speculative UI:
   components for different contexts (editing live vs. reviewing past
   sessions), not a duplicate.
 
+**Bug fix**: `Checkbox/Checked` initially rendered lopsided (13×24
+instead of a proper 24×24 square) because its auto-layout frame was
+sized `AUTO` and hugged the checkmark glyph asymmetrically. Fixed by
+setting both axes to `FIXED` 24×24 with centered content — now matches
+`Checkbox/Unchecked` exactly.
+
 All of the above are bound to `Semantic/*` and `Spacing`/`Radius`
 variables, no hardcoded hex/px, and were screenshot-verified.
+
+### 7. First real screens + shells — proves tokens/components against actual content
+
+- **`Screen/Mobile/Today`** (node `13:3`, "📱 Screens" page) — implements
+  §13's Today screen field-for-field: date header, live sync-status pill,
+  unobtrusive "Updating health data…" reconciliation text, a
+  `TodayCard/PlannedWorkout` card (today's workout name + last-done date +
+  full-width Start CTA — the "what am I doing today" thesis), a "Today's
+  check-in" section (morning weight + BP systolic/diastolic via
+  `TextField/Numeric`, kept visually separate from HealthKit data per
+  §10's provenance rule), and a "From Apple Health" metric grid (steps,
+  active calories, exercise minutes, MyFitnessPal-via-HealthKit calories)
+  using the `MetricTile` pattern. This is the first frame in the file
+  where every earlier token/component decision gets stress-tested against
+  real, dense content simultaneously.
+- **`Shell/Mobile/TabBar`** (node `14:2`) — wraps a clone of the Today
+  screen in the exact 4-tab mobile nav from §13 ("Mobile tabs: Today,
+  Training, Progress, Settings") — this is a literal spec requirement,
+  not a design choice, so the 4 labels/order are fixed.
+- **`Shell/Web/AppShell`** (node `14:65`) — 240px sidebar + content area,
+  1280px desktop canvas, with the 5-item web nav from §13 ("Web nav:
+  Today, Training, History, Progress, Settings" — note History exists on
+  web but not mobile per spec). Adopts File 1's sidebar+content structure
+  per `setline-design-system.md` §6, with Setline's own tokens (no
+  File-1-style card nesting in the content area).
+
+### 8. Additional primitives — Select and Toast
+
+- **`Select/Dropdown`** (node `14:81`) — §13's Program editor needs a
+  progression-rule picker (a small fixed set of options: e.g. linear /
+  double-progression / percentage-based) — a native `<select>`-shaped
+  control, not free text entry.
+- **`Toast/Error`** + **`Toast/Success`** (nodes `14:84`, `14:87`) — §15's
+  offline strategy explicitly calls for "retry failed writes"; the error
+  toast includes a visible "Retry now" action (red, on dark toast
+  surface) so failures are actionable rather than silent, consistent with
+  the Today screen's HealthKit-attention precedent. Success toast
+  (e.g. "Workout saved") is the plain positive-confirmation case.
+
+### 9. Second and third real screens — Workout Logger + Exercise History
+
+- **`Screen/Mobile/WorkoutLogger`** (node `15:2`) — the master spec's
+  single most emphasized screen ("must be exceptional"). Header shows
+  workout name + elapsed time + a `Finish` affordance (spec's "complete
+  workout anyway" deviation). The `ExerciseBlock` card (node `15:9`)
+  shows target prescription, last performance, and an editable suggestion
+  line together — so the user has full context before touching a number
+  — then 3 realistic `SetRow/Editable` instances (2 completed via
+  checkbox, 1 in-progress, matching a real mid-workout state rather than
+  all-checked or all-empty), an inline "+ Add set," and per-row
+  duplicate/remove icons. A dashed-border "+ Add exercise" affordance
+  below the card covers the spec's "ad hoc exercise" deviation. A
+  drag-handle glyph on the exercise name row stands in for "session
+  reorder" (interaction, not static-mock-able, but the affordance exists).
+- **`Screen/Web/ExerciseHistory`** (node `16:2`) — placed on web (History
+  is a web-only nav item per §13, absent from the 4 mobile tabs).
+  Restrained stat-tile row (top set, est. 1RM via Epley formula, last
+  session volume — no chart, per spec's "keep charts restrained"), then
+  a `SessionHistoryCard` list (date + full set breakdown + PR badge on
+  the session where it occurred).
+
+Both screens reused Card/MetricTile/SetRow/badge patterns already
+established rather than inventing new visual language — validates that
+the token/component set from §5–§8 holds up under denser, more realistic
+content.
 
 ## What's intentionally not done yet
 
@@ -144,6 +215,11 @@ variables, no hardcoded hex/px, and were screenshot-verified.
 - **No dark-mode screenshot verification** — modes are wired correctly
   (semantic aliases flip), but no screenshot has been taken with the
   Dark mode active to visually confirm it end-to-end.
+- **AppShell content area is a placeholder** — the web shell proves the
+  sidebar/nav structure but doesn't yet mount a real page (e.g. Today at
+  web width); mobile got a full real screen first since it's the higher
+  MVP priority (spec calls mobile "the trusted bridge to on-device
+  data").
 - **`Card` now exists** (see §6 above), but `Stack`/`Inline`/`NumericText`
   as named low-level primitives in `setline-design-system.md` §7 still
   don't — `MetricTile`, `SetRow`, and the new components were built
@@ -153,9 +229,15 @@ variables, no hardcoded hex/px, and were screenshot-verified.
 - **Icon set undecided** — `IconButton` glyphs are text-character
   placeholders (`+`, `−`, `⧉`, `≡`), not real icons; needs a decision
   (e.g. Lucide/Phosphor) before implementation.
-- **No web `AppShell` or mobile tab shell** yet (§7 items 4–5) — still
-  foundation-only, per the user's "start designing" request scoped to
-  style guide + first components, not full screens.
+- **Web AppShell's Training/History/Progress/Settings nav items** have no
+  corresponding screens yet — only "Today" (mobile) has real content.
+- **Program editor screen** (§13: create program, weekly/day sequence,
+  reorder, prescriptions, progression rule via `Select/Dropdown`,
+  activation) not yet built — the remaining named MVP screen from §13.
+- **Session reorder and exercise-block drag interactions** are shown only
+  as static affordance glyphs (`≡`), not interactive prototypes — Figma
+  static frames can't demonstrate drag behavior; this is a build-time
+  concern for the real app, not a design-file gap.
 
 ## How this was built
 
