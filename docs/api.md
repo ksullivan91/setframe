@@ -93,7 +93,39 @@ GET  /v1/dashboard/today
 
 Purpose-built endpoint (master spec §34): today's planned/active session,
 manual entries, activity + nutrition snapshot, and sync status in one
-response, so the Today screen never needs several serial requests.
+response, so the Today screen never needs several serial requests. Now
+also includes the derived `weekLabel`/`dayLabel` and
+`estimatedDurationMinutes` for the pre-workout preview card (see
+`docs/data-model.md` §3 `training_program.cycle_length_weeks` and
+`workout_template.estimated_duration_minutes`).
+
+## Progress
+
+```text
+GET  /v1/progress/consistency   ?weeks= (default 8)
+```
+
+Read-only, computed-on-request endpoint backing the Progress screen's
+"Consistency (last N weeks)" streak widget (Figma style guide §19). No
+new table — derives planned-vs-completed counts per ISO week from
+existing `workout_session` rows against the active `program_version`'s
+templates, same pattern as the existing `estimateOneRepMax`/
+`calculateVolume` domain functions. Response: array of
+`{ weekStart, plannedCount, completedCount }`.
+
+## Notification preferences
+
+```text
+GET    /v1/me/notification-preferences
+PATCH  /v1/me/notification-preferences   workout_reminders_enabled, weekly_summary_enabled
+```
+
+**New scope beyond the original master spec** — backs the Settings
+screen's "Workout reminders" / "Weekly progress summary" toggles (Figma
+style guide §19). See `docs/data-model.md` §6.1. These endpoints persist
+user *intent* only; no push delivery is implemented yet (deferred —
+requires its own ADR + `expo-notifications`/APNs decision before Phase
+7+ mobile work).
 
 ## Apple Health integration
 

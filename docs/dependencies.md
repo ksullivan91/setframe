@@ -29,6 +29,11 @@ drift.
 - `expo-secure-store`
 - `@kingstinct/react-native-healthkit` — `14.0.2` (see ADR 0001) +
   `react-native-nitro-modules` (peer dependency)
+- `expo-notifications` — **deferred, not yet added**. The Settings
+  screen's reminder toggles (Figma style guide §19) only need the
+  preference-storage endpoints in `docs/api.md` for now; actual push
+  delivery (and this dependency) is out of scope until a dedicated
+  notifications ADR is written, likely alongside Phase 7 mobile work.
 
 ## Backend (`apps/api`)
 - `fastify` — `5.12.1`

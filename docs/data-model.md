@@ -73,6 +73,9 @@ training_program
 - description (text, nullable)
 - is_active (boolean, not null, default false)
 - start_date (date, nullable)
+- cycle_length_weeks (integer, nullable)  -- e.g. 4; used to derive "Week 2"
+  labeling for the pre-workout preview card. Nullable because not every
+  program is cyclical (e.g. a single non-repeating block).
 - archived_at (timestamptz, nullable)
 - created_at, updated_at
 
@@ -96,6 +99,9 @@ workout_template
 - day_label (text, nullable)   -- e.g. "Lower C"
 - sort_order (integer, not null)
 - description (text, nullable)
+- estimated_duration_minutes (integer, nullable)  -- single estimate (e.g. 50);
+  UI renders a ±5min band ("~45-55 min") around it. Nullable so older/simple
+  templates aren't forced to guess.
 - created_at, updated_at
 
 workout_template_exercise
@@ -288,6 +294,31 @@ independent axes of partial/complete).
 All `local_date` columns pair with their own `timezone` column so a day's
 identity never depends on server/UTC boundaries (spec §1.9).
 
+### 6.1 Notification preferences
+
+**New scope beyond the original master spec**, added to support the
+Settings screen's "Workout reminders" and "Weekly progress summary"
+toggles (Figma style guide §19). The master spec does not mention push
+notifications; this is proposed as a minimal, additive table so the
+Settings UI has real backing data without committing to a specific push
+delivery mechanism yet (Expo push vs. APNs directly — deferred to an
+implementation-time ADR when Phase 7+ HealthKit/mobile work begins).
+
+```text
+user_notification_preference
+- id (uuid, pk)
+- user_id (uuid, fk -> user.id, not null, unique)
+- workout_reminders_enabled (boolean, not null, default true)
+- weekly_summary_enabled (boolean, not null, default true)
+- created_at, updated_at
+```
+
+This table only stores *preferences*. It intentionally does not include
+device push tokens, scheduling, or delivery logs — those belong to a
+future notifications-infrastructure ADR once push is actually implemented
+(not required for Phase 0-6; the toggles can ship and simply persist
+user intent ahead of delivery being wired up).
+
 ## 7. Ownership & indexing summary
 
 Every table above except `exercise` (system rows) and `program_version`/
@@ -314,6 +345,17 @@ Key indexes beyond primary/unique keys already listed:
    `exercise_muscle` join tables (see §2), not JSONB, chosen for
    scalability of filtering/search over raw MVP simplicity.
 3. **Default units**: decided — `preferred_units` defaults to `'imperial'`.
+4. **Progress screen "consistency streak" widget**: decided — no new
+   table. Computed on read from existing `workout_session` rows
+   (count of sessions per ISO week vs. planned template days in the
+   active `program_version`), same pattern as `estimateOneRepMax` /
+   `calculateVolume` domain functions (master spec §9). See
+   `docs/api.md` for the read endpoint.
+5. **Session-summary PR badge**: already fully covered — backed by the
+   existing `detectWeightPR` / `detectRepPR` domain functions (master
+   spec §9), no schema change needed. Cross-referenced here since the
+   Figma trophy badge (style guide §17) could otherwise look like an
+   undocumented gap.
 
 ## 9. Outstanding item (not a schema question, but a Phase 7/11 dependency)
 
