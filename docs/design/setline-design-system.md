@@ -150,17 +150,20 @@ Order of first implementation once approved, straight from the audit's
 
 ## 8. What needs your decision before implementation starts
 
-1. **Accent color** — direction confirmed: purple/indigo-violet
-   (`#6979f8` starting point, per File 4). Still needs: approval of the
-   generated 10-step ramp + contrast-checked final hex once produced (not
-   yet generated — no token files exist yet).
+1. **Accent color** — ✅ implemented in Figma: purple/indigo-violet ramp
+   generated from `#6979F8` (step 500), see
+   `docs/design/setline-figma-style-guide.md`. Review the live ramp in
+   Figma and confirm, or request adjustments.
 2. **Typeface** — approve Inter, or provide a different open-licensed
-   preference.
-3. **Radius scale** — approve the proposed 8/16px restrained pair.
+   preference. (Already used in the Figma typography specimen.)
+3. **Radius scale** — ✅ implemented: `Radius/Small` (8), `Radius/Large`
+   (16), `Radius/Full` (999) now exist as Figma variables and are used in
+   the first draft components.
 4. Confirm the "reject" lists in §5 of the audit (pink/black, Microsoft
    blue/Fluent iconography, Circular Std, SF Pro for web/Android,
    absolute-positioning technique) — anything you actually want kept
    despite the audit's recommendation?
 
-No component code, token files, or app screens will be created until these
-are confirmed.
+Token files and Figma components now exist (see
+`docs/design/setline-figma-style-guide.md`) — no production app screens
+have been built yet.
