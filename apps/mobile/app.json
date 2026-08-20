@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "Setline",
+    "slug": "setline-mobile",
+    "scheme": "setline",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "com.setline.app",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSHealthShareUsageDescription": "Setline reads Apple Health activity, heart, and body metrics to show them on your Today screen and keep your training history in sync.",
+        "NSHealthUpdateUsageDescription": "Setline does not write data to Apple Health."
+      }
+    },
+    "android": {
+      "package": "com.setline.app"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          "background": false
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
