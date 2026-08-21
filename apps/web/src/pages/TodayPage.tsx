@@ -93,6 +93,8 @@ interface DailyManualEntryPatch {
   preWorkoutMealLogged?: boolean | null;
 }
 
+type TodayWorkoutState = 'no-program' | 'unscheduled' | 'scheduled' | 'in-progress';
+
 const Grid = styled.div`
   display: grid;
   grid-template-columns: 1fr;
@@ -394,6 +396,7 @@ export function TodayPage() {
   // wizard, which meant Today was unreachable until a program existed.
   // Instead, show Today as usual with an inline prompt below.
   const hasNoProgram = Boolean(programsQuery.data && programsQuery.data.length === 0);
+  const showProgramSetupPrompt = hasNoProgram && !isError;
 
   useEffect(() => {
     setWeight(manual?.morningWeightValue?.toString() ?? '');
@@ -498,7 +501,28 @@ export function TodayPage() {
   const completedSteps = [weightDone, journalDone, mealDone, Boolean(activeSession || workoutDone), syncDone].filter(Boolean).length;
   const postWorkoutSets = sumCompletedSets(postWorkoutReviewQuery.data);
   const postWorkoutVolume = sumVolume(postWorkoutReviewQuery.data);
-  const canStartScheduledWorkout = Boolean(data?.dayLabel || activeSession);
+  const todayWorkoutState: TodayWorkoutState = activeSession
+    ? 'in-progress'
+    : showProgramSetupPrompt
+      ? 'no-program'
+      : data?.dayTypeId
+        ? 'scheduled'
+        : 'unscheduled';
+  const workoutCardTitle =
+    todayWorkoutState === 'no-program'
+      ? 'Set up your training'
+      : todayWorkoutState === 'in-progress'
+        ? 'Workout ready to resume'
+        : "Today's workout";
+  const workoutCardBody =
+    todayWorkoutState === 'no-program'
+      ? "Create your first training program to automatically schedule workouts here."
+      : todayWorkoutState === 'in-progress'
+        ? `You already started this session${formatTime(activeSession?.startedAt) ? ` at ${formatTime(activeSession?.startedAt)}` : ''}. Pick up where you left off.`
+        : todayWorkoutState === 'scheduled'
+          ? `${data?.weekLabel ?? 'Scheduled'} · ${data?.dayLabel}${data?.scheduleSource === 'override' ? ' · changed for today' : ''}`
+          : 'No workout scheduled yet. Choose a workout for today or adjust today’s plan without changing your recurring schedule.';
+  const showWorkoutDuration = todayWorkoutState !== 'no-program' && Boolean(data?.estimatedDurationMinutes);
 
   return (
     <>
@@ -510,49 +534,47 @@ export function TodayPage() {
             <Subtitle>Keep the morning quick, then move straight into today’s training.</Subtitle>
           </Header>
 
-          {hasNoProgram ? (
+          {showProgramSetupPrompt || (!isLoading && !isError) ? (
             <WorkoutCard>
               <WorkoutCardHeader>
                 <SectionTitle style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Dumbbell size={18} />
-                  Set up your training
+                  {workoutCardTitle}
                 </SectionTitle>
+                {showWorkoutDuration ? <PassiveChip>~{data?.estimatedDurationMinutes} min</PassiveChip> : null}
               </WorkoutCardHeader>
-              <p>You don&apos;t have a training program yet, so there&apos;s no scheduled workout to show here. Create one with the guided setup — it only takes a couple minutes.</p>
-              <Button onClick={() => navigate('/training/new')}>Start guided setup</Button>
-            </WorkoutCard>
-          ) : null}
-
-          {!isLoading && !isError ? (
-            <WorkoutCard>
-              <WorkoutCardHeader>
-                <SectionTitle style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Dumbbell size={18} />
-                  {activeSession ? 'Workout ready to resume' : "Today's workout"}
-                </SectionTitle>
-                {data?.estimatedDurationMinutes ? <PassiveChip>~{data.estimatedDurationMinutes} min</PassiveChip> : null}
-              </WorkoutCardHeader>
-              <StepBody>
-                {activeSession
-                  ? `You already started this session${formatTime(activeSession.startedAt) ? ` at ${formatTime(activeSession.startedAt)}` : ''}. Pick up where you left off.`
-                  : data?.dayLabel
-                    ? `${data.weekLabel ?? 'Scheduled'} · ${data.dayLabel}${data.scheduleSource === 'override' ? ' · changed for today' : ''}`
-                    : 'No workout scheduled yet. You can swap in a session just for today if needed.'}
-              </StepBody>
-              {data?.override?.note ? <PassiveChip>{data.override.note}</PassiveChip> : null}
+              <StepBody>{workoutCardBody}</StepBody>
+              {todayWorkoutState !== 'no-program' && data?.override?.note ? <PassiveChip>{data.override.note}</PassiveChip> : null}
               <InlineRow>
-                <Button disabled={!canStartScheduledWorkout || startWorkoutMutation.isPending} onClick={() => startWorkoutMutation.mutate()}>
-                  {activeSession ? 'Resume workout' : 'Start workout'}
-                </Button>
-                <Button variant="secondary" disabled={!data?.dayTypeId} onClick={() => setPreviewOpen(true)}>
-                  Preview
-                </Button>
-                <Button variant="secondary" onClick={() => setExceptionOpen(true)}>
-                  Swap today
-                </Button>
-                <Button variant="secondary" onClick={() => setSkipOpen(true)}>
-                  Skip today
-                </Button>
+                {todayWorkoutState === 'no-program' ? (
+                  <Button onClick={() => navigate('/training/new')}>Start guided setup</Button>
+                ) : null}
+                {todayWorkoutState === 'in-progress' ? (
+                  <Button disabled={startWorkoutMutation.isPending} onClick={() => startWorkoutMutation.mutate()}>
+                    Resume workout
+                  </Button>
+                ) : null}
+                {todayWorkoutState === 'scheduled' ? (
+                  <>
+                    <Button disabled={startWorkoutMutation.isPending} onClick={() => startWorkoutMutation.mutate()}>
+                      Start workout
+                    </Button>
+                    <Button variant="secondary" onClick={() => setPreviewOpen(true)}>
+                      Preview
+                    </Button>
+                    <Button variant="secondary" onClick={() => setExceptionOpen(true)}>
+                      Change today&apos;s workout
+                    </Button>
+                    <Button variant="tertiary" onClick={() => setSkipOpen(true)}>
+                      Skip today
+                    </Button>
+                  </>
+                ) : null}
+                {todayWorkoutState === 'unscheduled' ? (
+                  <Button variant="secondary" onClick={() => setExceptionOpen(true)}>
+                    Choose workout
+                  </Button>
+                ) : null}
               </InlineRow>
             </WorkoutCard>
           ) : null}

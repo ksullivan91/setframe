@@ -3,7 +3,7 @@ import styled, { css } from 'styled-components';
 import { radius, spacing } from '@setline/design-tokens';
 import { typeScale } from '../theme/typeScale';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'destructive';
+export type ButtonVariant = 'primary' | 'secondary' | 'tertiary' | 'destructive';
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
@@ -51,6 +51,22 @@ const StyledButton = styled.button<{ $variant: ButtonVariant }>`
       color: ${p.theme.text.primary};
       border-color: ${p.theme.border.default};
       &:hover:not(:disabled) {
+        background: ${p.theme.surface.sunken};
+      }
+    `}
+
+  ${(p) =>
+    p.$variant === 'tertiary' &&
+    css`
+      /* Text/ghost treatment for low-frequency, low-priority actions
+         (e.g. "Skip", "Switch to full editor") — should never visually
+         compete with a primary or secondary control in the same region. */
+      background: transparent;
+      color: ${p.theme.text.secondary};
+      border-color: transparent;
+      padding: 0 ${spacing[8]}px;
+      &:hover:not(:disabled) {
+        color: ${p.theme.text.primary};
         background: ${p.theme.surface.sunken};
       }
     `}

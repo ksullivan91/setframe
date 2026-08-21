@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
+import { ArrowRight, ChevronDown, ChevronUp, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { spacing, radius } from '@setline/design-tokens';
 import type {
   CreatePlannedSetInput,
@@ -13,7 +13,7 @@ import type {
   ProgramScheduleSlot,
   TrainingProgram,
 } from '@setline/schemas';
-import { Button, Card, IconButton, Input, Menu, Modal as SharedModal, Select, useToast } from '../components';
+import { Button, Card, IconButton, Input, Menu, Modal as SharedModal, Select, Tabs, useToast } from '../components';
 import { typeScale } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';
 import { useApiClient } from '../lib/api-client';
@@ -36,9 +36,90 @@ const Layout = styled.div`
   grid-template-columns: 1fr;
 
   ${mq.desktop} {
-    grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.3fr) minmax(320px, 0.9fr);
+    grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.3fr);
     align-items: start;
   }
+`;
+
+const ScheduleLayout = styled.div`
+  display: grid;
+  gap: ${spacing[24]}px;
+  grid-template-columns: 1fr;
+
+  ${mq.desktop} {
+    max-width: 720px;
+  }
+`;
+
+const EmptyDetail = styled(Card)<{ $hideOnMobile?: boolean }>`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: ${spacing[12]}px;
+  /* Match LibraryCard/StackCard's top padding (spacing[16], via Card's
+     default) so the "Workouts" and "Choose a workout to edit" headings
+     align on the same baseline (user-experience-iteration-two.md #7). */
+  padding: ${spacing[16]}px ${spacing[24]}px;
+
+  /* Per user-experience-iteration-two.md #19-20: with zero workouts,
+     stacking this card underneath the (already actionable) creation
+     state adds scrolling with no value on mobile. Desktop keeps it —
+     it reinforces the master/detail model there. */
+  ${(p) => (p.$hideOnMobile ? 'display: none;' : '')}
+
+  ${mq.desktop} {
+    display: flex;
+  }
+`;
+
+const CreateWorkoutForm = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${spacing[8]}px;
+`;
+
+const CreateWorkoutActions = styled.div`
+  display: flex;
+
+  button {
+    width: 100%;
+  }
+
+  ${mq.tablet} {
+    button {
+      width: auto;
+    }
+  }
+`;
+
+const InlineError = styled.p`
+  margin: 0;
+  color: ${(p) => p.theme.action.destructive};
+  font-size: ${typeScale.caption.fontSize}px;
+`;
+
+const OnboardingBanner = styled(Card)`
+  display: flex;
+  flex-direction: column;
+  gap: ${spacing[8]}px;
+  align-items: flex-start;
+  /* Neutral surface with a subtle purple accent border — should read as
+     a helpful nudge, not compete with the (more urgent/saturated)
+     ActiveWorkoutBanner used elsewhere. Per
+     user-experience-iteration.md #8. */
+  border: 1px solid ${(p) => p.theme.action.primary}33;
+  background: ${(p) => p.theme.surface.raised};
+`;
+
+const OnboardingEyebrow = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: ${spacing[8]}px;
+  font-size: ${typeScale.caption.fontSize}px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: ${(p) => p.theme.action.primary};
 `;
 
 const SectionTitle = styled.h1`
@@ -369,6 +450,280 @@ function PlannedSetsEditor({ dayTypeId, exerciseId }: { dayTypeId: string; exerc
   }
 }
 
+/**
+ * Add-exercise flow (user-experience-iteration.md #13-16). Replaces the
+ * old always-visible Exercise/Prescription-type/Create-exercise/Add
+ * cluster with progressive disclosure: search-and-pick an existing
+ * exercise first; custom creation and prescription configuration are
+ * separate steps reached only when needed.
+ */
+function AddExercisePicker({
+  exercises,
+  onClose,
+  onCreateExercise,
+  isCreatingExercise,
+  onAddExercise,
+  isAddingExercise,
+}: {
+  exercises: Exercise[];
+  onClose: () => void;
+  onCreateExercise: (name: string) => Promise<Exercise>;
+  isCreatingExercise: boolean;
+  onAddExercise: (exerciseId: string, prescription: Prescription) => void;
+  isAddingExercise: boolean;
+}) {
+  const [step, setStep] = useState<'search' | 'create' | 'configure'>('search');
+  const [query, setQuery] = useState('');
+  const [customName, setCustomName] = useState('');
+  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
+  const [prescriptionKind, setPrescriptionKind] = useState('sets_reps');
+  const [prescription, setPrescription] = useState<Prescription>(emptyPrescription('sets_reps'));
+
+  const filtered = useMemo(
+    () => exercises.filter((exercise) => exercise.name.toLowerCase().includes(query.trim().toLowerCase())),
+    [exercises, query],
+  );
+
+  const chooseExercise = (exercise: Exercise) => {
+    setSelectedExercise(exercise);
+    setPrescriptionKind('sets_reps');
+    setPrescription(emptyPrescription('sets_reps'));
+    setStep('configure');
+  };
+
+  const handlePrescriptionKindChange = (kind: string) => {
+    setPrescriptionKind(kind);
+    setPrescription(emptyPrescription(kind));
+  };
+
+  if (step === 'create') {
+    return (
+      <SharedModal open onClose={onClose} title="Create custom exercise" maxWidth={420}>
+        <Column>
+          <Input
+            label="Exercise name"
+            placeholder="e.g. Outdoor Cycle"
+            value={customName}
+            onChange={(e) => setCustomName(e.target.value)}
+            autoFocus
+          />
+          <Row style={{ justifyContent: 'flex-end' }}>
+            <Button variant="secondary" onClick={() => setStep('search')}>Cancel</Button>
+            <Button
+              disabled={!customName.trim() || isCreatingExercise}
+              onClick={async () => {
+                const created = await onCreateExercise(customName.trim());
+                setCustomName('');
+                chooseExercise(created);
+              }}
+            >
+              Create &amp; add
+            </Button>
+          </Row>
+        </Column>
+      </SharedModal>
+    );
+  }
+
+  if (step === 'configure' && selectedExercise) {
+    return (
+      <SharedModal open onClose={onClose} title={selectedExercise.name} maxWidth={480}>
+        <Column>
+          <Select label="Prescription" value={prescriptionKind} onChange={(e) => handlePrescriptionKindChange(e.target.value)} options={prescriptionOptions} />
+
+          {(prescription.kind === 'sets_reps' || prescription.kind === 'per_side' || prescription.kind === 'bodyweight_reps') && (
+            <PrescriptionGrid>
+              <Input
+                label="Sets"
+                inputMode="numeric"
+                value={String(prescription.sets)}
+                onChange={(e) => setPrescription((prev) => ({ ...prev, sets: Number(e.target.value) || 0 } as Prescription))}
+              />
+              <Input
+                label="Reps"
+                inputMode="numeric"
+                value={String(prescription.repsMin)}
+                onChange={(e) => setPrescription((prev) => ({ ...prev, repsMin: Number(e.target.value) || 0 } as Prescription))}
+              />
+            </PrescriptionGrid>
+          )}
+
+          {prescription.kind === 'timed' && (
+            <PrescriptionGrid>
+              <Input
+                label="Sets"
+                inputMode="numeric"
+                value={String(prescription.sets)}
+                onChange={(e) => setPrescription((prev) => ({ ...prev, sets: Number(e.target.value) || 0 } as Prescription))}
+              />
+              <Input
+                label="Seconds"
+                inputMode="numeric"
+                value={String(prescription.durationSeconds)}
+                onChange={(e) => setPrescription((prev) => ({ ...prev, durationSeconds: Number(e.target.value) || 0 } as Prescription))}
+              />
+            </PrescriptionGrid>
+          )}
+
+          {prescription.kind === 'duration' && (
+            <Input
+              label="Minutes"
+              inputMode="numeric"
+              value={String(prescription.durationMinutes)}
+              onChange={(e) => setPrescription((prev) => ({ ...prev, durationMinutes: Number(e.target.value) || 0 } as Prescription))}
+            />
+          )}
+
+          {prescription.kind === 'distanceDuration' && (
+            <PrescriptionGrid>
+              <Input
+                label="Distance (mi)"
+                inputMode="decimal"
+                value={String(prescription.distanceMiles)}
+                onChange={(e) => setPrescription((prev) => ({ ...prev, distanceMiles: Number(e.target.value) || 0 } as Prescription))}
+              />
+              <Input
+                label="Minutes"
+                inputMode="numeric"
+                value={String(prescription.durationMinutes)}
+                onChange={(e) => setPrescription((prev) => ({ ...prev, durationMinutes: Number(e.target.value) || 0 } as Prescription))}
+              />
+            </PrescriptionGrid>
+          )}
+
+          {prescription.kind === 'distance' && (
+            <PrescriptionGrid>
+              <Input
+                label="Sets"
+                inputMode="numeric"
+                value={String(prescription.sets)}
+                onChange={(e) => setPrescription((prev) => ({ ...prev, sets: Number(e.target.value) || 0 } as Prescription))}
+              />
+              <Input
+                label="Distance"
+                inputMode="decimal"
+                value={String(prescription.distanceValue)}
+                onChange={(e) => setPrescription((prev) => ({ ...prev, distanceValue: Number(e.target.value) || 0 } as Prescription))}
+              />
+            </PrescriptionGrid>
+          )}
+
+          <Row style={{ justifyContent: 'flex-end' }}>
+            <Button variant="secondary" onClick={() => setStep('search')}>Back</Button>
+            <Button
+              disabled={isAddingExercise}
+              onClick={() => {
+                onAddExercise(selectedExercise.id, prescription);
+                onClose();
+              }}
+            >
+              Add to workout
+            </Button>
+          </Row>
+        </Column>
+      </SharedModal>
+    );
+  }
+
+  return (
+    <SharedModal open onClose={onClose} title="Add exercise" maxWidth={480}>
+      <Column>
+        <Input label="Search exercises" placeholder="Barbell Back Squat…" value={query} onChange={(e) => setQuery(e.target.value)} autoFocus />
+        <Column style={{ maxHeight: 320, overflowY: 'auto', gap: spacing[4] }}>
+          {filtered.length === 0 ? (
+            <Small>No exercises match &ldquo;{query}&rdquo;.</Small>
+          ) : (
+            filtered.map((exercise) => (
+              <LibraryItem key={exercise.id} $active={false} onClick={() => chooseExercise(exercise)}>
+                <strong>{exercise.isCustom ? `${exercise.name} (custom)` : exercise.name}</strong>
+              </LibraryItem>
+            ))
+          )}
+        </Column>
+        <Row style={{ justifyContent: 'space-between' }}>
+          <Small>Can&apos;t find it?</Small>
+          <Button variant="tertiary" onClick={() => setStep('create')}>
+            <Plus size={16} />Create custom exercise
+          </Button>
+        </Row>
+      </Column>
+    </SharedModal>
+  );
+}
+
+/**
+ * Single canonical workout-creation control (user-experience-iteration-two.md
+ * #1-6, #22-23) — used by the Workout library only; the editor's empty
+ * state no longer renders its own copy of this form.
+ */
+function WorkoutCreateForm({
+  onCreate,
+  isPending,
+  existingNames,
+  onCancel,
+  autoFocus,
+}: {
+  onCreate: (name: string) => Promise<unknown>;
+  isPending: boolean;
+  existingNames: string[];
+  onCancel?: () => void;
+  autoFocus?: boolean;
+}) {
+  const [name, setName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const trimmed = name.trim();
+
+  const handleSubmit = async () => {
+    if (!trimmed) return;
+    if (existingNames.some((existing) => existing.toLowerCase() === trimmed.toLowerCase())) {
+      setError(`A workout named "${trimmed}" already exists.`);
+      return;
+    }
+    setError(null);
+    try {
+      await onCreate(trimmed);
+      setName('');
+    } catch {
+      // Preserve the typed name on failure (doc #22) so the user doesn't retype it.
+      setError("Couldn't create this workout. Try again.");
+    }
+  };
+
+  return (
+    <CreateWorkoutForm>
+      <Input
+        label="Workout name"
+        placeholder="e.g. Lower C"
+        value={name}
+        onChange={(e) => {
+          setName(e.target.value);
+          if (error) setError(null);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') void handleSubmit();
+          if (e.key === 'Escape') onCancel?.();
+        }}
+        autoFocus={autoFocus}
+      />
+      {error ? (
+        <InlineError role="alert">{error}</InlineError>
+      ) : (
+        <Small>Enter a workout name to create it.</Small>
+      )}
+      <CreateWorkoutActions>
+        <Button onClick={() => void handleSubmit()} disabled={!trimmed || isPending}>
+          {isPending ? 'Creating…' : 'Create workout'}
+        </Button>
+        {onCancel ? (
+          <Button variant="tertiary" onClick={onCancel} type="button">
+            Cancel
+          </Button>
+        ) : null}
+      </CreateWorkoutActions>
+    </CreateWorkoutForm>
+  );
+}
+
 function ExerciseEditModal({
   state,
   onClose,
@@ -535,11 +890,10 @@ export function ProgramEditorPage() {
   const [selectedDayTypeId, setSelectedDayTypeId] = useState<string | null>(null);
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
   const [mode, setMode] = useState<'perpetual' | 'block'>('perpetual');
-  const [newDayTypeName, setNewDayTypeName] = useState('');
-  const [newExerciseId, setNewExerciseId] = useState('');
-  const [customExerciseName, setCustomExerciseName] = useState('');
-  const [prescriptionKind, setPrescriptionKind] = useState('sets_reps');
   const [editState, setEditState] = useState<EditState | null>(null);
+  const [activeTab, setActiveTab] = useState<'workouts' | 'schedule'>('workouts');
+  const [addExerciseOpen, setAddExerciseOpen] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
   const { data: programs } = useQuery({ queryKey: ['programs'], queryFn: () => api.get<TrainingProgram[]>('/programs') });
   const { data: dayTypes = [] } = useQuery({ queryKey: ['day-types'], queryFn: () => api.get<DayType[]>('/day-types') });
@@ -593,7 +947,7 @@ export function ProgramEditorPage() {
     onSuccess: (row) => {
       invalidateTraining();
       setSelectedDayTypeId(row.id);
-      setNewDayTypeName('');
+      setShowCreateForm(false);
     },
   });
 
@@ -613,10 +967,8 @@ export function ProgramEditorPage() {
 
   const createExercise = useMutation({
     mutationFn: (body: { name: string }) => api.post<Exercise>('/exercises', body),
-    onSuccess: (created) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['exercises'] });
-      setNewExerciseId(created.id);
-      setCustomExerciseName('');
     },
   });
 
@@ -687,114 +1039,169 @@ export function ProgramEditorPage() {
       <Row style={{ justifyContent: 'space-between' }}>
         <div>
           <SectionTitle>Training</SectionTitle>
-          <Small>Workout library, builder, schedule, and schedule exceptions.</Small>
+          <Small>Manage the workouts and schedule in your program.</Small>
         </div>
-        <a href="/training/new" style={{ textDecoration: 'none' }}><Button variant="secondary">Guided setup</Button></a>
+        {/* Guided setup already has strong entry points (the onboarding
+            banner below for new users); showing this header button too
+            would duplicate the same CTA per user-experience-iteration.md
+            #7. Only show it here once the user is already configured, as
+            a lower-emphasis "create another program" affordance. */}
+        {programs && programs.length > 0 ? (
+          <a href="/training/new" style={{ textDecoration: 'none' }}><Button variant="secondary">Guided setup</Button></a>
+        ) : null}
       </Row>
-      <Layout>
-        <Column>
-          <LibraryCard>
-            <strong>Workout library</strong>
-            <Input label="New workout" value={newDayTypeName} onChange={(e) => setNewDayTypeName(e.target.value)} placeholder="Upper A, Recovery Walk…" />
-            <Button onClick={() => newDayTypeName.trim() && createDayType.mutate({ name: newDayTypeName.trim() })} disabled={!newDayTypeName.trim() || createDayType.isPending}>Create workout</Button>
-            {dayTypes.map((dayType) => (
-              <LibraryItem key={dayType.id} $active={selectedDayTypeId === dayType.id} onClick={() => setSelectedDayTypeId(dayType.id)}>
-                <strong>{dayType.name}</strong>
-                <Small>{dayType.estimatedDurationMinutes ? `~${dayType.estimatedDurationMinutes} min` : 'No duration yet'}</Small>
-              </LibraryItem>
-            ))}
-          </LibraryCard>
-        </Column>
 
-        <Column>
-          <StackCard>
-            <Row style={{ justifyContent: 'space-between' }}>
-              <div>
-                <h2 style={{ margin: '0 0 4px 0' }}>{selectedDayType?.name ?? 'Select a workout'}</h2>
-                <Small>{selectedDayType?.description ?? 'Build the exercise list and prescription here.'}</Small>
-              </div>
-              {selectedDayType ? <Button variant="destructive" onClick={() => deleteDayType.mutate(selectedDayType.id)}>Delete</Button> : null}
-            </Row>
+      {programs && programs.length === 0 ? (
+        <OnboardingBanner>
+          <OnboardingEyebrow>
+            <Sparkles size={14} aria-hidden="true" />
+            New to Setline?
+          </OnboardingEyebrow>
+          <h2 style={{ margin: 0 }}>Build your training program</h2>
+          <Small>Create your workouts and weekly schedule in a few guided steps.</Small>
+          <a href="/training/new" style={{ textDecoration: 'none' }}>
+            <Button>
+              Start guided setup <ArrowRight size={16} aria-hidden="true" />
+            </Button>
+          </a>
+        </OnboardingBanner>
+      ) : null}
 
-            {sortedExercises.length === 0 ? (
-              <Small>No exercises yet.</Small>
-            ) : (
-              sortedExercises.map((exercise, index) => (
-                <ExerciseRow key={exercise.id}>
-                  <div style={{ flex: 1 }}>
-                    <strong>{exercises.find((item) => item.id === exercise.exerciseId)?.name ?? exercise.exerciseId}</strong>
+      <Tabs
+        label="Training views"
+        items={[
+          { key: 'workouts', label: 'Workouts' },
+          { key: 'schedule', label: 'Schedule' },
+        ]}
+        activeKey={activeTab}
+        onChange={(key) => setActiveTab(key as 'workouts' | 'schedule')}
+      />
+
+      <div role="tabpanel" id="tabpanel-workouts" aria-labelledby="tab-workouts" hidden={activeTab !== 'workouts'}>
+        <Layout>
+          <Column>
+            <LibraryCard>
+              <strong>Workouts</strong>
+              {dayTypes.length === 0 ? (
+                <>
+                  <Small>No workouts yet. Create reusable workouts like Lower C, Upper A, or Recovery.</Small>
+                  <WorkoutCreateForm
+                    onCreate={(name) => createDayType.mutateAsync({ name })}
+                    isPending={createDayType.isPending}
+                    existingNames={dayTypes.map((d) => d.name)}
+                    autoFocus
+                  />
+                </>
+              ) : (
+                <>
+                  {dayTypes.map((dayType) => (
+                    <LibraryItem key={dayType.id} $active={selectedDayTypeId === dayType.id} onClick={() => setSelectedDayTypeId(dayType.id)}>
+                      <strong>{dayType.name}</strong>
+                      <Small>{dayType.estimatedDurationMinutes ? `~${dayType.estimatedDurationMinutes} min` : 'No duration yet'}</Small>
+                    </LibraryItem>
+                  ))}
+                  {showCreateForm ? (
+                    <WorkoutCreateForm
+                      onCreate={(name) => createDayType.mutateAsync({ name })}
+                      isPending={createDayType.isPending}
+                      existingNames={dayTypes.map((d) => d.name)}
+                      onCancel={() => setShowCreateForm(false)}
+                      autoFocus
+                    />
+                  ) : (
+                    <Button variant="secondary" onClick={() => setShowCreateForm(true)}>
+                      <Plus size={16} />New workout
+                    </Button>
+                  )}
+                </>
+              )}
+            </LibraryCard>
+          </Column>
+
+          {selectedDayType ? (
+            <Column>
+              <StackCard>
+                <Row style={{ justifyContent: 'space-between' }}>
+                  <div>
+                    <h2 style={{ margin: '0 0 4px 0' }}>{selectedDayType.name}</h2>
                     <Small>
-                      {summarizePrescription(exercise.prescription)}
-                      {exercise.notes ? ` · ${exercise.notes}` : ''}
+                      {sortedExercises.length} exercise{sortedExercises.length === 1 ? '' : 's'}
+                      {selectedDayType.estimatedDurationMinutes ? ` · approximately ${selectedDayType.estimatedDurationMinutes} min` : ''}
                     </Small>
                   </div>
-                  <IconButton aria-label="Move exercise up" disabled={index === 0} onClick={() => reorderByDelta(index, -1)}><ChevronUp size={16} /></IconButton>
-                  <IconButton aria-label="Move exercise down" disabled={index === sortedExercises.length - 1} onClick={() => reorderByDelta(index, 1)}><ChevronDown size={16} /></IconButton>
-                  <Menu
-                    label={`Actions for ${exercises.find((item) => item.id === exercise.exerciseId)?.name ?? exercise.exerciseId}`}
-                    items={[
-                      {
-                        label: 'Edit',
-                        onClick: () =>
-                          setEditState({
-                            dayTypeId: exercise.dayTypeId,
-                            exerciseId: exercise.id,
-                            exerciseName: exercises.find((item) => item.id === exercise.exerciseId)?.name ?? exercise.exerciseId,
-                            prescription: exercise.prescription,
-                            notes: exercise.notes ?? '',
-                          }),
-                      },
-                      { label: 'Delete', destructive: true, onClick: () => removeExercise.mutate(exercise.id) },
-                    ]}
-                  />
-                </ExerciseRow>
-              ))
-            )}
+                  <Button variant="destructive" onClick={() => deleteDayType.mutate(selectedDayType.id)}>Delete</Button>
+                </Row>
 
-            <PrescriptionGrid>
-              <Select
-                label="Exercise"
-                value={newExerciseId}
-                onChange={(e) => setNewExerciseId(e.target.value)}
-                options={[
-                  { value: '', label: 'Select exercise' },
-                  ...exercises.map((exercise) => ({
-                    value: exercise.id,
-                    label: exercise.isCustom ? `${exercise.name} (custom)` : exercise.name,
-                  })),
-                ]}
-              />
-              <Select label="Prescription type" value={prescriptionKind} onChange={(e) => setPrescriptionKind(e.target.value)} options={prescriptionOptions} />
-            </PrescriptionGrid>
-            <Row style={{ gap: 8, alignItems: 'flex-end' }}>
-              <div style={{ flex: 1 }}>
-                <Input
-                  label="Create a new exercise"
-                  placeholder="e.g. Cable Face Pull"
-                  value={customExerciseName}
-                  onChange={(e) => setCustomExerciseName(e.target.value)}
-                />
-              </div>
-              <Button
-                variant="secondary"
-                onClick={() => customExerciseName.trim() && createExercise.mutate({ name: customExerciseName.trim() })}
-                disabled={!customExerciseName.trim() || createExercise.isPending}
-              >
-                <Plus size={16} />Create exercise
-              </Button>
-            </Row>
-            <Button onClick={() => newExerciseId && addExercise.mutate({ exerciseId: newExerciseId, prescription: emptyPrescription(prescriptionKind) })} disabled={!newExerciseId}><Plus size={16} />Add exercise</Button>
-          </StackCard>
-        </Column>
+                {sortedExercises.length === 0 ? (
+                  <Small>No exercises yet.</Small>
+                ) : (
+                  sortedExercises.map((exercise, index) => (
+                    <ExerciseRow key={exercise.id}>
+                      <div style={{ flex: 1 }}>
+                        <strong>{exercises.find((item) => item.id === exercise.exerciseId)?.name ?? exercise.exerciseId}</strong>
+                        <Small>
+                          {summarizePrescription(exercise.prescription)}
+                          {exercise.notes ? ` · ${exercise.notes}` : ''}
+                        </Small>
+                      </div>
+                      <IconButton aria-label="Move exercise up" disabled={index === 0} onClick={() => reorderByDelta(index, -1)}><ChevronUp size={16} /></IconButton>
+                      <IconButton aria-label="Move exercise down" disabled={index === sortedExercises.length - 1} onClick={() => reorderByDelta(index, 1)}><ChevronDown size={16} /></IconButton>
+                      <Menu
+                        label={`Actions for ${exercises.find((item) => item.id === exercise.exerciseId)?.name ?? exercise.exerciseId}`}
+                        items={[
+                          {
+                            label: 'Edit',
+                            onClick: () =>
+                              setEditState({
+                                dayTypeId: exercise.dayTypeId,
+                                exerciseId: exercise.id,
+                                exerciseName: exercises.find((item) => item.id === exercise.exerciseId)?.name ?? exercise.exerciseId,
+                                prescription: exercise.prescription,
+                                notes: exercise.notes ?? '',
+                              }),
+                          },
+                          { label: 'Delete', destructive: true, onClick: () => removeExercise.mutate(exercise.id) },
+                        ]}
+                      />
+                    </ExerciseRow>
+                  ))
+                )}
 
-        <Column>
+                <Button onClick={() => setAddExerciseOpen(true)}><Plus size={16} />Add exercise</Button>
+              </StackCard>
+            </Column>
+          ) : (
+            <Column>
+              <EmptyDetail $hideOnMobile={dayTypes.length === 0}>
+                <h2 style={{ margin: 0 }}>Choose a workout to edit</h2>
+                <Small>
+                  {dayTypes.length === 0
+                    ? 'Create your first workout in the Workout library.'
+                    : 'Select a workout from the library to view its exercises and prescription.'}
+                </Small>
+              </EmptyDetail>
+            </Column>
+          )}
+        </Layout>
+      </div>
+
+      <div role="tabpanel" id="tabpanel-schedule" aria-labelledby="tab-schedule" hidden={activeTab !== 'schedule'}>
+        <ScheduleLayout>
           <StackCard>
             <h2 style={{ margin: '0 0 12px 0' }}>Program schedule</h2>
             {!selectedProgramId ? (
-              <Small>Setting up your training program…</Small>
+              <Small>Set up your training program to see it here.</Small>
             ) : (
               <>
                 <Select label="Mode" value={mode} onChange={(e) => { const next = e.target.value as 'perpetual' | 'block'; setMode(next); patchProgram.mutate({ cycleLengthWeeks: next === 'block' ? 1 : null }); }} options={modeOptions} />
+                <Small>Select a workout below, then click a day to assign it. Click an assigned day again to clear it.</Small>
+                <Row style={{ flexWrap: 'wrap' }}>
+                  {dayTypes.map((dayType) => (
+                    <LibraryItem key={dayType.id} $active={selectedDayTypeId === dayType.id} onClick={() => setSelectedDayTypeId(dayType.id)} style={{ flex: '0 0 auto' }}>
+                      <strong>{dayType.name}</strong>
+                    </LibraryItem>
+                  ))}
+                </Row>
                 <DayGrid>
                   {dayNames.map((day, dayIndex) => {
                     const slot = slotsByDay.get(dayIndex);
@@ -821,13 +1228,8 @@ export function ProgramEditorPage() {
               </>
             )}
           </StackCard>
-
-          <StackCard>
-            <strong>One-off changes</strong>
-            <Small>Need to swap today&apos;s workout without touching your regular schedule? Use &ldquo;Change today&apos;s workout&rdquo; on the Today page.</Small>
-          </StackCard>
-        </Column>
-      </Layout>
+        </ScheduleLayout>
+      </div>
 
       {editState ? (
         <ExerciseEditModal
@@ -835,6 +1237,17 @@ export function ProgramEditorPage() {
           onClose={() => setEditState(null)}
           onSave={(next) => patchExercise.mutate({ exerciseId: next.exerciseId, body: { prescription: next.prescription, notes: next.notes || null } })}
           onDelete={() => removeExercise.mutate(editState.exerciseId)}
+        />
+      ) : null}
+
+      {addExerciseOpen && selectedDayTypeId ? (
+        <AddExercisePicker
+          exercises={exercises}
+          onClose={() => setAddExerciseOpen(false)}
+          isCreatingExercise={createExercise.isPending}
+          onCreateExercise={(name) => createExercise.mutateAsync({ name })}
+          isAddingExercise={addExercise.isPending}
+          onAddExercise={(exerciseId, prescription) => addExercise.mutate({ exerciseId, prescription })}
         />
       ) : null}
     </Column>

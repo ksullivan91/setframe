@@ -30,6 +30,7 @@ const Sidebar = styled.nav`
   order: 2;
   position: sticky;
   bottom: 0;
+  z-index: 10;
   display: flex;
   flex-direction: row;
   justify-content: space-around;
@@ -37,6 +38,13 @@ const Sidebar = styled.nav`
   background: ${(p) => p.theme.surface.raised};
   border-top: 1px solid ${(p) => p.theme.border.subtle};
   padding: ${spacing[8]}px;
+  /* Force this onto its own compositor layer so the background paints
+     consistently while scrolling on mobile Safari/Chrome — without this,
+     sticky elements can render a transparent gap (seeing content/buttons
+     behind the bar) until the scroll gesture settles. */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backdrop-filter: blur(0px);
 
   ${mq.tablet} {
     order: 0;
@@ -49,6 +57,8 @@ const Sidebar = styled.nav`
     border-right: 1px solid ${(p) => p.theme.border.subtle};
     padding: ${spacing[24]}px ${spacing[16]}px;
     gap: ${spacing[4]}px;
+    transform: none;
+    -webkit-transform: none;
   }
 `;
 

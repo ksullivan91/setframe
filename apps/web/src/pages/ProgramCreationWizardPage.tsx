@@ -90,6 +90,39 @@ const AsideCard = styled(Card)`
   gap: ${spacing[12]}px;
 `;
 
+const CompactSummary = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${spacing[4]}px;
+
+  ${mq.desktop} {
+    display: none;
+  }
+`;
+
+const FullSummary = styled.div`
+  display: none;
+
+  ${mq.desktop} {
+    display: flex;
+    flex-direction: column;
+    gap: ${spacing[12]}px;
+  }
+
+  /* On mobile, only shown once the user expands the <details> below. */
+  details[open] & {
+    display: flex;
+    flex-direction: column;
+    gap: ${spacing[12]}px;
+  }
+`;
+
+const MobileDetails = styled.details`
+  ${mq.desktop} {
+    display: contents;
+  }
+`;
+
 const SectionTitle = styled.h2`
   margin: 0;
   font-size: ${typeScale.sectionTitle.fontSize}px;
@@ -542,7 +575,7 @@ export function ProgramCreationWizardPage() {
 
           <Footer>
             <Row>
-              <Button variant="secondary" onClick={goToEditor}>Exit to full editor</Button>
+              <Button variant="tertiary" onClick={goToEditor}>Switch to full editor</Button>
               {currentStep > 0 ? (
                 <Button variant="secondary" onClick={() => setCurrentStep((step) => Math.max(0, step - 1))}>
                   <ArrowLeft size={16} /> Back
@@ -580,36 +613,48 @@ export function ProgramCreationWizardPage() {
 
         <AsideCard>
           <SectionTitle>What you’ve built</SectionTitle>
-          <SummaryList>
-            <div>
-              <strong>Program</strong>
-              <div><Small>{programId ? programName : 'Not created yet'}</Small></div>
-            </div>
-            <div>
-              <strong>Mode</strong>
-              <div><Small>{mode === 'perpetual' ? 'Repeats weekly' : 'Block / cycle'}</Small></div>
-            </div>
-            <div>
-              <strong>Workouts</strong>
-              <div><Small>{workouts.length === 0 ? 'None yet' : workouts.map((workout) => workout.name).join(', ')}</Small></div>
-            </div>
-            <div>
-              <strong>Exercises added</strong>
-              <div><Small>{exerciseCounts.map((item) => `${item.workout.name}: ${item.count}`).join(' · ') || 'None yet'}</Small></div>
-            </div>
-            <div>
-              <strong>Scheduled days</strong>
-              <div>
-                <Small>
-                  {Object.entries(scheduleByDay)
-                    .filter(([, value]) => Boolean(value))
-                    .map(([dayIndex, dayTypeId]) => `${dayNames[Number(dayIndex)]}: ${workouts.find((workout) => workout.dayTypeId === dayTypeId)?.name}`)
-                    .join(' · ') || 'No days assigned yet'}
-                </Small>
-              </div>
-            </div>
-          </SummaryList>
-          <SectionBody>The wizard covers the common first-program path. Use the full editor for advanced notes, planned sets, reordering, and more complex schedules.</SectionBody>
+          <CompactSummary>
+            <Small>
+              {[Boolean(programId), workouts.length > 0, canContinueFromExercises, hasSchedule].filter(Boolean).length} of 4 steps complete
+            </Small>
+          </CompactSummary>
+          <MobileDetails>
+            <summary style={{ cursor: 'pointer', display: 'block' }}>
+              <Small style={{ display: 'inline' }}>Show details</Small>
+            </summary>
+            <FullSummary>
+              <SummaryList>
+                <div>
+                  <strong>Program</strong>
+                  <div><Small>{programId ? programName : 'Not created yet'}</Small></div>
+                </div>
+                <div>
+                  <strong>Mode</strong>
+                  <div><Small>{mode === 'perpetual' ? 'Repeats weekly' : 'Block / cycle'}</Small></div>
+                </div>
+                <div>
+                  <strong>Workouts</strong>
+                  <div><Small>{workouts.length === 0 ? 'None yet' : workouts.map((workout) => workout.name).join(', ')}</Small></div>
+                </div>
+                <div>
+                  <strong>Exercises added</strong>
+                  <div><Small>{exerciseCounts.map((item) => `${item.workout.name}: ${item.count}`).join(' · ') || 'None yet'}</Small></div>
+                </div>
+                <div>
+                  <strong>Scheduled days</strong>
+                  <div>
+                    <Small>
+                      {Object.entries(scheduleByDay)
+                        .filter(([, value]) => Boolean(value))
+                        .map(([dayIndex, dayTypeId]) => `${dayNames[Number(dayIndex)]}: ${workouts.find((workout) => workout.dayTypeId === dayTypeId)?.name}`)
+                        .join(' · ') || 'No days assigned yet'}
+                    </Small>
+                  </div>
+                </div>
+              </SummaryList>
+              <SectionBody>The wizard covers the common first-program path. Use the full editor for advanced notes, planned sets, reordering, and more complex schedules.</SectionBody>
+            </FullSummary>
+          </MobileDetails>
         </AsideCard>
       </Grid>
     </Page>

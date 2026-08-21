@@ -40,12 +40,14 @@ const Page = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${spacing[16]}px;
+  padding-bottom: calc(${spacing[24]}px + 72px + env(safe-area-inset-bottom));
 
   ${mq.desktop} {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
     align-items: start;
     gap: ${spacing[24]}px;
+    padding-bottom: ${spacing[24]}px;
   }
 `;
 
@@ -247,6 +249,14 @@ const SetActions = styled.div`
   gap: ${spacing[8]}px;
   align-items: center;
   margin-left: auto;
+`;
+
+const AddSetButtonWrap = styled.div`
+  width: 100%;
+
+  ${mq.tablet} {
+    width: auto;
+  }
 `;
 
 const EmptyText = styled.p`
@@ -559,13 +569,15 @@ export function WorkoutSessionPage() {
                 <ExerciseTitle>{exerciseLog.exercise.name}</ExerciseTitle>
                 <SupportingText>{summarizePrescription(exerciseLog.prescription)}</SupportingText>
               </div>
-              <Button
-                variant="secondary"
-                onClick={() => addSetMutation.mutate({ exerciseLogId: exerciseLog.id, sourceSet: exerciseLog.sets.at(-1) })}
-                disabled={addSetMutation.isPending || query.data.status === 'completed'}
-              >
-                <Plus size={16} /> Add set
-              </Button>
+              <AddSetButtonWrap>
+                <Button
+                  variant="secondary"
+                  onClick={() => addSetMutation.mutate({ exerciseLogId: exerciseLog.id, sourceSet: exerciseLog.sets.at(-1) })}
+                  disabled={addSetMutation.isPending || query.data.status === 'completed'}
+                >
+                  <Plus size={16} /> Add set
+                </Button>
+              </AddSetButtonWrap>
             </ExerciseHeader>
 
             {exerciseLog.previousSession ? (
