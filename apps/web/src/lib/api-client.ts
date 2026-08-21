@@ -25,7 +25,7 @@ async function request<T>(
   const res = await fetch(`${env.apiBaseUrl}${path}`, {
     ...init,
     headers: {
-      'Content-Type': 'application/json',
+      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init?.headers,
     },
