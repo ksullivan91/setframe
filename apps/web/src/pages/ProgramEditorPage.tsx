@@ -711,8 +711,8 @@ function WorkoutCreateForm({
         <Small>Enter a workout name to create it.</Small>
       )}
       <CreateWorkoutActions>
-        <Button onClick={() => void handleSubmit()} disabled={!trimmed || isPending}>
-          {isPending ? 'Creating…' : 'Create workout'}
+        <Button onClick={() => void handleSubmit()} disabled={!trimmed || isPending} status={isPending ? 'loading' : 'idle'}>
+          Create workout
         </Button>
         {onCancel ? (
           <Button variant="tertiary" onClick={onCancel} type="button">

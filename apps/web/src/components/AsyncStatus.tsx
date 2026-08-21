@@ -63,6 +63,10 @@ export interface AsyncStatusIndicatorProps {
   loadingLabel?: string;
   successLabel?: string;
   errorLabel?: string;
+  /** Suppress the "Saved" success text — use when a paired Button already
+   * shows a checkmark morph for the same action, so the two don't repeat
+   * the same confirmation. Loading/error states still render normally. */
+  hideSuccess?: boolean;
 }
 
 const Wrapper = styled.span`
@@ -112,8 +116,10 @@ export function AsyncStatusIndicator({
   loadingLabel = 'Saving…',
   successLabel = 'Saved',
   errorLabel = "Couldn't save",
+  hideSuccess = false,
 }: AsyncStatusIndicatorProps) {
   if (status === 'idle') return null;
+  if (status === 'success' && hideSuccess) return null;
 
   return (
     <Wrapper role="status" aria-live="polite">
