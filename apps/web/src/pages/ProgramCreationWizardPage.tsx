@@ -21,6 +21,7 @@ interface WizardWorkoutDraft {
 }
 
 const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const EMPTY_SCHEDULE_SLOTS: ProgramScheduleSlot[] = [];
 const modeOptions = [
   { value: 'perpetual', label: 'Repeats weekly' },
   { value: 'block', label: 'Fixed block/cycle' },
@@ -230,11 +231,16 @@ export function ProgramCreationWizardPage() {
 
   const { data: programs } = useQuery({ queryKey: ['programs'], queryFn: () => api.get<TrainingProgram[]>('/programs') });
   const { data: exercises = [] } = useQuery({ queryKey: ['exercises'], queryFn: () => api.get<Exercise[]>('/exercises') });
-  const { data: scheduleSlots = [] } = useQuery({
+  // `?? EMPTY_SCHEDULE_SLOTS` (not `= []`) so the fallback is a stable
+  // reference — a fresh `[]` on every render here fed straight into a
+  // useEffect dependency below and caused an infinite render loop while the
+  // query was disabled/unresolved (i.e. before a program exists yet).
+  const scheduleSlotsQuery = useQuery({
     queryKey: ['schedule-slots', programId],
     queryFn: () => api.get<ProgramScheduleSlot[]>(`/programs/${programId}/schedule-slots`),
     enabled: Boolean(programId),
   });
+  const scheduleSlots = scheduleSlotsQuery.data ?? EMPTY_SCHEDULE_SLOTS;
 
   const existingProgramCount = programs?.length ?? 0;
   const activeProgram = useMemo(() => programs?.find((program) => program.id === programId) ?? null, [programId, programs]);
