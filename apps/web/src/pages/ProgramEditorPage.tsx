@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
+import { ArrowRight, ChevronDown, ChevronUp, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { spacing, radius } from '@setline/design-tokens';
 import type {
   CreatePlannedSetInput,
@@ -57,6 +57,30 @@ const EmptyDetail = styled(Card)`
   align-items: flex-start;
   gap: ${spacing[12]}px;
   padding: ${spacing[32]}px ${spacing[24]}px;
+`;
+
+const OnboardingBanner = styled(Card)`
+  display: flex;
+  flex-direction: column;
+  gap: ${spacing[8]}px;
+  align-items: flex-start;
+  /* Neutral surface with a subtle purple accent border — should read as
+     a helpful nudge, not compete with the (more urgent/saturated)
+     ActiveWorkoutBanner used elsewhere. Per
+     user-experience-iteration.md #8. */
+  border: 1px solid ${(p) => p.theme.action.primary}33;
+  background: ${(p) => p.theme.surface.raised};
+`;
+
+const OnboardingEyebrow = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: ${spacing[8]}px;
+  font-size: ${typeScale.caption.fontSize}px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: ${(p) => p.theme.action.primary};
 `;
 
 const SectionTitle = styled.h1`
@@ -708,8 +732,31 @@ export function ProgramEditorPage() {
           <SectionTitle>Training</SectionTitle>
           <Small>Manage the workouts and schedule in your program.</Small>
         </div>
-        <a href="/training/new" style={{ textDecoration: 'none' }}><Button variant="secondary">Guided setup</Button></a>
+        {/* Guided setup already has strong entry points (the onboarding
+            banner below for new users); showing this header button too
+            would duplicate the same CTA per user-experience-iteration.md
+            #7. Only show it here once the user is already configured, as
+            a lower-emphasis "create another program" affordance. */}
+        {programs && programs.length > 0 ? (
+          <a href="/training/new" style={{ textDecoration: 'none' }}><Button variant="secondary">Guided setup</Button></a>
+        ) : null}
       </Row>
+
+      {programs && programs.length === 0 ? (
+        <OnboardingBanner>
+          <OnboardingEyebrow>
+            <Sparkles size={14} aria-hidden="true" />
+            New to Setline?
+          </OnboardingEyebrow>
+          <h2 style={{ margin: 0 }}>Build your training program</h2>
+          <Small>Create your workouts and weekly schedule in a few guided steps.</Small>
+          <a href="/training/new" style={{ textDecoration: 'none' }}>
+            <Button>
+              Start guided setup <ArrowRight size={16} aria-hidden="true" />
+            </Button>
+          </a>
+        </OnboardingBanner>
+      ) : null}
 
       <Tabs
         label="Training views"

@@ -185,6 +185,29 @@ const EmptyState = styled(Card)`
   gap: ${spacing[8]}px;
 `;
 
+const EmptyPreviewGrid = styled.div`
+  display: grid;
+  gap: ${spacing[12]}px;
+
+  ${mq.tablet} {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+`;
+
+const EmptyPreviewCard = styled.div`
+  display: grid;
+  gap: ${spacing[8]}px;
+  padding: ${spacing[16]}px;
+  border: 1px dashed ${(p) => p.theme.border.default};
+  border-radius: 12px;
+  background: ${(p) => p.theme.surface.sunken};
+`;
+
+const EmptyPreviewTitle = styled.h3`
+  margin: 0;
+  font-size: ${typeScale.body.fontSize}px;
+`;
+
 const SessionList = styled.div`
   display: grid;
   gap: ${spacing[12]}px;
@@ -249,8 +272,21 @@ export function ProgressPage() {
       {!hasAnyHistory ? (
         <EmptyState>
           <SectionTitle>No training history yet</SectionTitle>
-          <HelperText>Complete a workout or log a morning weight check-in to unlock strength, body-weight, and consistency trends here.</HelperText>
-          <HelperText>Start with Today so future sessions have useful history to compare against.</HelperText>
+          <HelperText>Complete a workout or log a morning weight to unlock your trends.</HelperText>
+          <EmptyPreviewGrid>
+            <EmptyPreviewCard>
+              <EmptyPreviewTitle>Strength</EmptyPreviewTitle>
+              <HelperText>Track top sets, PRs, and estimated strength.</HelperText>
+            </EmptyPreviewCard>
+            <EmptyPreviewCard>
+              <EmptyPreviewTitle>Body weight</EmptyPreviewTitle>
+              <HelperText>Follow your morning weight trend.</HelperText>
+            </EmptyPreviewCard>
+            <EmptyPreviewCard>
+              <EmptyPreviewTitle>Consistency</EmptyPreviewTitle>
+              <HelperText>See how regularly you've been training.</HelperText>
+            </EmptyPreviewCard>
+          </EmptyPreviewGrid>
         </EmptyState>
       ) : (
         <>

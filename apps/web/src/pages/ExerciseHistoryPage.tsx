@@ -28,6 +28,30 @@ const StatRow = styled.div`
   }
 `;
 
+const DesktopStatCard = styled(Card)`
+  display: none;
+
+  ${mq.tablet} {
+    display: block;
+  }
+`;
+
+const MobileStatsCard = styled(Card)`
+  display: grid;
+  gap: ${spacing[12]}px;
+
+  ${mq.tablet} {
+    display: none;
+  }
+`;
+
+const MobileStatRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: ${spacing[12]}px;
+`;
+
 const StatLabel = styled.div`
   font-size: ${typeScale.label.fontSize}px;
   color: ${(p) => p.theme.text.secondary};
@@ -231,18 +255,32 @@ export function ExerciseHistoryPage() {
       {selectedExercise && (
         <>
           <StatRow>
-            <Card>
+            <MobileStatsCard>
+              <MobileStatRow>
+                <StatLabel>Top set</StatLabel>
+                <StatValue>{topSet ? `${topSet.weightValue} × ${topSet.reps}` : '—'}</StatValue>
+              </MobileStatRow>
+              <MobileStatRow>
+                <StatLabel>Estimated 1RM</StatLabel>
+                <StatValue>{estimated1RM != null ? `${estimated1RM} lb` : '—'}</StatValue>
+              </MobileStatRow>
+              <MobileStatRow>
+                <StatLabel>Last session volume</StatLabel>
+                <StatValue>{lastSessionVolume ? `${lastSessionVolume.toLocaleString()} lb` : '—'}</StatValue>
+              </MobileStatRow>
+            </MobileStatsCard>
+            <DesktopStatCard>
               <StatLabel>Top Set</StatLabel>
               <StatValue>{topSet ? `${topSet.weightValue} × ${topSet.reps}` : '—'}</StatValue>
-            </Card>
-            <Card>
+            </DesktopStatCard>
+            <DesktopStatCard>
               <StatLabel>Est. 1RM</StatLabel>
               <StatValue>{estimated1RM != null ? `${estimated1RM} lb` : '—'}</StatValue>
-            </Card>
-            <Card>
+            </DesktopStatCard>
+            <DesktopStatCard>
               <StatLabel>Last Session Volume</StatLabel>
               <StatValue>{lastSessionVolume ? `${lastSessionVolume.toLocaleString()} lb` : '—'}</StatValue>
-            </Card>
+            </DesktopStatCard>
           </StatRow>
 
           <TrendGrid>
