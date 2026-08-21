@@ -390,11 +390,10 @@ export function TodayPage() {
   const journalStatus = useAsyncStatus();
   const mealStatus = useAsyncStatus();
 
-  useEffect(() => {
-    if (!isLoading && !isError && programsQuery.data && programsQuery.data.length === 0) {
-      navigate('/training/new', { replace: true });
-    }
-  }, [isError, isLoading, navigate, programsQuery.data]);
+  // Previously this hard-redirected new/wiped accounts straight to the
+  // wizard, which meant Today was unreachable until a program existed.
+  // Instead, show Today as usual with an inline prompt below.
+  const hasNoProgram = Boolean(programsQuery.data && programsQuery.data.length === 0);
 
   useEffect(() => {
     setWeight(manual?.morningWeightValue?.toString() ?? '');
@@ -510,6 +509,19 @@ export function TodayPage() {
             <Title>Today</Title>
             <Subtitle>Keep the morning quick, then move straight into today’s training.</Subtitle>
           </Header>
+
+          {hasNoProgram ? (
+            <WorkoutCard>
+              <WorkoutCardHeader>
+                <SectionTitle style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Dumbbell size={18} />
+                  Set up your training
+                </SectionTitle>
+              </WorkoutCardHeader>
+              <p>You don&apos;t have a training program yet, so there&apos;s no scheduled workout to show here. Create one with the guided setup — it only takes a couple minutes.</p>
+              <Button onClick={() => navigate('/training/new')}>Start guided setup</Button>
+            </WorkoutCard>
+          ) : null}
 
           {!isLoading && !isError ? (
             <WorkoutCard>
