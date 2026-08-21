@@ -13,7 +13,7 @@ import type {
   ProgramScheduleSlot,
   TrainingProgram,
 } from '@setline/schemas';
-import { Button, Card, IconButton, Input, Menu, Modal as SharedModal, Select, useToast } from '../components';
+import { Button, Card, IconButton, Input, Menu, Modal as SharedModal, Select, Tabs, useToast } from '../components';
 import { typeScale } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';
 import { useApiClient } from '../lib/api-client';
@@ -36,9 +36,27 @@ const Layout = styled.div`
   grid-template-columns: 1fr;
 
   ${mq.desktop} {
-    grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.3fr) minmax(320px, 0.9fr);
+    grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.3fr);
     align-items: start;
   }
+`;
+
+const ScheduleLayout = styled.div`
+  display: grid;
+  gap: ${spacing[24]}px;
+  grid-template-columns: 1fr;
+
+  ${mq.desktop} {
+    max-width: 720px;
+  }
+`;
+
+const EmptyDetail = styled(Card)`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: ${spacing[12]}px;
+  padding: ${spacing[32]}px ${spacing[24]}px;
 `;
 
 const SectionTitle = styled.h1`
@@ -540,6 +558,7 @@ export function ProgramEditorPage() {
   const [customExerciseName, setCustomExerciseName] = useState('');
   const [prescriptionKind, setPrescriptionKind] = useState('sets_reps');
   const [editState, setEditState] = useState<EditState | null>(null);
+  const [activeTab, setActiveTab] = useState<'workouts' | 'schedule'>('workouts');
 
   const { data: programs } = useQuery({ queryKey: ['programs'], queryFn: () => api.get<TrainingProgram[]>('/programs') });
   const { data: dayTypes = [] } = useQuery({ queryKey: ['day-types'], queryFn: () => api.get<DayType[]>('/day-types') });
@@ -687,107 +706,136 @@ export function ProgramEditorPage() {
       <Row style={{ justifyContent: 'space-between' }}>
         <div>
           <SectionTitle>Training</SectionTitle>
-          <Small>Workout library, builder, schedule, and schedule exceptions.</Small>
+          <Small>Manage the workouts and schedule in your program.</Small>
         </div>
         <a href="/training/new" style={{ textDecoration: 'none' }}><Button variant="secondary">Guided setup</Button></a>
       </Row>
-      <Layout>
-        <Column>
-          <LibraryCard>
-            <strong>Workout library</strong>
-            <Input label="New workout" value={newDayTypeName} onChange={(e) => setNewDayTypeName(e.target.value)} placeholder="Upper A, Recovery Walk…" />
-            <Button onClick={() => newDayTypeName.trim() && createDayType.mutate({ name: newDayTypeName.trim() })} disabled={!newDayTypeName.trim() || createDayType.isPending}>Create workout</Button>
-            {dayTypes.map((dayType) => (
-              <LibraryItem key={dayType.id} $active={selectedDayTypeId === dayType.id} onClick={() => setSelectedDayTypeId(dayType.id)}>
-                <strong>{dayType.name}</strong>
-                <Small>{dayType.estimatedDurationMinutes ? `~${dayType.estimatedDurationMinutes} min` : 'No duration yet'}</Small>
-              </LibraryItem>
-            ))}
-          </LibraryCard>
-        </Column>
 
-        <Column>
-          <StackCard>
-            <Row style={{ justifyContent: 'space-between' }}>
-              <div>
-                <h2 style={{ margin: '0 0 4px 0' }}>{selectedDayType?.name ?? 'Select a workout'}</h2>
-                <Small>{selectedDayType?.description ?? 'Build the exercise list and prescription here.'}</Small>
-              </div>
-              {selectedDayType ? <Button variant="destructive" onClick={() => deleteDayType.mutate(selectedDayType.id)}>Delete</Button> : null}
-            </Row>
+      <Tabs
+        label="Training views"
+        items={[
+          { key: 'workouts', label: 'Workouts' },
+          { key: 'schedule', label: 'Schedule' },
+        ]}
+        activeKey={activeTab}
+        onChange={(key) => setActiveTab(key as 'workouts' | 'schedule')}
+      />
 
-            {sortedExercises.length === 0 ? (
-              <Small>No exercises yet.</Small>
-            ) : (
-              sortedExercises.map((exercise, index) => (
-                <ExerciseRow key={exercise.id}>
-                  <div style={{ flex: 1 }}>
-                    <strong>{exercises.find((item) => item.id === exercise.exerciseId)?.name ?? exercise.exerciseId}</strong>
+      <div role="tabpanel" id="tabpanel-workouts" aria-labelledby="tab-workouts" hidden={activeTab !== 'workouts'}>
+        <Layout>
+          <Column>
+            <LibraryCard>
+              <strong>Workouts</strong>
+              <Input label="New workout" value={newDayTypeName} onChange={(e) => setNewDayTypeName(e.target.value)} placeholder="Upper A, Recovery Walk…" />
+              <Button onClick={() => newDayTypeName.trim() && createDayType.mutate({ name: newDayTypeName.trim() })} disabled={!newDayTypeName.trim() || createDayType.isPending}>Create workout</Button>
+              {dayTypes.map((dayType) => (
+                <LibraryItem key={dayType.id} $active={selectedDayTypeId === dayType.id} onClick={() => setSelectedDayTypeId(dayType.id)}>
+                  <strong>{dayType.name}</strong>
+                  <Small>{dayType.estimatedDurationMinutes ? `~${dayType.estimatedDurationMinutes} min` : 'No duration yet'}</Small>
+                </LibraryItem>
+              ))}
+            </LibraryCard>
+          </Column>
+
+          {selectedDayType ? (
+            <Column>
+              <StackCard>
+                <Row style={{ justifyContent: 'space-between' }}>
+                  <div>
+                    <h2 style={{ margin: '0 0 4px 0' }}>{selectedDayType.name}</h2>
                     <Small>
-                      {summarizePrescription(exercise.prescription)}
-                      {exercise.notes ? ` · ${exercise.notes}` : ''}
+                      {sortedExercises.length} exercise{sortedExercises.length === 1 ? '' : 's'}
+                      {selectedDayType.estimatedDurationMinutes ? ` · approximately ${selectedDayType.estimatedDurationMinutes} min` : ''}
                     </Small>
                   </div>
-                  <IconButton aria-label="Move exercise up" disabled={index === 0} onClick={() => reorderByDelta(index, -1)}><ChevronUp size={16} /></IconButton>
-                  <IconButton aria-label="Move exercise down" disabled={index === sortedExercises.length - 1} onClick={() => reorderByDelta(index, 1)}><ChevronDown size={16} /></IconButton>
-                  <Menu
-                    label={`Actions for ${exercises.find((item) => item.id === exercise.exerciseId)?.name ?? exercise.exerciseId}`}
-                    items={[
-                      {
-                        label: 'Edit',
-                        onClick: () =>
-                          setEditState({
-                            dayTypeId: exercise.dayTypeId,
-                            exerciseId: exercise.id,
-                            exerciseName: exercises.find((item) => item.id === exercise.exerciseId)?.name ?? exercise.exerciseId,
-                            prescription: exercise.prescription,
-                            notes: exercise.notes ?? '',
-                          }),
-                      },
-                      { label: 'Delete', destructive: true, onClick: () => removeExercise.mutate(exercise.id) },
+                  <Button variant="destructive" onClick={() => deleteDayType.mutate(selectedDayType.id)}>Delete</Button>
+                </Row>
+
+                {sortedExercises.length === 0 ? (
+                  <Small>No exercises yet.</Small>
+                ) : (
+                  sortedExercises.map((exercise, index) => (
+                    <ExerciseRow key={exercise.id}>
+                      <div style={{ flex: 1 }}>
+                        <strong>{exercises.find((item) => item.id === exercise.exerciseId)?.name ?? exercise.exerciseId}</strong>
+                        <Small>
+                          {summarizePrescription(exercise.prescription)}
+                          {exercise.notes ? ` · ${exercise.notes}` : ''}
+                        </Small>
+                      </div>
+                      <IconButton aria-label="Move exercise up" disabled={index === 0} onClick={() => reorderByDelta(index, -1)}><ChevronUp size={16} /></IconButton>
+                      <IconButton aria-label="Move exercise down" disabled={index === sortedExercises.length - 1} onClick={() => reorderByDelta(index, 1)}><ChevronDown size={16} /></IconButton>
+                      <Menu
+                        label={`Actions for ${exercises.find((item) => item.id === exercise.exerciseId)?.name ?? exercise.exerciseId}`}
+                        items={[
+                          {
+                            label: 'Edit',
+                            onClick: () =>
+                              setEditState({
+                                dayTypeId: exercise.dayTypeId,
+                                exerciseId: exercise.id,
+                                exerciseName: exercises.find((item) => item.id === exercise.exerciseId)?.name ?? exercise.exerciseId,
+                                prescription: exercise.prescription,
+                                notes: exercise.notes ?? '',
+                              }),
+                          },
+                          { label: 'Delete', destructive: true, onClick: () => removeExercise.mutate(exercise.id) },
+                        ]}
+                      />
+                    </ExerciseRow>
+                  ))
+                )}
+
+                <PrescriptionGrid>
+                  <Select
+                    label="Exercise"
+                    value={newExerciseId}
+                    onChange={(e) => setNewExerciseId(e.target.value)}
+                    options={[
+                      { value: '', label: 'Select exercise' },
+                      ...exercises.map((exercise) => ({
+                        value: exercise.id,
+                        label: exercise.isCustom ? `${exercise.name} (custom)` : exercise.name,
+                      })),
                     ]}
                   />
-                </ExerciseRow>
-              ))
-            )}
+                  <Select label="Prescription type" value={prescriptionKind} onChange={(e) => setPrescriptionKind(e.target.value)} options={prescriptionOptions} />
+                </PrescriptionGrid>
+                <Row style={{ gap: 8, alignItems: 'flex-end' }}>
+                  <div style={{ flex: 1 }}>
+                    <Input
+                      label="Create a new exercise"
+                      placeholder="e.g. Cable Face Pull"
+                      value={customExerciseName}
+                      onChange={(e) => setCustomExerciseName(e.target.value)}
+                    />
+                  </div>
+                  <Button
+                    variant="secondary"
+                    onClick={() => customExerciseName.trim() && createExercise.mutate({ name: customExerciseName.trim() })}
+                    disabled={!customExerciseName.trim() || createExercise.isPending}
+                  >
+                    <Plus size={16} />Create exercise
+                  </Button>
+                </Row>
+                <Button onClick={() => newExerciseId && addExercise.mutate({ exerciseId: newExerciseId, prescription: emptyPrescription(prescriptionKind) })} disabled={!newExerciseId}><Plus size={16} />Add exercise</Button>
+              </StackCard>
+            </Column>
+          ) : (
+            <Column>
+              <EmptyDetail>
+                <h2 style={{ margin: 0 }}>Choose a workout to edit</h2>
+                <Small>Select a workout from your library or create a new one.</Small>
+                <Input label="New workout" value={newDayTypeName} onChange={(e) => setNewDayTypeName(e.target.value)} placeholder="Upper A, Recovery Walk…" />
+                <Button onClick={() => newDayTypeName.trim() && createDayType.mutate({ name: newDayTypeName.trim() })} disabled={!newDayTypeName.trim() || createDayType.isPending}>Create workout</Button>
+              </EmptyDetail>
+            </Column>
+          )}
+        </Layout>
+      </div>
 
-            <PrescriptionGrid>
-              <Select
-                label="Exercise"
-                value={newExerciseId}
-                onChange={(e) => setNewExerciseId(e.target.value)}
-                options={[
-                  { value: '', label: 'Select exercise' },
-                  ...exercises.map((exercise) => ({
-                    value: exercise.id,
-                    label: exercise.isCustom ? `${exercise.name} (custom)` : exercise.name,
-                  })),
-                ]}
-              />
-              <Select label="Prescription type" value={prescriptionKind} onChange={(e) => setPrescriptionKind(e.target.value)} options={prescriptionOptions} />
-            </PrescriptionGrid>
-            <Row style={{ gap: 8, alignItems: 'flex-end' }}>
-              <div style={{ flex: 1 }}>
-                <Input
-                  label="Create a new exercise"
-                  placeholder="e.g. Cable Face Pull"
-                  value={customExerciseName}
-                  onChange={(e) => setCustomExerciseName(e.target.value)}
-                />
-              </div>
-              <Button
-                variant="secondary"
-                onClick={() => customExerciseName.trim() && createExercise.mutate({ name: customExerciseName.trim() })}
-                disabled={!customExerciseName.trim() || createExercise.isPending}
-              >
-                <Plus size={16} />Create exercise
-              </Button>
-            </Row>
-            <Button onClick={() => newExerciseId && addExercise.mutate({ exerciseId: newExerciseId, prescription: emptyPrescription(prescriptionKind) })} disabled={!newExerciseId}><Plus size={16} />Add exercise</Button>
-          </StackCard>
-        </Column>
-
-        <Column>
+      <div role="tabpanel" id="tabpanel-schedule" aria-labelledby="tab-schedule" hidden={activeTab !== 'schedule'}>
+        <ScheduleLayout>
           <StackCard>
             <h2 style={{ margin: '0 0 12px 0' }}>Program schedule</h2>
             {!selectedProgramId ? (
@@ -795,6 +843,14 @@ export function ProgramEditorPage() {
             ) : (
               <>
                 <Select label="Mode" value={mode} onChange={(e) => { const next = e.target.value as 'perpetual' | 'block'; setMode(next); patchProgram.mutate({ cycleLengthWeeks: next === 'block' ? 1 : null }); }} options={modeOptions} />
+                <Small>Select a workout below, then click a day to assign it. Click an assigned day again to clear it.</Small>
+                <Row style={{ flexWrap: 'wrap' }}>
+                  {dayTypes.map((dayType) => (
+                    <LibraryItem key={dayType.id} $active={selectedDayTypeId === dayType.id} onClick={() => setSelectedDayTypeId(dayType.id)} style={{ flex: '0 0 auto' }}>
+                      <strong>{dayType.name}</strong>
+                    </LibraryItem>
+                  ))}
+                </Row>
                 <DayGrid>
                   {dayNames.map((day, dayIndex) => {
                     const slot = slotsByDay.get(dayIndex);
@@ -821,13 +877,8 @@ export function ProgramEditorPage() {
               </>
             )}
           </StackCard>
-
-          <StackCard>
-            <strong>One-off changes</strong>
-            <Small>Need to swap today&apos;s workout without touching your regular schedule? Use &ldquo;Change today&apos;s workout&rdquo; on the Today page.</Small>
-          </StackCard>
-        </Column>
-      </Layout>
+        </ScheduleLayout>
+      </div>
 
       {editState ? (
         <ExerciseEditModal

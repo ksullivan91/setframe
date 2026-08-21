@@ -11,3 +11,4 @@ export * from './Modal';
 export * from './Menu';
 export * from './ActiveWorkoutBanner';
 export * from './Stepper';
+export * from './Tabs';
