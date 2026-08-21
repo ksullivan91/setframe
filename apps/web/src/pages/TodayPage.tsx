@@ -379,7 +379,6 @@ export function TodayPage() {
     queryKey: ['today', localDate],
     queryFn: () => fetchToday(api, localDate),
   });
-  const showProgramSetupPrompt = hasNoProgram && !isError;
   const manual = data?.manualEntry;
   const [weight, setWeight] = useState('');
   const [journal, setJournal] = useState('');
@@ -397,6 +396,7 @@ export function TodayPage() {
   // wizard, which meant Today was unreachable until a program existed.
   // Instead, show Today as usual with an inline prompt below.
   const hasNoProgram = Boolean(programsQuery.data && programsQuery.data.length === 0);
+  const showProgramSetupPrompt = hasNoProgram && !isError;
 
   useEffect(() => {
     setWeight(manual?.morningWeightValue?.toString() ?? '');
