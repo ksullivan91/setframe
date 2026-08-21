@@ -6,6 +6,7 @@ import { UserButton } from '@clerk/clerk-react';
 import { spacing } from '@setline/design-tokens';
 import { typeScale } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';
+import { ActiveWorkoutBanner } from './ActiveWorkoutBanner';
 
 /**
  * AppShell — mobile-first. Base styles render a bottom `Shell/Mobile/
@@ -150,7 +151,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           History
         </HistoryNavItem>
       </Sidebar>
-      <Content>{children}</Content>
+      <Content>
+        <ActiveWorkoutBanner />
+        {children}
+      </Content>
     </Shell>
   );
 }

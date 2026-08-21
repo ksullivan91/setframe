@@ -6,3 +6,4 @@ export * from './Select';
 export * from './Checkbox';
 export * from './IconButton';
 export * from './Toast';
+export * from './ActiveWorkoutBanner';

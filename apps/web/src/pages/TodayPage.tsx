@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, Circle, Scale, NotebookText, Utensils, Dumbbell, Watch, RefreshCw } from 'lucide-react';
+import { CheckCircle2, Circle, Scale, NotebookText, Utensils, Dumbbell, Watch, RefreshCw, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { spacing, radius } from '@setline/design-tokens';
-import type { WorkoutSession } from '@setline/schemas';
+import type { DayTypeExercise, Exercise, WorkoutSession } from '@setline/schemas';
 import { typeScale } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';
-import { Button, Card, Checkbox, Input, useToast } from '../components';
+import { Button, Card, Checkbox, IconButton, Input, useToast } from '../components';
 import { useApiClient } from '../lib/api-client';
+import { summarizePrescription } from '../lib/prescription';
 
 interface DashboardTodayResponse {
   localDate: string;
@@ -174,6 +175,48 @@ const MetaValue = styled.div`
   font-size: ${typeScale.body.fontSize}px;
   font-weight: 600;
 `;
+const Backdrop = styled.div`
+  position: fixed;
+  inset: 0;
+  background: rgba(21, 21, 34, 0.56);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: ${spacing[16]}px;
+  z-index: 1000;
+`;
+const PreviewModal = styled(Card)`
+  width: min(480px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: ${spacing[16]}px;
+`;
+const PreviewHeader = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: ${spacing[12]}px;
+`;
+const PreviewExerciseRow = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${spacing[4]}px;
+  padding: ${spacing[8]}px 0;
+  border-bottom: 1px solid ${(p) => p.theme.border.subtle};
+
+  &:last-child {
+    border-bottom: none;
+  }
+`;
+const PreviewExerciseName = styled.span`
+  font-weight: 600;
+`;
+const PreviewPlan = styled.span`
+  color: ${(p) => p.theme.text.secondary};
+  font-size: ${typeScale.compactBody.fontSize}px;
+`;
 const statusCopy = {
   ok: 'Synced',
   syncing: 'Updating health data…',
@@ -221,6 +264,7 @@ export function TodayPage() {
   const [weight, setWeight] = useState('');
   const [journal, setJournal] = useState('');
   const [selectedMood, setSelectedMood] = useState<number | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   useEffect(() => {
     setWeight(manual?.morningWeightValue?.toString() ?? '');
@@ -250,6 +294,18 @@ export function TodayPage() {
     onError: () => toast.show({ variant: 'error', message: 'Could not start workout.', actionLabel: 'Retry now' }),
   });
 
+  const dayTypePreviewQuery = useQuery({
+    queryKey: ['day-type-preview', data?.dayTypeId],
+    queryFn: () => api.get<{ id: string; name: string; exercises: DayTypeExercise[] }>(`/day-types/${data?.dayTypeId}`),
+    enabled: previewOpen && Boolean(data?.dayTypeId),
+  });
+  const exercisesQuery = useQuery({
+    queryKey: ['exercises'],
+    queryFn: () => api.get<Exercise[]>('/exercises'),
+    enabled: previewOpen,
+  });
+  const exerciseNameById = new Map((exercisesQuery.data ?? []).map((e) => [e.id, e.name]));
+
   const workoutDone = Boolean(data?.sessions.length);
   const mealDone = Boolean(manual?.preWorkoutMealLogged);
   const weightDone = manual?.morningWeightValue != null;
@@ -258,6 +314,7 @@ export function TodayPage() {
   const syncStatus = data?.syncState?.status ?? 'ok';
 
   return (
+    <>
     <Grid>
       <Stack>
         <Header>
@@ -328,7 +385,7 @@ export function TodayPage() {
                   </StepBody>
                   <InlineRow>
                     <Button disabled={!data?.dayLabel || startWorkoutMutation.isPending} onClick={() => startWorkoutMutation.mutate()}>Start workout</Button>
-                    <Button variant="secondary" disabled>Preview</Button>
+                    <Button variant="secondary" disabled={!data?.dayTypeId} onClick={() => setPreviewOpen(true)}>Preview</Button>
                   </InlineRow>
                 </StepContent>
               </StepRow>
@@ -367,5 +424,30 @@ export function TodayPage() {
         </Card>
       </Stack>
     </Grid>
+    {previewOpen ? (
+      <Backdrop onClick={() => setPreviewOpen(false)}>
+        <PreviewModal onClick={(e) => e.stopPropagation()}>
+          <PreviewHeader>
+            <div>
+              <StepTitle style={{ margin: 0 }}>{dayTypePreviewQuery.data?.name ?? 'Today\u2019s plan'}</StepTitle>
+              <StepBody>Planned exercises — nothing is logged until you start the workout.</StepBody>
+            </div>
+            <IconButton aria-label="Close preview" onClick={() => setPreviewOpen(false)}>
+              <X size={16} />
+            </IconButton>
+          </PreviewHeader>
+          {dayTypePreviewQuery.isLoading ? <StepBody>Loading plan…</StepBody> : null}
+          {dayTypePreviewQuery.data?.exercises.length === 0 ? <StepBody>No exercises added to this day type yet.</StepBody> : null}
+          {dayTypePreviewQuery.data?.exercises.map((ex) => (
+            <PreviewExerciseRow key={ex.id}>
+              <PreviewExerciseName>{exerciseNameById.get(ex.exerciseId) ?? 'Exercise'}</PreviewExerciseName>
+              <PreviewPlan>{summarizePrescription(ex.prescription)}</PreviewPlan>
+            </PreviewExerciseRow>
+          ))}
+          <Button onClick={() => setPreviewOpen(false)}>Close</Button>
+        </PreviewModal>
+      </Backdrop>
+    ) : null}
+    </>
   );
 }

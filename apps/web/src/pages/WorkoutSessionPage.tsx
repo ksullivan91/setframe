@@ -7,6 +7,7 @@ import type { Exercise, Prescription, WorkoutExerciseLog, WorkoutSession, Workou
 import { spacing } from '@setline/design-tokens';
 import { Button, Card, IconButton, Input, PRBadge, Select, useToast } from '../components';
 import { useApiClient } from '../lib/api-client';
+import { summarizePrescription } from '../lib/prescription';
 import { typeScale } from '../theme/typeScale';
 
 interface WorkoutSessionExercise extends WorkoutExerciseLog {
@@ -91,25 +92,7 @@ const setTypeOptions = [
   { value: 'failure', label: 'Failure' },
 ];
 
-function summarizePrescription(prescription: Prescription | null) {
-  if (!prescription) return 'Planned: —';
-  switch (prescription.kind) {
-    case 'sets_reps':
-    case 'per_side':
-    case 'bodyweight_reps':
-      return `Planned: ${prescription.sets} × ${prescription.repsMin}${prescription.repsMax ? `–${prescription.repsMax}` : ''}`;
-    case 'top_set_backoff':
-      return `Planned: ${prescription.topSets} top + ${prescription.backoffSets} backoff`;
-    case 'timed':
-      return `Planned: ${prescription.sets} × ${prescription.durationSeconds}s`;
-    case 'distance':
-      return `Planned: ${prescription.sets} × ${prescription.distanceValue}${prescription.distanceUnit}`;
-    case 'duration':
-      return `Planned: ${prescription.durationMinutes} min`;
-    case 'distanceDuration':
-      return `Planned: ${prescription.distanceMiles} mi / ${prescription.durationMinutes} min`;
-  }
-}
+
 
 function getDefaultSetType(sets: WorkoutSet[]): WorkoutSet['setType'] {
   const lastType = sets.at(-1)?.setType;
