@@ -338,6 +338,7 @@ export function WorkoutSessionPage() {
                 />
                 <Input
                   label="RPE"
+                  labelHint="Rate of Perceived Exertion (1–10): how hard the set felt. 10 = max effort, no reps left. 7 = could do about 3 more reps."
                   value={draft.rpe}
                   onChange={(event) => setDrafts((prev) => ({ ...prev, [set.id]: { ...draft, rpe: event.target.value } }))}
                   inputMode="decimal"

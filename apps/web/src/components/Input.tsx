@@ -1,5 +1,6 @@
 import { forwardRef, useId, type InputHTMLAttributes } from 'react';
 import styled from 'styled-components';
+import { Info } from 'lucide-react';
 import { radius, spacing } from '@setline/design-tokens';
 import { typeScale } from '../theme/typeScale';
 
@@ -7,6 +8,8 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label: string;
   /** Optional unit suffix, e.g. "lb" for numeric weight fields (style guide §6). */
   unit?: string;
+  /** Optional explanatory text shown via an info-icon tooltip next to the label. */
+  labelHint?: string;
   error?: string;
 }
 
@@ -16,9 +19,68 @@ const Wrapper = styled.div`
   gap: ${spacing[4]}px;
 `;
 
+const LabelRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${spacing[4]}px;
+`;
+
 const Label = styled.label`
   font-size: ${typeScale.label.fontSize}px;
   color: ${(p) => p.theme.text.secondary};
+`;
+
+const HintWrapper = styled.span`
+  position: relative;
+  display: inline-flex;
+
+  &:hover > span,
+  &:focus-within > span {
+    opacity: 1;
+    visibility: visible;
+  }
+`;
+
+const HintButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: help;
+  color: ${(p) => p.theme.text.disabled};
+
+  &:hover,
+  &:focus-visible {
+    color: ${(p) => p.theme.text.secondary};
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${(p) => p.theme.action.primary};
+    outline-offset: 2px;
+    border-radius: 50%;
+  }
+`;
+
+const HintBubble = styled.span`
+  position: absolute;
+  bottom: calc(100% + ${spacing[8]}px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 220px;
+  background: ${(p) => p.theme.text.primary};
+  color: ${(p) => p.theme.surface.canvas};
+  font-size: ${typeScale.helper.fontSize}px;
+  line-height: 1.4;
+  padding: ${spacing[8]}px ${spacing[12]}px;
+  border-radius: ${radius.small}px;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.1s ease;
+  pointer-events: none;
+  z-index: 10;
 `;
 
 const FieldRow = styled.div`
@@ -61,14 +123,27 @@ const ErrorText = styled.span`
 
 /** Input — labeled text/numeric field with optional unit suffix (style guide §6). */
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
-  { label, unit, error, id, ...props },
+  { label, unit, labelHint, error, id, ...props },
   ref,
 ) {
   const generatedId = useId();
+  const hintId = useId();
   const inputId = id ?? generatedId;
   return (
     <Wrapper>
-      <Label htmlFor={inputId}>{label}</Label>
+      <LabelRow>
+        <Label htmlFor={inputId}>{label}</Label>
+        {labelHint ? (
+          <HintWrapper>
+            <HintButton type="button" aria-describedby={hintId} aria-label={`What is ${label}?`}>
+              <Info size={14} aria-hidden="true" />
+            </HintButton>
+            <HintBubble role="tooltip" id={hintId}>
+              {labelHint}
+            </HintBubble>
+          </HintWrapper>
+        ) : null}
+      </LabelRow>
       <FieldRow>
         <StyledInput ref={ref} id={inputId} {...props} />
         {unit ? <Unit>{unit}</Unit> : null}
