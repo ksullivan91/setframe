@@ -2020,3 +2020,95 @@ https://www.nngroup.com/articles/ten-usability-heuristics/?utm_source=chatgpt.co
 https://www.nngroup.com/reports/make-decisions/?utm_source=chatgpt.com
 
 https://www.w3.org/WAI/WCAG21/Techniques/aria/ARIA22?utm_source=chatgpt.com
+
+---
+
+# 48. Mobile app parity gap (tracked separately, added 2026-08-21)
+
+The web app (`apps/web`) has received all Phase 1–3 redesign work described
+above. **The mobile app (`apps/mobile`, Expo/React Native) has not** — it
+was scaffolded early with the pre-redesign information architecture and
+several screens still render mocked/local-only state. This section
+documents exactly what's missing so mobile parity can be scoped as its
+own project once the web architecture (Phases 4–7) has stabilized. Do not
+start mobile work until the web session/Today/History/Progress
+architecture is final — otherwise mobile will be built against a moving
+target and need to be redone.
+
+## Current mobile state (as of Phase 3 completion)
+
+Routes present under `apps/mobile/app/`:
+- `(auth)` sign-in/sign-up — wired to Clerk, functional.
+- `(tabs)/today.tsx` — **mocked**. Workout preview card ("Push Day A ·
+  Week 2 · Day 3") is hardcoded text, not fetched from
+  `/v1/dashboard/today`. "Today's check-in" inputs (weight/BP) have no
+  submit handler — nothing is persisted. Sync status pill is hardcoded to
+  `'synced'`. Apple Health metrics do render live via `HealthKitAdapter`,
+  but only steps/calories/exercise-minutes/nutrition — no write-back to
+  `/v1/daily-manual-entry` or `/v1/health-sync`.
+- `(tabs)/training.tsx` — **entirely mocked**. Sets are local
+  `useState` only; explicit `// TODO: wire POST /v1/workout-sessions +
+  /v1/workout-exercise-logs/:id/sets` comment in the file. No session
+  actually starts, no exercise data loads from a day-type/program, "Finish"
+  just navigates to a static summary screen without persisting anything.
+- `(tabs)/progress.tsx` — stub, no trend cards wired (the web parity gap
+  the Figma audit flagged — "Progress: Figma calls for 5 trend cards; web
+  shows only 1" — is *worse* on mobile, which shows effectively none).
+- `(tabs)/settings.tsx` — has not been checked against the web Settings
+  redesign (compact grouped-card layout, on/off toggle text).
+- `exercise-history/[exerciseId].tsx` — exists but wasn't audited for the
+  "silently defaults to first exercise" bug fixed on web; needs its own
+  check.
+- `program-editor.tsx` — pre-Phase-3; has none of the planned-set
+  (per-set prescription) UI added to web's `ProgramEditorPage` in Phase 3,
+  and likely predates the Phase 2 exercise-row Menu/Modal conventions.
+- `session-summary.tsx` — static/mocked.
+
+## What full mobile parity will require (do this after web Phases 4–7)
+
+1. **Data wiring pass**: replace every mocked `useState`/hardcoded value
+   above with real `useQuery`/`useMutation` calls against the same
+   `apps/api` endpoints the web app uses (session start/log-set/finish,
+   dashboard/today, day-types, planned-sets, daily-manual-entry,
+   health-sync). Mobile has no shared API client analogous to
+   `apps/web/src/lib/api-client.ts` yet — needs one (Clerk token
+   attachment + base URL from `apps/mobile/.env`).
+2. **Terminology/IA parity**: re-apply the terminology cleanup and
+   IA changes from web Phases 1–2 (Workouts vs. Schedule separation,
+   "Change today's workout" flow living on Today not the builder, etc.) —
+   mobile was never updated for these.
+3. **Per-set prescription model UI** (Phase 3 parity): mobile's
+   `program-editor.tsx` needs the same "Customize individual sets"
+   progressive-disclosure editor added to web, once the interaction
+   pattern is validated on web.
+4. **Phase 4 parity** (after web Phase 4 ships): real workout-session
+   logging screen — planned-vs-actual set display, previous-session
+   ghost values (already partially mocked via `previousWeight`/
+   `previousReps` props on `SetRowEditable` — good bones, just needs
+   real data), PR detection wired to real historical sets via
+   `@setline/domain`'s `detectWeightPR` (already imported, just fed
+   mock `history` array), persistence/error/loading states.
+5. **Phase 5 parity** (after web Phase 5 ships): real Today ritual —
+   dashboard fetch, manual entry persistence, live sync status, schedule
+   exception flow, post-workout review.
+6. **Phase 6 parity** (after web Phase 6 ships): real History/Progress —
+   the `(tabs)/progress.tsx` stub and `exercise-history` screen need the
+   full trend-card set once the web version defines what "meaningful
+   Progress dashboard" looks like.
+7. **Design-system parity check**: mobile has its own component library
+   (`apps/mobile/src/components/*`) that mirrors but does not share code
+   with `apps/web/src/components/*` (different rendering targets —
+   `styled-components` (web) vs. React Native `StyleSheet` (mobile)).
+   Any visual/UX fix made to a web component (e.g. the banner
+   opaque-background fix, toggle on/off text) must be manually
+   re-applied to the mobile equivalent — there is no automatic sync.
+
+## Recommendation
+
+Treat mobile as **Phase 8** (not formally in the numbered phase list
+above since it was scoped later): a dedicated pass that re-implements
+each mobile screen against the now-stable web-validated architecture,
+rather than parallelizing mobile alongside web Phases 4–7. Building
+mobile screens against an architecture that's still actively changing
+(Phases 4–7 haven't shipped yet) would mean redoing the same screens
+twice.
