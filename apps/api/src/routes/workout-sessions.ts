@@ -5,9 +5,8 @@ import { z } from 'zod';
 import {
   createWorkoutSessionSchema,
   createWorkoutSetSchema,
-  dayTypeExerciseSchema,
-  exerciseSchema,
   workoutExerciseLogSchema,
+  workoutSessionDetailSchema,
   workoutSessionSchema,
   workoutSetSchema,
   type Prescription,
@@ -26,19 +25,8 @@ import { getDb } from '../lib/db.js';
 import { requireAuth } from '../plugins/auth.js';
 import { badRequest, forbidden, notFound } from '../lib/errors.js';
 
-
 const prEligibleSetTypes: ReadonlySet<LoggedSetType> = new Set(['working', 'top', 'backoff']);
 type LoggedSetType = 'warmup' | 'working' | 'top' | 'backoff' | 'drop' | 'failure';
-
-const sessionExerciseDetailSchema = workoutExerciseLogSchema.extend({
-  exercise: exerciseSchema,
-  prescription: dayTypeExerciseSchema.shape.prescription.nullable(),
-  sets: z.array(workoutSetSchema),
-});
-
-const workoutSessionDetailSchema = workoutSessionSchema.extend({
-  exercises: z.array(sessionExerciseDetailSchema),
-});
 
 function toSessionResponse(row: typeof workoutSession.$inferSelect) {
   return {
@@ -248,6 +236,63 @@ async function getHistoricalSets(
   }));
 }
 
+async function getPreviousCompletedSessionForExercises(
+  db: ReturnType<typeof getDb>,
+  userId: string,
+  sessionId: string,
+  exerciseIds: string[],
+) {
+  if (!exerciseIds.length) return new Map<string, { sessionId: string; localDate: string; completedAt: string | null; sets: ReturnType<typeof toSetResponse>[] }>();
+
+  const previousLogs = await db
+    .select({ log: workoutExerciseLog, session: workoutSession })
+    .from(workoutExerciseLog)
+    .innerJoin(workoutSession, eq(workoutSession.id, workoutExerciseLog.sessionId))
+    .where(
+      and(
+        eq(workoutSession.userId, userId),
+        eq(workoutSession.status, 'completed'),
+        inArray(workoutExerciseLog.exerciseId, exerciseIds),
+        ne(workoutSession.id, sessionId),
+      ),
+    )
+    .orderBy(workoutSession.completedAt, workoutSession.updatedAt, workoutExerciseLog.sortOrder);
+
+  const latestByExerciseId = new Map<string, { logId: string; sessionId: string; localDate: string; completedAt: string | null }>();
+  for (const row of previousLogs.reverse()) {
+    if (!latestByExerciseId.has(row.log.exerciseId)) {
+      latestByExerciseId.set(row.log.exerciseId, {
+        logId: row.log.id,
+        sessionId: row.session.id,
+        localDate: row.session.localDate,
+        completedAt: row.session.completedAt ? row.session.completedAt.toISOString() : null,
+      });
+    }
+  }
+
+  const logIds = [...latestByExerciseId.values()].map((value) => value.logId);
+  if (!logIds.length) return new Map();
+
+  const previousSetRows = await db.select().from(workoutSet).where(inArray(workoutSet.exerciseLogId, logIds));
+  const setsByLogId = new Map<string, ReturnType<typeof toSetResponse>[]>();
+  for (const row of previousSetRows) {
+    const list = setsByLogId.get(row.exerciseLogId) ?? [];
+    list.push(toSetResponse(row));
+    setsByLogId.set(row.exerciseLogId, list);
+  }
+
+  const result = new Map<string, { sessionId: string; localDate: string; completedAt: string | null; sets: ReturnType<typeof toSetResponse>[] }>();
+  for (const [exerciseId, value] of latestByExerciseId) {
+    result.set(exerciseId, {
+      sessionId: value.sessionId,
+      localDate: value.localDate,
+      completedAt: value.completedAt,
+      sets: (setsByLogId.get(value.logId) ?? []).sort((a, b) => a.sortOrder - b.sortOrder),
+    });
+  }
+  return result;
+}
+
 async function detectPrFlags(params: {
   db: ReturnType<typeof getDb>;
   userId: string;
@@ -446,6 +491,12 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
         .from(workoutSet)
         .innerJoin(workoutExerciseLog, eq(workoutExerciseLog.id, workoutSet.exerciseLogId))
         .where(eq(workoutExerciseLog.sessionId, request.params.sessionId));
+      const previousSessionByExerciseId = await getPreviousCompletedSessionForExercises(
+        db,
+        request.userId!,
+        request.params.sessionId,
+        exerciseRows.map(({ log }) => log.exerciseId),
+      );
 
       return {
         ...toSessionResponse(session),
@@ -467,6 +518,28 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
               .filter(({ workout_set }) => workout_set.exerciseLogId === log.id)
               .map(({ workout_set }) => toSetResponse(workout_set))
               .sort((a, b) => a.sortOrder - b.sortOrder),
+            previousSession: (() => {
+              const previous = previousSessionByExerciseId.get(log.exerciseId);
+              if (!previous) return null;
+              return {
+                sessionId: previous.sessionId,
+                localDate: previous.localDate,
+                completedAt: previous.completedAt,
+                sets: previous.sets.map((set: ReturnType<typeof toSetResponse>) => ({
+                  sessionId: previous.sessionId,
+                  localDate: previous.localDate,
+                  completedAt: previous.completedAt,
+                  setType: set.setType,
+                  weightValue: set.weightValue,
+                  weightUnit: set.weightUnit,
+                  reps: set.reps,
+                  durationSeconds: set.durationSeconds,
+                  distanceValue: set.distanceValue,
+                  distanceUnit: set.distanceUnit,
+                  rpe: set.rpe,
+                })),
+              };
+            })(),
           })),
       };
     },

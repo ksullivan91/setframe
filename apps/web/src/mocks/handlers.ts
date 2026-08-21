@@ -131,10 +131,13 @@ export const handlers = [
         exerciseMinutes: 32,
       },
       nutritionSnapshot: { caloriesKcal: '2180' },
-      syncState: { status: 'ok' },
+      syncState: { status: 'ok', lastSuccessfulSyncAt: now(), lastAttemptAt: now(), latestCompleteLocalDate: today() },
       weekLabel: 'Week 2',
       dayLabel: 'Day 3',
+      dayTypeId: '30000000-0000-0000-0000-000000000003',
       estimatedDurationMinutes: 50,
+      scheduleSource: 'program',
+      override: null,
     }),
   ),
 
@@ -233,6 +236,43 @@ export const handlers = [
 
   http.get('*/v1/integrations/apple-health/sync-state', () =>
     HttpResponse.json({ status: 'ok', lastSuccessAt: now() }),
+  ),
+
+  http.get('*/v1/workout-sessions/:sessionId', ({ params }) =>
+    HttpResponse.json({
+      id: params.sessionId,
+      userId: mockUserId,
+      templateId: '30000000-0000-0000-0000-000000000003',
+      localDate: today(),
+      timezone: 'America/Chicago',
+      status: 'completed',
+      startedAt: now(),
+      completedAt: now(),
+      notes: null,
+      createdAt: now(),
+      updatedAt: now(),
+      exercises: [
+        {
+          id: 'exercise-log-1',
+          sessionId: params.sessionId,
+          exerciseId: mockExercises[0]!.id,
+          templateExerciseId: null,
+          sortOrder: 0,
+          skipped: false,
+          notes: null,
+          createdAt: now(),
+          updatedAt: now(),
+          exercise: mockExercises[0]!,
+          prescription: { kind: 'sets_reps', sets: 3, repsMin: 8, repsMax: null },
+          previousSession: null,
+          sets: [
+            { id: 'set-1', exerciseLogId: 'exercise-log-1', clientId: crypto.randomUUID(), sortOrder: 0, setType: 'working', weightValue: 185, weightUnit: 'lb', reps: 8, durationSeconds: null, distanceValue: null, distanceUnit: null, rpe: null, isPrWeight: false, isPrReps: false, createdAt: now(), updatedAt: now() },
+            { id: 'set-2', exerciseLogId: 'exercise-log-1', clientId: crypto.randomUUID(), sortOrder: 1, setType: 'working', weightValue: 185, weightUnit: 'lb', reps: 8, durationSeconds: null, distanceValue: null, distanceUnit: null, rpe: null, isPrWeight: false, isPrReps: false, createdAt: now(), updatedAt: now() },
+            { id: 'set-3', exerciseLogId: 'exercise-log-1', clientId: crypto.randomUUID(), sortOrder: 2, setType: 'working', weightValue: 185, weightUnit: 'lb', reps: 8, durationSeconds: null, distanceValue: null, distanceUnit: null, rpe: null, isPrWeight: false, isPrReps: false, createdAt: now(), updatedAt: now() },
+          ],
+        },
+      ],
+    }),
   ),
 
   http.post('*/v1/workout-sessions', () => {

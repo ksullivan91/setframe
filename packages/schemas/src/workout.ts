@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { dayTypeExerciseSchema } from './program';
 
 const workoutLoggedSetTypeSchema = z.enum(['warmup', 'working', 'top', 'backoff', 'drop', 'failure']);
 
@@ -59,6 +60,49 @@ export const workoutSetSchema = z.object({
   updatedAt: z.string().datetime(),
 });
 export type WorkoutSet = z.infer<typeof workoutSetSchema>;
+
+export const workoutSetPreviousPerformanceSchema = z.object({
+  sessionId: z.string().uuid(),
+  localDate: z.string().date(),
+  completedAt: z.string().datetime().nullable(),
+  setType: workoutLoggedSetTypeSchema,
+  weightValue: z.number().nullable(),
+  weightUnit: z.enum(['lb', 'kg']).nullable(),
+  reps: z.number().int().nullable(),
+  durationSeconds: z.number().int().nullable(),
+  distanceValue: z.number().nullable(),
+  distanceUnit: z.enum(['m', 'km', 'mi']).nullable(),
+  rpe: z.number().min(0).max(10).nullable(),
+});
+export type WorkoutSetPreviousPerformance = z.infer<typeof workoutSetPreviousPerformanceSchema>;
+
+export const workoutSessionExerciseDetailSchema = workoutExerciseLogSchema.extend({
+  exercise: z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    isCustom: z.boolean(),
+    ownerUserId: z.string().uuid().nullable(),
+    archivedAt: z.string().datetime().nullable(),
+    createdAt: z.string().datetime(),
+    updatedAt: z.string().datetime(),
+  }),
+  prescription: dayTypeExerciseSchema.shape.prescription.nullable(),
+  sets: z.array(workoutSetSchema),
+  previousSession: z
+    .object({
+      sessionId: z.string().uuid(),
+      localDate: z.string().date(),
+      completedAt: z.string().datetime().nullable(),
+      sets: z.array(workoutSetPreviousPerformanceSchema),
+    })
+    .nullable(),
+});
+export type WorkoutSessionExerciseDetail = z.infer<typeof workoutSessionExerciseDetailSchema>;
+
+export const workoutSessionDetailSchema = workoutSessionSchema.extend({
+  exercises: z.array(workoutSessionExerciseDetailSchema),
+});
+export type WorkoutSessionDetail = z.infer<typeof workoutSessionDetailSchema>;
 
 export const createWorkoutSetSchema = z.object({
   clientId: z.string().uuid(),

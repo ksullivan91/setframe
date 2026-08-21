@@ -197,4 +197,55 @@ describe('workout session routes', () => {
     expect(response.json()).toMatchObject({ isPrWeight: false, isPrReps: false, setType: 'backoff' });
     await app.close();
   });
+
+  it('includes previous completed session sets on session detail', async () => {
+    const completedSessionRow = {
+      ...sessionRow,
+      id: '77777777-7777-4777-8777-777777777777',
+      status: 'completed',
+      completedAt: new Date('2026-08-19T10:30:00Z'),
+      updatedAt: new Date('2026-08-19T10:30:00Z'),
+      localDate: '2026-08-19',
+    };
+    const previousLogRow = {
+      ...logRow,
+      id: '88888888-8888-4888-8888-888888888888',
+      sessionId: completedSessionRow.id,
+    };
+    const previousSetRow = {
+      ...setRow,
+      id: '99999999-9999-4999-8999-999999999999',
+      exerciseLogId: previousLogRow.id,
+      setType: 'working',
+      loadValue: '215',
+      reps: 8,
+      isPrWeight: false,
+      isPrReps: false,
+      updatedAt: new Date('2026-08-19T10:10:00Z'),
+      createdAt: new Date('2026-08-19T10:10:00Z'),
+    };
+
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([sessionRow]))
+      .mockReturnValueOnce(selectChain([{ log: logRow, exercise: { id: logRow.exerciseId, name: 'Bench Press', isSystem: true, createdByUserId: null, archivedAt: null, createdAt: new Date('2026-08-20T10:00:00Z'), updatedAt: new Date('2026-08-20T10:00:00Z') } }]))
+      .mockReturnValueOnce(selectChain([{ workout_set: setRow }]))
+      .mockReturnValueOnce(selectChain([{ log: previousLogRow, session: completedSessionRow }]))
+      .mockReturnValueOnce(selectChain([previousSetRow]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'GET',
+      url: `/v1/workout-sessions/${sessionRow.id}`,
+      headers: authHeader,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().exercises[0].previousSession).toMatchObject({
+      sessionId: completedSessionRow.id,
+      localDate: '2026-08-19',
+      sets: [{ weightValue: 215, reps: 8, setType: 'working' }],
+    });
+    await app.close();
+  });
 });
