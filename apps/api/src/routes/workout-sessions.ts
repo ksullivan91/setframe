@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
-import { and, eq, isNotNull, ne } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, ne } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   createWorkoutSessionSchema,
@@ -16,6 +16,7 @@ import { detectRepPR, detectWeightPR, type HistoricalSet } from '@setline/domain
 import {
   dayType,
   dayTypeExercise,
+  dayTypeExercisePlannedSet,
   exercise,
   workoutExerciseLog,
   workoutSession,
@@ -338,6 +339,23 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
           .where(eq(dayTypeExercise.dayTypeId, request.body.templateId));
 
         if (templateExercises.length) {
+          const plannedSetRows = await db
+            .select()
+            .from(dayTypeExercisePlannedSet)
+            .where(
+              inArray(
+                dayTypeExercisePlannedSet.dayTypeExerciseId,
+                templateExercises.map(({ dayTypeExercise: t }) => t.id),
+              ),
+            )
+            .orderBy(dayTypeExercisePlannedSet.sortOrder, dayTypeExercisePlannedSet.createdAt);
+          const plannedSetsByExerciseId = new Map<string, (typeof plannedSetRows)[number][]>();
+          for (const row of plannedSetRows) {
+            const list = plannedSetsByExerciseId.get(row.dayTypeExerciseId) ?? [];
+            list.push(row);
+            plannedSetsByExerciseId.set(row.dayTypeExerciseId, list);
+          }
+
           const insertedLogs = await db
             .insert(workoutExerciseLog)
             .values(
@@ -352,18 +370,48 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
             )
             .returning();
 
+          // Correlate each inserted log back to its source dayTypeExercise via
+          // the (exerciseId, sortOrder) pair rather than relying on INSERT ...
+          // RETURNING preserving input array order, which Postgres/Drizzle
+          // don't formally guarantee.
+          const templateExerciseByKey = new Map(
+            templateExercises.map(({ dayTypeExercise: t, exercise: e }) => [`${e.id}::${t.sortOrder}`, t]),
+          );
           const setDrafts = insertedLogs.flatMap((log) => {
+            const templateExercise = templateExerciseByKey.get(`${log.exerciseId}::${log.sortOrder}`);
+            const plannedSets = templateExercise ? plannedSetsByExerciseId.get(templateExercise.id) : undefined;
+            if (plannedSets?.length) {
+              // Individually-specified planned sets take precedence over the
+              // summary prescription when present (user-experience-redesign.md §9).
+              return plannedSets.map((planned, setIndex) => ({
+                exerciseLogId: log.id,
+                clientId: randomUUID(),
+                sortOrder: setIndex,
+                setType: planned.setType,
+                reps: planned.reps,
+                loadValue: planned.loadValue,
+                loadUnit: planned.loadUnit,
+                durationSeconds: planned.durationSeconds,
+                distanceValue: planned.distanceValue,
+                distanceUnit: planned.distanceUnit,
+                rpe: null,
+                completed: false,
+              }));
+            }
             const prescription = log.prescriptionSnapshot as Prescription | null;
             if (!prescription) return [];
-            return expandPrescriptionToSetDrafts(prescription).map((draft, index) => ({
+            return expandPrescriptionToSetDrafts(prescription).map((draft, setIndex) => ({
               exerciseLogId: log.id,
               clientId: randomUUID(),
-              sortOrder: index,
+              sortOrder: setIndex,
               setType: draft.setType,
               reps: draft.reps,
+              loadValue: null,
+              loadUnit: null,
               durationSeconds: draft.durationSeconds,
               distanceValue: draft.distanceValue?.toString() ?? null,
               distanceUnit: draft.distanceUnit,
+              rpe: null,
               completed: false,
             }));
           });

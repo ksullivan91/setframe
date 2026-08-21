@@ -4,16 +4,20 @@ import { z } from 'zod';
 import {
   dayType,
   dayTypeExercise,
+  dayTypeExercisePlannedSet,
   programScheduleSlot,
   programVersion,
   scheduleOverride,
   trainingProgram,
 } from '@setline/database';
 import {
+  createPlannedSetSchema,
+  dayTypeExercisePlannedSetSchema,
   dayTypeExerciseSchema,
   dayTypeSchema,
   prescriptionSchema,
   programScheduleSlotSchema,
+  reorderPlannedSetsSchema,
   scheduleOverrideSchema,
 } from '@setline/schemas';
 import { getDb } from '../lib/db.js';
@@ -46,6 +50,26 @@ function toDayTypeExerciseResponse(row: typeof dayTypeExercise.$inferSelect) {
   };
 }
 
+function toPlannedSetResponse(row: typeof dayTypeExercisePlannedSet.$inferSelect) {
+  return {
+    id: row.id,
+    dayTypeExerciseId: row.dayTypeExerciseId,
+    sortOrder: row.sortOrder,
+    setType: row.setType,
+    reps: row.reps,
+    repsMax: row.repsMax,
+    loadValue: row.loadValue != null ? Number(row.loadValue) : null,
+    loadUnit: row.loadUnit,
+    durationSeconds: row.durationSeconds,
+    distanceValue: row.distanceValue != null ? Number(row.distanceValue) : null,
+    distanceUnit: row.distanceUnit,
+    rpe: row.rpe != null ? Number(row.rpe) : null,
+    notes: row.notes,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
 function toScheduleSlotResponse(row: typeof programScheduleSlot.$inferSelect) {
   return {
     id: row.id,
@@ -71,6 +95,11 @@ function toScheduleOverrideResponse(row: typeof scheduleOverride.$inferSelect) {
 
 const dayTypeParamsSchema = z.object({ dayTypeId: z.string().uuid() });
 const dayTypeExerciseParamsSchema = z.object({ dayTypeId: z.string().uuid(), exerciseId: z.string().uuid() });
+const plannedSetParamsSchema = z.object({
+  dayTypeId: z.string().uuid(),
+  exerciseId: z.string().uuid(),
+  plannedSetId: z.string().uuid(),
+});
 const programParamsSchema = z.object({ programId: z.string().uuid() });
 const dateParamsSchema = z.object({ date: z.string().date() });
 
@@ -137,6 +166,47 @@ async function getOwnedDayTypeExercise(
   if (!row) throw notFound('Day type exercise not found');
   if (row.owner.userId !== userId) throw forbidden('Not allowed to access this resource');
   return row.exercise;
+}
+
+async function getOwnedPlannedSet(
+  db: ReturnType<typeof getDb>,
+  dayTypeId: string,
+  exerciseId: string,
+  plannedSetId: string,
+  userId: string,
+) {
+  await getOwnedDayTypeExercise(db, dayTypeId, exerciseId, userId);
+  const rows = await db
+    .select()
+    .from(dayTypeExercisePlannedSet)
+    .where(
+      and(eq(dayTypeExercisePlannedSet.id, plannedSetId), eq(dayTypeExercisePlannedSet.dayTypeExerciseId, exerciseId)),
+    )
+    .limit(1);
+  const row = rows[0];
+  if (!row) throw notFound('Planned set not found');
+  return row;
+}
+
+async function resequencePlannedSets(db: ReturnType<typeof getDb>, dayTypeExerciseId: string) {
+  const rows = await db
+    .select({ id: dayTypeExercisePlannedSet.id })
+    .from(dayTypeExercisePlannedSet)
+    .where(eq(dayTypeExercisePlannedSet.dayTypeExerciseId, dayTypeExerciseId))
+    .orderBy(
+      dayTypeExercisePlannedSet.sortOrder,
+      dayTypeExercisePlannedSet.createdAt,
+      dayTypeExercisePlannedSet.id,
+    );
+
+  await Promise.all(
+    rows.map(({ id }, index) =>
+      db
+        .update(dayTypeExercisePlannedSet)
+        .set({ sortOrder: index, updatedAt: new Date() })
+        .where(eq(dayTypeExercisePlannedSet.id, id)),
+    ),
+  );
 }
 
 async function resequenceDayTypeExercises(db: ReturnType<typeof getDb>, dayTypeId: string) {
@@ -395,6 +465,11 @@ export const dayTypeRoutes: FastifyPluginAsyncZod = async (fastify) => {
     async (request, reply) => {
       const db = getDb();
       await getOwnedDayTypeExercise(db, request.params.dayTypeId, request.params.exerciseId, request.userId!);
+      // No ON DELETE CASCADE on the FK — clear child planned sets first so
+      // this doesn't fail with a foreign-key-violation error.
+      await db
+        .delete(dayTypeExercisePlannedSet)
+        .where(eq(dayTypeExercisePlannedSet.dayTypeExerciseId, request.params.exerciseId));
       await db
         .delete(dayTypeExercise)
         .where(and(eq(dayTypeExercise.id, request.params.exerciseId), eq(dayTypeExercise.dayTypeId, request.params.dayTypeId)));
@@ -436,6 +511,166 @@ export const dayTypeRoutes: FastifyPluginAsyncZod = async (fastify) => {
             .update(dayTypeExercise)
             .set({ sortOrder: index, updatedAt: new Date() })
             .where(and(eq(dayTypeExercise.id, exerciseId), eq(dayTypeExercise.dayTypeId, request.params.dayTypeId))),
+        ),
+      );
+
+      return { ok: true as const };
+    },
+  );
+
+  fastify.get(
+    '/v1/day-types/:dayTypeId/exercises/:exerciseId/planned-sets',
+    {
+      preHandler: requireAuth,
+      schema: {
+        params: dayTypeExerciseParamsSchema,
+        response: { 200: z.array(dayTypeExercisePlannedSetSchema) },
+      },
+    },
+    async (request) => {
+      const db = getDb();
+      await getOwnedDayTypeExercise(db, request.params.dayTypeId, request.params.exerciseId, request.userId!);
+      const rows = await db
+        .select()
+        .from(dayTypeExercisePlannedSet)
+        .where(eq(dayTypeExercisePlannedSet.dayTypeExerciseId, request.params.exerciseId))
+        .orderBy(dayTypeExercisePlannedSet.sortOrder, dayTypeExercisePlannedSet.createdAt);
+      return rows.map(toPlannedSetResponse);
+    },
+  );
+
+  fastify.post(
+    '/v1/day-types/:dayTypeId/exercises/:exerciseId/planned-sets',
+    {
+      preHandler: requireAuth,
+      schema: {
+        params: dayTypeExerciseParamsSchema,
+        body: createPlannedSetSchema,
+        response: { 201: dayTypeExercisePlannedSetSchema },
+      },
+    },
+    async (request, reply) => {
+      const db = getDb();
+      await getOwnedDayTypeExercise(db, request.params.dayTypeId, request.params.exerciseId, request.userId!);
+      const existing = await db
+        .select()
+        .from(dayTypeExercisePlannedSet)
+        .where(eq(dayTypeExercisePlannedSet.dayTypeExerciseId, request.params.exerciseId));
+      const rows = await db
+        .insert(dayTypeExercisePlannedSet)
+        .values({
+          dayTypeExerciseId: request.params.exerciseId,
+          sortOrder: existing.length,
+          setType: request.body.setType,
+          reps: request.body.reps ?? null,
+          repsMax: request.body.repsMax ?? null,
+          loadValue: request.body.loadValue?.toString() ?? null,
+          loadUnit: request.body.loadUnit ?? null,
+          durationSeconds: request.body.durationSeconds ?? null,
+          distanceValue: request.body.distanceValue?.toString() ?? null,
+          distanceUnit: request.body.distanceUnit ?? null,
+          rpe: request.body.rpe?.toString() ?? null,
+          notes: request.body.notes ?? null,
+        })
+        .returning();
+      reply.status(201);
+      return toPlannedSetResponse(rows[0]!);
+    },
+  );
+
+  fastify.patch(
+    '/v1/day-types/:dayTypeId/exercises/:exerciseId/planned-sets/:plannedSetId',
+    {
+      preHandler: requireAuth,
+      schema: {
+        params: plannedSetParamsSchema,
+        body: createPlannedSetSchema.partial(),
+        response: { 200: dayTypeExercisePlannedSetSchema },
+      },
+    },
+    async (request) => {
+      const db = getDb();
+      await getOwnedPlannedSet(
+        db,
+        request.params.dayTypeId,
+        request.params.exerciseId,
+        request.params.plannedSetId,
+        request.userId!,
+      );
+      const { loadValue, distanceValue, rpe, ...rest } = request.body;
+      const rows = await db
+        .update(dayTypeExercisePlannedSet)
+        .set({
+          ...rest,
+          ...(loadValue !== undefined ? { loadValue: loadValue?.toString() ?? null } : {}),
+          ...(distanceValue !== undefined ? { distanceValue: distanceValue?.toString() ?? null } : {}),
+          ...(rpe !== undefined ? { rpe: rpe?.toString() ?? null } : {}),
+          updatedAt: new Date(),
+        })
+        .where(eq(dayTypeExercisePlannedSet.id, request.params.plannedSetId))
+        .returning();
+      return toPlannedSetResponse(rows[0]!);
+    },
+  );
+
+  fastify.delete(
+    '/v1/day-types/:dayTypeId/exercises/:exerciseId/planned-sets/:plannedSetId',
+    {
+      preHandler: requireAuth,
+      schema: { params: plannedSetParamsSchema, response: { 204: z.null() } },
+    },
+    async (request, reply) => {
+      const db = getDb();
+      await getOwnedPlannedSet(
+        db,
+        request.params.dayTypeId,
+        request.params.exerciseId,
+        request.params.plannedSetId,
+        request.userId!,
+      );
+      await db.delete(dayTypeExercisePlannedSet).where(eq(dayTypeExercisePlannedSet.id, request.params.plannedSetId));
+      await resequencePlannedSets(db, request.params.exerciseId);
+      reply.status(204);
+      return null;
+    },
+  );
+
+  fastify.post(
+    '/v1/day-types/:dayTypeId/exercises/:exerciseId/planned-sets/reorder',
+    {
+      preHandler: requireAuth,
+      schema: {
+        params: dayTypeExerciseParamsSchema,
+        body: reorderPlannedSetsSchema,
+        response: { 200: z.object({ ok: z.literal(true) }) },
+      },
+    },
+    async (request) => {
+      const db = getDb();
+      await getOwnedDayTypeExercise(db, request.params.dayTypeId, request.params.exerciseId, request.userId!);
+
+      const existing = await db
+        .select({ id: dayTypeExercisePlannedSet.id })
+        .from(dayTypeExercisePlannedSet)
+        .where(eq(dayTypeExercisePlannedSet.dayTypeExerciseId, request.params.exerciseId))
+        .orderBy(
+          dayTypeExercisePlannedSet.sortOrder,
+          dayTypeExercisePlannedSet.createdAt,
+          dayTypeExercisePlannedSet.id,
+        );
+
+      const existingIds = existing.map(({ id }) => id).sort();
+      const requestedIds = [...request.body.plannedSetIdsInOrder].sort();
+      if (existingIds.length !== requestedIds.length || existingIds.some((id, index) => id !== requestedIds[index])) {
+        throw notFound('Planned set list does not match this exercise');
+      }
+
+      await Promise.all(
+        request.body.plannedSetIdsInOrder.map((plannedSetId, index) =>
+          db
+            .update(dayTypeExercisePlannedSet)
+            .set({ sortOrder: index, updatedAt: new Date() })
+            .where(eq(dayTypeExercisePlannedSet.id, plannedSetId)),
         ),
       );
 

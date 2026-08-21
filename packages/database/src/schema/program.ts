@@ -4,13 +4,14 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgTable,
   text,
   timestamp,
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { progressionRuleTypeEnum } from './enums';
+import { distanceUnitEnum, loadUnitEnum, progressionRuleTypeEnum, setTypeEnum } from './enums';
 import { user } from './user';
 import { exercise } from './exercise';
 import type { Prescription } from '@setline/schemas';
@@ -92,6 +93,10 @@ export const dayTypeExercise = pgTable(
       .notNull()
       .references(() => exercise.id),
     sortOrder: integer('sort_order').notNull(),
+    // Summary/simple-case prescription (e.g. "3x8"). When
+    // dayTypeExercisePlannedSet rows exist for this exercise, they take
+    // precedence for session instantiation and display — this field
+    // remains as a fallback and quick-glance summary.
     prescription: jsonb('prescription').notNull().$type<Prescription>(),
     progressionRuleId: uuid('progression_rule_id').references(() => progressionRule.id),
     notes: text('notes'),
@@ -99,6 +104,40 @@ export const dayTypeExercise = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('day_type_exercise_day_type_id_sort_order_idx').on(table.dayTypeId, table.sortOrder)],
+);
+
+// Individual planned sets for a day-type exercise, allowing sets to differ
+// from one another (e.g. warm-up 45x10, working 135x8x3) — see
+// user-experience-redesign.md §9. Optional: an exercise may have zero
+// planned sets and rely solely on `dayTypeExercise.prescription` as a
+// simple summary.
+export const dayTypeExercisePlannedSet = pgTable(
+  'day_type_exercise_planned_set',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    dayTypeExerciseId: uuid('day_type_exercise_id')
+      .notNull()
+      .references(() => dayTypeExercise.id),
+    sortOrder: integer('sort_order').notNull(),
+    setType: setTypeEnum('set_type').notNull(),
+    reps: integer('reps'),
+    repsMax: integer('reps_max'),
+    loadValue: numeric('load_value'),
+    loadUnit: loadUnitEnum('load_unit'),
+    durationSeconds: integer('duration_seconds'),
+    distanceValue: numeric('distance_value'),
+    distanceUnit: distanceUnitEnum('distance_unit'),
+    rpe: numeric('rpe'),
+    notes: text('notes'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('day_type_exercise_planned_set_day_type_exercise_id_sort_order_idx').on(
+      table.dayTypeExerciseId,
+      table.sortOrder,
+    ),
+  ],
 );
 
 export const programScheduleSlot = pgTable(

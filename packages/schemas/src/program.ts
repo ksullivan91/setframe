@@ -98,6 +98,57 @@ export const dayTypeExerciseSchema = z.object({
 });
 export type DayTypeExercise = z.infer<typeof dayTypeExerciseSchema>;
 
+const plannedSetTypeSchema = z.enum([
+  'warmup',
+  'working',
+  'top',
+  'backoff',
+  'drop',
+  'failure',
+  'bodyweight',
+  'timed',
+  'distance',
+]);
+export type PlannedSetType = z.infer<typeof plannedSetTypeSchema>;
+
+export const dayTypeExercisePlannedSetSchema = z.object({
+  id: z.string().uuid(),
+  dayTypeExerciseId: z.string().uuid(),
+  sortOrder: z.number().int(),
+  setType: plannedSetTypeSchema,
+  reps: z.number().int().positive().nullable(),
+  repsMax: z.number().int().positive().nullable(),
+  loadValue: z.number().nullable(),
+  loadUnit: z.enum(['lb', 'kg']).nullable(),
+  durationSeconds: z.number().int().positive().nullable(),
+  distanceValue: z.number().positive().nullable(),
+  distanceUnit: z.enum(['m', 'km', 'mi']).nullable(),
+  rpe: z.number().min(0).max(10).nullable(),
+  notes: z.string().nullable(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type DayTypeExercisePlannedSet = z.infer<typeof dayTypeExercisePlannedSetSchema>;
+
+export const createPlannedSetSchema = z.object({
+  setType: plannedSetTypeSchema.default('working'),
+  reps: z.number().int().positive().optional(),
+  repsMax: z.number().int().positive().optional(),
+  loadValue: z.number().optional(),
+  loadUnit: z.enum(['lb', 'kg']).optional(),
+  durationSeconds: z.number().int().positive().optional(),
+  distanceValue: z.number().positive().optional(),
+  distanceUnit: z.enum(['m', 'km', 'mi']).optional(),
+  rpe: z.number().min(0).max(10).optional(),
+  notes: z.string().nullable().optional(),
+});
+export type CreatePlannedSetInput = z.infer<typeof createPlannedSetSchema>;
+
+export const reorderPlannedSetsSchema = z.object({
+  plannedSetIdsInOrder: z.array(z.string().uuid()).min(1),
+});
+
+
 export const programScheduleSlotSchema = z.object({
   id: z.string().uuid(),
   programVersionId: z.string().uuid(),
