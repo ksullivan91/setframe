@@ -384,7 +384,9 @@ export function TodayPage() {
                     {data?.dayLabel ? `${data.weekLabel ?? 'Scheduled'} · ${data.dayLabel}` : 'No scheduled day type resolved yet.'}
                   </StepBody>
                   <InlineRow>
-                    <Button disabled={!data?.dayLabel || startWorkoutMutation.isPending} onClick={() => startWorkoutMutation.mutate()}>Start workout</Button>
+                    <Button disabled={!data?.dayLabel || startWorkoutMutation.isPending} onClick={() => startWorkoutMutation.mutate()}>
+                      {workoutDone ? 'Resume workout' : 'Start workout'}
+                    </Button>
                     <Button variant="secondary" disabled={!data?.dayTypeId} onClick={() => setPreviewOpen(true)}>Preview</Button>
                   </InlineRow>
                 </StepContent>

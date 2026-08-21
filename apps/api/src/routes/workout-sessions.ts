@@ -287,6 +287,7 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
       const db = getDb();
       const conditions = [eq(workoutSession.userId, request.userId!)];
       if (request.query.localDate) conditions.push(eq(workoutSession.localDate, request.query.localDate));
+      if (request.query.status) conditions.push(eq(workoutSession.status, request.query.status as (typeof workoutSession.status.enumValues)[number]));
       const rows = await db
         .select()
         .from(workoutSession)

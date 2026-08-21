@@ -49,11 +49,12 @@ export function ActiveWorkoutBanner() {
 
   const { data } = useQuery({
     queryKey: ['active-workout-session'],
-    queryFn: () => api.get<WorkoutSession[]>('/workout-sessions?status=in_progress'),
+    queryFn: () =>
+      api.get<{ items: WorkoutSession[]; nextCursor: string | null }>('/workout-sessions?status=in_progress'),
     refetchInterval: 30_000,
   });
 
-  const activeSession = data?.[0];
+  const activeSession = data?.items[0];
   if (!activeSession) return null;
   if (location.pathname === `/workout/${activeSession.id}`) return null;
 
