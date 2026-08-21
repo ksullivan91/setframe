@@ -11,6 +11,7 @@ export const apiEnvSchema = z.object({
   DATABASE_URL: z.string().url(),
   CLERK_SECRET_KEY: z.string().min(1),
   CLERK_PUBLISHABLE_KEY: z.string().min(1),
+  CORS_ORIGIN: z.string().optional(),
 });
 export type ApiEnv = z.infer<typeof apiEnvSchema>;
 

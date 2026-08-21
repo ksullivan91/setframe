@@ -21,6 +21,19 @@ import { progressRoutes } from './routes/progress';
 import { notificationPreferenceRoutes } from './routes/notification-preferences';
 import { appleHealthRoutes } from './routes/apple-health';
 
+function isAllowedOrigin(origin: string, allowedOrigins: string[]) {
+  return allowedOrigins.some((allowedOrigin) => {
+    if (allowedOrigin.includes('*')) {
+      const pattern = allowedOrigin
+        .replace(/[-/\^$+?.()|[\]{}]/g, '\\$&')
+        .replace(/\\\*/g, '.*');
+      return new RegExp(`^${pattern}$`).test(origin);
+    }
+
+    return allowedOrigin === origin;
+  });
+}
+
 export function buildApp() {
   const app = Fastify({
     logger: {
@@ -39,7 +52,24 @@ export function buildApp() {
   app.register(cors, {
     // ADR 0004: CORS must explicitly allow the Cloudflare Pages web
     // origin(s); wide-open in non-production for local dev convenience.
-    origin: process.env.NODE_ENV === 'production' ? (process.env.CORS_ORIGIN?.split(',') ?? []) : true,
+    origin(origin, callback) {
+      if (process.env.NODE_ENV !== 'production') {
+        callback(null, true);
+        return;
+      }
+
+      const allowedOrigins = (process.env.CORS_ORIGIN ?? '')
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean);
+
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      callback(null, isAllowedOrigin(origin, allowedOrigins));
+    },
   });
   app.register(helmet);
 
