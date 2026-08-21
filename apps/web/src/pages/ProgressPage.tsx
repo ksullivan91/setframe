@@ -14,6 +14,15 @@ import { useApiClient } from '../lib/api-client';
  * multi-column row (matching the web version's `layoutWrap: "WRAP"`
  * note in §19.3), and the consistency streak grid only needs the fixed
  * 8-column layout once there's enough width for it not to feel cramped.
+ *
+ * Figma's design calls for 5 trend cards (body weight, weekly volume,
+ * secondary lift, workouts/month, primary lift 1RM), but 3 of those
+ * (body weight, weekly volume, secondary lift) require backend
+ * aggregation endpoints that are still phase-3/4 stubs (see TODOs on
+ * GET /v1/exercises/:exerciseId/progress and /history in
+ * apps/api/src/routes/exercises.ts) — deferred until that lands. Added
+ * two more cards derivable from data already fetched here (workouts
+ * this week + 8-week average) to reduce the gap in the meantime.
  */
 const CardGrid = styled.div`
   display: grid;
@@ -58,7 +67,7 @@ const Sparkline = styled.div`
 const Bar = styled.div<{ $height: number }>`
   width: 8px;
   height: ${(p) => p.$height}%;
-  background: ${(p) => p.theme.action.accentSubtle};
+  background: ${(p) => p.theme.action.primary};
   border-radius: 2px;
 `;
 
@@ -127,6 +136,15 @@ export function ProgressPage() {
   const points = exerciseProgress?.points ?? [];
   const latestPoint = points[points.length - 1] ?? null;
 
+  const completedPerWeek = weeks?.map((w) => w.completedCount) ?? [];
+  const plannedPerWeek = weeks?.map((w) => w.plannedCount) ?? [];
+  const totalCompleted = completedPerWeek.reduce((a, b) => a + b, 0);
+  const totalPlanned = plannedPerWeek.reduce((a, b) => a + b, 0);
+  const maxDots = Math.max(4, ...completedPerWeek, ...plannedPerWeek);
+  const avgWorkoutsPerWeek = completedPerWeek.length ? totalCompleted / completedPerWeek.length : 0;
+  const thisWeekCompleted = completedPerWeek[completedPerWeek.length - 1] ?? 0;
+  const lastWeekCompleted = completedPerWeek[completedPerWeek.length - 2] ?? 0;
+
   const trends = [
     latestPoint?.estimatedOneRepMax != null
       ? {
@@ -136,13 +154,23 @@ export function ProgressPage() {
           bars: points.slice(-6).map((p) => Math.min(100, (p.estimatedOneRepMax ?? 0) / 3)),
         }
       : null,
+    completedPerWeek.length
+      ? {
+          label: 'Workouts this week',
+          value: `${thisWeekCompleted}`,
+          delta: lastWeekCompleted ? `${thisWeekCompleted >= lastWeekCompleted ? '+' : ''}${thisWeekCompleted - lastWeekCompleted} vs last week` : '',
+          bars: completedPerWeek.slice(-6).map((c) => Math.min(100, (c / maxDots) * 100)),
+        }
+      : null,
+    completedPerWeek.length
+      ? {
+          label: 'Avg workouts / week (8 wk)',
+          value: avgWorkoutsPerWeek.toFixed(1),
+          delta: '',
+          bars: completedPerWeek.slice(-6).map((c) => Math.min(100, (c / maxDots) * 100)),
+        }
+      : null,
   ].filter((t): t is NonNullable<typeof t> => t !== null);
-
-  const completedPerWeek = weeks?.map((w) => w.completedCount) ?? [];
-  const plannedPerWeek = weeks?.map((w) => w.plannedCount) ?? [];
-  const totalCompleted = completedPerWeek.reduce((a, b) => a + b, 0);
-  const totalPlanned = plannedPerWeek.reduce((a, b) => a + b, 0);
-  const maxDots = Math.max(4, ...completedPerWeek, ...plannedPerWeek);
 
   return (
     <div>

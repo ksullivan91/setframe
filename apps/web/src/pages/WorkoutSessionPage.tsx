@@ -1,14 +1,16 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { Trash2 } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { Exercise, Prescription, WorkoutExerciseLog, WorkoutSession, WorkoutSet } from '@setline/schemas';
+import { calculateVolume } from '@setline/domain';
 import { spacing } from '@setline/design-tokens';
 import { Button, Card, IconButton, Input, PRBadge, Select, useToast } from '../components';
 import { useApiClient } from '../lib/api-client';
 import { summarizePrescription } from '../lib/prescription';
 import { typeScale } from '../theme/typeScale';
+import { mq } from '../theme/breakpoints';
 
 interface WorkoutSessionExercise extends WorkoutExerciseLog {
   exercise: Exercise;
@@ -31,6 +33,48 @@ const Page = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${spacing[16]}px;
+
+  ${mq.desktop} {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
+    align-items: start;
+    gap: ${spacing[24]}px;
+  }
+`;
+const ExerciseList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${spacing[16]}px;
+  grid-column: 1;
+`;
+const SummaryCard = styled(Card)`
+  display: flex;
+  flex-direction: column;
+  gap: ${spacing[12]}px;
+
+  ${mq.desktop} {
+    position: sticky;
+    top: ${spacing[24]}px;
+  }
+`;
+const SummaryTitle = styled.h2`
+  margin: 0;
+  font-size: ${typeScale.sectionTitle.fontSize}px;
+`;
+const SummaryStat = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: ${spacing[8]}px;
+`;
+const SummaryLabel = styled.span`
+  color: ${(p) => p.theme.text.secondary};
+  font-size: ${typeScale.compactBody.fontSize}px;
+`;
+const SummaryValue = styled.span`
+  font-size: ${typeScale.numericMetric.fontSize}px;
+  font-weight: ${typeScale.numericMetric.fontWeight};
+  font-variant-numeric: tabular-nums;
 `;
 const Header = styled.div`
   display: flex;
@@ -38,6 +82,7 @@ const Header = styled.div`
   gap: ${spacing[12]}px;
   align-items: flex-start;
   flex-wrap: wrap;
+  grid-column: 1 / -1;
 `;
 const Title = styled.h1`
   margin: 0;
@@ -70,9 +115,13 @@ const PlannedText = styled.p`
 `;
 const SetRow = styled.div`
   display: grid;
-  grid-template-columns: minmax(110px, 140px) repeat(3, minmax(0, 1fr)) auto auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: ${spacing[8]}px;
   align-items: end;
+
+  ${mq.tablet} {
+    grid-template-columns: minmax(110px, 140px) repeat(3, minmax(0, 1fr)) auto auto;
+  }
 `;
 const SetMeta = styled.div`
   display: flex;
@@ -80,8 +129,9 @@ const SetMeta = styled.div`
   gap: ${spacing[8]}px;
   min-height: 40px;
 `;
-const EmptyText = styled.span`
+const EmptyText = styled.p`
   color: ${(p) => p.theme.text.secondary};
+  margin: 0;
 `;
 const setTypeOptions = [
   { value: 'warmup', label: 'Warmup' },
@@ -100,6 +150,16 @@ function getDefaultSetType(sets: WorkoutSet[]): WorkoutSet['setType'] {
   return lastType ?? 'working';
 }
 
+function formatElapsed(startedAt: string | null, completedAt: string | null): string {
+  if (!startedAt) return '—';
+  const start = new Date(startedAt).getTime();
+  const end = completedAt ? new Date(completedAt).getTime() : Date.now();
+  const totalMinutes = Math.max(0, Math.round((end - start) / 60_000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+}
+
 function parseOptionalNumber(value: string) {
   if (!value.trim()) return undefined;
   const parsed = Number(value);
@@ -113,12 +173,22 @@ export function WorkoutSessionPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [drafts, setDrafts] = useState<Record<string, EditableSetDraft>>({});
+  const [, setElapsedTick] = useState(0);
 
   const query = useQuery({
     queryKey: ['workout-session', sessionId],
     queryFn: () => api.get<WorkoutSessionDetail>(`/workout-sessions/${sessionId}`),
     enabled: Boolean(sessionId),
   });
+
+  // Re-render once a minute so the elapsed-time summary stays live while
+  // the session is in progress (no need to re-fetch — just recompute the
+  // formatted duration off the already-loaded startedAt).
+  useEffect(() => {
+    if (query.data?.status === 'completed') return;
+    const interval = setInterval(() => setElapsedTick((t) => t + 1), 60_000);
+    return () => clearInterval(interval);
+  }, [query.data?.status]);
 
   const addSetMutation = useMutation({
     mutationFn: ({ exerciseLogId, setType }: { exerciseLogId: string; setType: WorkoutSet['setType'] }) =>
@@ -186,6 +256,14 @@ export function WorkoutSessionPage() {
     draft.rpe !== (set.rpe?.toString() ?? '');
 
   const orderedExercises = useMemo(() => query.data?.exercises ?? [], [query.data]);
+  const totalSetsLogged = useMemo(
+    () => orderedExercises.reduce((total, ex) => total + ex.sets.filter((s) => s.reps != null || s.weightValue != null).length, 0),
+    [orderedExercises],
+  );
+  const totalVolume = useMemo(
+    () => calculateVolume(orderedExercises.flatMap((ex) => ex.sets)),
+    [orderedExercises],
+  );
 
   if (query.isLoading) return <span>Loading…</span>;
   if (query.isError || !query.data) return <span>Couldn't load workout session.</span>;
@@ -202,6 +280,23 @@ export function WorkoutSessionPage() {
         </Button>
       </Header>
 
+      <SummaryCard aria-label="Session summary">
+        <SummaryTitle>Session summary</SummaryTitle>
+        <SummaryStat>
+          <SummaryLabel>Elapsed</SummaryLabel>
+          <SummaryValue>{formatElapsed(query.data.startedAt, query.data.completedAt)}</SummaryValue>
+        </SummaryStat>
+        <SummaryStat>
+          <SummaryLabel>Sets logged</SummaryLabel>
+          <SummaryValue>{totalSetsLogged}</SummaryValue>
+        </SummaryStat>
+        <SummaryStat>
+          <SummaryLabel>Volume</SummaryLabel>
+          <SummaryValue>{totalVolume ? `${totalVolume.toLocaleString()} lb` : '—'}</SummaryValue>
+        </SummaryStat>
+      </SummaryCard>
+
+      <ExerciseList>
       {orderedExercises.map((exerciseLog: WorkoutSessionExercise) => (
         <ExerciseCard key={exerciseLog.id}>
           <ExerciseHeader>
@@ -276,9 +371,10 @@ export function WorkoutSessionPage() {
                 </div>
               </SetRow>
             );
-          }) : <EmptyText>No sets logged yet.</EmptyText>}
+          }) : <EmptyText>No sets logged yet — tap "Add set" above to record your first {exerciseLog.exercise.name} set.</EmptyText>}
         </ExerciseCard>
       ))}
+      </ExerciseList>
     </Page>
   );
 }

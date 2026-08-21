@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useUser } from '@clerk/clerk-react';
+import { useClerk, useUser } from '@clerk/clerk-react';
 import { spacing, radius } from '@setline/design-tokens';
 import { typeScale } from '../theme/typeScale';
 import { Card, Button } from '../components';
@@ -35,6 +35,63 @@ const Row = styled.div`
   &:first-child {
     border-top: none;
   }
+`;
+
+const ActionRow = styled.button`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: ${spacing[12]}px 0;
+  border: none;
+  border-top: 1px solid ${(p) => p.theme.border.subtle};
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:first-child {
+    border-top: none;
+  }
+
+  &:hover {
+    color: ${(p) => p.theme.action.primary};
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${(p) => p.theme.action.primary};
+    outline-offset: 2px;
+  }
+`;
+
+const ToggleRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: ${spacing[12]}px 0;
+  border-top: 1px solid ${(p) => p.theme.border.subtle};
+
+  &:first-child {
+    border-top: none;
+  }
+`;
+
+const ToggleGroup = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${spacing[8]}px;
+`;
+
+const ToggleStateText = styled.span`
+  font-size: ${typeScale.compactBody.fontSize}px;
+  color: ${(p) => p.theme.text.secondary};
+  min-width: 28px;
 `;
 
 const Value = styled.span<{ $tone?: 'success' | 'destructive' }>`
@@ -78,11 +135,21 @@ export function SettingsPage() {
   const api = useApiClient();
   const queryClient = useQueryClient();
   const { user: clerkUser } = useUser();
+  const { openUserProfile } = useClerk();
 
   const { data: me } = useQuery({
     queryKey: ['me'],
     queryFn: () => api.get<User>('/me'),
   });
+
+  const updateUnits = useMutation({
+    mutationFn: (preferredUnits: 'imperial' | 'metric') => api.patch<User>('/me', { preferredUnits }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['me'] }),
+  });
+
+  function toggleUnits() {
+    updateUnits.mutate(me?.preferredUnits === 'metric' ? 'imperial' : 'metric');
+  }
 
   const { data: notificationPrefs } = useQuery({
     queryKey: ['notification-preferences'],
@@ -133,20 +200,14 @@ export function SettingsPage() {
             <span>Email</span>
             <Value>{clerkUser?.primaryEmailAddress?.emailAddress ?? '—'}</Value>
           </Row>
-          <Row>
+          <ActionRow onClick={() => openUserProfile()} type="button">
             <span>Manage account</span>
             <Value>Clerk &rsaquo;</Value>
-          </Row>
-        </Card>
-      </Section>
-
-      <Section>
-        <SectionTitle>Preferences</SectionTitle>
-        <Card>
-          <Row>
+          </ActionRow>
+          <ActionRow onClick={toggleUnits} disabled={updateUnits.isPending} type="button">
             <span>Units</span>
             <Value>{me?.preferredUnits === 'metric' ? 'Metric (kg)' : 'Imperial (lb)'} &rsaquo;</Value>
-          </Row>
+          </ActionRow>
           <Row>
             <span>Timezone</span>
             <Value>{me?.timezone || '—'}</Value>
@@ -155,7 +216,7 @@ export function SettingsPage() {
       </Section>
 
       <Section>
-        <SectionTitle>Apple Health sync</SectionTitle>
+        <SectionTitle>Apple Health &amp; notifications</SectionTitle>
         <Card>
           <Row>
             <span>Apple Health sync</span>
@@ -164,8 +225,7 @@ export function SettingsPage() {
                 ? 'Connected'
                 : syncState?.status === 'never_synced'
                   ? 'Not connected'
-                  : (syncState?.status ?? 'Unknown')}{' '}
-              &rsaquo;
+                  : (syncState?.status ?? 'Unknown')}
             </Value>
           </Row>
           <Row>
@@ -174,34 +234,34 @@ export function SettingsPage() {
               {syncState?.lastSuccessAt ? new Date(syncState.lastSuccessAt).toLocaleString() : 'Never'}
             </Value>
           </Row>
-        </Card>
-      </Section>
-
-      <Section>
-        <SectionTitle>Notifications</SectionTitle>
-        <Card>
-          <Row>
+          <ToggleRow>
             <span>Workout reminders</span>
-            <ToggleButton
-              type="button"
-              role="switch"
-              aria-checked={workoutReminders}
-              aria-label="Workout reminders"
-              $on={workoutReminders}
-              onClick={toggleWorkoutReminders}
-            />
-          </Row>
-          <Row>
+            <ToggleGroup>
+              <ToggleStateText>{workoutReminders ? 'On' : 'Off'}</ToggleStateText>
+              <ToggleButton
+                type="button"
+                role="switch"
+                aria-checked={workoutReminders}
+                aria-label="Workout reminders"
+                $on={workoutReminders}
+                onClick={toggleWorkoutReminders}
+              />
+            </ToggleGroup>
+          </ToggleRow>
+          <ToggleRow>
             <span>Weekly progress summary</span>
-            <ToggleButton
-              type="button"
-              role="switch"
-              aria-checked={weeklySummary}
-              aria-label="Weekly progress summary"
-              $on={weeklySummary}
-              onClick={toggleWeeklySummary}
-            />
-          </Row>
+            <ToggleGroup>
+              <ToggleStateText>{weeklySummary ? 'On' : 'Off'}</ToggleStateText>
+              <ToggleButton
+                type="button"
+                role="switch"
+                aria-checked={weeklySummary}
+                aria-label="Weekly progress summary"
+                $on={weeklySummary}
+                onClick={toggleWeeklySummary}
+              />
+            </ToggleGroup>
+          </ToggleRow>
         </Card>
       </Section>
 

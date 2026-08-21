@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Circle, Scale, NotebookText, Utensils, Dumbbell, Watch, RefreshCw, X } from 'lucide-react';
@@ -82,6 +82,19 @@ const RitualCard = styled(Card)`
   display: flex;
   flex-direction: column;
   gap: ${spacing[16]}px;
+`;
+const WorkoutCard = styled(Card)`
+  display: flex;
+  flex-direction: column;
+  gap: ${spacing[12]}px;
+  border-color: ${(p) => p.theme.action.primary};
+  background: ${(p) => p.theme.action.accentSubtle};
+`;
+const WorkoutCardHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: ${spacing[12]}px;
 `;
 const StepRow = styled.div<{ $passive?: boolean }>`
   display: flex;
@@ -265,12 +278,23 @@ export function TodayPage() {
   const [journal, setJournal] = useState('');
   const [selectedMood, setSelectedMood] = useState<number | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const previewCloseButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     setWeight(manual?.morningWeightValue?.toString() ?? '');
     setJournal(manual?.notes ?? '');
     setSelectedMood(manual?.mood ?? null);
   }, [manual?.morningWeightValue, manual?.notes, manual?.mood]);
+
+  useEffect(() => {
+    if (!previewOpen) return;
+    previewCloseButtonRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setPreviewOpen(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [previewOpen]);
 
   const saveMutation = useMutation({
     mutationFn: (body: DailyManualEntryPatch) => patchDaily(api, localDate, body),
@@ -322,6 +346,23 @@ export function TodayPage() {
           <Title>Today ritual</Title>
           <Subtitle>Move through your morning in order. Auto-synced steps check themselves off.</Subtitle>
         </Header>
+        {!isLoading && !isError ? (
+          <WorkoutCard>
+            <WorkoutCardHeader>
+              <StepTitle style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Dumbbell size={18} /> Today's workout</StepTitle>
+              {data?.estimatedDurationMinutes ? <PassiveChip>~{data.estimatedDurationMinutes} min</PassiveChip> : null}
+            </WorkoutCardHeader>
+            <StepBody>
+              {data?.dayLabel ? `${data.weekLabel ?? 'Scheduled'} · ${data.dayLabel}` : 'No scheduled day type resolved yet.'}
+            </StepBody>
+            <InlineRow>
+              <Button disabled={!data?.dayLabel || startWorkoutMutation.isPending} onClick={() => startWorkoutMutation.mutate()}>
+                {workoutDone ? 'Resume workout' : 'Start workout'}
+              </Button>
+              <Button variant="secondary" disabled={!data?.dayTypeId} onClick={() => setPreviewOpen(true)}>Preview</Button>
+            </InlineRow>
+          </WorkoutCard>
+        ) : null}
         <RitualCard>
           {isLoading ? <span>Loading…</span> : isError ? <span>Couldn't load today.</span> : (
             <>
@@ -351,7 +392,7 @@ export function TodayPage() {
                   <StepBody>Short note and a quick read on how you feel.</StepBody>
                   <InlineRow>
                     {moodOptions.map((m) => (
-                      <MoodButton key={m.value} $selected={selectedMood === m.value} aria-label={m.label} onClick={() => setSelectedMood(m.value)}>{m.emoji}</MoodButton>
+                      <MoodButton key={m.value} $selected={selectedMood === m.value} aria-label={m.label} aria-pressed={selectedMood === m.value} onClick={() => setSelectedMood(m.value)}>{m.emoji}</MoodButton>
                     ))}
                   </InlineRow>
                   <NotesArea value={journal} onChange={(e) => setJournal(e.target.value)} placeholder="Energy, soreness, sleep, anything worth noting." />
@@ -370,25 +411,6 @@ export function TodayPage() {
                   </StepHeader>
                   <StepBody>No nutrition details here — just mark it done once it’s in MyFitnessPal.</StepBody>
                   <Checkbox checked={mealDone} onChange={(e) => saveMutation.mutate({ preWorkoutMealLogged: e.target.checked })} label="Done in MyFitnessPal" />
-                </StepContent>
-              </StepRow>
-              <Divider />
-              <StepRow>
-                {workoutDone ? <CheckCircle2 size={22} /> : <Circle size={22} />}
-                <StepContent>
-                  <StepHeader>
-                    <StepTitle style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Dumbbell size={18} /> Workout</StepTitle>
-                    {data?.estimatedDurationMinutes ? <PassiveChip>~{data.estimatedDurationMinutes} min</PassiveChip> : null}
-                  </StepHeader>
-                  <StepBody>
-                    {data?.dayLabel ? `${data.weekLabel ?? 'Scheduled'} · ${data.dayLabel}` : 'No scheduled day type resolved yet.'}
-                  </StepBody>
-                  <InlineRow>
-                    <Button disabled={!data?.dayLabel || startWorkoutMutation.isPending} onClick={() => startWorkoutMutation.mutate()}>
-                      {workoutDone ? 'Resume workout' : 'Start workout'}
-                    </Button>
-                    <Button variant="secondary" disabled={!data?.dayTypeId} onClick={() => setPreviewOpen(true)}>Preview</Button>
-                  </InlineRow>
                 </StepContent>
               </StepRow>
               <Divider />
@@ -428,13 +450,13 @@ export function TodayPage() {
     </Grid>
     {previewOpen ? (
       <Backdrop onClick={() => setPreviewOpen(false)}>
-        <PreviewModal onClick={(e) => e.stopPropagation()}>
+        <PreviewModal role="dialog" aria-modal="true" aria-labelledby="preview-modal-title" onClick={(e) => e.stopPropagation()}>
           <PreviewHeader>
             <div>
-              <StepTitle style={{ margin: 0 }}>{dayTypePreviewQuery.data?.name ?? 'Today\u2019s plan'}</StepTitle>
+              <StepTitle id="preview-modal-title" style={{ margin: 0 }}>{dayTypePreviewQuery.data?.name ?? 'Today\u2019s plan'}</StepTitle>
               <StepBody>Planned exercises — nothing is logged until you start the workout.</StepBody>
             </div>
-            <IconButton aria-label="Close preview" onClick={() => setPreviewOpen(false)}>
+            <IconButton ref={previewCloseButtonRef} aria-label="Close preview" onClick={() => setPreviewOpen(false)}>
               <X size={16} />
             </IconButton>
           </PreviewHeader>

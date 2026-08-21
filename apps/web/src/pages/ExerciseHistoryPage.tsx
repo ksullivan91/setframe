@@ -1,10 +1,12 @@
 import styled from 'styled-components';
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { estimateOneRepMax, calculateVolume } from '@setline/domain';
 import { spacing } from '@setline/design-tokens';
 import { typeScale } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';
-import { Card, PRBadge } from '../components';
+import { Card, PRBadge, Select } from '../components';
 import { useApiClient } from '../lib/api-client';
 
 /**
@@ -53,6 +55,11 @@ const SetLine = styled.div`
   color: ${(p) => p.theme.text.secondary};
 `;
 
+const PickerRow = styled.div`
+  max-width: 320px;
+  margin-bottom: ${spacing[16]}px;
+`;
+
 const sessionsGroupKey = (localDate: string) => localDate;
 
 interface HistorySetItem {
@@ -70,12 +77,18 @@ interface ExerciseHistoryResponse {
 
 export function ExerciseHistoryPage() {
   const api = useApiClient();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const { data: exercises } = useQuery({
     queryKey: ['exercises'],
     queryFn: () => api.get<{ id: string; name: string }[]>('/exercises'),
   });
-  const exercise = exercises?.[0] ?? null;
+
+  const requestedExerciseId = searchParams.get('exerciseId');
+  const exercise = useMemo(() => {
+    if (!exercises?.length) return null;
+    return exercises.find((e) => e.id === requestedExerciseId) ?? exercises[0];
+  }, [exercises, requestedExerciseId]);
 
   const { data: history, isLoading } = useQuery({
     queryKey: ['exercise-history', exercise?.id],
@@ -107,9 +120,24 @@ export function ExerciseHistoryPage() {
   const lastSessionSets = sessionDates[0] ? sessionsByDate.get(sessionDates[0])! : [];
   const lastSessionVolume = calculateVolume(lastSessionSets);
 
+  function formatSessionDate(localDate: string) {
+    return new Date(`${localDate}T12:00:00`).toLocaleDateString(undefined, {
+      weekday: 'short', month: 'short', day: 'numeric',
+    });
+  }
+
   return (
     <div>
       <h1>{exercise?.name ?? 'Exercise history'}</h1>
+
+      <PickerRow>
+        <Select
+          label="Exercise"
+          value={exercise?.id ?? ''}
+          options={(exercises ?? []).map((e) => ({ value: e.id, label: e.name }))}
+          onChange={(event) => setSearchParams({ exerciseId: event.target.value })}
+        />
+      </PickerRow>
 
       <StatRow>
         <Card>
@@ -139,7 +167,7 @@ export function ExerciseHistoryPage() {
           return (
             <SessionCard key={date}>
               <SessionHeader>
-                <strong>{date}</strong>
+                <strong>{formatSessionDate(date)}</strong>
                 {hasPr ? <PRBadge /> : null}
               </SessionHeader>
               {sessionSets.map((s, i) => (

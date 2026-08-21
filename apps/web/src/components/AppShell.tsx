@@ -120,7 +120,7 @@ const Content = styled.main`
 
   ${mq.tablet} {
     padding: ${spacing[32]}px;
-    max-width: 1040px;
+    max-width: 1200px;
   }
 `;
 

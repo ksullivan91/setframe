@@ -1,6 +1,6 @@
 import styled from 'styled-components';
 import { SignUp as ClerkSignUp } from '@clerk/clerk-react';
-import { spacing } from '@setline/design-tokens';
+import { spacing, radius } from '@setline/design-tokens';
 import { typeScale } from '../theme/typeScale';
 
 /** SignUp — same Clerk-chrome pattern as SignInPage, per style guide §13. */
@@ -28,12 +28,25 @@ const Tagline = styled.p`
   margin: 0;
 `;
 
+const AuthCard = styled.div`
+  width: 100%;
+  max-width: 360px;
+  background: ${(p) => p.theme.surface.raised};
+  border: 1px solid ${(p) => p.theme.border.subtle};
+  border-radius: ${radius.large}px;
+  padding: ${spacing[24]}px;
+  display: flex;
+  justify-content: center;
+`;
+
 export function SignUpPage() {
   return (
     <Wrapper>
       <Wordmark>Setline</Wordmark>
-      <Tagline>Create your account to start tracking.</Tagline>
-      <ClerkSignUp routing="path" path="/sign-up" signInUrl="/sign-in" />
+      <Tagline>Create your account</Tagline>
+      <AuthCard>
+        <ClerkSignUp routing="path" path="/sign-up" signInUrl="/sign-in" />
+      </AuthCard>
     </Wrapper>
   );
 }
