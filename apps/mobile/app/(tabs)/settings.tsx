@@ -1,109 +1,213 @@
-import { useState } from 'react';
-import { ScrollView, View, Text, Switch, StyleSheet } from 'react-native';
-import { useAuth, useUser } from '@clerk/clerk-expo';
+import { useEffect, useMemo, useState } from 'react';
+import { ScrollView, View, Text, Switch, StyleSheet, ActivityIndicator } from 'react-native';
+import { useClerk, useAuth, useUser } from '@clerk/clerk-expo';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { NotificationPreference, User } from '@setline/schemas';
 import { Card } from '../../src/components/Card';
 import { Button } from '../../src/components/Button';
+import { Select } from '../../src/components/Select';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { spacing, typeScale } from '../../src/theme/getTheme';
 import { useApiClient } from '../../src/lib/api-client';
 
-interface Row {
+type PreferredUnits = User['preferredUnits'];
+
+interface SettingsRowProps {
   label: string;
   value?: string;
   valueTone?: 'default' | 'success' | 'destructive';
 }
 
-function SettingsRow({ label, value, valueTone = 'default' }: Row) {
+interface AppleHealthSyncState {
+  status: string;
+  lastSuccessAt: string | null;
+}
+
+function SettingsRow({ label, value, valueTone = 'default' }: SettingsRowProps) {
   const theme = useTheme();
   const valueColor =
     valueTone === 'success' ? theme.status.success : valueTone === 'destructive' ? theme.status.error : theme.text.primary;
+
   return (
     <View style={styles.row}>
-      <Text style={{ color: theme.text.secondary, fontSize: typeScale.body.fontSize }}>{label}</Text>
-      {value ? <Text style={{ color: valueColor, fontSize: typeScale.body.fontSize }}>{value}</Text> : null}
+      <Text style={[styles.rowLabel, { color: theme.text.secondary }]}>{label}</Text>
+      {value ? <Text style={[styles.rowValue, { color: valueColor }]}>{value}</Text> : null}
     </View>
   );
 }
 
-/**
- * `Screen/Mobile/Settings` per style guide §12/§19.3 — Account (Clerk
- * hand-off, §11.5), Preferences (`preferred_units`), an "Apple Health
- * sync" section backed by `integration_sync_state`
- * (docs/data-model.md §6), a "Notifications" section calling
- * `user_notification_preference` (§6.1, docs/api.md) — persists intent
- * only, no `expo-notifications`/push scheduling per docs/dependencies.md
- * — and a Danger zone delete-account row (§33: no polished confirmation
- * flow needed for MVP).
- */
+function formatSyncStatus(status: string | undefined) {
+  if (status === 'ok') return { label: 'Connected', tone: 'success' as const };
+  if (status === 'never_synced') return { label: 'Not connected', tone: 'default' as const };
+  if (status === 'syncing') return { label: 'Syncing', tone: 'default' as const };
+  if (status === 'error' || status === 'needs_attention') return { label: 'Needs attention', tone: 'destructive' as const };
+  return { label: status ?? 'Unknown', tone: 'default' as const };
+}
+
+function formatRelativeTime(timestamp: string | null) {
+  if (!timestamp) return 'Never';
+
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return 'Unknown';
+
+  const diffMs = Date.now() - date.getTime();
+  const absMinutes = Math.floor(Math.abs(diffMs) / 60000);
+
+  if (absMinutes < 1) return 'Just now';
+  if (absMinutes < 60) return `${absMinutes} minute${absMinutes === 1 ? '' : 's'} ago`;
+
+  const absHours = Math.floor(absMinutes / 60);
+  if (absHours < 24) return `${absHours} hour${absHours === 1 ? '' : 's'} ago`;
+
+  const absDays = Math.floor(absHours / 24);
+  if (absDays < 7) return `${absDays} day${absDays === 1 ? '' : 's'} ago`;
+
+  return date.toLocaleString();
+}
+
 export default function SettingsScreen() {
   const theme = useTheme();
   const { user } = useUser();
   const { signOut } = useAuth();
+  const { openUserProfile } = useClerk();
   const apiClient = useApiClient();
+  const queryClient = useQueryClient();
   const [workoutReminders, setWorkoutReminders] = useState(true);
   const [weeklySummary, setWeeklySummary] = useState(true);
 
-  async function updatePreference(patch: { workout_reminders_enabled?: boolean; weekly_summary_enabled?: boolean }) {
-    try {
-      await apiClient.patch('/me/notification-preferences', patch);
-    } catch {
-      // Offline/API-not-ready is expected pre-Phase-2 — the toggle still
-      // reflects local state; a retry Toast could surface this later.
+  const { data: me, isLoading: meLoading } = useQuery({
+    queryKey: ['me'],
+    queryFn: () => apiClient.get<User>('/me'),
+  });
+
+  const updateUnits = useMutation({
+    mutationFn: (preferredUnits: PreferredUnits) => apiClient.patch<User>('/me', { preferredUnits }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['me'] }),
+  });
+
+  const {
+    data: notificationPrefs,
+    isLoading: notificationLoading,
+    isFetching: notificationFetching,
+  } = useQuery({
+    queryKey: ['notification-preferences'],
+    queryFn: () => apiClient.get<NotificationPreference>('/me/notification-preferences'),
+  });
+
+  useEffect(() => {
+    if (notificationPrefs) {
+      setWorkoutReminders(notificationPrefs.workoutRemindersEnabled);
+      setWeeklySummary(notificationPrefs.weeklySummaryEnabled);
     }
-  }
+  }, [notificationPrefs]);
+
+  const updateNotificationPrefs = useMutation({
+    mutationFn: (patch: Partial<NotificationPreference>) =>
+      apiClient.patch<NotificationPreference>('/me/notification-preferences', patch),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notification-preferences'] }),
+    onError: () => {
+      if (notificationPrefs) {
+        setWorkoutReminders(notificationPrefs.workoutRemindersEnabled);
+        setWeeklySummary(notificationPrefs.weeklySummaryEnabled);
+      }
+    },
+  });
+
+  const { data: syncState, isLoading: syncLoading } = useQuery({
+    queryKey: ['apple-health-sync-state'],
+    queryFn: () => apiClient.get<AppleHealthSyncState>('/integrations/apple-health/sync-state'),
+  });
+
+  const syncStatus = useMemo(() => formatSyncStatus(syncState?.status), [syncState?.status]);
 
   return (
     <ScrollView style={{ backgroundColor: theme.surface.canvas }} contentContainerStyle={styles.content}>
       <Card>
         <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Account</Text>
         <SettingsRow label="Email" value={user?.primaryEmailAddress?.emailAddress ?? '—'} />
-        <Button label="Manage account → Clerk" variant="secondary" onPress={() => {}} />
+        <Button label="Manage account → Clerk" variant="secondary" onPress={() => openUserProfile()} />
       </Card>
 
       <Card>
         <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Preferences</Text>
-        <SettingsRow label="Units" value="Imperial (lb) ›" />
-        <SettingsRow label="Timezone" value={Intl.DateTimeFormat().resolvedOptions().timeZone} />
+        {meLoading ? (
+          <ActivityIndicator color={theme.action.primary} />
+        ) : (
+          <>
+            <Select
+              label="Units"
+              value={me?.preferredUnits ?? 'imperial'}
+              options={[
+                { label: 'Imperial (lb)', value: 'imperial' },
+                { label: 'Metric (kg)', value: 'metric' },
+              ]}
+              onChange={(value) => {
+                if (value !== me?.preferredUnits) {
+                  updateUnits.mutate(value);
+                }
+              }}
+            />
+            <SettingsRow label="Timezone" value={me?.timezone || '—'} />
+            {updateUnits.isPending ? (
+              <Text style={[styles.helperText, { color: theme.text.secondary }]}>Saving units…</Text>
+            ) : null}
+          </>
+        )}
       </Card>
 
       <Card>
         <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Apple Health sync</Text>
-        <SettingsRow label="Apple Health sync" value="Connected ›" valueTone="success" />
-        <SettingsRow label="Last synced" value="2 minutes ago" />
+        {syncLoading ? (
+          <ActivityIndicator color={theme.action.primary} />
+        ) : (
+          <>
+            <SettingsRow label="Apple Health sync" value={syncStatus.label} valueTone={syncStatus.tone} />
+            <SettingsRow label="Last synced" value={formatRelativeTime(syncState?.lastSuccessAt ?? null)} />
+          </>
+        )}
       </Card>
 
       <Card>
         <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Notifications</Text>
-        <View style={styles.toggleRow}>
-          <Text style={{ color: theme.text.secondary, fontSize: typeScale.body.fontSize }}>Workout reminders</Text>
-          <Switch
-            value={workoutReminders}
-            onValueChange={(value) => {
-              setWorkoutReminders(value);
-              updatePreference({ workout_reminders_enabled: value });
-            }}
-            trackColor={{ true: theme.action.primary }}
-          />
-        </View>
-        <View style={styles.toggleRow}>
-          <Text style={{ color: theme.text.secondary, fontSize: typeScale.body.fontSize }}>Weekly progress summary</Text>
-          <Switch
-            value={weeklySummary}
-            onValueChange={(value) => {
-              setWeeklySummary(value);
-              updatePreference({ weekly_summary_enabled: value });
-            }}
-            trackColor={{ true: theme.action.primary }}
-          />
-        </View>
+        {notificationLoading ? (
+          <ActivityIndicator color={theme.action.primary} />
+        ) : (
+          <>
+            <View style={styles.toggleRow}>
+              <Text style={[styles.rowLabel, { color: theme.text.secondary }]}>Workout reminders</Text>
+              <Switch
+                value={workoutReminders}
+                disabled={updateNotificationPrefs.isPending}
+                onValueChange={(value) => {
+                  setWorkoutReminders(value);
+                  updateNotificationPrefs.mutate({ workoutRemindersEnabled: value });
+                }}
+                trackColor={{ true: theme.action.primary }}
+              />
+            </View>
+            <View style={styles.toggleRow}>
+              <Text style={[styles.rowLabel, { color: theme.text.secondary }]}>Weekly progress summary</Text>
+              <Switch
+                value={weeklySummary}
+                disabled={updateNotificationPrefs.isPending}
+                onValueChange={(value) => {
+                  setWeeklySummary(value);
+                  updateNotificationPrefs.mutate({ weeklySummaryEnabled: value });
+                }}
+                trackColor={{ true: theme.action.primary }}
+              />
+            </View>
+            {updateNotificationPrefs.isPending || notificationFetching ? (
+              <Text style={[styles.helperText, { color: theme.text.secondary }]}>Updating notification preferences…</Text>
+            ) : null}
+          </>
+        )}
       </Card>
 
       <Card>
         <Text style={[styles.sectionTitle, { color: theme.status.error }]}>Danger zone</Text>
         <Button label="Delete account" variant="destructive" onPress={() => {}} />
-        <Text style={{ color: theme.text.secondary, fontSize: typeScale.caption.fontSize }}>
-          This cannot be undone.
-        </Text>
+        <Text style={{ color: theme.text.secondary, fontSize: typeScale.caption.fontSize }}>This cannot be undone.</Text>
       </Card>
 
       <Button label="Sign out" variant="secondary" onPress={() => signOut()} />
@@ -124,10 +228,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: spacing[12],
+  },
+  rowLabel: {
+    fontSize: typeScale.body.fontSize,
+    flex: 1,
+  },
+  rowValue: {
+    fontSize: typeScale.body.fontSize,
+    textAlign: 'right',
   },
   toggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: spacing[12],
+  },
+  helperText: {
+    fontSize: typeScale.caption.fontSize,
   },
 });
