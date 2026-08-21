@@ -7,3 +7,4 @@ build/
 *.log
 .turbo/
 .copilot-reviews/
+/screenshots/

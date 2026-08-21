@@ -166,6 +166,9 @@ const Modal = styled(Card)`
   width: min(560px, 100%);
   max-height: 90vh;
   overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: ${spacing[16]}px;
 `;
 
 const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
