@@ -5,7 +5,6 @@ import {
   SignInPage,
   SignUpPage,
   TodayPage,
-  WorkoutLoggerPage,
   ProgramEditorPage,
   ExerciseHistoryPage,
   ProgressPage,
@@ -22,8 +21,7 @@ function AuthenticatedApp() {
     <AppShell>
       <Routes>
         <Route path="/today" element={<TodayPage />} />
-        <Route path="/training" element={<WorkoutLoggerPage />} />
-        <Route path="/program-editor" element={<ProgramEditorPage />} />
+        <Route path="/training" element={<ProgramEditorPage />} />
         <Route path="/history" element={<ExerciseHistoryPage />} />
         <Route path="/progress" element={<ProgressPage />} />
         <Route path="/settings" element={<SettingsPage />} />
