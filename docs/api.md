@@ -48,8 +48,9 @@ PATCH  /v1/day-types/:dayTypeId
 DELETE /v1/day-types/:dayTypeId
 
 POST   /v1/day-types/:dayTypeId/exercises
-PATCH  /v1/day-type-exercises/:id
-DELETE /v1/day-type-exercises/:id
+PATCH  /v1/day-types/:dayTypeId/exercises/:exerciseId
+DELETE /v1/day-types/:dayTypeId/exercises/:exerciseId
+POST   /v1/day-types/:dayTypeId/exercises/reorder
 
 GET    /v1/programs/:programId/schedule-slots
 POST   /v1/programs/:programId/schedule-slots
@@ -58,6 +59,7 @@ DELETE /v1/programs/:programId/schedule-slots/:id
 
 GET    /v1/me/schedule/:date
 PUT    /v1/me/schedule/:date/override
+DELETE /v1/me/schedule/:date/override
 ```
 
 `/v1/me/schedule/:date` resolves schedule overrides first, then falls back

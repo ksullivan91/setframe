@@ -1,5 +1,5 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   dayType,
@@ -70,7 +70,7 @@ function toScheduleOverrideResponse(row: typeof scheduleOverride.$inferSelect) {
 }
 
 const dayTypeParamsSchema = z.object({ dayTypeId: z.string().uuid() });
-const dayTypeExerciseParamsSchema = z.object({ id: z.string().uuid() });
+const dayTypeExerciseParamsSchema = z.object({ dayTypeId: z.string().uuid(), exerciseId: z.string().uuid() });
 const programParamsSchema = z.object({ programId: z.string().uuid() });
 const dateParamsSchema = z.object({ date: z.string().date() });
 
@@ -85,6 +85,10 @@ const addDayTypeExerciseSchema = z.object({
   prescription: prescriptionSchema,
   progressionRuleId: z.string().uuid().nullable().optional(),
   notes: z.string().nullable().optional(),
+});
+
+const reorderDayTypeExercisesSchema = z.object({
+  exerciseIdsInOrder: z.array(z.string().uuid()).min(1),
 });
 
 const upsertScheduleSlotSchema = z.object({
@@ -117,17 +121,39 @@ async function getOwnedDayType(db: ReturnType<typeof getDb>, dayTypeId: string, 
   return row;
 }
 
-async function getOwnedDayTypeExercise(db: ReturnType<typeof getDb>, id: string, userId: string) {
+async function getOwnedDayTypeExercise(
+  db: ReturnType<typeof getDb>,
+  dayTypeId: string,
+  exerciseId: string,
+  userId: string,
+) {
   const rows = await db
     .select({ exercise: dayTypeExercise, owner: dayType })
     .from(dayTypeExercise)
     .innerJoin(dayType, eq(dayType.id, dayTypeExercise.dayTypeId))
-    .where(eq(dayTypeExercise.id, id))
+    .where(and(eq(dayTypeExercise.id, exerciseId), eq(dayTypeExercise.dayTypeId, dayTypeId)))
     .limit(1);
   const row = rows[0];
   if (!row) throw notFound('Day type exercise not found');
   if (row.owner.userId !== userId) throw forbidden('Not allowed to access this resource');
   return row.exercise;
+}
+
+async function resequenceDayTypeExercises(db: ReturnType<typeof getDb>, dayTypeId: string) {
+  const rows = await db
+    .select({ id: dayTypeExercise.id })
+    .from(dayTypeExercise)
+    .where(eq(dayTypeExercise.dayTypeId, dayTypeId))
+    .orderBy(dayTypeExercise.sortOrder, dayTypeExercise.createdAt, dayTypeExercise.id);
+
+  await Promise.all(
+    rows.map(({ id }, index) =>
+      db
+        .update(dayTypeExercise)
+        .set({ sortOrder: index, updatedAt: new Date() })
+        .where(eq(dayTypeExercise.id, id)),
+    ),
+  );
 }
 
 async function getOwnedCurrentVersion(db: ReturnType<typeof getDb>, programId: string, userId: string) {
@@ -141,8 +167,10 @@ async function getOwnedCurrentVersion(db: ReturnType<typeof getDb>, programId: s
   const versions = await db
     .select()
     .from(programVersion)
-    .where(eq(programVersion.trainingProgramId, programId));
-  if (versions[0]) return versions.sort((a, b) => b.versionNumber - a.versionNumber)[0]!;
+    .where(eq(programVersion.trainingProgramId, programId))
+    .orderBy(desc(programVersion.versionNumber))
+    .limit(1);
+  if (versions[0]) return versions[0];
 
   const inserted = await db
     .insert(programVersion)
@@ -260,7 +288,8 @@ export const dayTypeRoutes: FastifyPluginAsyncZod = async (fastify) => {
       const exercises = await db
         .select()
         .from(dayTypeExercise)
-        .where(eq(dayTypeExercise.dayTypeId, row.id));
+        .where(eq(dayTypeExercise.dayTypeId, row.id))
+        .orderBy(dayTypeExercise.sortOrder, dayTypeExercise.createdAt, dayTypeExercise.id);
       return { ...toDayTypeResponse(row), exercises: exercises.map(toDayTypeExerciseResponse) };
     },
   );
@@ -336,7 +365,7 @@ export const dayTypeRoutes: FastifyPluginAsyncZod = async (fastify) => {
   );
 
   fastify.patch(
-    '/v1/day-type-exercises/:id',
+    '/v1/day-types/:dayTypeId/exercises/:exerciseId',
     {
       preHandler: requireAuth,
       schema: {
@@ -347,28 +376,70 @@ export const dayTypeRoutes: FastifyPluginAsyncZod = async (fastify) => {
     },
     async (request) => {
       const db = getDb();
-      await getOwnedDayTypeExercise(db, request.params.id, request.userId!);
+      await getOwnedDayTypeExercise(db, request.params.dayTypeId, request.params.exerciseId, request.userId!);
       const rows = await db
         .update(dayTypeExercise)
         .set({ ...request.body, updatedAt: new Date() })
-        .where(eq(dayTypeExercise.id, request.params.id))
+        .where(and(eq(dayTypeExercise.id, request.params.exerciseId), eq(dayTypeExercise.dayTypeId, request.params.dayTypeId)))
         .returning();
       return toDayTypeExerciseResponse(rows[0]!);
     },
   );
 
   fastify.delete(
-    '/v1/day-type-exercises/:id',
+    '/v1/day-types/:dayTypeId/exercises/:exerciseId',
     {
       preHandler: requireAuth,
       schema: { params: dayTypeExerciseParamsSchema, response: { 204: z.null() } },
     },
     async (request, reply) => {
       const db = getDb();
-      await getOwnedDayTypeExercise(db, request.params.id, request.userId!);
-      await db.delete(dayTypeExercise).where(eq(dayTypeExercise.id, request.params.id));
+      await getOwnedDayTypeExercise(db, request.params.dayTypeId, request.params.exerciseId, request.userId!);
+      await db
+        .delete(dayTypeExercise)
+        .where(and(eq(dayTypeExercise.id, request.params.exerciseId), eq(dayTypeExercise.dayTypeId, request.params.dayTypeId)));
+      await resequenceDayTypeExercises(db, request.params.dayTypeId);
       reply.status(204);
       return null;
+    },
+  );
+
+  fastify.post(
+    '/v1/day-types/:dayTypeId/exercises/reorder',
+    {
+      preHandler: requireAuth,
+      schema: {
+        params: dayTypeParamsSchema,
+        body: reorderDayTypeExercisesSchema,
+        response: { 200: z.object({ ok: z.literal(true) }) },
+      },
+    },
+    async (request) => {
+      const db = getDb();
+      await getOwnedDayType(db, request.params.dayTypeId, request.userId!);
+
+      const existing = await db
+        .select({ id: dayTypeExercise.id })
+        .from(dayTypeExercise)
+        .where(eq(dayTypeExercise.dayTypeId, request.params.dayTypeId))
+        .orderBy(dayTypeExercise.sortOrder, dayTypeExercise.createdAt, dayTypeExercise.id);
+
+      const existingIds = existing.map(({ id }) => id).sort();
+      const requestedIds = [...request.body.exerciseIdsInOrder].sort();
+      if (existingIds.length !== requestedIds.length || existingIds.some((id, index) => id !== requestedIds[index])) {
+        throw notFound('Day type exercise list does not match this day type');
+      }
+
+      await Promise.all(
+        request.body.exerciseIdsInOrder.map((exerciseId, index) =>
+          db
+            .update(dayTypeExercise)
+            .set({ sortOrder: index, updatedAt: new Date() })
+            .where(and(eq(dayTypeExercise.id, exerciseId), eq(dayTypeExercise.dayTypeId, request.params.dayTypeId))),
+        ),
+      );
+
+      return { ok: true as const };
     },
   );
 
@@ -431,6 +502,7 @@ export const dayTypeRoutes: FastifyPluginAsyncZod = async (fastify) => {
     async (request) => {
       const db = getDb();
       const version = await getOwnedCurrentVersion(db, request.params.programId, request.userId!);
+      if (request.body.dayTypeId) await getOwnedDayType(db, request.body.dayTypeId, request.userId!);
       const rows = await db
         .update(programScheduleSlot)
         .set({ ...request.body })
@@ -451,9 +523,11 @@ export const dayTypeRoutes: FastifyPluginAsyncZod = async (fastify) => {
     async (request, reply) => {
       const db = getDb();
       const version = await getOwnedCurrentVersion(db, request.params.programId, request.userId!);
-      await db
+      const rows = await db
         .delete(programScheduleSlot)
-        .where(and(eq(programScheduleSlot.id, request.params.id), eq(programScheduleSlot.programVersionId, version.id)));
+        .where(and(eq(programScheduleSlot.id, request.params.id), eq(programScheduleSlot.programVersionId, version.id)))
+        .returning({ id: programScheduleSlot.id });
+      if (!rows[0]) throw notFound('Program schedule slot not found');
       reply.status(204);
       return null;
     },
@@ -502,6 +576,22 @@ export const dayTypeRoutes: FastifyPluginAsyncZod = async (fastify) => {
             })
             .returning();
       return toScheduleOverrideResponse(rows[0]!);
+    },
+  );
+
+  fastify.delete(
+    '/v1/me/schedule/:date/override',
+    {
+      preHandler: requireAuth,
+      schema: { params: dateParamsSchema, response: { 204: z.null() } },
+    },
+    async (request, reply) => {
+      const db = getDb();
+      await db
+        .delete(scheduleOverride)
+        .where(and(eq(scheduleOverride.userId, request.userId!), eq(scheduleOverride.date, request.params.date)));
+      reply.status(204);
+      return null;
     },
   );
 };
