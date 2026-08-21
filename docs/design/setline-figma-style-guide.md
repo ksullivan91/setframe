@@ -489,6 +489,81 @@ elsewhere in the file (§14), and duplicating all five into the shell
 would be repetitive busywork for a static design file with no routing.
 This is noted as an acceptable, intentional scope limit, not a gap.
 
+## 21. Accessibility fixes + `ExerciseEditModal` (closing the edit-exercise gap)
+
+**Tap targets**: bumped every `ExerciseBuilderRow`'s edit (✎) and delete
+(🗑) `IconButton`s from 36×36 to 44×44 across all built rows (10 rows
+found across `Screen/Web/Training`, `Screen/Web/ProgramEditor`,
+`Screen/Mobile/ProgramEditor`) — now meets the WCAG 2.5.5 AAA target
+size, not just the 2.5.8 AA minimum.
+
+**Drag-alternative (WCAG 2.5.7, AA)**: added a `ReorderControl` (▲/▼
+button pair, 24×20 each) next to the `≡` drag handle on every
+`ExerciseBuilderRow`, so reordering exercises no longer requires a drag
+gesture.
+
+**New `ExerciseEditModal` component**: closes the gap where the ✎ edit
+icon had no destination. Mirrors the existing `ExercisePickerModal`
+shell/positioning but is pre-filled for an *existing* row: shows the
+prescription kind as a **read-only** pill (kind is fixed at add-time —
+changing it means removing and re-adding via the picker), numeric
+`InlineField`s for the kind-specific values (Sets/Reps/Weight shown for
+the Reps-kind example; a caption notes Duration shows a single Minutes
+field and Distance+time shows Distance+Duration), and a `Save
+changes` / `Cancel` / `Delete exercise` action row (destructive-styled
+per `Semantic/Action/Destructive`, matching the Settings screen's
+danger-zone pattern from §12). Built once on `Screen/Web/Training`
+(node `81:2`) and cloned into `Screen/Web/ProgramEditor` (`82:2`) and
+`Screen/Mobile/ProgramEditor` (`82:29`, adapted to a single-column
+326px-wide stacked layout for mobile).
+
+## 22. WCAG contrast fix — WorkoutLogger "Finish" button (node `15:7`)
+
+**Found during**: a full accessibility pass across the Today/Training
+redesign screens (contrast, tap targets, color-only cues, icon-button
+labeling, drag-reorder alternatives).
+
+**Bug**: the "Finish" button in `Screen/Mobile/WorkoutLogger`'s header
+had its fill bound to `Semantic/Action/AccentSubtle` (`#6979f8`) while
+its label stayed bound to `Semantic/Action/Primary` (`#3349f8`) —
+near-identical hue/lightness, producing a **1.65:1** contrast ratio.
+Fails WCAG AA (needs 4.5:1 for normal text, 3:1 minimum even for
+large/bold text). Same class of mistake as the §16 AppShell nav-label
+bug — a button label left bound to the wrong semantic token instead of
+its paired "on-accent" text token.
+
+**Fix**: rebound fill to `Semantic/Action/Primary` and label to
+`Semantic/Action/PrimaryText` (white), matching the standard
+`Button/Primary` pattern (**6.09:1**, passes AA/AAA) used everywhere
+else in the file.
+
+**Items resolved in §21 above** (kept here for history, not re-flagged
+as open):
+- `IconButton`s bumped to 44×44 and `ReorderControl` added.
+- `ExerciseEditModal` built and propagated to all three
+  Training/ProgramEditor screens.
+
+**Still-open accessibility items from this pass**:
+- Mood-emoji selectors (36×36px circles) on the Today ritual screens
+  (`65:192`, `65:2`) pass the 24×24 AA minimum (WCAG 2.5.8) but miss the
+  44×44 AAA target.
+- Icon-only glyphs (✎/🗑/≡/▲/▼) have no visible text label — dev
+  handoff needs `aria-label`s ("Edit exercise", "Delete exercise",
+  "Reorder", "Move up"/"Move down").
+
+**Second instance of the same bug, fixed same pass**: the "New PR:
+Barbell Bench Press" toast card (node `43:17`, inside
+`Screen/Mobile/WorkoutLogger`) had a solid `Semantic/Action/AccentSubtle`
+fill with its title text left on `Semantic/Action/Primary` (1.65:1) and
+its subtitle on `Semantic/Text/Secondary` (1.4:1) — both meant for
+light/subtle backgrounds, not a solid accent fill. Fixed by rebinding
+the fill to `Semantic/Action/Primary` and both text lines to
+`Semantic/Action/PrimaryText` (white, 6.09:1). Given this is now the
+**third** occurrence of this exact mistake (§16 AppShell nav label,
+§17 Finish button, this toast card), worth double-checking any other
+component using `AccentSubtle`/`Primary` as a solid fill for the same
+issue.
+
 ## How this was built
 
 Entirely via GitHub Copilot CLI's Figma MCP `use_figma` tool (JavaScript
