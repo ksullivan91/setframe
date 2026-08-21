@@ -445,7 +445,7 @@ export default function TodayScreen() {
               </View>
             ) : null}
             <View style={styles.ctaStack}>
-              {todayWorkoutState === 'no-program' ? <Button label="Start guided setup" onPress={() => router.push('/program-editor')} /> : null}
+              {todayWorkoutState === 'no-program' ? <Button label="Start guided setup" onPress={() => router.push('/program-wizard')} /> : null}
               {todayWorkoutState === 'in-progress' ? <Button label="Resume workout" loading={startWorkoutMutation.isPending} onPress={() => startWorkoutMutation.mutate()} /> : null}
               {todayWorkoutState === 'scheduled' ? (
                 <>

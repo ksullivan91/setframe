@@ -1,85 +1,189 @@
-import { ScrollView, View, Text, StyleSheet } from 'react-native';
-import { GripVertical } from 'lucide-react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, ScrollView, View, Text, Pressable, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
+import { ChevronRight } from 'lucide-react-native';
+import type { DayType, DayTypeExercise, Exercise, ProgramScheduleSlot, TrainingProgram } from '@setline/schemas';
 import { Card } from '../src/components/Card';
 import { Badge } from '../src/components/Badge';
+import { Button } from '../src/components/Button';
+import { useApiClient } from '../src/lib/api-client';
+import { summarizePrescription } from '../src/lib/prescription';
 import { useTheme } from '../src/theme/ThemeProvider';
 import { spacing, typeScale } from '../src/theme/getTheme';
-import type { ProgressionRuleType } from '@setline/schemas';
+
+interface DayTypeDetail extends DayType {
+  exercises: DayTypeExercise[];
+}
+
+const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /**
- * Plain-language progression-rule copy per style guide §18 Idea 3 —
- * reused for the mobile read-only description block below. Kept as a
- * local lookup for now; move to packages/domain once the web editor
- * needs the same copy (currently only written out in the design doc).
- *
- * NOTE: `progressionRuleTypeSchema` (packages/schemas) only enumerates
- * 'manual' | 'double_progression' | 'linear' — the style guide's third
- * example copy ("Percentage-based (%1RM)") is mapped onto the 'manual'
- * type here as the closest fit until a dedicated percentage-based rule
- * type is added to the schema.
- */
-const progressionRuleCopy: Record<ProgressionRuleType, { label: string; description: string }> = {
-  double_progression: {
-    label: 'Double progression',
-    description:
-      'Increase reps each session until you hit the top of the rep range, then add weight and reset to the bottom.',
-  },
-  linear: {
-    label: 'Linear (+5lb per session)',
-    description: 'Add weight every session when you complete all prescribed reps. Best for beginners on compound lifts.',
-  },
-  manual: {
-    label: 'Percentage-based (%1RM)',
-    description: "Sets are prescribed as a % of your estimated max. Adjusts automatically as your strength improves.",
-  },
-};
-
-/**
- * `Screen/Mobile/ProgramEditor` per style guide §14/§18 — the "lighter"
- * mobile editing experience §13 explicitly calls for: program
- * title/status pill, weekly day sequence (view + reorder handles), one
- * expanded day's exercise list as view-only prescriptions, a read-only
- * progression-rule line + plain-language description (§18 Idea 3), and
- * an explicit note redirecting reorder/prescription/progression editing
- * to web.
+ * `Screen/Mobile/ProgramEditor` per style guide §14 — a lighter,
+ * read-only mobile view of the active program: title/status, the
+ * weekly day sequence, and one selected day's real exercise list with
+ * prescriptions. Per the design doc, reorder/prescription-editing/
+ * schedule-editing stay on web — mobile links out to `/training/new`
+ * (guided setup) when there's no program yet, and otherwise just notes
+ * that deeper edits happen on web.
  */
 export default function ProgramEditorScreen() {
   const theme = useTheme();
-  const rule = progressionRuleCopy.double_progression;
+  const router = useRouter();
+  const api = useApiClient();
+  const [selectedDayTypeId, setSelectedDayTypeId] = useState<string | null>(null);
+
+  const programsQuery = useQuery({
+    queryKey: ['programs'],
+    queryFn: () => api.get<TrainingProgram[]>('/programs'),
+  });
+  const activeProgram = useMemo(
+    () => programsQuery.data?.find((program) => program.isActive) ?? programsQuery.data?.[0] ?? null,
+    [programsQuery.data],
+  );
+
+  const scheduleSlotsQuery = useQuery({
+    queryKey: ['schedule-slots', activeProgram?.id],
+    queryFn: () => api.get<ProgramScheduleSlot[]>(`/programs/${activeProgram?.id}/schedule-slots`),
+    enabled: Boolean(activeProgram?.id),
+  });
+
+  const dayTypesQuery = useQuery({
+    queryKey: ['day-types'],
+    queryFn: () => api.get<DayType[]>('/day-types'),
+  });
+
+  const exercisesQuery = useQuery({
+    queryKey: ['exercises'],
+    queryFn: () => api.get<Exercise[]>('/exercises'),
+  });
+
+  const weekOneSlots = useMemo(
+    () =>
+      (scheduleSlotsQuery.data ?? [])
+        .filter((slot) => slot.weekNumber === null || slot.weekNumber === 1)
+        .sort((a, b) => a.dayIndex - b.dayIndex),
+    [scheduleSlotsQuery.data],
+  );
+
+  const dayTypeById = useMemo(() => {
+    const map = new Map<string, DayType>();
+    (dayTypesQuery.data ?? []).forEach((dayType) => map.set(dayType.id, dayType));
+    return map;
+  }, [dayTypesQuery.data]);
+
+  const exerciseNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    (exercisesQuery.data ?? []).forEach((exercise) => map.set(exercise.id, exercise.name));
+    return map;
+  }, [exercisesQuery.data]);
+
+  useEffect(() => {
+    if (!selectedDayTypeId && weekOneSlots.length > 0) {
+      setSelectedDayTypeId(weekOneSlots[0]!.dayTypeId);
+    }
+  }, [selectedDayTypeId, weekOneSlots]);
+
+  const selectedDayTypeDetailQuery = useQuery({
+    queryKey: ['day-type', selectedDayTypeId],
+    queryFn: () => api.get<DayTypeDetail>(`/day-types/${selectedDayTypeId}`),
+    enabled: Boolean(selectedDayTypeId),
+  });
+
+  const isLoading = programsQuery.isLoading || dayTypesQuery.isLoading;
+
+  if (isLoading) {
+    return (
+      <View style={[styles.centered, { backgroundColor: theme.surface.canvas }]}>
+        <ActivityIndicator color={theme.action.primary} />
+      </View>
+    );
+  }
+
+  if (programsQuery.isError || dayTypesQuery.isError) {
+    return (
+      <View style={[styles.centered, { backgroundColor: theme.surface.canvas, padding: spacing[16] }]}>
+        <Text style={{ color: theme.text.primary, textAlign: 'center' }}>Couldn&apos;t load your training program.</Text>
+      </View>
+    );
+  }
+
+  if (!activeProgram) {
+    return (
+      <View style={[styles.centered, { backgroundColor: theme.surface.canvas, padding: spacing[16], gap: spacing[16] }]}>
+        <Text style={{ color: theme.text.primary, textAlign: 'center', fontWeight: '600' }}>No training program yet</Text>
+        <Text style={{ color: theme.text.secondary, textAlign: 'center' }}>
+          Set up your first program with a few guided steps.
+        </Text>
+        <Button label="Start guided setup" onPress={() => router.push('/program-wizard')} />
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={{ backgroundColor: theme.surface.canvas }} contentContainerStyle={styles.content}>
       <View style={styles.headerRow}>
-        <Text style={[styles.title, { color: theme.text.primary }]}>Push/Pull/Legs</Text>
-        <Badge label="Active" tone="success" />
+        <Text style={[styles.title, { color: theme.text.primary }]}>{activeProgram.name}</Text>
+        <Badge label={activeProgram.isActive ? 'Active' : 'Inactive'} tone={activeProgram.isActive ? 'success' : 'neutral'} />
       </View>
 
       <Card>
         <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Weekly sequence</Text>
-        {['Day 1 — Push', 'Day 2 — Pull', 'Day 3 — Legs'].map((day) => (
-          <View key={day} style={styles.dayRow}>
-            <GripVertical size={16} color={theme.text.secondary} />
-            <Text style={{ color: theme.text.primary, flex: 1 }}>{day}</Text>
-            <Text style={{ color: theme.text.secondary }}>5 exercises</Text>
-          </View>
-        ))}
+        {weekOneSlots.length === 0 ? (
+          <Text style={{ color: theme.text.secondary }}>No days scheduled yet. Set this up on web.</Text>
+        ) : (
+          weekOneSlots.map((slot) => {
+            const dayType = dayTypeById.get(slot.dayTypeId);
+            const isSelected = slot.dayTypeId === selectedDayTypeId;
+            return (
+              <Pressable
+                key={slot.id}
+                onPress={() => setSelectedDayTypeId(slot.dayTypeId)}
+                style={[
+                  styles.dayRow,
+                  isSelected ? { backgroundColor: theme.action.accentSubtle, borderRadius: spacing[8] } : null,
+                ]}
+              >
+                <Text style={{ color: theme.text.secondary, width: 40 }}>{dayNames[slot.dayIndex]}</Text>
+                <Text style={{ color: theme.text.primary, flex: 1 }}>{dayType?.name ?? 'Workout'}</Text>
+                <ChevronRight size={16} color={theme.text.secondary} />
+              </Pressable>
+            );
+          })
+        )}
       </Card>
 
-      <Card>
-        <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Day 1 — Push</Text>
-        {['Barbell Bench Press · 3 × 6-8', 'Overhead Press · 3 × 8-10', 'Incline DB Press · 3 × 10-12'].map(
-          (exercise) => (
-            <Text key={exercise} style={{ color: theme.text.secondary }}>
-              {exercise}
-            </Text>
-          ),
-        )}
-        <Text style={[styles.ruleLabel, { color: theme.text.primary }]}>Progression rule: {rule.label}</Text>
-        <Text style={[styles.ruleDescription, { color: theme.text.secondary }]}>{rule.description}</Text>
-      </Card>
+      {selectedDayTypeId ? (
+        <Card>
+          <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>
+            {dayTypeById.get(selectedDayTypeId)?.name ?? 'Workout'}
+          </Text>
+          {selectedDayTypeDetailQuery.isLoading ? (
+            <ActivityIndicator color={theme.action.primary} />
+          ) : selectedDayTypeDetailQuery.isError ? (
+            <Text style={{ color: theme.text.secondary }}>Couldn&apos;t load this workout&apos;s exercises.</Text>
+          ) : (selectedDayTypeDetailQuery.data?.exercises.length ?? 0) === 0 ? (
+            <Text style={{ color: theme.text.secondary }}>No exercises added to this workout yet.</Text>
+          ) : (
+            selectedDayTypeDetailQuery.data!.exercises
+              .slice()
+              .sort((a, b) => a.sortOrder - b.sortOrder)
+              .map((exercise) => (
+                <View key={exercise.id} style={styles.exerciseRow}>
+                  <Text style={{ color: theme.text.primary }}>
+                    {exerciseNameById.get(exercise.exerciseId) ?? 'Exercise'}
+                  </Text>
+                  <Text style={{ color: theme.text.secondary, fontSize: typeScale.caption.fontSize }}>
+                    {summarizePrescription(exercise.prescription)}
+                  </Text>
+                </View>
+              ))
+          )}
+        </Card>
+      ) : null}
 
       <Text style={[styles.editNote, { color: theme.text.secondary }]}>
-        Edit on web for reorder, prescriptions, and progression rules.
+        Edit on web for reorder, prescriptions, and schedule changes.
       </Text>
     </ScrollView>
   );
@@ -89,6 +193,11 @@ const styles = StyleSheet.create({
   content: {
     padding: spacing[16],
     gap: spacing[16],
+  },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerRow: {
     flexDirection: 'row',
@@ -107,14 +216,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing[8],
+    paddingVertical: spacing[8],
+    paddingHorizontal: spacing[4],
+  },
+  exerciseRow: {
+    gap: spacing[4],
     paddingVertical: spacing[4],
-  },
-  ruleLabel: {
-    fontWeight: '600',
-    marginTop: spacing[8],
-  },
-  ruleDescription: {
-    fontSize: typeScale.compactBody.fontSize,
   },
   editNote: {
     fontSize: typeScale.caption.fontSize,
