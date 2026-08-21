@@ -7,6 +7,7 @@ export interface TrendCardProps {
   label: string;
   value: string;
   delta: string;
+  deltaVariant?: 'success' | 'muted';
   /** 6-bar restrained sparkline, 0-1 normalized heights — no axis/gridlines per style guide §11. */
   sparkline: number[];
 }
@@ -17,7 +18,7 @@ export interface TrendCardProps {
  * (no charting library), matching "keep charts restrained" from the
  * ExerciseHistory precedent (§9).
  */
-export function TrendCard({ label, value, delta, sparkline }: TrendCardProps) {
+export function TrendCard({ label, value, delta, deltaVariant = 'success', sparkline }: TrendCardProps) {
   const theme = useTheme();
   return (
     <View style={[styles.container, { backgroundColor: theme.surface.raised, borderColor: theme.border.subtle }]}>
@@ -30,7 +31,9 @@ export function TrendCard({ label, value, delta, sparkline }: TrendCardProps) {
       >
         {value}
       </Text>
-      <Text style={[styles.delta, { color: theme.status.success }]}>{delta}</Text>
+      <Text style={[styles.delta, { color: deltaVariant === 'success' ? theme.status.success : theme.text.secondary }]}>
+        {delta}
+      </Text>
       <View style={styles.sparkline}>
         {sparkline.map((height, index) => (
           <View
