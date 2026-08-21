@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, ChevronUp, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus } from 'lucide-react';
 import { spacing, radius } from '@setline/design-tokens';
 import type {
   DayType,
@@ -9,23 +9,15 @@ import type {
   Exercise,
   Prescription,
   ProgramScheduleSlot,
-  ScheduleOverride,
   TrainingProgram,
 } from '@setline/schemas';
-import { Button, Card, IconButton, Input, Select, useToast } from '../components';
+import { Button, Card, IconButton, Input, Menu, Modal as SharedModal, Select, useToast } from '../components';
 import { typeScale } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';
 import { useApiClient } from '../lib/api-client';
 
 interface DayTypeDetail extends DayType {
   exercises: DayTypeExercise[];
-}
-
-interface ScheduleResponse {
-  date: string;
-  override: ScheduleOverride | null;
-  scheduledDayType: DayType | null;
-  source: 'override' | 'program' | 'none';
 }
 
 interface EditState {
@@ -151,26 +143,6 @@ const DayLabel = styled.span`
   line-height: 1.2;
 `;
 
-const Backdrop = styled.div`
-  position: fixed;
-  inset: 0;
-  background: rgba(21, 21, 34, 0.56);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: ${spacing[16]}px;
-  z-index: 1000;
-`;
-
-const Modal = styled(Card)`
-  width: min(560px, 100%);
-  max-height: 90vh;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: ${spacing[16]}px;
-`;
-
 const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const modeOptions = [
   { value: 'perpetual', label: 'Repeats weekly' },
@@ -184,10 +156,6 @@ const prescriptionOptions = [
   { value: 'distance', label: 'Distance' },
   { value: 'bodyweight_reps', label: 'Bodyweight reps' },
 ];
-
-function currentDate() {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function summarizePrescription(p: Prescription) {
   switch (p.kind) {
@@ -249,19 +217,8 @@ function ExerciseEditModal({
   useEffect(() => setDraft(state), [state]);
 
   return (
-    <Backdrop>
-      <Modal>
-        <Row style={{ justifyContent: 'space-between' }}>
-          <div>
-            <h2 style={{ margin: '0 0 4px 0' }}>Edit exercise</h2>
-            <Small>{draft.exerciseName}</Small>
-          </div>
-          <IconButton aria-label="Close" onClick={onClose}>
-            <X size={16} />
-          </IconButton>
-        </Row>
-
-        <Select label="Prescription type" value={draft.prescription.kind} options={prescriptionOptions} disabled onChange={() => undefined} />
+    <SharedModal open onClose={onClose} title="Edit exercise" description={draft.exerciseName} maxWidth={560}>
+      <Select label="Prescription type" value={draft.prescription.kind} options={prescriptionOptions} disabled onChange={() => undefined} />
 
         {(draft.prescription.kind === 'sets_reps' ||
           draft.prescription.kind === 'per_side' ||
@@ -397,8 +354,7 @@ function ExerciseEditModal({
             <Button onClick={() => onSave(draft)}>Save</Button>
           </Row>
         </Row>
-      </Modal>
-    </Backdrop>
+    </SharedModal>
   );
 }
 
@@ -409,9 +365,6 @@ export function ProgramEditorPage() {
   const [selectedDayTypeId, setSelectedDayTypeId] = useState<string | null>(null);
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
   const [mode, setMode] = useState<'perpetual' | 'block'>('perpetual');
-  const [overrideDate, setOverrideDate] = useState(currentDate());
-  const [overrideNote, setOverrideNote] = useState('');
-  const [overrideDayTypeId, setOverrideDayTypeId] = useState<string>('');
   const [newDayTypeName, setNewDayTypeName] = useState('');
   const [newExerciseId, setNewExerciseId] = useState('');
   const [customExerciseName, setCustomExerciseName] = useState('');
@@ -466,16 +419,10 @@ export function ProgramEditorPage() {
     enabled: !!selectedProgramId,
   });
 
-  const { data: overrideData } = useQuery({
-    queryKey: ['schedule-override', overrideDate],
-    queryFn: () => api.get<ScheduleResponse>(`/me/schedule/${overrideDate}`),
-  });
-
   const invalidateTraining = () => {
     queryClient.invalidateQueries({ queryKey: ['day-types'] });
     queryClient.invalidateQueries({ queryKey: ['day-type', selectedDayTypeId] });
     queryClient.invalidateQueries({ queryKey: ['schedule-slots', selectedProgramId] });
-    queryClient.invalidateQueries({ queryKey: ['schedule-override', overrideDate] });
   };
 
   const createDayType = useMutation({
@@ -553,12 +500,6 @@ export function ProgramEditorPage() {
     onSuccess: () => invalidateTraining(),
   });
 
-  const putOverride = useMutation({
-    mutationFn: (body: { dayTypeId: string; note: string | null }) =>
-      api.put(`/me/schedule/${overrideDate}/override`, body),
-    onSuccess: () => invalidateTraining(),
-  });
-
   const slotsByDay = useMemo(() => {
     const map = new Map<number, ProgramScheduleSlot>();
     scheduleSlots
@@ -623,8 +564,22 @@ export function ProgramEditorPage() {
                   </div>
                   <IconButton aria-label="Move exercise up" disabled={index === 0} onClick={() => reorderByDelta(index, -1)}><ChevronUp size={16} /></IconButton>
                   <IconButton aria-label="Move exercise down" disabled={index === sortedExercises.length - 1} onClick={() => reorderByDelta(index, 1)}><ChevronDown size={16} /></IconButton>
-                  <IconButton aria-label="Edit exercise" onClick={() => setEditState({ exerciseId: exercise.id, exerciseName: exercises.find((item) => item.id === exercise.exerciseId)?.name ?? exercise.exerciseId, prescription: exercise.prescription, notes: exercise.notes ?? '' })}><Pencil size={16} /></IconButton>
-                  <IconButton aria-label="Delete exercise" onClick={() => removeExercise.mutate(exercise.id)}><Trash2 size={16} /></IconButton>
+                  <Menu
+                    label={`Actions for ${exercises.find((item) => item.id === exercise.exerciseId)?.name ?? exercise.exerciseId}`}
+                    items={[
+                      {
+                        label: 'Edit',
+                        onClick: () =>
+                          setEditState({
+                            exerciseId: exercise.id,
+                            exerciseName: exercises.find((item) => item.id === exercise.exerciseId)?.name ?? exercise.exerciseId,
+                            prescription: exercise.prescription,
+                            notes: exercise.notes ?? '',
+                          }),
+                      },
+                      { label: 'Delete', destructive: true, onClick: () => removeExercise.mutate(exercise.id) },
+                    ]}
+                  />
                 </ExerciseRow>
               ))
             )}
@@ -701,12 +656,8 @@ export function ProgramEditorPage() {
           </StackCard>
 
           <StackCard>
-            <strong>Schedule exception</strong>
-            <Input label="Date" type="date" value={overrideDate} onChange={(e) => setOverrideDate(e.target.value)} />
-            <Select label="Workout" value={overrideDayTypeId} onChange={(e) => setOverrideDayTypeId(e.target.value)} options={[{ value: '', label: 'Select a workout' }, ...dayTypes.map((type) => ({ value: type.id, label: type.name }))]} />
-            <TextArea value={overrideNote} onChange={(e) => setOverrideNote(e.target.value)} placeholder="Travel, swap, extra conditioning…" />
-            <Button onClick={() => overrideDayTypeId && putOverride.mutate({ dayTypeId: overrideDayTypeId, note: overrideNote || null })} disabled={!overrideDayTypeId}>Save exception</Button>
-            <Small>Currently scheduled: {overrideData?.scheduledDayType?.name ?? 'None'} ({overrideData?.source ?? 'none'})</Small>
+            <strong>One-off changes</strong>
+            <Small>Need to swap today&apos;s workout without touching your regular schedule? Use &ldquo;Change today&apos;s workout&rdquo; on the Today page.</Small>
           </StackCard>
         </Column>
       </Layout>

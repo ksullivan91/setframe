@@ -7,7 +7,7 @@ import { spacing, radius } from '@setline/design-tokens';
 import type { DayTypeExercise, Exercise, WorkoutSession } from '@setline/schemas';
 import { typeScale } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';
-import { Button, Card, Checkbox, Input, Modal, useToast } from '../components';
+import { Button, Card, Checkbox, Input, Modal, Select, useToast } from '../components';
 import { useApiClient } from '../lib/api-client';
 import { summarizePrescription } from '../lib/prescription';
 
@@ -206,6 +206,16 @@ const PreviewPlan = styled.span`
   color: ${(p) => p.theme.text.secondary};
   font-size: ${typeScale.compactBody.fontSize}px;
 `;
+const TextArea = styled.textarea`
+  width: 100%;
+  min-height: 80px;
+  padding: ${spacing[12]}px;
+  border-radius: ${radius.small}px;
+  border: 1px solid ${(p) => p.theme.border.default};
+  background: ${(p) => p.theme.surface.raised};
+  color: ${(p) => p.theme.text.primary};
+  resize: vertical;
+`;
 const statusCopy = {
   ok: 'Synced',
   syncing: 'Updating health data…',
@@ -254,6 +264,9 @@ export function TodayPage() {
   const [journal, setJournal] = useState('');
   const [selectedMood, setSelectedMood] = useState<number | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [exceptionOpen, setExceptionOpen] = useState(false);
+  const [exceptionDayTypeId, setExceptionDayTypeId] = useState('');
+  const [exceptionNote, setExceptionNote] = useState('');
 
   useEffect(() => {
     setWeight(manual?.morningWeightValue?.toString() ?? '');
@@ -294,6 +307,24 @@ export function TodayPage() {
     enabled: previewOpen,
   });
   const exerciseNameById = new Map((exercisesQuery.data ?? []).map((e) => [e.id, e.name]));
+
+  const dayTypesQuery = useQuery({
+    queryKey: ['day-types'],
+    queryFn: () => api.get<{ id: string; name: string }[]>('/day-types'),
+    enabled: exceptionOpen,
+  });
+
+  const setExceptionMutation = useMutation({
+    mutationFn: (body: { dayTypeId: string; note: string | null }) => api.put(`/me/schedule/${localDate}/override`, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['today', localDate] });
+      toast.show({ variant: 'success', message: "Today's workout updated." });
+      setExceptionOpen(false);
+      setExceptionDayTypeId('');
+      setExceptionNote('');
+    },
+    onError: () => toast.show({ variant: 'error', message: "Couldn't update today's workout.", actionLabel: 'Retry now' }),
+  });
 
   const workoutDone = Boolean(data?.sessions.length);
   const mealDone = Boolean(manual?.preWorkoutMealLogged);
@@ -410,6 +441,9 @@ export function TodayPage() {
             <MetaTile><MetaLabel>Mood</MetaLabel><MetaValue>{selectedMood ? moodOptions.find((m) => m.value === selectedMood)?.emoji : '—'}</MetaValue></MetaTile>
             <MetaTile><MetaLabel>Workout</MetaLabel><MetaValue>{data?.dayLabel ?? 'Rest / none'}</MetaValue></MetaTile>
           </MetaList>
+          <Button variant="secondary" onClick={() => setExceptionOpen(true)} style={{ marginTop: spacing[12] }}>
+            Change today&apos;s workout
+          </Button>
         </Card>
       </Stack>
     </Grid>
@@ -428,6 +462,33 @@ export function TodayPage() {
         </PreviewExerciseRow>
       ))}
       <Button onClick={() => setPreviewOpen(false)}>Close</Button>
+    </Modal>
+    <Modal
+      open={exceptionOpen}
+      onClose={() => setExceptionOpen(false)}
+      title="Change today's workout"
+      description="This only affects today — your regular schedule stays the same."
+    >
+      <Select
+        label="Workout"
+        value={exceptionDayTypeId}
+        onChange={(e) => setExceptionDayTypeId(e.target.value)}
+        options={[
+          { value: '', label: 'Select a workout' },
+          ...(dayTypesQuery.data ?? []).map((type) => ({ value: type.id, label: type.name })),
+        ]}
+      />
+      <TextArea
+        value={exceptionNote}
+        onChange={(e) => setExceptionNote(e.target.value)}
+        placeholder="Travel, swap, extra conditioning…"
+      />
+      <Button
+        onClick={() => exceptionDayTypeId && setExceptionMutation.mutate({ dayTypeId: exceptionDayTypeId, note: exceptionNote || null })}
+        disabled={!exceptionDayTypeId || setExceptionMutation.isPending}
+      >
+        Save
+      </Button>
     </Modal>
     </>
   );
