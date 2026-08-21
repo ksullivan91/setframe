@@ -411,6 +411,207 @@ function PlannedSetsEditor({ dayTypeId, exerciseId }: { dayTypeId: string; exerc
   }
 }
 
+/**
+ * Add-exercise flow (user-experience-iteration.md #13-16). Replaces the
+ * old always-visible Exercise/Prescription-type/Create-exercise/Add
+ * cluster with progressive disclosure: search-and-pick an existing
+ * exercise first; custom creation and prescription configuration are
+ * separate steps reached only when needed.
+ */
+function AddExercisePicker({
+  exercises,
+  onClose,
+  onCreateExercise,
+  isCreatingExercise,
+  onAddExercise,
+  isAddingExercise,
+}: {
+  exercises: Exercise[];
+  onClose: () => void;
+  onCreateExercise: (name: string) => Promise<Exercise>;
+  isCreatingExercise: boolean;
+  onAddExercise: (exerciseId: string, prescription: Prescription) => void;
+  isAddingExercise: boolean;
+}) {
+  const [step, setStep] = useState<'search' | 'create' | 'configure'>('search');
+  const [query, setQuery] = useState('');
+  const [customName, setCustomName] = useState('');
+  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
+  const [prescriptionKind, setPrescriptionKind] = useState('sets_reps');
+  const [prescription, setPrescription] = useState<Prescription>(emptyPrescription('sets_reps'));
+
+  const filtered = useMemo(
+    () => exercises.filter((exercise) => exercise.name.toLowerCase().includes(query.trim().toLowerCase())),
+    [exercises, query],
+  );
+
+  const chooseExercise = (exercise: Exercise) => {
+    setSelectedExercise(exercise);
+    setPrescriptionKind('sets_reps');
+    setPrescription(emptyPrescription('sets_reps'));
+    setStep('configure');
+  };
+
+  const handlePrescriptionKindChange = (kind: string) => {
+    setPrescriptionKind(kind);
+    setPrescription(emptyPrescription(kind));
+  };
+
+  if (step === 'create') {
+    return (
+      <SharedModal open onClose={onClose} title="Create custom exercise" maxWidth={420}>
+        <Column>
+          <Input
+            label="Exercise name"
+            placeholder="e.g. Outdoor Cycle"
+            value={customName}
+            onChange={(e) => setCustomName(e.target.value)}
+            autoFocus
+          />
+          <Row style={{ justifyContent: 'flex-end' }}>
+            <Button variant="secondary" onClick={() => setStep('search')}>Cancel</Button>
+            <Button
+              disabled={!customName.trim() || isCreatingExercise}
+              onClick={async () => {
+                const created = await onCreateExercise(customName.trim());
+                setCustomName('');
+                chooseExercise(created);
+              }}
+            >
+              Create &amp; add
+            </Button>
+          </Row>
+        </Column>
+      </SharedModal>
+    );
+  }
+
+  if (step === 'configure' && selectedExercise) {
+    return (
+      <SharedModal open onClose={onClose} title={selectedExercise.name} maxWidth={480}>
+        <Column>
+          <Select label="Prescription" value={prescriptionKind} onChange={(e) => handlePrescriptionKindChange(e.target.value)} options={prescriptionOptions} />
+
+          {(prescription.kind === 'sets_reps' || prescription.kind === 'per_side' || prescription.kind === 'bodyweight_reps') && (
+            <PrescriptionGrid>
+              <Input
+                label="Sets"
+                inputMode="numeric"
+                value={String(prescription.sets)}
+                onChange={(e) => setPrescription((prev) => ({ ...prev, sets: Number(e.target.value) || 0 } as Prescription))}
+              />
+              <Input
+                label="Reps"
+                inputMode="numeric"
+                value={String(prescription.repsMin)}
+                onChange={(e) => setPrescription((prev) => ({ ...prev, repsMin: Number(e.target.value) || 0 } as Prescription))}
+              />
+            </PrescriptionGrid>
+          )}
+
+          {prescription.kind === 'timed' && (
+            <PrescriptionGrid>
+              <Input
+                label="Sets"
+                inputMode="numeric"
+                value={String(prescription.sets)}
+                onChange={(e) => setPrescription((prev) => ({ ...prev, sets: Number(e.target.value) || 0 } as Prescription))}
+              />
+              <Input
+                label="Seconds"
+                inputMode="numeric"
+                value={String(prescription.durationSeconds)}
+                onChange={(e) => setPrescription((prev) => ({ ...prev, durationSeconds: Number(e.target.value) || 0 } as Prescription))}
+              />
+            </PrescriptionGrid>
+          )}
+
+          {prescription.kind === 'duration' && (
+            <Input
+              label="Minutes"
+              inputMode="numeric"
+              value={String(prescription.durationMinutes)}
+              onChange={(e) => setPrescription((prev) => ({ ...prev, durationMinutes: Number(e.target.value) || 0 } as Prescription))}
+            />
+          )}
+
+          {prescription.kind === 'distanceDuration' && (
+            <PrescriptionGrid>
+              <Input
+                label="Distance (mi)"
+                inputMode="decimal"
+                value={String(prescription.distanceMiles)}
+                onChange={(e) => setPrescription((prev) => ({ ...prev, distanceMiles: Number(e.target.value) || 0 } as Prescription))}
+              />
+              <Input
+                label="Minutes"
+                inputMode="numeric"
+                value={String(prescription.durationMinutes)}
+                onChange={(e) => setPrescription((prev) => ({ ...prev, durationMinutes: Number(e.target.value) || 0 } as Prescription))}
+              />
+            </PrescriptionGrid>
+          )}
+
+          {prescription.kind === 'distance' && (
+            <PrescriptionGrid>
+              <Input
+                label="Sets"
+                inputMode="numeric"
+                value={String(prescription.sets)}
+                onChange={(e) => setPrescription((prev) => ({ ...prev, sets: Number(e.target.value) || 0 } as Prescription))}
+              />
+              <Input
+                label="Distance"
+                inputMode="decimal"
+                value={String(prescription.distanceValue)}
+                onChange={(e) => setPrescription((prev) => ({ ...prev, distanceValue: Number(e.target.value) || 0 } as Prescription))}
+              />
+            </PrescriptionGrid>
+          )}
+
+          <Row style={{ justifyContent: 'flex-end' }}>
+            <Button variant="secondary" onClick={() => setStep('search')}>Back</Button>
+            <Button
+              disabled={isAddingExercise}
+              onClick={() => {
+                onAddExercise(selectedExercise.id, prescription);
+                onClose();
+              }}
+            >
+              Add to workout
+            </Button>
+          </Row>
+        </Column>
+      </SharedModal>
+    );
+  }
+
+  return (
+    <SharedModal open onClose={onClose} title="Add exercise" maxWidth={480}>
+      <Column>
+        <Input label="Search exercises" placeholder="Barbell Back Squat…" value={query} onChange={(e) => setQuery(e.target.value)} autoFocus />
+        <Column style={{ maxHeight: 320, overflowY: 'auto', gap: spacing[4] }}>
+          {filtered.length === 0 ? (
+            <Small>No exercises match &ldquo;{query}&rdquo;.</Small>
+          ) : (
+            filtered.map((exercise) => (
+              <LibraryItem key={exercise.id} $active={false} onClick={() => chooseExercise(exercise)}>
+                <strong>{exercise.isCustom ? `${exercise.name} (custom)` : exercise.name}</strong>
+              </LibraryItem>
+            ))
+          )}
+        </Column>
+        <Row style={{ justifyContent: 'space-between' }}>
+          <Small>Can&apos;t find it?</Small>
+          <Button variant="tertiary" onClick={() => setStep('create')}>
+            <Plus size={16} />Create custom exercise
+          </Button>
+        </Row>
+      </Column>
+    </SharedModal>
+  );
+}
+
 function ExerciseEditModal({
   state,
   onClose,
@@ -578,11 +779,9 @@ export function ProgramEditorPage() {
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
   const [mode, setMode] = useState<'perpetual' | 'block'>('perpetual');
   const [newDayTypeName, setNewDayTypeName] = useState('');
-  const [newExerciseId, setNewExerciseId] = useState('');
-  const [customExerciseName, setCustomExerciseName] = useState('');
-  const [prescriptionKind, setPrescriptionKind] = useState('sets_reps');
   const [editState, setEditState] = useState<EditState | null>(null);
   const [activeTab, setActiveTab] = useState<'workouts' | 'schedule'>('workouts');
+  const [addExerciseOpen, setAddExerciseOpen] = useState(false);
 
   const { data: programs } = useQuery({ queryKey: ['programs'], queryFn: () => api.get<TrainingProgram[]>('/programs') });
   const { data: dayTypes = [] } = useQuery({ queryKey: ['day-types'], queryFn: () => api.get<DayType[]>('/day-types') });
@@ -656,10 +855,8 @@ export function ProgramEditorPage() {
 
   const createExercise = useMutation({
     mutationFn: (body: { name: string }) => api.post<Exercise>('/exercises', body),
-    onSuccess: (created) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['exercises'] });
-      setNewExerciseId(created.id);
-      setCustomExerciseName('');
     },
   });
 
@@ -833,39 +1030,7 @@ export function ProgramEditorPage() {
                   ))
                 )}
 
-                <PrescriptionGrid>
-                  <Select
-                    label="Exercise"
-                    value={newExerciseId}
-                    onChange={(e) => setNewExerciseId(e.target.value)}
-                    options={[
-                      { value: '', label: 'Select exercise' },
-                      ...exercises.map((exercise) => ({
-                        value: exercise.id,
-                        label: exercise.isCustom ? `${exercise.name} (custom)` : exercise.name,
-                      })),
-                    ]}
-                  />
-                  <Select label="Prescription type" value={prescriptionKind} onChange={(e) => setPrescriptionKind(e.target.value)} options={prescriptionOptions} />
-                </PrescriptionGrid>
-                <Row style={{ gap: 8, alignItems: 'flex-end' }}>
-                  <div style={{ flex: 1 }}>
-                    <Input
-                      label="Create a new exercise"
-                      placeholder="e.g. Cable Face Pull"
-                      value={customExerciseName}
-                      onChange={(e) => setCustomExerciseName(e.target.value)}
-                    />
-                  </div>
-                  <Button
-                    variant="secondary"
-                    onClick={() => customExerciseName.trim() && createExercise.mutate({ name: customExerciseName.trim() })}
-                    disabled={!customExerciseName.trim() || createExercise.isPending}
-                  >
-                    <Plus size={16} />Create exercise
-                  </Button>
-                </Row>
-                <Button onClick={() => newExerciseId && addExercise.mutate({ exerciseId: newExerciseId, prescription: emptyPrescription(prescriptionKind) })} disabled={!newExerciseId}><Plus size={16} />Add exercise</Button>
+                <Button onClick={() => setAddExerciseOpen(true)}><Plus size={16} />Add exercise</Button>
               </StackCard>
             </Column>
           ) : (
@@ -933,6 +1098,17 @@ export function ProgramEditorPage() {
           onClose={() => setEditState(null)}
           onSave={(next) => patchExercise.mutate({ exerciseId: next.exerciseId, body: { prescription: next.prescription, notes: next.notes || null } })}
           onDelete={() => removeExercise.mutate(editState.exerciseId)}
+        />
+      ) : null}
+
+      {addExerciseOpen && selectedDayTypeId ? (
+        <AddExercisePicker
+          exercises={exercises}
+          onClose={() => setAddExerciseOpen(false)}
+          isCreatingExercise={createExercise.isPending}
+          onCreateExercise={(name) => createExercise.mutateAsync({ name })}
+          isAddingExercise={addExercise.isPending}
+          onAddExercise={(exerciseId, prescription) => addExercise.mutate({ exerciseId, prescription })}
         />
       ) : null}
     </Column>
