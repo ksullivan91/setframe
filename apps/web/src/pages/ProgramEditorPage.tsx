@@ -562,14 +562,7 @@ export function ProgramEditorPage() {
       setSelectedProgramId(activeProgram.id);
       setMode(activeProgram.cycleLengthWeeks ? 'block' : 'perpetual');
     } else if (programs && programs.length === 0 && !createProgramTriggered.current) {
-      // New users have no program yet — schedule slots require one to
-      // attach to, so create a sensible default rather than leaving the
-      // schedule/override UI silently broken (POST .../null/... 400s).
-      // Guarded by a ref (not just mutation state) because React
-      // StrictMode double-invokes effects in dev, which raced past the
-      // mutation's isPending flag and created duplicate programs.
       createProgramTriggered.current = true;
-      createProgram.mutate({ name: 'My Training Program' });
     }
   }, [activeProgram, selectedProgramId, programs, createProgram]);
 
@@ -691,10 +684,13 @@ export function ProgramEditorPage() {
 
   return (
     <Column>
-      <div>
-        <SectionTitle>Training</SectionTitle>
-        <Small>Workout library, builder, schedule, and schedule exceptions.</Small>
-      </div>
+      <Row style={{ justifyContent: 'space-between' }}>
+        <div>
+          <SectionTitle>Training</SectionTitle>
+          <Small>Workout library, builder, schedule, and schedule exceptions.</Small>
+        </div>
+        <a href="/training/new" style={{ textDecoration: 'none' }}><Button variant="secondary">Guided setup</Button></a>
+      </Row>
       <Layout>
         <Column>
           <LibraryCard>

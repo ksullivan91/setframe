@@ -369,6 +369,10 @@ export function TodayPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const localDate = todayLocalDate();
+  const programsQuery = useQuery({
+    queryKey: ['programs'],
+    queryFn: () => api.get<{ id: string }[]>('/programs'),
+  });
   const { data, isLoading, isError } = useQuery({
     queryKey: ['today', localDate],
     queryFn: () => fetchToday(api, localDate),
@@ -385,6 +389,12 @@ export function TodayPage() {
   const weightStatus = useAsyncStatus();
   const journalStatus = useAsyncStatus();
   const mealStatus = useAsyncStatus();
+
+  useEffect(() => {
+    if (!isLoading && !isError && programsQuery.data && programsQuery.data.length === 0) {
+      navigate('/training/new', { replace: true });
+    }
+  }, [isError, isLoading, navigate, programsQuery.data]);
 
   useEffect(() => {
     setWeight(manual?.morningWeightValue?.toString() ?? '');

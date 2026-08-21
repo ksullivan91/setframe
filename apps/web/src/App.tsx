@@ -6,6 +6,7 @@ import {
   SignUpPage,
   TodayPage,
   ProgramEditorPage,
+  ProgramCreationWizardPage,
   ExerciseHistoryPage,
   ProgressPage,
   SettingsPage,
@@ -18,8 +19,10 @@ function AuthenticatedApp() {
       <Routes>
         <Route path="/today" element={<TodayPage />} />
         <Route path="/training" element={<ProgramEditorPage />} />
+        <Route path="/training/new" element={<ProgramCreationWizardPage />} />
         <Route path="/workout/:sessionId" element={<WorkoutSessionPage />} />
         <Route path="/history" element={<ExerciseHistoryPage />} />
+        <Route path="/history/:exerciseId" element={<ExerciseHistoryPage />} />
         <Route path="/progress" element={<ProgressPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/today" replace />} />

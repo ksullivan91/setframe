@@ -1,34 +1,76 @@
 import styled from 'styled-components';
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { spacing } from '@setline/design-tokens';
+import { Card } from '../components';
 import { typeScale } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';
-import { Card } from '../components';
 import { useApiClient } from '../lib/api-client';
 
-/**
- * Progress — trend cards (label + headline + delta + sparkline) and the
- * consistency-streak widget, per style guide §11/§19.3. Mobile-first:
- * base layout stacks trend cards single-column (matching
- * `Screen/Mobile/Progress`); from `tablet` up they wrap into a
- * multi-column row (matching the web version's `layoutWrap: "WRAP"`
- * note in §19.3), and the consistency streak grid only needs the fixed
- * 8-column layout once there's enough width for it not to feel cramped.
- *
- * Figma's design calls for 5 trend cards (body weight, weekly volume,
- * secondary lift, workouts/month, primary lift 1RM), but 3 of those
- * (body weight, weekly volume, secondary lift) require backend
- * aggregation endpoints that are still phase-3/4 stubs (see TODOs on
- * GET /v1/exercises/:exerciseId/progress and /history in
- * apps/api/src/routes/exercises.ts) — deferred until that lands. Added
- * two more cards derivable from data already fetched here (workouts
- * this week + 8-week average) to reduce the gap in the meantime.
- */
+interface ProgressOverviewResponse {
+  cards: {
+    key: string;
+    label: string;
+    value: string;
+    detail: string | null;
+    trend: number[];
+    status: 'neutral' | 'positive' | 'informational';
+  }[];
+  consistency: {
+    weeks: {
+      weekStart: string;
+      plannedCount: number;
+      completedCount: number;
+      completionRatio: number | null;
+    }[];
+    summary: {
+      currentStreakWeeks: number;
+      longestStreakWeeks: number;
+      totalCompleted: number;
+      totalPlanned: number;
+    };
+  };
+  bodyWeight: {
+    points: { localDate: string; weightValue: number; weightUnit: 'lb' | 'kg' }[];
+    trendLabel: string | null;
+  };
+  featuredExercise: {
+    exerciseId: string;
+    exerciseName: string;
+    trendLabel: string | null;
+    points: {
+      sessionId: string;
+      localDate: string;
+      sessionName: string;
+      topWeight: number | null;
+      topReps: number | null;
+      estimatedOneRepMax: number | null;
+      volume: number;
+      isWeightPr: boolean;
+      isRepPr: boolean;
+    }[];
+  } | null;
+  recentSessions: {
+    sessionId: string;
+    localDate: string;
+    completedAt: string | null;
+    sessionName: string;
+    exerciseCount: number;
+    setCount: number;
+    volume: number;
+    prCount: number;
+  }[];
+}
+
+const Page = styled.div`
+  display: grid;
+  gap: ${spacing[24]}px;
+`;
+
 const CardGrid = styled.div`
   display: grid;
   grid-template-columns: 1fr;
   gap: ${spacing[16]}px;
-  margin-bottom: ${spacing[24]}px;
 
   ${mq.tablet} {
     grid-template-columns: repeat(2, 1fr);
@@ -39,43 +81,63 @@ const CardGrid = styled.div`
   }
 `;
 
-const TrendLabel = styled.div`
+const CardLabel = styled.div`
   font-size: ${typeScale.label.fontSize}px;
   color: ${(p) => p.theme.text.secondary};
 `;
 
-const TrendValue = styled.div`
+const CardValue = styled.div`
   font-size: ${typeScale.numericMetric.fontSize}px;
   font-weight: ${typeScale.numericMetric.fontWeight};
-  font-variant-numeric: tabular-nums;
   margin: ${spacing[4]}px 0;
 `;
 
-const TrendDelta = styled.div`
+const CardDetail = styled.div<{ $status: 'neutral' | 'positive' | 'informational' }>`
   font-size: ${typeScale.caption.fontSize}px;
-  color: ${(p) => p.theme.status.success};
+  color: ${(p) =>
+    p.$status === 'positive'
+      ? p.theme.status.success
+      : p.$status === 'informational'
+        ? p.theme.text.secondary
+        : p.theme.text.primary};
+  min-height: 18px;
 `;
 
 const Sparkline = styled.div`
   display: flex;
   align-items: flex-end;
-  gap: 3px;
-  height: 32px;
-  margin-top: ${spacing[8]}px;
+  gap: 4px;
+  height: 36px;
+  margin-top: ${spacing[12]}px;
 `;
 
 const Bar = styled.div<{ $height: number }>`
-  width: 8px;
+  flex: 1;
+  min-width: 8px;
   height: ${(p) => p.$height}%;
+  border-radius: 999px;
   background: ${(p) => p.theme.action.primary};
-  border-radius: 2px;
+`;
+
+const SectionTitle = styled.h2`
+  margin: 0 0 ${spacing[12]}px;
+  font-size: ${typeScale.sectionTitle.fontSize}px;
+`;
+
+const TwoColumn = styled.div`
+  display: grid;
+  gap: ${spacing[16]}px;
+
+  ${mq.desktop} {
+    grid-template-columns: 1.2fr 0.8fr;
+  }
 `;
 
 const StreakGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: ${spacing[8]}px;
-  margin-top: ${spacing[12]}px;
+  margin: ${spacing[12]}px 0;
 
   ${mq.tablet} {
     grid-template-columns: repeat(8, 1fr);
@@ -84,7 +146,6 @@ const StreakGrid = styled.div`
 
 const WeekColumn = styled.div`
   display: grid;
-  grid-template-rows: repeat(4, 1fr);
   gap: 4px;
   justify-items: center;
 `;
@@ -96,126 +157,210 @@ const Dot = styled.div<{ $filled: boolean }>`
   background: ${(p) => (p.$filled ? p.theme.action.primary : p.theme.action.accentSubtle)};
 `;
 
-interface ConsistencyWeek {
-  weekStart: string;
-  plannedCount: number;
-  completedCount: number;
-  completionRatio: number | null;
+const TrendList = styled.div`
+  display: grid;
+  gap: ${spacing[12]}px;
+`;
+
+const TrendRow = styled.div`
+  display: grid;
+  gap: ${spacing[4]}px;
+`;
+
+const TrendMeta = styled.div`
+  display: flex;
+  justify-content: space-between;
+  gap: ${spacing[12]}px;
+  font-size: ${typeScale.compactBody.fontSize}px;
+`;
+
+const HelperText = styled.p`
+  margin: 0;
+  color: ${(p) => p.theme.text.secondary};
+  font-size: ${typeScale.compactBody.fontSize}px;
+`;
+
+const EmptyState = styled(Card)`
+  display: grid;
+  gap: ${spacing[8]}px;
+`;
+
+const SessionList = styled.div`
+  display: grid;
+  gap: ${spacing[12]}px;
+`;
+
+const SessionMeta = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: ${spacing[12]}px;
+  font-size: ${typeScale.compactBody.fontSize}px;
+  color: ${(p) => p.theme.text.secondary};
+`;
+
+function renderTrendBars(values: number[]) {
+  if (!values.length || values.every((value) => value === 0)) {
+    return <HelperText>No trend yet.</HelperText>;
+  }
+  const max = Math.max(...values, 1);
+  return (
+    <Sparkline>
+      {values.map((value, index) => (
+        <Bar key={`${index}-${value}`} $height={Math.max((value / max) * 100, 8)} />
+      ))}
+    </Sparkline>
+  );
 }
 
-interface ProgressPoint {
-  localDate: string;
-  estimatedOneRepMax?: number;
-  volume?: number;
+function formatDate(localDate: string) {
+  return new Date(`${localDate}T12:00:00`).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  });
 }
 
 export function ProgressPage() {
   const api = useApiClient();
-
-  const { data: weeks, isLoading: consistencyLoading } = useQuery({
-    queryKey: ['progress-consistency'],
-    queryFn: () => api.get<ConsistencyWeek[]>('/progress/consistency?weeks=8'),
+  const query = useQuery({
+    queryKey: ['progress-overview'],
+    queryFn: () => api.get<ProgressOverviewResponse>('/progress/overview?weeks=8'),
   });
 
-  const { data: exercises } = useQuery({
-    queryKey: ['exercises'],
-    queryFn: () => api.get<{ id: string; name: string }[]>('/exercises'),
-  });
-  const primaryExercise = exercises?.[0] ?? null;
+  const maxWeekDots = useMemo(
+    () => Math.max(1, ...((query.data?.consistency.weeks ?? []).map((week) => Math.max(week.plannedCount, week.completedCount)))),
+    [query.data],
+  );
 
-  const { data: exerciseProgress } = useQuery({
-    queryKey: ['exercise-progress', primaryExercise?.id],
-    // TODO: apps/api's GET /v1/exercises/:exerciseId/progress is a stub
-    // that always returns `{ points: [] }` (see apps/api/src/routes/
-    // exercises.ts) — the 1RM/volume trend cards below fall back to an
-    // empty state until that route computes real trend data.
-    queryFn: () => api.get<{ points: ProgressPoint[] }>(`/exercises/${primaryExercise!.id}/progress`),
-    enabled: !!primaryExercise,
-  });
+  if (query.isLoading) return <span>Loading progress…</span>;
+  if (query.isError || !query.data) return <span>Couldn't load progress.</span>;
 
-  const points = exerciseProgress?.points ?? [];
-  const latestPoint = points[points.length - 1] ?? null;
-
-  const completedPerWeek = weeks?.map((w) => w.completedCount) ?? [];
-  const plannedPerWeek = weeks?.map((w) => w.plannedCount) ?? [];
-  const totalCompleted = completedPerWeek.reduce((a, b) => a + b, 0);
-  const totalPlanned = plannedPerWeek.reduce((a, b) => a + b, 0);
-  const maxDots = Math.max(4, ...completedPerWeek, ...plannedPerWeek);
-  const avgWorkoutsPerWeek = completedPerWeek.length ? totalCompleted / completedPerWeek.length : 0;
-  const thisWeekCompleted = completedPerWeek[completedPerWeek.length - 1] ?? 0;
-  const lastWeekCompleted = completedPerWeek[completedPerWeek.length - 2] ?? 0;
-
-  const trends = [
-    latestPoint?.estimatedOneRepMax != null
-      ? {
-          label: `${primaryExercise?.name ?? 'Exercise'} Est. 1RM`,
-          value: `${Math.round(latestPoint.estimatedOneRepMax)} lb`,
-          delta: '',
-          bars: points.slice(-6).map((p) => Math.min(100, (p.estimatedOneRepMax ?? 0) / 3)),
-        }
-      : null,
-    completedPerWeek.length
-      ? {
-          label: 'Workouts this week',
-          value: `${thisWeekCompleted}`,
-          delta: lastWeekCompleted ? `${thisWeekCompleted >= lastWeekCompleted ? '+' : ''}${thisWeekCompleted - lastWeekCompleted} vs last week` : '',
-          bars: completedPerWeek.slice(-6).map((c) => Math.min(100, (c / maxDots) * 100)),
-        }
-      : null,
-    completedPerWeek.length
-      ? {
-          label: 'Avg workouts / week (8 wk)',
-          value: avgWorkoutsPerWeek.toFixed(1),
-          delta: '',
-          bars: completedPerWeek.slice(-6).map((c) => Math.min(100, (c / maxDots) * 100)),
-        }
-      : null,
-  ].filter((t): t is NonNullable<typeof t> => t !== null);
+  const hasAnyHistory =
+    query.data.consistency.summary.totalCompleted > 0 ||
+    query.data.bodyWeight.points.length > 0 ||
+    (query.data.featuredExercise?.points.length ?? 0) > 0;
 
   return (
-    <div>
-      <h1>Progress</h1>
+    <Page>
+      <div>
+        <h1>Progress</h1>
+        <HelperText>Review trends that help you understand what is changing — and what to do next.</HelperText>
+      </div>
 
-      {trends.length > 0 && (
-        <CardGrid>
-          {trends.map((trend) => (
-            <Card key={trend.label}>
-              <TrendLabel>{trend.label}</TrendLabel>
-              <TrendValue>{trend.value}</TrendValue>
-              <TrendDelta>{trend.delta}</TrendDelta>
-              <Sparkline>
-                {trend.bars.map((h, i) => (
-                  <Bar key={i} $height={h} />
-                ))}
-              </Sparkline>
+      {!hasAnyHistory ? (
+        <EmptyState>
+          <SectionTitle>No training history yet</SectionTitle>
+          <HelperText>Complete a workout or log a morning weight check-in to unlock strength, body-weight, and consistency trends here.</HelperText>
+          <HelperText>Start with Today so future sessions have useful history to compare against.</HelperText>
+        </EmptyState>
+      ) : (
+        <>
+          <CardGrid>
+            {query.data.cards.map((card) => (
+              <Card key={card.key}>
+                <CardLabel>{card.label}</CardLabel>
+                <CardValue>{card.value}</CardValue>
+                <CardDetail $status={card.status}>{card.detail ?? ' '}</CardDetail>
+                {renderTrendBars(card.trend)}
+              </Card>
+            ))}
+          </CardGrid>
+
+          <TwoColumn>
+            <Card>
+              <SectionTitle>Consistency (last 8 weeks)</SectionTitle>
+              {query.data.consistency.weeks.length === 0 ? (
+                <HelperText>No workout history yet. Complete a workout and your streak will appear here.</HelperText>
+              ) : (
+                <>
+                  <StreakGrid>
+                    {query.data.consistency.weeks.map((week) => (
+                      <WeekColumn key={week.weekStart}>
+                        {Array.from({ length: Math.max(maxWeekDots, 1) }).map((_, dotIndex) => (
+                          <Dot key={`${week.weekStart}-${dotIndex}`} $filled={dotIndex < week.completedCount} />
+                        ))}
+                      </WeekColumn>
+                    ))}
+                  </StreakGrid>
+                  <HelperText>
+                    {query.data.consistency.summary.totalCompleted} completed sessions across the last 8 weeks · current streak{' '}
+                    {query.data.consistency.summary.currentStreakWeeks} week{query.data.consistency.summary.currentStreakWeeks === 1 ? '' : 's'}
+                  </HelperText>
+                </>
+              )}
             </Card>
-          ))}
-        </CardGrid>
-      )}
 
-      <Card>
-        <h2 style={{ marginTop: 0 }}>Consistency (last 8 weeks)</h2>
-        {consistencyLoading ? (
-          <p>Loading…</p>
-        ) : completedPerWeek.length === 0 ? (
-          <p>No workout history yet — complete a workout to see your streak here.</p>
-        ) : (
-          <>
-            <StreakGrid>
-              {completedPerWeek.map((completed, weekIndex) => (
-                <WeekColumn key={weekIndex}>
-                  {Array.from({ length: maxDots }).map((_, dotIndex) => (
-                    <Dot key={dotIndex} $filled={dotIndex < completed} />
+            <Card>
+              <SectionTitle>Body weight</SectionTitle>
+              {query.data.bodyWeight.points.length === 0 ? (
+                <HelperText>No morning weigh-ins yet. Log your morning weight on Today to see the trend over time.</HelperText>
+              ) : (
+                <TrendList>
+                  <TrendRow>
+                    <TrendMeta>
+                      <strong>
+                        {query.data.bodyWeight.points.at(-1)!.weightValue.toFixed(1)} {query.data.bodyWeight.points.at(-1)!.weightUnit}
+                      </strong>
+                      <span>{formatDate(query.data.bodyWeight.points.at(-1)!.localDate)}</span>
+                    </TrendMeta>
+                    <HelperText>{query.data.bodyWeight.trendLabel}</HelperText>
+                    {renderTrendBars(query.data.bodyWeight.points.slice(-8).map((point) => point.weightValue))}
+                  </TrendRow>
+                </TrendList>
+              )}
+            </Card>
+          </TwoColumn>
+
+          <TwoColumn>
+            <Card>
+              <SectionTitle>{query.data.featuredExercise?.exerciseName ?? 'Exercise strength trend'}</SectionTitle>
+              {!query.data.featuredExercise || query.data.featuredExercise.points.length === 0 ? (
+                <HelperText>No exercise history yet. Complete a workout with working sets to see estimated 1RM and volume trends.</HelperText>
+              ) : (
+                <TrendList>
+                  {query.data.featuredExercise.points.slice(-5).reverse().map((point) => (
+                    <TrendRow key={point.sessionId}>
+                      <TrendMeta>
+                        <strong>{formatDate(point.localDate)}</strong>
+                        <span>
+                          {point.estimatedOneRepMax != null ? `${point.estimatedOneRepMax} lb est. 1RM` : 'Need load + reps'}
+                        </span>
+                      </TrendMeta>
+                      <HelperText>
+                        {point.topWeight != null && point.topReps != null
+                          ? `Top set ${point.topWeight} × ${point.topReps} · volume ${point.volume.toLocaleString()} lb`
+                          : `Volume ${point.volume.toLocaleString()} lb`}
+                      </HelperText>
+                    </TrendRow>
                   ))}
-                </WeekColumn>
-              ))}
-            </StreakGrid>
-            <p style={{ fontWeight: 600, marginBottom: 0 }}>
-              {totalCompleted} of {totalPlanned || totalCompleted} sessions completed
-            </p>
-          </>
-        )}
-      </Card>
-    </div>
+                  <HelperText>{query.data.featuredExercise.trendLabel ?? 'Not enough history yet to show a longer trend.'}</HelperText>
+                </TrendList>
+              )}
+            </Card>
+
+            <Card>
+              <SectionTitle>Recent completed sessions</SectionTitle>
+              {query.data.recentSessions.length === 0 ? (
+                <HelperText>No completed workouts yet. Finish a session and it will appear here with sets, volume, and PRs.</HelperText>
+              ) : (
+                <SessionList>
+                  {query.data.recentSessions.map((session) => (
+                    <div key={session.sessionId}>
+                      <strong>{session.sessionName}</strong>
+                      <HelperText>{formatDate(session.localDate)}</HelperText>
+                      <SessionMeta>
+                        <span>{session.exerciseCount} exercises</span>
+                        <span>{session.setCount} sets</span>
+                        <span>{session.volume.toLocaleString()} lb volume</span>
+                        <span>{session.prCount} PR{session.prCount === 1 ? '' : 's'}</span>
+                      </SessionMeta>
+                    </div>
+                  ))}
+                </SessionList>
+              )}
+            </Card>
+          </TwoColumn>
+        </>
+      )}
+    </Page>
   );
 }

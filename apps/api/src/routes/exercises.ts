@@ -1,8 +1,14 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
-import { and, eq, isNull, or } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull, or } from 'drizzle-orm';
 import { z } from 'zod';
-import { createExerciseSchema, exerciseSchema } from '@setline/schemas';
-import { exercise } from '@setline/database';
+import {
+  createExerciseSchema,
+  exerciseHistoryResponseSchema,
+  exerciseProgressResponseSchema,
+  exerciseSchema,
+} from '@setline/schemas';
+import { exercise, workoutExerciseLog, workoutSession, workoutSet } from '@setline/database';
+import { calculateVolume, detectRepPR, detectWeightPR, estimateOneRepMax, type HistoricalSet } from '@setline/domain';
 import { getDb } from '../lib/db.js';
 import { requireAuth } from '../plugins/auth.js';
 import { notFound, forbidden } from '../lib/errors.js';
@@ -20,6 +26,16 @@ function toExerciseResponse(row: typeof exercise.$inferSelect) {
 }
 
 const paramsSchema = z.object({ exerciseId: z.string().uuid() });
+
+async function getOwnedExercise(db: ReturnType<typeof getDb>, exerciseId: string, userId: string) {
+  const rows = await db.select().from(exercise).where(eq(exercise.id, exerciseId)).limit(1);
+  const row = rows[0];
+  if (!row) throw notFound('Exercise not found');
+  if (!row.isSystem && row.createdByUserId !== userId) {
+    throw forbidden('Not allowed to view this exercise');
+  }
+  return row;
+}
 
 export const exerciseRoutes: FastifyPluginAsyncZod = async (fastify) => {
   // List system + own custom exercises. `?q=` trigram search is deferred —
@@ -77,16 +93,7 @@ export const exerciseRoutes: FastifyPluginAsyncZod = async (fastify) => {
     },
     async (request) => {
       const db = getDb();
-      const rows = await db
-        .select()
-        .from(exercise)
-        .where(eq(exercise.id, request.params.exerciseId))
-        .limit(1);
-      const row = rows[0];
-      if (!row) throw notFound('Exercise not found');
-      if (!row.isSystem && row.createdByUserId !== request.userId) {
-        throw forbidden('Not allowed to view this exercise');
-      }
+      const row = await getOwnedExercise(db, request.params.exerciseId, request.userId!);
       return toExerciseResponse(row);
     },
   );
@@ -150,34 +157,164 @@ export const exerciseRoutes: FastifyPluginAsyncZod = async (fastify) => {
     },
   );
 
-  // TODO(phase-3): implement recent sessions/sets aggregation for this
-  // exercise — requires joining workout_set -> workout_exercise_log ->
-  // workout_session scoped by request.userId, plus pagination decisions
-  // per docs/api.md "Decided (2026-08-20)" §1 (cursor-based).
   fastify.get(
     '/v1/exercises/:exerciseId/history',
     {
       preHandler: requireAuth,
       schema: {
         params: paramsSchema,
-        response: { 200: z.object({ items: z.array(z.unknown()), nextCursor: z.string().nullable() }) },
+        response: { 200: exerciseHistoryResponseSchema },
       },
     },
-    async () => ({ items: [], nextCursor: null }),
+    async (request) => {
+      const db = getDb();
+      await getOwnedExercise(db, request.params.exerciseId, request.userId!);
+
+      const rows = await db
+        .select({
+          sessionId: workoutSession.id,
+          sessionLocalDate: workoutSession.localDate,
+          sessionCompletedAt: workoutSession.completedAt,
+          sessionName: workoutSession.sessionNameSnapshot,
+          setId: workoutSet.id,
+          exerciseLogId: workoutExerciseLog.id,
+          setType: workoutSet.setType,
+          sortOrder: workoutSet.sortOrder,
+          weightValue: workoutSet.loadValue,
+          weightUnit: workoutSet.loadUnit,
+          reps: workoutSet.reps,
+          durationSeconds: workoutSet.durationSeconds,
+          distanceValue: workoutSet.distanceValue,
+          distanceUnit: workoutSet.distanceUnit,
+          rpe: workoutSet.rpe,
+          isPrWeight: workoutSet.isPrWeight,
+          isPrReps: workoutSet.isPrReps,
+          notes: workoutSet.notes,
+        })
+        .from(workoutSet)
+        .innerJoin(workoutExerciseLog, eq(workoutExerciseLog.id, workoutSet.exerciseLogId))
+        .innerJoin(workoutSession, eq(workoutSession.id, workoutExerciseLog.sessionId))
+        .where(
+          and(
+            eq(workoutSession.userId, request.userId!),
+            eq(workoutSession.status, 'completed'),
+            eq(workoutExerciseLog.exerciseId, request.params.exerciseId),
+          ),
+        )
+        .orderBy(desc(workoutSession.localDate), desc(workoutSession.completedAt), desc(workoutSet.sortOrder));
+
+      return {
+        items: rows.map((row) => ({
+          sessionId: row.sessionId,
+          sessionLocalDate: row.sessionLocalDate,
+          sessionCompletedAt: row.sessionCompletedAt ? row.sessionCompletedAt.toISOString() : null,
+          sessionName: row.sessionName,
+          setId: row.setId,
+          exerciseLogId: row.exerciseLogId,
+          setType: row.setType,
+          sortOrder: row.sortOrder,
+          weightValue: row.weightValue != null ? Number(row.weightValue) : null,
+          weightUnit: row.weightUnit,
+          reps: row.reps,
+          durationSeconds: row.durationSeconds,
+          distanceValue: row.distanceValue != null ? Number(row.distanceValue) : null,
+          distanceUnit: row.distanceUnit,
+          rpe: row.rpe != null ? Number(row.rpe) : null,
+          isPrWeight: row.isPrWeight,
+          isPrReps: row.isPrReps,
+          notes: row.notes,
+        })),
+        nextCursor: null,
+      };
+    },
   );
 
-  // TODO(phase-3): compute volume/1RM/PR trend data using
-  // packages/domain's estimateOneRepMax/calculateVolume/detectWeightPR/
-  // detectRepPR once workout_set querying is wired up.
   fastify.get(
     '/v1/exercises/:exerciseId/progress',
     {
       preHandler: requireAuth,
       schema: {
         params: paramsSchema,
-        response: { 200: z.object({ points: z.array(z.unknown()) }) },
+        response: { 200: exerciseProgressResponseSchema },
       },
     },
-    async () => ({ points: [] }),
+    async (request) => {
+      const db = getDb();
+      await getOwnedExercise(db, request.params.exerciseId, request.userId!);
+
+      const rows = await db
+        .select({
+          sessionId: workoutSession.id,
+          localDate: workoutSession.localDate,
+          sessionName: workoutSession.sessionNameSnapshot,
+          completedAt: workoutSession.completedAt,
+          setId: workoutSet.id,
+          sortOrder: workoutSet.sortOrder,
+          weightValue: workoutSet.loadValue,
+          weightUnit: workoutSet.loadUnit,
+          reps: workoutSet.reps,
+          setType: workoutSet.setType,
+          isPrWeight: workoutSet.isPrWeight,
+          isPrReps: workoutSet.isPrReps,
+        })
+        .from(workoutSet)
+        .innerJoin(workoutExerciseLog, eq(workoutExerciseLog.id, workoutSet.exerciseLogId))
+        .innerJoin(workoutSession, eq(workoutSession.id, workoutExerciseLog.sessionId))
+        .where(
+          and(
+            eq(workoutSession.userId, request.userId!),
+            eq(workoutSession.status, 'completed'),
+            eq(workoutExerciseLog.exerciseId, request.params.exerciseId),
+          ),
+        )
+        .orderBy(workoutSession.localDate, workoutSession.completedAt, workoutSet.sortOrder);
+
+      const bySession = new Map<string, typeof rows>();
+      for (const row of rows) {
+        const list = bySession.get(row.sessionId) ?? [];
+        list.push(row);
+        bySession.set(row.sessionId, list);
+      }
+
+      const seenHistory: HistoricalSet[] = [];
+      const points = Array.from(bySession.values()).map((sessionRows) => {
+        const sortedRows = [...sessionRows].sort((a, b) => a.sortOrder - b.sortOrder);
+        const sessionHistory = sortedRows.map((row) => ({
+          weightValue: row.weightValue != null ? Number(row.weightValue) : null,
+          reps: row.reps,
+        }));
+        const topStrengthSet = sortedRows.reduce<(typeof sortedRows)[number] | null>((best, row) => {
+          if (row.weightValue == null || row.reps == null) return best;
+          const rowEstimate = estimateOneRepMax(Number(row.weightValue), row.reps);
+          if (!best) return row;
+          const bestEstimate = estimateOneRepMax(Number(best.weightValue!), best.reps!);
+          return rowEstimate > bestEstimate ? row : best;
+        }, null);
+
+        const point = {
+          sessionId: sortedRows[0]!.sessionId,
+          localDate: sortedRows[0]!.localDate,
+          sessionName: sortedRows[0]!.sessionName,
+          topWeight: topStrengthSet?.weightValue != null ? Number(topStrengthSet.weightValue) : null,
+          topReps: topStrengthSet?.reps ?? null,
+          estimatedOneRepMax:
+            topStrengthSet?.weightValue != null && topStrengthSet.reps != null
+              ? Math.round(estimateOneRepMax(Number(topStrengthSet.weightValue), topStrengthSet.reps))
+              : null,
+          volume: calculateVolume(
+            sortedRows.map((row) => ({
+              weightValue: row.weightValue != null ? Number(row.weightValue) : null,
+              reps: row.reps,
+            })),
+          ),
+          isWeightPr: sessionHistory.some((candidate) => detectWeightPR(candidate, seenHistory)),
+          isRepPr: sessionHistory.some((candidate) => detectRepPR(candidate, seenHistory)),
+        };
+        seenHistory.push(...sessionHistory.filter((candidate) => candidate.weightValue != null && candidate.reps != null));
+        return point;
+      });
+
+      return { exerciseId: request.params.exerciseId, points };
+    },
   );
 };

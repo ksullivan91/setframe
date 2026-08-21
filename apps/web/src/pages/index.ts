@@ -7,3 +7,4 @@ export * from './ProgramEditorPage';
 export * from './ExerciseHistoryPage';
 export * from './ProgressPage';
 export * from './SettingsPage';
+export * from './ProgramCreationWizardPage';
