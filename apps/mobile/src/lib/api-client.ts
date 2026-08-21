@@ -53,7 +53,7 @@ export function useApiClient() {
         method: 'PATCH',
         body: body ? JSON.stringify(body) : undefined,
       }),
-    delete: async <T>(path: string) =>
-      request<T>(path, await getToken(), { method: 'DELETE' }),
+    del: async <T>(path: string) => request<T>(path, await getToken(), { method: 'DELETE' }),
+    delete: async <T>(path: string) => request<T>(path, await getToken(), { method: 'DELETE' }),
   };
 }
