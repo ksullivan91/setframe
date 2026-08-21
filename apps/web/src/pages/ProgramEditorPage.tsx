@@ -56,7 +56,10 @@ const EmptyDetail = styled(Card)<{ $hideOnMobile?: boolean }>`
   flex-direction: column;
   align-items: flex-start;
   gap: ${spacing[12]}px;
-  padding: ${spacing[32]}px ${spacing[24]}px;
+  /* Match LibraryCard/StackCard's top padding (spacing[16], via Card's
+     default) so the "Workouts" and "Choose a workout to edit" headings
+     align on the same baseline (user-experience-iteration-two.md #7). */
+  padding: ${spacing[16]}px ${spacing[24]}px;
 
   /* Per user-experience-iteration-two.md #19-20: with zero workouts,
      stacking this card underneath the (already actionable) creation
