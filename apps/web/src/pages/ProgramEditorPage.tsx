@@ -539,6 +539,11 @@ export function ProgramEditorPage() {
     onSuccess: () => invalidateTraining(),
   });
 
+  const removeSlot = useMutation({
+    mutationFn: (id: string) => api.del<void>(`/programs/${selectedProgramId}/schedule-slots/${id}`),
+    onSuccess: () => invalidateTraining(),
+  });
+
   const putOverride = useMutation({
     mutationFn: (body: { dayTypeId: string; note: string | null }) =>
       api.put(`/me/schedule/${overrideDate}/override`, body),
@@ -663,8 +668,19 @@ export function ProgramEditorPage() {
                   {dayNames.map((day, dayIndex) => {
                     const slot = slotsByDay.get(dayIndex);
                     const label = dayTypes.find((type) => type.id === slot?.dayTypeId)?.name ?? 'Unassigned';
+                    const handleClick = () => {
+                      if (slot && slot.dayTypeId === selectedDayTypeId) {
+                        // Clicking the already-assigned day type again clears it,
+                        // instead of silently re-PATCHing to the same value.
+                        removeSlot.mutate(slot.id);
+                        return;
+                      }
+                      if (selectedDayTypeId) {
+                        upsertSlot.mutate({ id: slot?.id, dayTypeId: selectedDayTypeId, weekNumber: mode === 'block' ? 1 : null, dayIndex, sortOrder: dayIndex });
+                      }
+                    };
                     return (
-                      <DayCell key={day} $active={Boolean(slot)} onClick={() => selectedDayTypeId && upsertSlot.mutate({ id: slot?.id, dayTypeId: selectedDayTypeId, weekNumber: mode === 'block' ? 1 : null, dayIndex, sortOrder: dayIndex })}>
+                      <DayCell key={day} $active={Boolean(slot)} onClick={handleClick}>
                         <DayName>{day}</DayName>
                         <DayLabel>{label}</DayLabel>
                       </DayCell>
