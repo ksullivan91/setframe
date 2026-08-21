@@ -3,6 +3,7 @@ dist/
 *.tsbuildinfo
 build/
 .env
+.env.production
 .env.*.local
 .DS_Store
 *.log
