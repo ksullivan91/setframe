@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown, ChevronUp, Pencil, Plus, Trash2, X } from 'lucide-react';
@@ -432,14 +432,20 @@ export function ProgramEditorPage() {
     },
   });
 
+  const createProgramTriggered = useRef(false);
+
   useEffect(() => {
     if (activeProgram && selectedProgramId !== activeProgram.id) {
       setSelectedProgramId(activeProgram.id);
       setMode(activeProgram.cycleLengthWeeks ? 'block' : 'perpetual');
-    } else if (programs && programs.length === 0 && !createProgram.isPending && !createProgram.isSuccess) {
+    } else if (programs && programs.length === 0 && !createProgramTriggered.current) {
       // New users have no program yet — schedule slots require one to
       // attach to, so create a sensible default rather than leaving the
       // schedule/override UI silently broken (POST .../null/... 400s).
+      // Guarded by a ref (not just mutation state) because React
+      // StrictMode double-invokes effects in dev, which raced past the
+      // mutation's isPending flag and created duplicate programs.
+      createProgramTriggered.current = true;
       createProgram.mutate({ name: 'My Training Program' });
     }
   }, [activeProgram, selectedProgramId, programs, createProgram]);

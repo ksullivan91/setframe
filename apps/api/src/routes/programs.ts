@@ -53,6 +53,13 @@ export const programRoutes: FastifyPluginAsyncZod = async (fastify) => {
     },
     async (request, reply) => {
       const db = getDb();
+      // New programs become the active one — a user's just-created program
+      // should immediately be usable for schedule resolution rather than
+      // silently sitting inactive until something else activates it.
+      await db
+        .update(trainingProgram)
+        .set({ isActive: false, updatedAt: new Date() })
+        .where(and(eq(trainingProgram.userId, request.userId!), eq(trainingProgram.isActive, true)));
       const rows = await db
         .insert(trainingProgram)
         .values({
@@ -61,6 +68,7 @@ export const programRoutes: FastifyPluginAsyncZod = async (fastify) => {
           description: request.body.description ?? null,
           startDate: request.body.startDate ?? null,
           cycleLengthWeeks: request.body.cycleLengthWeeks ?? null,
+          isActive: true,
         })
         .returning();
       reply.status(201);
