@@ -2,9 +2,9 @@ ALTER TABLE "daily_manual_entry" ADD COLUMN "mood" integer;--> statement-breakpo
 ALTER TABLE "daily_manual_entry" ADD COLUMN "pre_workout_meal_logged" boolean DEFAULT false;--> statement-breakpoint
 ALTER TABLE "training_program" ALTER COLUMN "cycle_length_weeks" DROP NOT NULL;--> statement-breakpoint
 ALTER TABLE "workout_session" DROP CONSTRAINT "workout_session_template_id_workout_template_id_fk";--> statement-breakpoint
-ALTER TABLE "workout_session" ADD CONSTRAINT "workout_session_template_id_day_type_id_fk" FOREIGN KEY ("template_id") REFERENCES "public"."day_type"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workout_template_exercise" RENAME TO "day_type_exercise";--> statement-breakpoint
 ALTER TABLE "workout_template" RENAME TO "day_type";--> statement-breakpoint
+ALTER TABLE "workout_session" ADD CONSTRAINT "workout_session_template_id_day_type_id_fk" FOREIGN KEY ("template_id") REFERENCES "public"."day_type"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "day_type" RENAME COLUMN "program_version_id" TO "user_id";--> statement-breakpoint
 ALTER TABLE "day_type_exercise" RENAME COLUMN "template_id" TO "day_type_id";--> statement-breakpoint
 ALTER TABLE "day_type" DROP COLUMN "day_label";--> statement-breakpoint
