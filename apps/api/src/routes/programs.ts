@@ -1,5 +1,5 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 import { z } from 'zod';
 import { trainingProgramSchema } from '@setline/schemas';
 import { trainingProgram } from '@setline/database';
@@ -56,10 +56,16 @@ export const programRoutes: FastifyPluginAsyncZod = async (fastify) => {
       // New programs become the active one — a user's just-created program
       // should immediately be usable for schedule resolution rather than
       // silently sitting inactive until something else activates it.
-      await db
-        .update(trainingProgram)
-        .set({ isActive: false, updatedAt: new Date() })
-        .where(and(eq(trainingProgram.userId, request.userId!), eq(trainingProgram.isActive, true)));
+      //
+      // Order matters: insert-then-deactivate (not deactivate-then-insert).
+      // neon-http doesn't support real transactions (db.transaction throws
+      // "No transactions support in neon-http driver"), so these two
+      // statements can't be made atomic. If a failure/race happens between
+      // them, insert-first means the worst case is briefly having two
+      // active programs (harmless — dashboard/day-type resolution just
+      // takes .limit(1) with no meaningful ordering), never zero active
+      // programs, which is what previously stranded a user's schedule
+      // resolution with no active program at all.
       const rows = await db
         .insert(trainingProgram)
         .values({
@@ -71,8 +77,19 @@ export const programRoutes: FastifyPluginAsyncZod = async (fastify) => {
           isActive: true,
         })
         .returning();
+      const row = rows[0]!;
+      await db
+        .update(trainingProgram)
+        .set({ isActive: false, updatedAt: new Date() })
+        .where(
+          and(
+            eq(trainingProgram.userId, request.userId!),
+            eq(trainingProgram.isActive, true),
+            ne(trainingProgram.id, row.id),
+          ),
+        );
       reply.status(201);
-      return toProgramResponse(rows[0]!);
+      return toProgramResponse(row);
     },
   );
 
@@ -130,13 +147,16 @@ export const programRoutes: FastifyPluginAsyncZod = async (fastify) => {
     },
     async (request) => {
       const db = getDb();
-      // Deactivate any currently-active program for this user, then
-      // activate the target — keeps "one active program" semantics
-      // implied by training_program (user_id, is_active) index.
-      await db
-        .update(trainingProgram)
-        .set({ isActive: false, updatedAt: new Date() })
-        .where(and(eq(trainingProgram.userId, request.userId!), eq(trainingProgram.isActive, true)));
+      // Activate the target first, then deactivate any other active
+      // program — keeps "one active program" semantics implied by
+      // training_program (user_id, is_active) index.
+      //
+      // Order matters: activate-then-deactivate (not the reverse). As in
+      // POST /programs above, neon-http doesn't support real transactions,
+      // so these two statements can't be made atomic. Activating first
+      // means an invalid/foreign programId (0 rows updated) or any
+      // failure before the second step leaves the prior active program
+      // untouched — never zero active programs.
       const rows = await db
         .update(trainingProgram)
         .set({ isActive: true, updatedAt: new Date() })
@@ -146,6 +166,16 @@ export const programRoutes: FastifyPluginAsyncZod = async (fastify) => {
         .returning();
       const row = rows[0];
       if (!row) throw notFound('Program not found');
+      await db
+        .update(trainingProgram)
+        .set({ isActive: false, updatedAt: new Date() })
+        .where(
+          and(
+            eq(trainingProgram.userId, request.userId!),
+            eq(trainingProgram.isActive, true),
+            ne(trainingProgram.id, row.id),
+          ),
+        );
       return toProgramResponse(row);
     },
   );
