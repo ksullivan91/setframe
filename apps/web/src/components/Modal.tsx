@@ -88,6 +88,16 @@ export function Modal({ open, onClose, title, description, children, maxWidth = 
     if (!open) return;
     previouslyFocused.current = document.activeElement as HTMLElement | null;
     closeButtonRef.current?.focus();
+    return () => {
+      previouslyFocused.current?.focus();
+    };
+    // Focus capture/restore should only run when `open` toggles, not when
+    // callers pass a fresh `onClose` reference on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
@@ -109,10 +119,7 @@ export function Modal({ open, onClose, title, description, children, maxWidth = 
     }
 
     document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      previouslyFocused.current?.focus();
-    };
+    return () => document.removeEventListener('keydown', onKeyDown);
   }, [open, onClose]);
 
   if (!open) return null;
