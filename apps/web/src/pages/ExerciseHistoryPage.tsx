@@ -6,7 +6,7 @@ import { calculateVolume, estimateOneRepMax } from '@setline/domain';
 import { spacing } from '@setline/design-tokens';
 import { typeScale } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';
-import { Card, PRBadge, Select } from '../components';
+import { Card, PRBadge, Select, Skeleton, SkeletonStack } from '../components';
 import { useApiClient } from '../lib/api-client';
 
 const Page = styled.div`
@@ -233,7 +233,16 @@ export function ExerciseHistoryPage() {
       ? calculateVolume(sessionGroups[0].items.map((item) => ({ weightValue: item.weightValue, reps: item.reps })))
       : 0;
 
-  if (exercisesQuery.isLoading) return <span>Loading exercises…</span>;
+  if (exercisesQuery.isLoading) {
+    return (
+      <Page>
+        <SkeletonStack $gap={16}>
+          <Skeleton $width="40%" $height={28} />
+          <Skeleton $width="240px" $height={40} />
+        </SkeletonStack>
+      </Page>
+    );
+  }
   if (exercisesQuery.isError || !exercisesQuery.data) return <span>Couldn't load exercises.</span>;
 
   return (
@@ -287,7 +296,11 @@ export function ExerciseHistoryPage() {
             <Card>
               <h2>Strength trend</h2>
               {progressQuery.isLoading ? (
-                <MetaText>Loading trend…</MetaText>
+                <SkeletonStack>
+                  <Skeleton $height={14} />
+                  <Skeleton $height={14} $width="80%" />
+                  <Skeleton $height={14} $width="60%" />
+                </SkeletonStack>
               ) : progressQuery.data?.points.length ? (
                 <TrendList>
                   {progressQuery.data.points.slice(-5).reverse().map((point) => (
@@ -330,7 +343,11 @@ export function ExerciseHistoryPage() {
           </TrendGrid>
 
           {historyQuery.isLoading ? (
-            <span>Loading history…</span>
+            <SkeletonStack $gap={12}>
+              <Skeleton $height={60} />
+              <Skeleton $height={60} />
+              <Skeleton $height={60} />
+            </SkeletonStack>
           ) : sessionGroups.length === 0 ? (
             <EmptyState>
               <h2>No {selectedExercise.name.toLowerCase()} history yet</h2>

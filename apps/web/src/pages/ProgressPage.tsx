@@ -2,7 +2,7 @@ import styled from 'styled-components';
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { spacing } from '@setline/design-tokens';
-import { Card } from '../components';
+import { Card, Skeleton, SkeletonStack } from '../components';
 import { typeScale } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';
 import { useApiClient } from '../lib/api-client';
@@ -254,7 +254,41 @@ export function ProgressPage() {
     [query.data],
   );
 
-  if (query.isLoading) return <span>Loading progress…</span>;
+  if (query.isLoading) {
+    return (
+      <Page>
+        <div>
+          <h1>Progress</h1>
+          <HelperText>Review trends that help you understand what is changing — and what to do next.</HelperText>
+        </div>
+        <CardGrid>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i}>
+              <SkeletonStack>
+                <Skeleton $width="60%" $height={13} />
+                <Skeleton $width="45%" $height={24} />
+                <Skeleton $width="80%" $height={13} />
+              </SkeletonStack>
+            </Card>
+          ))}
+        </CardGrid>
+        <TwoColumn>
+          <Card>
+            <SkeletonStack $gap={12}>
+              <Skeleton $width="40%" $height={18} />
+              <Skeleton $height={80} />
+            </SkeletonStack>
+          </Card>
+          <Card>
+            <SkeletonStack $gap={12}>
+              <Skeleton $width="30%" $height={18} />
+              <Skeleton $height={120} />
+            </SkeletonStack>
+          </Card>
+        </TwoColumn>
+      </Page>
+    );
+  }
   if (query.isError || !query.data) return <span>Couldn't load progress.</span>;
 
   const hasAnyHistory =

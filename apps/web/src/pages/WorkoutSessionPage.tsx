@@ -12,7 +12,7 @@ import type {
 } from '@setline/schemas';
 import { calculateVolume, detectRepPR, detectWeightPR, estimateOneRepMax } from '@setline/domain';
 import { radius, spacing } from '@setline/design-tokens';
-import { AsyncStatusIndicator, Button, Card, IconButton, Input, Modal, PRBadge, Select, useAsyncStatus, useToast } from '../components';
+import { AsyncStatusIndicator, Button, Card, IconButton, Input, Modal, PRBadge, Select, Skeleton, SkeletonStack, useAsyncStatus, useToast } from '../components';
 import { useApiClient } from '../lib/api-client';
 import { summarizePrescription } from '../lib/prescription';
 import { typeScale } from '../theme/typeScale';
@@ -511,7 +511,27 @@ export function WorkoutSessionPage() {
     return Math.round(Math.max(...estimates));
   }, [orderedExercises]);
 
-  if (query.isLoading) return <span>Loading…</span>;
+  if (query.isLoading) {
+    return (
+      <Page>
+        <SkeletonStack $gap={16}>
+          <Skeleton $width="50%" $height={26} />
+          <Skeleton $width="30%" $height={16} />
+        </SkeletonStack>
+        <SkeletonStack $gap={16}>
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i}>
+              <SkeletonStack>
+                <Skeleton $width="45%" $height={18} />
+                <Skeleton $height={40} />
+                <Skeleton $height={40} />
+              </SkeletonStack>
+            </Card>
+          ))}
+        </SkeletonStack>
+      </Page>
+    );
+  }
   if (query.isError || !query.data) return <span>Couldn't load workout session.</span>;
 
   return (
@@ -535,7 +555,11 @@ export function WorkoutSessionPage() {
           <Button variant="secondary" onClick={() => setAddExerciseOpen(true)} disabled={query.data.status === 'completed'}>
             Add exercise
           </Button>
-          <Button onClick={() => finishWorkoutMutation.mutate()} disabled={finishWorkoutMutation.isPending || query.data.status === 'completed'}>
+          <Button
+            onClick={() => finishWorkoutMutation.mutate()}
+            disabled={finishWorkoutMutation.isPending || query.data.status === 'completed'}
+            status={finishWorkoutMutation.isPending ? 'loading' : 'idle'}
+          >
             Finish workout
           </Button>
         </Actions>
@@ -766,7 +790,11 @@ export function WorkoutSessionPage() {
             <Button variant="secondary" onClick={() => setAddExerciseOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={() => newExerciseId && addExerciseMutation.mutate(newExerciseId)} disabled={!newExerciseId || addExerciseMutation.isPending}>
+            <Button
+              onClick={() => newExerciseId && addExerciseMutation.mutate(newExerciseId)}
+              disabled={!newExerciseId || addExerciseMutation.isPending}
+              status={addExerciseMutation.isPending ? 'loading' : 'idle'}
+            >
               Add exercise
             </Button>
           </Actions>

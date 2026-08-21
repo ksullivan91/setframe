@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import styled from 'styled-components';
+import styled, { keyframes } from 'styled-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertCircle,
@@ -26,9 +26,13 @@ import {
   Input,
   Modal,
   Select,
+  Skeleton,
+  SkeletonStack,
   useAsyncStatus,
   useToast,
 } from '../components';
+import type { AsyncStatus } from '../components/AsyncStatus';
+import type { ButtonStatus } from '../components/Button';
 import { useApiClient } from '../lib/api-client';
 import { summarizePrescription } from '../lib/prescription';
 
@@ -156,6 +160,40 @@ const StepRow = styled.div<{ $passive?: boolean }>`
   align-items: flex-start;
   opacity: ${(p) => (p.$passive ? 0.9 : 1)};
 `;
+
+const checkPop = keyframes`
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+`;
+
+/** Wraps the step's leading Circle/CheckCircle2 icon so completing a
+ * daily step (per user request for "fun interactions" on daily steps)
+ * gets a small celebratory pop instead of an instant, static swap. */
+const StepIcon = styled.span`
+  display: inline-flex;
+  color: ${(p) => p.theme.status.success};
+
+  svg {
+    animation: ${checkPop} 0.35s ease-out;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    svg {
+      animation: none;
+    }
+  }
+`;
+
 const StepContent = styled.div`
   flex: 1;
   display: flex;
@@ -423,6 +461,12 @@ export function TodayPage() {
       await saveMutation.mutateAsync(body);
     });
 
+  /** Maps the shared idle/loading/success/error async status onto the
+   * Button's morph-to-checkmark status prop (loading -> spinner,
+   * success -> checkmark, error/idle -> plain label). */
+  const asButtonStatus = (status: AsyncStatus): ButtonStatus =>
+    status === 'loading' ? 'loading' : status === 'success' ? 'success' : 'idle';
+
   const activeSession = useMemo(
     () => data?.sessions.find((session) => session.status === 'in_progress') ?? null,
     [data?.sessions],
@@ -581,7 +625,17 @@ export function TodayPage() {
 
           <RitualCard>
             {isLoading ? (
-              <span>Loading…</span>
+              <SkeletonStack $gap={16}>
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <StepRow key={i}>
+                    <Skeleton $rounded $height={22} $width="22px" />
+                    <StepContent>
+                      <Skeleton $width="40%" $height={16} />
+                      <Skeleton $width="70%" $height={13} />
+                    </StepContent>
+                  </StepRow>
+                ))}
+              </SkeletonStack>
             ) : isError ? (
               <StatusBlock $tone="warning">
                 <AlertCircle size={18} />
@@ -590,7 +644,7 @@ export function TodayPage() {
             ) : (
               <>
                 <StepRow>
-                  {weightDone ? <CheckCircle2 size={22} /> : <Circle size={22} />}
+                  {weightDone ? <StepIcon><CheckCircle2 size={22} /></StepIcon> : <Circle size={22} />}
                   <StepContent>
                     <StepHeader>
                       <StepTitle style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -607,12 +661,14 @@ export function TodayPage() {
                           weightStatus,
                         )}
                         disabled={saveMutation.isPending}
+                        status={asButtonStatus(weightStatus.status)}
                       >
                         Save
                       </Button>
                     </FieldRow>
                     <AsyncStatusIndicator
                       status={weightStatus.status}
+                      hideSuccess
                       onRetry={() =>
                         retrySave(
                           { morningWeightValue: weight ? Number(weight) : null, morningWeightUnit: manual?.morningWeightUnit ?? 'lb' },
@@ -623,7 +679,7 @@ export function TodayPage() {
                 </StepRow>
                 <Divider />
                 <StepRow>
-                  {journalDone ? <CheckCircle2 size={22} /> : <Circle size={22} />}
+                  {journalDone ? <StepIcon><CheckCircle2 size={22} /></StepIcon> : <Circle size={22} />}
                   <StepContent>
                     <StepHeader>
                       <StepTitle style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -654,11 +710,13 @@ export function TodayPage() {
                       <Button
                         onClick={() => retrySave({ notes: journal || null, mood: selectedMood }, journalStatus)}
                         disabled={saveMutation.isPending}
+                        status={asButtonStatus(journalStatus.status)}
                       >
                         Save journal
                       </Button>
                       <AsyncStatusIndicator
                         status={journalStatus.status}
+                        hideSuccess
                         onRetry={() => retrySave({ notes: journal || null, mood: selectedMood }, journalStatus)}
                       />
                     </InlineRow>
@@ -666,7 +724,7 @@ export function TodayPage() {
                 </StepRow>
                 <Divider />
                 <StepRow>
-                  {mealDone ? <CheckCircle2 size={22} /> : <Circle size={22} />}
+                  {mealDone ? <StepIcon><CheckCircle2 size={22} /></StepIcon> : <Circle size={22} />}
                   <StepContent>
                     <StepHeader>
                       <StepTitle style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -690,7 +748,7 @@ export function TodayPage() {
                 </StepRow>
                 <Divider />
                 <StepRow $passive>
-                  {syncDone ? <CheckCircle2 size={22} /> : <RefreshCw size={22} />}
+                  {syncDone ? <StepIcon><CheckCircle2 size={22} /></StepIcon> : <RefreshCw size={22} />}
                   <StepContent>
                     <StepHeader>
                       <StepTitle style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

@@ -12,3 +12,5 @@ export * from './Menu';
 export * from './ActiveWorkoutBanner';
 export * from './Stepper';
 export * from './Tabs';
+export * from './Skeleton';
+export * from './ProgressRing';
