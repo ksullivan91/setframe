@@ -131,7 +131,7 @@ const DisclosureButton = styled.button`
 
 const PlannedSetRow = styled.div`
   display: grid;
-  grid-template-columns: minmax(90px, 0.7fr) repeat(3, minmax(64px, 1fr)) auto auto;
+  grid-template-columns: minmax(90px, 0.7fr) repeat(3, minmax(64px, 1fr)) auto auto auto;
   gap: ${spacing[8]}px;
   align-items: end;
   padding: ${spacing[8]}px 0;
@@ -207,6 +207,12 @@ function newDraftPlannedSet(): CreatePlannedSetInput {
   return { setType: 'working', reps: 8 };
 }
 
+function parseOptionalNumber(raw: string): number | undefined {
+  if (raw.trim() === '') return undefined;
+  const n = Number(raw);
+  return Number.isNaN(n) ? undefined : n;
+}
+
 function summarizePrescription(p: Prescription) {
   switch (p.kind) {
     case 'sets_reps':
@@ -271,16 +277,19 @@ function PlannedSetsEditor({ dayTypeId, exerciseId }: { dayTypeId: string; exerc
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey });
+  const onError = () => toast.show({ variant: 'error', message: 'Something went wrong. Please try again.' });
 
   const addSet = useMutation({
     mutationFn: (body: CreatePlannedSetInput) => api.post(`/day-types/${dayTypeId}/exercises/${exerciseId}/planned-sets`, body),
     onSuccess: invalidate,
+    onError,
   });
 
   const patchSet = useMutation({
     mutationFn: (args: { id: string; body: Partial<CreatePlannedSetInput> }) =>
       api.patch(`/day-types/${dayTypeId}/exercises/${exerciseId}/planned-sets/${args.id}`, args.body),
     onSuccess: invalidate,
+    onError,
   });
 
   const removeSet = useMutation({
@@ -289,6 +298,7 @@ function PlannedSetsEditor({ dayTypeId, exerciseId }: { dayTypeId: string; exerc
       invalidate();
       toast.show({ variant: 'success', message: 'Set removed.' });
     },
+    onError,
   });
 
   return (
@@ -315,22 +325,25 @@ function PlannedSetsEditor({ dayTypeId, exerciseId }: { dayTypeId: string; exerc
                 label="Reps"
                 inputMode="numeric"
                 value={set.reps ?? ''}
-                onChange={(e) => patchSet.mutate({ id: set.id, body: { reps: Number(e.target.value) || undefined } })}
+                onChange={(e) => patchSet.mutate({ id: set.id, body: { reps: parseOptionalNumber(e.target.value) } })}
               />
               <Input
                 label="Load"
                 inputMode="decimal"
                 value={set.loadValue ?? ''}
-                onChange={(e) => patchSet.mutate({ id: set.id, body: { loadValue: Number(e.target.value) || undefined, loadUnit: set.loadUnit ?? 'lb' } })}
+                onChange={(e) => patchSet.mutate({ id: set.id, body: { loadValue: parseOptionalNumber(e.target.value), loadUnit: set.loadUnit ?? 'lb' } })}
               />
               <Input
                 label="RPE"
                 inputMode="decimal"
                 value={set.rpe ?? ''}
-                onChange={(e) => patchSet.mutate({ id: set.id, body: { rpe: Number(e.target.value) || undefined } })}
+                onChange={(e) => patchSet.mutate({ id: set.id, body: { rpe: parseOptionalNumber(e.target.value) } })}
               />
               <IconButton aria-label={`Move set ${index + 1} up`} disabled={index === 0} onClick={() => moveSet(plannedSets, index, -1)}>
                 <ChevronUp size={16} />
+              </IconButton>
+              <IconButton aria-label={`Move set ${index + 1} down`} disabled={index === plannedSets.length - 1} onClick={() => moveSet(plannedSets, index, 1)}>
+                <ChevronDown size={16} />
               </IconButton>
               <IconButton aria-label={`Remove set ${index + 1}`} onClick={() => removeSet.mutate(set.id)}>
                 <Trash2 size={16} />
@@ -351,7 +364,8 @@ function PlannedSetsEditor({ dayTypeId, exerciseId }: { dayTypeId: string; exerc
     const plannedSetIdsInOrder = moveItem(sets.map((s) => s.id), index, nextIndex);
     api
       .post(`/day-types/${dayTypeId}/exercises/${exerciseId}/planned-sets/reorder`, { plannedSetIdsInOrder })
-      .then(invalidate);
+      .then(invalidate)
+      .catch(onError);
   }
 }
 
