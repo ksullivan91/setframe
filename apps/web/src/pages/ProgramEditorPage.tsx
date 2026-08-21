@@ -51,12 +51,48 @@ const ScheduleLayout = styled.div`
   }
 `;
 
-const EmptyDetail = styled(Card)`
+const EmptyDetail = styled(Card)<{ $hideOnMobile?: boolean }>`
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: ${spacing[12]}px;
   padding: ${spacing[32]}px ${spacing[24]}px;
+
+  /* Per user-experience-iteration-two.md #19-20: with zero workouts,
+     stacking this card underneath the (already actionable) creation
+     state adds scrolling with no value on mobile. Desktop keeps it —
+     it reinforces the master/detail model there. */
+  ${(p) => (p.$hideOnMobile ? 'display: none;' : '')}
+
+  ${mq.desktop} {
+    display: flex;
+  }
+`;
+
+const CreateWorkoutForm = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${spacing[8]}px;
+`;
+
+const CreateWorkoutActions = styled.div`
+  display: flex;
+
+  button {
+    width: 100%;
+  }
+
+  ${mq.tablet} {
+    button {
+      width: auto;
+    }
+  }
+`;
+
+const InlineError = styled.p`
+  margin: 0;
+  color: ${(p) => p.theme.action.destructive};
+  font-size: ${typeScale.caption.fontSize}px;
 `;
 
 const OnboardingBanner = styled(Card)`
@@ -612,6 +648,79 @@ function AddExercisePicker({
   );
 }
 
+/**
+ * Single canonical workout-creation control (user-experience-iteration-two.md
+ * #1-6, #22-23) — used by the Workout library only; the editor's empty
+ * state no longer renders its own copy of this form.
+ */
+function WorkoutCreateForm({
+  onCreate,
+  isPending,
+  existingNames,
+  onCancel,
+  autoFocus,
+}: {
+  onCreate: (name: string) => Promise<unknown>;
+  isPending: boolean;
+  existingNames: string[];
+  onCancel?: () => void;
+  autoFocus?: boolean;
+}) {
+  const [name, setName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const trimmed = name.trim();
+
+  const handleSubmit = async () => {
+    if (!trimmed) return;
+    if (existingNames.some((existing) => existing.toLowerCase() === trimmed.toLowerCase())) {
+      setError(`A workout named "${trimmed}" already exists.`);
+      return;
+    }
+    setError(null);
+    try {
+      await onCreate(trimmed);
+      setName('');
+    } catch {
+      // Preserve the typed name on failure (doc #22) so the user doesn't retype it.
+      setError("Couldn't create this workout. Try again.");
+    }
+  };
+
+  return (
+    <CreateWorkoutForm>
+      <Input
+        label="Workout name"
+        placeholder="e.g. Lower C"
+        value={name}
+        onChange={(e) => {
+          setName(e.target.value);
+          if (error) setError(null);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') void handleSubmit();
+          if (e.key === 'Escape') onCancel?.();
+        }}
+        autoFocus={autoFocus}
+      />
+      {error ? (
+        <InlineError role="alert">{error}</InlineError>
+      ) : (
+        <Small>Enter a workout name to create it.</Small>
+      )}
+      <CreateWorkoutActions>
+        <Button onClick={() => void handleSubmit()} disabled={!trimmed || isPending}>
+          {isPending ? 'Creating…' : 'Create workout'}
+        </Button>
+        {onCancel ? (
+          <Button variant="tertiary" onClick={onCancel} type="button">
+            Cancel
+          </Button>
+        ) : null}
+      </CreateWorkoutActions>
+    </CreateWorkoutForm>
+  );
+}
+
 function ExerciseEditModal({
   state,
   onClose,
@@ -778,10 +887,10 @@ export function ProgramEditorPage() {
   const [selectedDayTypeId, setSelectedDayTypeId] = useState<string | null>(null);
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
   const [mode, setMode] = useState<'perpetual' | 'block'>('perpetual');
-  const [newDayTypeName, setNewDayTypeName] = useState('');
   const [editState, setEditState] = useState<EditState | null>(null);
   const [activeTab, setActiveTab] = useState<'workouts' | 'schedule'>('workouts');
   const [addExerciseOpen, setAddExerciseOpen] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
   const { data: programs } = useQuery({ queryKey: ['programs'], queryFn: () => api.get<TrainingProgram[]>('/programs') });
   const { data: dayTypes = [] } = useQuery({ queryKey: ['day-types'], queryFn: () => api.get<DayType[]>('/day-types') });
@@ -835,7 +944,7 @@ export function ProgramEditorPage() {
     onSuccess: (row) => {
       invalidateTraining();
       setSelectedDayTypeId(row.id);
-      setNewDayTypeName('');
+      setShowCreateForm(false);
     },
   });
 
@@ -970,14 +1079,39 @@ export function ProgramEditorPage() {
           <Column>
             <LibraryCard>
               <strong>Workouts</strong>
-              <Input label="New workout" value={newDayTypeName} onChange={(e) => setNewDayTypeName(e.target.value)} placeholder="Upper A, Recovery Walk…" />
-              <Button onClick={() => newDayTypeName.trim() && createDayType.mutate({ name: newDayTypeName.trim() })} disabled={!newDayTypeName.trim() || createDayType.isPending}>Create workout</Button>
-              {dayTypes.map((dayType) => (
-                <LibraryItem key={dayType.id} $active={selectedDayTypeId === dayType.id} onClick={() => setSelectedDayTypeId(dayType.id)}>
-                  <strong>{dayType.name}</strong>
-                  <Small>{dayType.estimatedDurationMinutes ? `~${dayType.estimatedDurationMinutes} min` : 'No duration yet'}</Small>
-                </LibraryItem>
-              ))}
+              {dayTypes.length === 0 ? (
+                <>
+                  <Small>No workouts yet. Create reusable workouts like Lower C, Upper A, or Recovery.</Small>
+                  <WorkoutCreateForm
+                    onCreate={(name) => createDayType.mutateAsync({ name })}
+                    isPending={createDayType.isPending}
+                    existingNames={dayTypes.map((d) => d.name)}
+                    autoFocus
+                  />
+                </>
+              ) : (
+                <>
+                  {dayTypes.map((dayType) => (
+                    <LibraryItem key={dayType.id} $active={selectedDayTypeId === dayType.id} onClick={() => setSelectedDayTypeId(dayType.id)}>
+                      <strong>{dayType.name}</strong>
+                      <Small>{dayType.estimatedDurationMinutes ? `~${dayType.estimatedDurationMinutes} min` : 'No duration yet'}</Small>
+                    </LibraryItem>
+                  ))}
+                  {showCreateForm ? (
+                    <WorkoutCreateForm
+                      onCreate={(name) => createDayType.mutateAsync({ name })}
+                      isPending={createDayType.isPending}
+                      existingNames={dayTypes.map((d) => d.name)}
+                      onCancel={() => setShowCreateForm(false)}
+                      autoFocus
+                    />
+                  ) : (
+                    <Button variant="secondary" onClick={() => setShowCreateForm(true)}>
+                      <Plus size={16} />New workout
+                    </Button>
+                  )}
+                </>
+              )}
             </LibraryCard>
           </Column>
 
@@ -1035,11 +1169,13 @@ export function ProgramEditorPage() {
             </Column>
           ) : (
             <Column>
-              <EmptyDetail>
+              <EmptyDetail $hideOnMobile={dayTypes.length === 0}>
                 <h2 style={{ margin: 0 }}>Choose a workout to edit</h2>
-                <Small>Select a workout from your library or create a new one.</Small>
-                <Input label="New workout" value={newDayTypeName} onChange={(e) => setNewDayTypeName(e.target.value)} placeholder="Upper A, Recovery Walk…" />
-                <Button onClick={() => newDayTypeName.trim() && createDayType.mutate({ name: newDayTypeName.trim() })} disabled={!newDayTypeName.trim() || createDayType.isPending}>Create workout</Button>
+                <Small>
+                  {dayTypes.length === 0
+                    ? 'Create your first workout in the Workout library.'
+                    : 'Select a workout from the library to view its exercises and prescription.'}
+                </Small>
               </EmptyDetail>
             </Column>
           )}
