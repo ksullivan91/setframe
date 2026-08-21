@@ -13,7 +13,7 @@ import {
   workoutExerciseLog,
   workoutSession,
   workoutSet,
-  workoutTemplate,
+  dayType,
 } from '@setline/database';
 import { getDb } from '../lib/db';
 import { requireAuth } from '../plugins/auth';
@@ -159,8 +159,8 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
       if (request.body.templateId) {
         const templateRows = await db
           .select()
-          .from(workoutTemplate)
-          .where(eq(workoutTemplate.id, request.body.templateId))
+          .from(dayType)
+          .where(eq(dayType.id, request.body.templateId))
           .limit(1);
         if (!templateRows[0]) throw badRequest('templateId does not exist');
         sessionNameSnapshot = templateRows[0].name;

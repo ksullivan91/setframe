@@ -13,7 +13,7 @@ import { systemRoutes } from './routes/system';
 import { meRoutes } from './routes/me';
 import { exerciseRoutes } from './routes/exercises';
 import { programRoutes } from './routes/programs';
-import { workoutTemplateRoutes } from './routes/workout-templates';
+import { dayTypeRoutes } from './routes/day-types';
 import { workoutSessionRoutes } from './routes/workout-sessions';
 import { dailyRoutes } from './routes/daily';
 import { dashboardRoutes } from './routes/dashboard';
@@ -47,7 +47,7 @@ export function buildApp() {
   app.register(meRoutes);
   app.register(exerciseRoutes);
   app.register(programRoutes);
-  app.register(workoutTemplateRoutes);
+  app.register(dayTypeRoutes);
   app.register(workoutSessionRoutes);
   app.register(dailyRoutes);
   app.register(dashboardRoutes);

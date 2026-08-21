@@ -1,26 +1,31 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { dailyActivitySummary, dailyManualEntry, dailyNutritionSnapshot } from '@setline/database';
+import {
+  dailyActivitySummary,
+  dailyManualEntry,
+  dailyNutritionSnapshot,
+} from '@setline/database';
+import { dailyManualEntrySchema, patchDailyManualEntrySchema } from '@setline/schemas';
 import { getDb } from '../lib/db';
 import { requireAuth } from '../plugins/auth';
 
 const paramsSchema = z.object({ localDate: z.string().date() });
 
-const bodyWeightSchema = z.object({
-  weightValue: z.number().positive(),
-  weightUnit: z.enum(['lb', 'kg']),
-});
-
-const bloodPressureSchema = z.object({
-  systolic: z.number().int().positive(),
-  diastolic: z.number().int().positive(),
-});
-
-const notesSchema = z.object({ notes: z.string().nullable() });
-
 function toManualEntryResponse(row: typeof dailyManualEntry.$inferSelect | undefined, localDate: string) {
-  if (!row) return { localDate, morningWeightValue: null, morningWeightUnit: null, systolicBp: null, diastolicBp: null, notes: null };
+  if (!row) {
+    return {
+      localDate,
+      morningWeightValue: null,
+      morningWeightUnit: null,
+      systolicBp: null,
+      diastolicBp: null,
+      notes: null,
+      mood: null,
+      preWorkoutMealLogged: null,
+    };
+  }
+
   return {
     localDate: row.localDate,
     morningWeightValue: row.morningWeightValue != null ? Number(row.morningWeightValue) : null,
@@ -28,6 +33,8 @@ function toManualEntryResponse(row: typeof dailyManualEntry.$inferSelect | undef
     systolicBp: row.systolicBp,
     diastolicBp: row.diastolicBp,
     notes: row.notes,
+    mood: row.mood,
+    preWorkoutMealLogged: row.preWorkoutMealLogged,
   };
 }
 
@@ -42,6 +49,7 @@ async function upsertManualEntry(
     .from(dailyManualEntry)
     .where(and(eq(dailyManualEntry.userId, userId), eq(dailyManualEntry.localDate, localDate)))
     .limit(1);
+
   if (existing[0]) {
     const rows = await db
       .update(dailyManualEntry)
@@ -50,6 +58,7 @@ async function upsertManualEntry(
       .returning();
     return rows[0]!;
   }
+
   const rows = await db
     .insert(dailyManualEntry)
     .values({ userId, localDate, ...values })
@@ -66,14 +75,7 @@ export const dailyRoutes: FastifyPluginAsyncZod = async (fastify) => {
         params: paramsSchema,
         response: {
           200: z.object({
-            manualEntry: z.object({
-              localDate: z.string(),
-              morningWeightValue: z.number().nullable(),
-              morningWeightUnit: z.enum(['lb', 'kg']).nullable(),
-              systolicBp: z.number().nullable(),
-              diastolicBp: z.number().nullable(),
-              notes: z.string().nullable(),
-            }),
+            manualEntry: dailyManualEntrySchema,
             activitySummary: z.unknown().nullable(),
             nutritionSnapshot: z.unknown().nullable(),
           }),
@@ -109,52 +111,34 @@ export const dailyRoutes: FastifyPluginAsyncZod = async (fastify) => {
     },
   );
 
-  for (const method of ['put', 'patch'] as const) {
-    fastify[method](
-      '/v1/daily/:localDate/body-weight',
-      {
-        preHandler: requireAuth,
-        schema: { params: paramsSchema, body: bodyWeightSchema, response: { 200: z.unknown() } },
+  fastify.patch(
+    '/v1/me/daily-entries/:localDate',
+    {
+      preHandler: requireAuth,
+      schema: {
+        params: paramsSchema,
+        body: patchDailyManualEntrySchema,
+        response: { 200: dailyManualEntrySchema },
       },
-      async (request) => {
-        const db = getDb();
-        const row = await upsertManualEntry(db, request.userId!, request.params.localDate, {
-          morningWeightValue: request.body.weightValue.toString(),
-          morningWeightUnit: request.body.weightUnit,
-        });
-        return toManualEntryResponse(row, request.params.localDate);
-      },
-    );
+    },
+    async (request) => {
+      const db = getDb();
+      const payload: Partial<typeof dailyManualEntry.$inferInsert> = {};
+      if (request.body.morningWeightValue !== undefined) {
+        payload.morningWeightValue =
+          request.body.morningWeightValue === null ? null : request.body.morningWeightValue.toString();
+      }
+      if (request.body.morningWeightUnit !== undefined) payload.morningWeightUnit = request.body.morningWeightUnit;
+      if (request.body.systolicBp !== undefined) payload.systolicBp = request.body.systolicBp;
+      if (request.body.diastolicBp !== undefined) payload.diastolicBp = request.body.diastolicBp;
+      if (request.body.notes !== undefined) payload.notes = request.body.notes;
+      if (request.body.mood !== undefined) payload.mood = request.body.mood;
+      if (request.body.preWorkoutMealLogged !== undefined) {
+        payload.preWorkoutMealLogged = request.body.preWorkoutMealLogged;
+      }
 
-    fastify[method](
-      '/v1/daily/:localDate/blood-pressure',
-      {
-        preHandler: requireAuth,
-        schema: { params: paramsSchema, body: bloodPressureSchema, response: { 200: z.unknown() } },
-      },
-      async (request) => {
-        const db = getDb();
-        const row = await upsertManualEntry(db, request.userId!, request.params.localDate, {
-          systolicBp: request.body.systolic,
-          diastolicBp: request.body.diastolic,
-        });
-        return toManualEntryResponse(row, request.params.localDate);
-      },
-    );
-
-    fastify[method](
-      '/v1/daily/:localDate/notes',
-      {
-        preHandler: requireAuth,
-        schema: { params: paramsSchema, body: notesSchema, response: { 200: z.unknown() } },
-      },
-      async (request) => {
-        const db = getDb();
-        const row = await upsertManualEntry(db, request.userId!, request.params.localDate, {
-          notes: request.body.notes,
-        });
-        return toManualEntryResponse(row, request.params.localDate);
-      },
-    );
-  }
+      const row = await upsertManualEntry(db, request.userId!, request.params.localDate, payload);
+      return toManualEntryResponse(row, request.params.localDate);
+    },
+  );
 };

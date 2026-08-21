@@ -38,6 +38,17 @@ export const prescriptionSchema = z.discriminatedUnion('kind', [
     distanceUnit: z.enum(['m', 'km', 'mi']),
   }),
   z.object({
+    kind: z.literal('duration'),
+    durationMinutes: z.number().int().positive(),
+    notes: z.string().optional(),
+  }),
+  z.object({
+    kind: z.literal('distanceDuration'),
+    distanceMiles: z.number().positive(),
+    durationMinutes: z.number().int().positive(),
+    notes: z.string().optional(),
+  }),
+  z.object({
     kind: z.literal('bodyweight_reps'),
     sets: z.number().int().positive(),
     repsMin: z.number().int().positive(),
@@ -63,22 +74,20 @@ export const trainingProgramSchema = z.object({
 });
 export type TrainingProgram = z.infer<typeof trainingProgramSchema>;
 
-export const workoutTemplateSchema = z.object({
+export const dayTypeSchema = z.object({
   id: z.string().uuid(),
-  programVersionId: z.string().uuid(),
+  userId: z.string().uuid(),
   name: z.string().min(1),
-  dayLabel: z.string().nullable(),
-  sortOrder: z.number().int(),
   description: z.string().nullable(),
   estimatedDurationMinutes: z.number().int().positive().nullable(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
-export type WorkoutTemplate = z.infer<typeof workoutTemplateSchema>;
+export type DayType = z.infer<typeof dayTypeSchema>;
 
-export const workoutTemplateExerciseSchema = z.object({
+export const dayTypeExerciseSchema = z.object({
   id: z.string().uuid(),
-  templateId: z.string().uuid(),
+  dayTypeId: z.string().uuid(),
   exerciseId: z.string().uuid(),
   sortOrder: z.number().int(),
   prescription: prescriptionSchema,
@@ -87,4 +96,25 @@ export const workoutTemplateExerciseSchema = z.object({
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
-export type WorkoutTemplateExercise = z.infer<typeof workoutTemplateExerciseSchema>;
+export type DayTypeExercise = z.infer<typeof dayTypeExerciseSchema>;
+
+export const programScheduleSlotSchema = z.object({
+  id: z.string().uuid(),
+  programVersionId: z.string().uuid(),
+  dayTypeId: z.string().uuid(),
+  weekNumber: z.number().int().positive().nullable(),
+  dayIndex: z.number().int(),
+  sortOrder: z.number().int(),
+  createdAt: z.string().datetime(),
+});
+export type ProgramScheduleSlot = z.infer<typeof programScheduleSlotSchema>;
+
+export const scheduleOverrideSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  date: z.string().date(),
+  dayTypeId: z.string().uuid(),
+  note: z.string().nullable(),
+  createdAt: z.string().datetime(),
+});
+export type ScheduleOverride = z.infer<typeof scheduleOverrideSchema>;

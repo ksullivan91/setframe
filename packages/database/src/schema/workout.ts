@@ -19,8 +19,7 @@ import {
   workoutSessionStatusEnum,
 } from './enums';
 import { user } from './user';
-import { workoutTemplate } from './program';
-import { trainingProgram } from './program';
+import { dayType, trainingProgram } from './program';
 import { exercise } from './exercise';
 import type { Prescription } from '@setline/schemas';
 
@@ -31,15 +30,14 @@ export const workoutSession = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => user.id),
-    // Nullable: ad hoc sessions (not started from a template) are allowed.
-    templateId: uuid('template_id').references(() => workoutTemplate.id),
+    // Nullable: ad hoc sessions (not started from a day type) are allowed.
+    templateId: uuid('template_id').references(() => dayType.id),
     programId: uuid('program_id').references(() => trainingProgram.id),
     localDate: date('local_date').notNull(),
     timezone: text('timezone').notNull(),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     status: workoutSessionStatusEnum('status').notNull(),
-    // Copied at creation time, immune to later template renames.
     sessionNameSnapshot: text('session_name_snapshot').notNull(),
     notes: text('notes'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -63,9 +61,6 @@ export const workoutExerciseLog = pgTable(
       .references(() => exercise.id),
     exerciseNameSnapshot: text('exercise_name_snapshot').notNull(),
     sortOrder: integer('sort_order').notNull(),
-    // Copy of the template prescription at session-start time — see ADR
-    // 0005, historical immutability rule: never joins back to the live
-    // workout_template_exercise row.
     prescriptionSnapshot: jsonb('prescription_snapshot').$type<Prescription>(),
     notes: text('notes'),
     skipped: boolean('skipped').notNull().default(false),
@@ -82,8 +77,6 @@ export const workoutSet = pgTable(
     exerciseLogId: uuid('exercise_log_id')
       .notNull()
       .references(() => workoutExerciseLog.id),
-    // Client-generated, used for idempotent retry from the mobile offline
-    // queue — see docs/data-model.md §4 unique constraint.
     clientId: uuid('client_id').notNull(),
     sortOrder: integer('sort_order').notNull(),
     setType: setTypeEnum('set_type').notNull(),

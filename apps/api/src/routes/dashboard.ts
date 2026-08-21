@@ -5,23 +5,63 @@ import {
   dailyActivitySummary,
   dailyManualEntry,
   dailyNutritionSnapshot,
+  dayType,
   integrationSyncState,
+  programScheduleSlot,
+  programVersion,
+  scheduleOverride,
+  trainingProgram,
   workoutSession,
 } from '@setline/database';
 import { getDb } from '../lib/db';
 import { requireAuth } from '../plugins/auth';
 
-/**
- * GET /v1/dashboard/today — purpose-built aggregate (master spec §34) so
- * the Today screen never needs several serial requests. See docs/api.md
- * "Dashboard aggregate".
- *
- * TODO(phase-4): derive weekLabel/dayLabel from training_program
- * .cycle_length_weeks + program_version.effective_from, and surface
- * workout_template.estimated_duration_minutes for the planned session —
- * requires resolving the active program/version/template chain, which is
- * deferred until program-activation flows (Phase 3) are exercised.
- */
+async function resolveScheduledDayType(db: ReturnType<typeof getDb>, userId: string, localDate: string) {
+  const override = await db
+    .select({ override: scheduleOverride, dayType })
+    .from(scheduleOverride)
+    .innerJoin(dayType, eq(dayType.id, scheduleOverride.dayTypeId))
+    .where(and(eq(scheduleOverride.userId, userId), eq(scheduleOverride.date, localDate)))
+    .limit(1);
+  if (override[0]) return override[0].dayType;
+
+  const programs = await db
+    .select()
+    .from(trainingProgram)
+    .where(and(eq(trainingProgram.userId, userId), eq(trainingProgram.isActive, true)))
+    .limit(1);
+  const program = programs[0];
+  if (!program) return null;
+
+  const versions = await db
+    .select()
+    .from(programVersion)
+    .where(eq(programVersion.trainingProgramId, program.id));
+  const version = versions.sort((a, b) => b.versionNumber - a.versionNumber)[0];
+  if (!version) return null;
+
+  const slots = await db
+    .select({ slot: programScheduleSlot, dayType })
+    .from(programScheduleSlot)
+    .innerJoin(dayType, eq(dayType.id, programScheduleSlot.dayTypeId))
+    .where(eq(programScheduleSlot.programVersionId, version.id));
+  if (!slots.length) return null;
+
+  const start = program.startDate ? new Date(`${program.startDate}T00:00:00Z`) : new Date(`${localDate}T00:00:00Z`);
+  const target = new Date(`${localDate}T00:00:00Z`);
+  const diffDays = Math.floor((target.getTime() - start.getTime()) / 86400000);
+  const dayIndex = diffDays >= 0 ? diffDays % 7 : ((diffDays % 7) + 7) % 7;
+  const weekNumber = program.cycleLengthWeeks
+    ? ((Math.floor(Math.max(diffDays, 0) / 7) % program.cycleLengthWeeks) + 1)
+    : null;
+
+  return (
+    slots
+      .filter(({ slot }) => slot.dayIndex === dayIndex && (program.cycleLengthWeeks ? slot.weekNumber === weekNumber : slot.weekNumber === null))
+      .sort((a, b) => a.slot.sortOrder - b.slot.sortOrder)[0]?.dayType ?? null
+  );
+}
+
 export const dashboardRoutes: FastifyPluginAsyncZod = async (fastify) => {
   fastify.get(
     '/v1/dashboard/today',
@@ -37,7 +77,7 @@ export const dashboardRoutes: FastifyPluginAsyncZod = async (fastify) => {
       const userId = request.userId!;
       const { localDate } = request.query;
 
-      const [sessions, manual, activity, nutrition, syncState] = await Promise.all([
+      const [sessions, manual, activity, nutrition, syncState, nextDayType] = await Promise.all([
         db
           .select()
           .from(workoutSession)
@@ -62,6 +102,7 @@ export const dashboardRoutes: FastifyPluginAsyncZod = async (fastify) => {
           .from(integrationSyncState)
           .where(and(eq(integrationSyncState.userId, userId), eq(integrationSyncState.integrationType, 'apple_health')))
           .limit(1),
+        resolveScheduledDayType(db, userId, localDate),
       ]);
 
       return {
@@ -71,10 +112,9 @@ export const dashboardRoutes: FastifyPluginAsyncZod = async (fastify) => {
         activitySummary: activity[0] ?? null,
         nutritionSnapshot: nutrition[0] ?? null,
         syncState: syncState[0] ?? null,
-        // TODO(phase-4): weekLabel, dayLabel, estimatedDurationMinutes.
         weekLabel: null,
-        dayLabel: null,
-        estimatedDurationMinutes: null,
+        dayLabel: nextDayType?.name ?? null,
+        estimatedDurationMinutes: nextDayType?.estimatedDurationMinutes ?? null,
       };
     },
   );
