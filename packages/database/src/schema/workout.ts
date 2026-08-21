@@ -90,6 +90,8 @@ export const workoutSet = pgTable(
     rpe: numeric('rpe'),
     side: setSideEnum('side'),
     completed: boolean('completed').notNull().default(false),
+    isPrWeight: boolean('is_pr_weight').notNull().default(false),
+    isPrReps: boolean('is_pr_reps').notNull().default(false),
     notes: text('notes'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

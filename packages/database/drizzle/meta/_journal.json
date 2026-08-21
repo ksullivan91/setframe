@@ -15,6 +15,13 @@
       "when": 1787276443581,
       "tag": "0001_today_training_redesign",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787290000000,
+      "tag": "0002_workout_set_pr_flags",
+      "breakpoints": true
     }
   ]
 }

@@ -103,7 +103,9 @@ const setRow = {
   rpe: '9',
   side: null,
   completed: true,
-  notes: '[pr_weight]',
+  isPrWeight: true,
+  isPrReps: false,
+  notes: null,
   createdAt: new Date('2026-08-21T10:05:00Z'),
   updatedAt: new Date('2026-08-21T10:05:00Z'),
 };
@@ -120,7 +122,7 @@ describe('workout session routes', () => {
       .mockReturnValueOnce(selectChain([]))
       .mockReturnValueOnce(selectChain([]))
       .mockReturnValueOnce(selectChain([{ loadValue: '205', reps: 5 }, { loadValue: '215', reps: 3 }]));
-    mockInsert.mockReturnValueOnce(insertChain([{ ...setRow, notes: '[pr_weight]' }]));
+    mockInsert.mockReturnValueOnce(insertChain([{ ...setRow, isPrWeight: true, isPrReps: false }]));
 
     const app = buildApp();
     const response = await app.inject({
@@ -141,7 +143,7 @@ describe('workout session routes', () => {
       .mockReturnValueOnce(selectChain([{ log: logRow, session: sessionRow }]))
       .mockReturnValueOnce(selectChain([]))
       .mockReturnValueOnce(selectChain([]));
-    mockInsert.mockReturnValueOnce(insertChain([{ ...setRow, setType: 'warmup', notes: null, loadValue: '225' }]));
+    mockInsert.mockReturnValueOnce(insertChain([{ ...setRow, setType: 'warmup', isPrWeight: false, isPrReps: false, notes: null, loadValue: '225' }]));
 
     const app = buildApp();
     const response = await app.inject({
@@ -161,7 +163,7 @@ describe('workout session routes', () => {
       .mockReturnValueOnce(selectChain([userRow]))
       .mockReturnValueOnce(selectChain([{ set: setRow, session: sessionRow, log: logRow }]))
       .mockReturnValueOnce(selectChain([{ loadValue: '225', reps: 4 }, { loadValue: '235', reps: 3 }]))
-    mockUpdate.mockReturnValueOnce(updateChain([{ ...setRow, reps: 5, notes: '[pr_reps]' }]));
+    mockUpdate.mockReturnValueOnce(updateChain([{ ...setRow, reps: 5, isPrWeight: false, isPrReps: true }]));
 
     const app = buildApp();
     const response = await app.inject({
@@ -181,7 +183,7 @@ describe('workout session routes', () => {
       .mockReturnValueOnce(selectChain([userRow]))
       .mockReturnValueOnce(selectChain([{ set: setRow, session: sessionRow, log: logRow }]))
       .mockReturnValueOnce(selectChain([{ loadValue: '225', reps: 5 }, { loadValue: '235', reps: 6 }]))
-    mockUpdate.mockReturnValueOnce(updateChain([{ ...setRow, setType: 'backoff', reps: 5, notes: null }]));
+    mockUpdate.mockReturnValueOnce(updateChain([{ ...setRow, setType: 'backoff', reps: 5, isPrWeight: false, isPrReps: false, notes: null }]));
 
     const app = buildApp();
     const response = await app.inject({
