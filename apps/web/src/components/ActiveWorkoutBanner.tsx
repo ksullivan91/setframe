@@ -1,96 +1,62 @@
 import styled, { keyframes } from 'styled-components';
-import { Dumbbell, ArrowRight } from 'lucide-react';
+import { Dumbbell } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { WorkoutSession } from '@setline/schemas';
 import { spacing, radius } from '@setline/design-tokens';
+import { typeScale } from '../theme/typeScale';
 import { useApiClient } from '../lib/api-client';
 
 const pulse = keyframes`
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.55; transform: scale(0.82); }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 `;
 
+/**
+ * Styled to match the app's established Toast pattern (style guide §8,
+ * `Toast/Error` node 14:84): solid dark/status background, inverse text,
+ * and a colored semi-bold action label — rather than inventing a new
+ * card-like treatment. This is a full-width persistent banner (not part
+ * of the ephemeral toast stack), so it uses action.primary as the "in
+ * progress" status color instead of Toast's error/dark background.
+ */
 const Banner = styled.button`
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: ${spacing[12]}px;
   width: 100%;
-  border: 1px solid ${(p) => p.theme.action.primary}33;
-  border-radius: ${radius.large}px;
+  border: none;
+  border-radius: ${radius.small}px;
   cursor: pointer;
-  background: ${(p) => p.theme.action.accentSubtle};
-  color: ${(p) => p.theme.text.primary};
+  background: ${(p) => p.theme.action.primary};
+  color: ${(p) => p.theme.action.primaryText};
   padding: ${spacing[12]}px ${spacing[16]}px;
   margin-bottom: ${spacing[16]}px;
   font: inherit;
+  font-size: ${typeScale.body.fontSize}px;
   text-align: left;
-  transition: background 0.15s ease, border-color 0.15s ease;
-
-  &:hover {
-    border-color: ${(p) => p.theme.action.primary}66;
-  }
 `;
 
-const IconBadge = styled.span`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  flex-shrink: 0;
-  border-radius: ${radius.small}px;
-  background: ${(p) => p.theme.action.primary};
-  color: ${(p) => p.theme.action.primaryText};
-`;
-
-const Label = styled.span`
-  display: flex;
-  align-items: center;
-  gap: ${spacing[12]}px;
-  font-weight: 600;
-`;
-
-const StatusDot = styled.span`
+const PulseDot = styled.span`
   display: inline-block;
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: ${(p) => p.theme.status.success};
+  background: ${(p) => p.theme.action.primaryText};
   animation: ${pulse} 1.6s ease-in-out infinite;
+  flex-shrink: 0;
 `;
 
-const TextGroup = styled.span`
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  line-height: 1.1;
-`;
-
-const Eyebrow = styled.span`
+const Message = styled.span`
   display: flex;
   align-items: center;
   gap: ${spacing[8]}px;
-  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: ${(p) => p.theme.text.secondary};
-`;
-
-const Title = styled.span`
-  font-size: 15px;
-  font-weight: 700;
-  color: ${(p) => p.theme.text.primary};
+  flex: 1;
 `;
 
 const ResumeText = styled.span`
-  display: flex;
-  align-items: center;
-  gap: ${spacing[8]}px;
-  font-weight: 600;
-  color: ${(p) => p.theme.action.primary};
+  font-weight: 700;
   white-space: nowrap;
 `;
 
@@ -119,22 +85,12 @@ export function ActiveWorkoutBanner() {
 
   return (
     <Banner onClick={() => navigate(`/workout/${activeSession.id}`)}>
-      <Label>
-        <IconBadge>
-          <Dumbbell size={16} aria-hidden="true" />
-        </IconBadge>
-        <TextGroup>
-          <Eyebrow>
-            <StatusDot />
-            In progress
-          </Eyebrow>
-          <Title>Workout in progress</Title>
-        </TextGroup>
-      </Label>
-      <ResumeText>
-        Resume
-        <ArrowRight size={16} aria-hidden="true" />
-      </ResumeText>
+      <Message>
+        <PulseDot />
+        <Dumbbell size={16} aria-hidden="true" />
+        Workout in progress
+      </Message>
+      <ResumeText>Resume →</ResumeText>
     </Banner>
   );
 }
