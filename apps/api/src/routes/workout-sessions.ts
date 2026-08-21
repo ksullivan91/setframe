@@ -1,23 +1,40 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNotNull, ne } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   createWorkoutSessionSchema,
   createWorkoutSetSchema,
+  dayTypeExerciseSchema,
+  exerciseSchema,
   workoutExerciseLogSchema,
   workoutSessionSchema,
   workoutSetSchema,
 } from '@setline/schemas';
+import { detectRepPR, detectWeightPR, type HistoricalSet } from '@setline/domain';
 import {
+  dayType,
+  dayTypeExercise,
   exercise,
   workoutExerciseLog,
   workoutSession,
   workoutSet,
-  dayType,
 } from '@setline/database';
 import { getDb } from '../lib/db.js';
 import { requireAuth } from '../plugins/auth.js';
 import { badRequest, forbidden, notFound } from '../lib/errors.js';
+
+const prEligibleSetTypes: ReadonlySet<LoggedSetType> = new Set(['working', 'top', 'backoff']);
+type LoggedSetType = 'warmup' | 'working' | 'top' | 'backoff' | 'drop' | 'failure';
+
+const sessionExerciseDetailSchema = workoutExerciseLogSchema.extend({
+  exercise: exerciseSchema,
+  prescription: dayTypeExerciseSchema.shape.prescription.nullable(),
+  sets: z.array(workoutSetSchema),
+});
+
+const workoutSessionDetailSchema = workoutSessionSchema.extend({
+  exercises: z.array(sessionExerciseDetailSchema),
+});
 
 function toSessionResponse(row: typeof workoutSession.$inferSelect) {
   return {
@@ -55,6 +72,7 @@ function toSetResponse(row: typeof workoutSet.$inferSelect) {
     exerciseLogId: row.exerciseLogId,
     clientId: row.clientId,
     sortOrder: row.sortOrder,
+    setType: row.setType as LoggedSetType,
     weightValue: row.loadValue != null ? Number(row.loadValue) : null,
     weightUnit: row.loadUnit,
     reps: row.reps,
@@ -62,8 +80,8 @@ function toSetResponse(row: typeof workoutSet.$inferSelect) {
     distanceValue: row.distanceValue != null ? Number(row.distanceValue) : null,
     distanceUnit: row.distanceUnit,
     rpe: row.rpe != null ? Number(row.rpe) : null,
-    isPrWeight: false,
-    isPrReps: false,
+    isPrWeight: row.notes?.includes('[pr_weight]') ?? false,
+    isPrReps: row.notes?.includes('[pr_reps]') ?? false,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -105,7 +123,7 @@ async function getOwnedExerciseLog(db: ReturnType<typeof getDb>, id: string, use
 
 async function getOwnedSet(db: ReturnType<typeof getDb>, setId: string, userId: string) {
   const rows = await db
-    .select({ set: workoutSet, session: workoutSession })
+    .select({ set: workoutSet, session: workoutSession, log: workoutExerciseLog })
     .from(workoutSet)
     .innerJoin(workoutExerciseLog, eq(workoutExerciseLog.id, workoutSet.exerciseLogId))
     .innerJoin(workoutSession, eq(workoutSession.id, workoutExerciseLog.sessionId))
@@ -114,7 +132,63 @@ async function getOwnedSet(db: ReturnType<typeof getDb>, setId: string, userId: 
   const row = rows[0];
   if (!row) throw notFound('Set not found');
   if (row.session.userId !== userId) throw forbidden('Not allowed to access this set');
-  return row.set;
+  return row;
+}
+
+function withPrFlags(notes: string | null, isPrWeight: boolean, isPrReps: boolean) {
+  const tokens = new Set((notes ?? '').split(' ').filter(Boolean).filter((part) => !part.startsWith('[pr_')));
+  if (isPrWeight) tokens.add('[pr_weight]');
+  if (isPrReps) tokens.add('[pr_reps]');
+  return Array.from(tokens).join(' ') || null;
+}
+
+async function getHistoricalSets(
+  db: ReturnType<typeof getDb>,
+  userId: string,
+  exerciseId: string,
+  excludeSetId?: string,
+): Promise<HistoricalSet[]> {
+  const conditions = [
+    eq(workoutSession.userId, userId),
+    eq(workoutSession.status, 'completed'),
+    eq(workoutExerciseLog.exerciseId, exerciseId),
+    isNotNull(workoutSet.loadValue),
+    isNotNull(workoutSet.reps),
+  ];
+  if (excludeSetId) conditions.push(ne(workoutSet.id, excludeSetId));
+
+  const rows = await db
+    .select({ loadValue: workoutSet.loadValue, reps: workoutSet.reps })
+    .from(workoutSet)
+    .innerJoin(workoutExerciseLog, eq(workoutExerciseLog.id, workoutSet.exerciseLogId))
+    .innerJoin(workoutSession, eq(workoutSession.id, workoutExerciseLog.sessionId))
+    .where(and(...conditions));
+
+  return rows.map((row) => ({
+    weightValue: row.loadValue != null ? Number(row.loadValue) : null,
+    reps: row.reps,
+  }));
+}
+
+async function detectPrFlags(params: {
+  db: ReturnType<typeof getDb>;
+  userId: string;
+  exerciseId: string;
+  setType: LoggedSetType;
+  weightValue: number | null;
+  reps: number | null;
+  excludeSetId?: string;
+}) {
+  if (!prEligibleSetTypes.has(params.setType)) {
+    return { isPrWeight: false, isPrReps: false };
+  }
+
+  const history = await getHistoricalSets(params.db, params.userId, params.exerciseId, params.excludeSetId);
+  const candidate = { weightValue: params.weightValue, reps: params.reps };
+  return {
+    isPrWeight: detectWeightPR(candidate, history),
+    isPrReps: detectRepPR(candidate, history),
+  };
 }
 
 export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
@@ -141,8 +215,6 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
         .from(workoutSession)
         .where(and(...conditions))
         .limit(request.query.limit);
-      // TODO(phase-3): implement full cursor pagination encoding
-      // (created_at, id) per docs/api.md "Decided" §1.
       return { items: rows.map(toSessionResponse), nextCursor: null };
     },
   );
@@ -177,8 +249,32 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
           sessionNameSnapshot,
         })
         .returning();
+
+      const session = rows[0]!;
+
+      if (request.body.templateId) {
+        const templateExercises = await db
+          .select({ dayTypeExercise, exercise })
+          .from(dayTypeExercise)
+          .innerJoin(exercise, eq(exercise.id, dayTypeExercise.exerciseId))
+          .where(eq(dayTypeExercise.dayTypeId, request.body.templateId));
+
+        if (templateExercises.length) {
+          await db.insert(workoutExerciseLog).values(
+            templateExercises.map(({ dayTypeExercise: templateExercise, exercise: exerciseRow }) => ({
+              sessionId: session.id,
+              exerciseId: exerciseRow.id,
+              exerciseNameSnapshot: exerciseRow.name,
+              sortOrder: templateExercise.sortOrder,
+              prescriptionSnapshot: templateExercise.prescription,
+              notes: templateExercise.notes ?? null,
+            })),
+          );
+        }
+      }
+
       reply.status(201);
-      return toSessionResponse(rows[0]!);
+      return toSessionResponse(session);
     },
   );
 
@@ -186,12 +282,44 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
     '/v1/workout-sessions/:sessionId',
     {
       preHandler: requireAuth,
-      schema: { params: sessionParamsSchema, response: { 200: workoutSessionSchema } },
+      schema: { params: sessionParamsSchema, response: { 200: workoutSessionDetailSchema } },
     },
     async (request) => {
       const db = getDb();
       const session = await getOwnedSession(db, request.params.sessionId, request.userId!);
-      return toSessionResponse(session);
+      const exerciseRows = await db
+        .select({ log: workoutExerciseLog, exercise })
+        .from(workoutExerciseLog)
+        .innerJoin(exercise, eq(exercise.id, workoutExerciseLog.exerciseId))
+        .where(eq(workoutExerciseLog.sessionId, request.params.sessionId));
+      const setRows = await db
+        .select()
+        .from(workoutSet)
+        .innerJoin(workoutExerciseLog, eq(workoutExerciseLog.id, workoutSet.exerciseLogId))
+        .where(eq(workoutExerciseLog.sessionId, request.params.sessionId));
+
+      return {
+        ...toSessionResponse(session),
+        exercises: exerciseRows
+          .sort((a, b) => a.log.sortOrder - b.log.sortOrder)
+          .map(({ log, exercise: exerciseRow }) => ({
+            ...toExerciseLogResponse(log),
+            exercise: {
+              id: exerciseRow.id,
+              name: exerciseRow.name,
+              isCustom: !exerciseRow.isSystem,
+              ownerUserId: exerciseRow.createdByUserId,
+              archivedAt: exerciseRow.archivedAt ? exerciseRow.archivedAt.toISOString() : null,
+              createdAt: exerciseRow.createdAt.toISOString(),
+              updatedAt: exerciseRow.updatedAt.toISOString(),
+            },
+            prescription: log.prescriptionSnapshot ?? null,
+            sets: setRows
+              .filter(({ workout_set }) => workout_set.exerciseLogId === log.id)
+              .map(({ workout_set }) => toSetResponse(workout_set))
+              .sort((a, b) => a.sortOrder - b.sortOrder),
+          })),
+      };
     },
   );
 
@@ -314,11 +442,8 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
     },
     async (request, reply) => {
       const db = getDb();
-      await getOwnedExerciseLog(db, request.params.exerciseLogId, request.userId!);
+      const log = await getOwnedExerciseLog(db, request.params.exerciseLogId, request.userId!);
 
-      // Idempotent create by (exercise_log_id, client_id) — mobile offline
-      // retry queue may resend the same client_id; return the existing
-      // row instead of erroring/duplicating (docs/api.md).
       const existingRows = await db
         .select()
         .from(workoutSet)
@@ -337,13 +462,21 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
         .select()
         .from(workoutSet)
         .where(eq(workoutSet.exerciseLogId, request.params.exerciseLogId));
+      const prFlags = await detectPrFlags({
+        db,
+        userId: request.userId!,
+        exerciseId: log.exerciseId,
+        setType: request.body.setType,
+        weightValue: request.body.weightValue ?? null,
+        reps: request.body.reps ?? null,
+      });
       const rows = await db
         .insert(workoutSet)
         .values({
           exerciseLogId: request.params.exerciseLogId,
           clientId: request.body.clientId,
           sortOrder: existing.length,
-          setType: 'working',
+          setType: request.body.setType,
           loadValue: request.body.weightValue?.toString() ?? null,
           loadUnit: request.body.weightUnit ?? null,
           reps: request.body.reps ?? null,
@@ -352,6 +485,7 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
           distanceUnit: request.body.distanceUnit ?? null,
           rpe: request.body.rpe?.toString() ?? null,
           completed: true,
+          notes: withPrFlags(null, prFlags.isPrWeight, prFlags.isPrReps),
         })
         .returning();
       reply.status(201);
@@ -371,17 +505,31 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
     },
     async (request) => {
       const db = getDb();
-      await getOwnedSet(db, request.params.setId, request.userId!);
+      const ownedSet = await getOwnedSet(db, request.params.setId, request.userId!);
+      const nextSetType = (request.body.setType ?? ownedSet.set.setType) as LoggedSetType;
+      const nextWeightValue = request.body.weightValue ?? (ownedSet.set.loadValue != null ? Number(ownedSet.set.loadValue) : null);
+      const nextReps = request.body.reps ?? ownedSet.set.reps;
+      const prFlags = await detectPrFlags({
+        db,
+        userId: request.userId!,
+        exerciseId: ownedSet.log.exerciseId,
+        setType: nextSetType,
+        weightValue: nextWeightValue,
+        reps: nextReps,
+        excludeSetId: request.params.setId,
+      });
       const rows = await db
         .update(workoutSet)
         .set({
-          loadValue: request.body.weightValue?.toString(),
-          loadUnit: request.body.weightUnit,
-          reps: request.body.reps,
-          durationSeconds: request.body.durationSeconds,
-          distanceValue: request.body.distanceValue?.toString(),
-          distanceUnit: request.body.distanceUnit,
-          rpe: request.body.rpe?.toString(),
+          setType: nextSetType,
+          loadValue: request.body.weightValue?.toString() ?? ownedSet.set.loadValue,
+          loadUnit: request.body.weightUnit ?? ownedSet.set.loadUnit,
+          reps: request.body.reps ?? ownedSet.set.reps,
+          durationSeconds: request.body.durationSeconds ?? ownedSet.set.durationSeconds,
+          distanceValue: request.body.distanceValue?.toString() ?? ownedSet.set.distanceValue,
+          distanceUnit: request.body.distanceUnit ?? ownedSet.set.distanceUnit,
+          rpe: request.body.rpe?.toString() ?? ownedSet.set.rpe,
+          notes: withPrFlags(ownedSet.set.notes, prFlags.isPrWeight, prFlags.isPrReps),
           updatedAt: new Date(),
         })
         .where(eq(workoutSet.id, request.params.setId))

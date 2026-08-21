@@ -71,7 +71,7 @@ to the active program's `program_schedule_slot` rows using block mode
 ```text
 GET    /v1/workout-sessions
 POST   /v1/workout-sessions
-GET    /v1/workout-sessions/:sessionId
+GET    /v1/workout-sessions/:sessionId   // includes nested exercises[] + sets[]
 PATCH  /v1/workout-sessions/:sessionId
 POST   /v1/workout-sessions/:sessionId/complete
 
@@ -102,7 +102,7 @@ GET  /v1/dashboard/today
 ```
 
 Resolves schedule overrides before fallback scheduling and returns the
-planned day type name as `dayLabel` plus its estimated duration.
+planned day type name as `dayLabel`, its id as `dayTypeId`, plus estimated duration.
 
 ## Progress
 
@@ -123,3 +123,10 @@ PATCH  /v1/me/notification-preferences
 GET   /v1/integrations/apple-health/sync-state
 POST  /v1/integrations/apple-health/reconcile
 ```
+
+
+### Workout set payloads
+
+`POST /v1/workout-exercise-logs/:exerciseLogId/sets` accepts `setType` (`warmup|working|top|backoff|drop|failure`, default `working`) alongside weight/reps/RPE fields. `PATCH /v1/workout-sets/:setId` may update `setType` too. Responses always include `setType`.
+
+PR flags are computed server-side on create/update for completed historical sets of the same exercise and user. Only `working`, `top`, and `backoff` sets are eligible; warmup/drop/failure sets never receive PR badges. `isPrWeight` marks a new all-time heaviest logged set, and `isPrReps` marks a new all-time rep best at that weight or heavier.
