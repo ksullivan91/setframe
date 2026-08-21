@@ -7,8 +7,8 @@ import {
   dailyNutritionSnapshot,
 } from '@setline/database';
 import { dailyManualEntrySchema, patchDailyManualEntrySchema } from '@setline/schemas';
-import { getDb } from '../lib/db';
-import { requireAuth } from '../plugins/auth';
+import { getDb } from '../lib/db.js';
+import { requireAuth } from '../plugins/auth.js';
 
 const paramsSchema = z.object({ localDate: z.string().date() });
 

@@ -7,19 +7,19 @@ import {
   jsonSchemaTransform,
   type ZodTypeProvider,
 } from 'fastify-type-provider-zod';
-import errorHandlerPlugin from './plugins/error-handler';
-import authPlugin from './plugins/auth';
-import { systemRoutes } from './routes/system';
-import { meRoutes } from './routes/me';
-import { exerciseRoutes } from './routes/exercises';
-import { programRoutes } from './routes/programs';
-import { dayTypeRoutes } from './routes/day-types';
-import { workoutSessionRoutes } from './routes/workout-sessions';
-import { dailyRoutes } from './routes/daily';
-import { dashboardRoutes } from './routes/dashboard';
-import { progressRoutes } from './routes/progress';
-import { notificationPreferenceRoutes } from './routes/notification-preferences';
-import { appleHealthRoutes } from './routes/apple-health';
+import errorHandlerPlugin from './plugins/error-handler.js';
+import authPlugin from './plugins/auth.js';
+import { systemRoutes } from './routes/system.js';
+import { meRoutes } from './routes/me.js';
+import { exerciseRoutes } from './routes/exercises.js';
+import { programRoutes } from './routes/programs.js';
+import { dayTypeRoutes } from './routes/day-types.js';
+import { workoutSessionRoutes } from './routes/workout-sessions.js';
+import { dailyRoutes } from './routes/daily.js';
+import { dashboardRoutes } from './routes/dashboard.js';
+import { progressRoutes } from './routes/progress.js';
+import { notificationPreferenceRoutes } from './routes/notification-preferences.js';
+import { appleHealthRoutes } from './routes/apple-health.js';
 
 function isAllowedOrigin(origin: string, allowedOrigins: string[]) {
   return allowedOrigins.some((allowedOrigin) => {

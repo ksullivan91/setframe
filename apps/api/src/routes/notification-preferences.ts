@@ -2,8 +2,8 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { eq } from 'drizzle-orm';
 import { notificationPreferenceSchema, updateNotificationPreferenceSchema } from '@setline/schemas';
 import { userNotificationPreference } from '@setline/database';
-import { getDb } from '../lib/db';
-import { requireAuth } from '../plugins/auth';
+import { getDb } from '../lib/db.js';
+import { requireAuth } from '../plugins/auth.js';
 
 function toResponse(row: typeof userNotificationPreference.$inferSelect) {
   return {

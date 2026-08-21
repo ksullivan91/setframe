@@ -3,9 +3,9 @@ import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { trainingProgramSchema } from '@setline/schemas';
 import { trainingProgram } from '@setline/database';
-import { getDb } from '../lib/db';
-import { requireAuth } from '../plugins/auth';
-import { notFound } from '../lib/errors';
+import { getDb } from '../lib/db.js';
+import { requireAuth } from '../plugins/auth.js';
+import { notFound } from '../lib/errors.js';
 
 function toProgramResponse(row: typeof trainingProgram.$inferSelect) {
   return {

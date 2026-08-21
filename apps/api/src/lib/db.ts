@@ -1,5 +1,5 @@
 import { createDb, type Database } from '@setline/database';
-import { getEnv } from './env';
+import { getEnv } from './env.js';
 
 /**
  * Lazily constructed Drizzle client. Constructing a neon-http client does

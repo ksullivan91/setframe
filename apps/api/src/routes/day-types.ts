@@ -16,9 +16,9 @@ import {
   programScheduleSlotSchema,
   scheduleOverrideSchema,
 } from '@setline/schemas';
-import { getDb } from '../lib/db';
-import { forbidden, notFound } from '../lib/errors';
-import { requireAuth } from '../plugins/auth';
+import { getDb } from '../lib/db.js';
+import { forbidden, notFound } from '../lib/errors.js';
+import { requireAuth } from '../plugins/auth.js';
 
 function toDayTypeResponse(row: typeof dayType.$inferSelect) {
   return {

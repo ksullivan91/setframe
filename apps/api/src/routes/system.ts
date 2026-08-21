@@ -1,7 +1,7 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { sql } from 'drizzle-orm';
-import { getDb } from '../lib/db';
+import { getDb } from '../lib/db.js';
 
 /** GET /v1/health, GET /v1/ready — no auth (docs/api.md "System"). */
 export const systemRoutes: FastifyPluginAsyncZod = async (fastify) => {

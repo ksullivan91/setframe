@@ -15,9 +15,9 @@ import {
   workoutSet,
   dayType,
 } from '@setline/database';
-import { getDb } from '../lib/db';
-import { requireAuth } from '../plugins/auth';
-import { badRequest, forbidden, notFound } from '../lib/errors';
+import { getDb } from '../lib/db.js';
+import { requireAuth } from '../plugins/auth.js';
+import { badRequest, forbidden, notFound } from '../lib/errors.js';
 
 function toSessionResponse(row: typeof workoutSession.$inferSelect) {
   return {

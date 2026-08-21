@@ -2,8 +2,8 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { dailyActivitySummary, dailyNutritionSnapshot, integrationSyncState } from '@setline/database';
-import { getDb } from '../lib/db';
-import { requireAuth } from '../plugins/auth';
+import { getDb } from '../lib/db.js';
+import { requireAuth } from '../plugins/auth.js';
 
 const dayPayloadSchema = z.object({
   localDate: z.string().date(),

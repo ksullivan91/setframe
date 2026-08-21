@@ -3,9 +3,9 @@ import { and, eq, isNull, or } from 'drizzle-orm';
 import { z } from 'zod';
 import { createExerciseSchema, exerciseSchema } from '@setline/schemas';
 import { exercise } from '@setline/database';
-import { getDb } from '../lib/db';
-import { requireAuth } from '../plugins/auth';
-import { notFound, forbidden } from '../lib/errors';
+import { getDb } from '../lib/db.js';
+import { requireAuth } from '../plugins/auth.js';
+import { notFound, forbidden } from '../lib/errors.js';
 
 function toExerciseResponse(row: typeof exercise.$inferSelect) {
   return {

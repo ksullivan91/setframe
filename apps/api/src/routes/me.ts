@@ -2,9 +2,9 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { eq } from 'drizzle-orm';
 import { updateMeSchema, userSchema } from '@setline/schemas';
 import { user } from '@setline/database';
-import { getDb } from '../lib/db';
-import { requireAuth } from '../plugins/auth';
-import { notFound } from '../lib/errors';
+import { getDb } from '../lib/db.js';
+import { requireAuth } from '../plugins/auth.js';
+import { notFound } from '../lib/errors.js';
 
 function toUserResponse(row: typeof user.$inferSelect) {
   return {

@@ -1,6 +1,6 @@
 import fp from 'fastify-plugin';
 import type { FastifyPluginAsync } from 'fastify';
-import { ApiError } from '../lib/errors';
+import { ApiError } from '../lib/errors.js';
 
 /**
  * Formats every error into docs/api.md's shape:

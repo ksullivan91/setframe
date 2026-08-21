@@ -2,9 +2,9 @@ import fp from 'fastify-plugin';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { eq } from 'drizzle-orm';
 import { user } from '@setline/database';
-import { getDb } from '../lib/db';
-import { verifyBearerToken } from '../lib/clerk';
-import { unauthorized } from '../lib/errors';
+import { getDb } from '../lib/db.js';
+import { verifyBearerToken } from '../lib/clerk.js';
+import { unauthorized } from '../lib/errors.js';
 
 declare module 'fastify' {
   interface FastifyRequest {

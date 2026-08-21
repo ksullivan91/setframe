@@ -1,5 +1,5 @@
 import { verifyToken as clerkVerifyToken } from '@clerk/backend';
-import { getEnv } from './env';
+import { getEnv } from './env.js';
 
 /**
  * Verifies a Clerk-issued bearer token and returns the decoded payload

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { buildApp } from '../app';
+import { buildApp } from '../app.js';
 
 const { mockSelect, mockInsert, mockUpdate, mockDelete, db } = vi.hoisted(() => {
   const mockSelect = vi.fn();

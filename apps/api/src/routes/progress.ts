@@ -3,8 +3,8 @@ import { and, eq, gte } from 'drizzle-orm';
 import { z } from 'zod';
 import { summarizeConsistency } from '@setline/domain';
 import { workoutSession } from '@setline/database';
-import { getDb } from '../lib/db';
-import { requireAuth } from '../plugins/auth';
+import { getDb } from '../lib/db.js';
+import { requireAuth } from '../plugins/auth.js';
 
 function isoWeekStart(date: Date): string {
   const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));

@@ -13,8 +13,8 @@ import {
   trainingProgram,
   workoutSession,
 } from '@setline/database';
-import { getDb } from '../lib/db';
-import { requireAuth } from '../plugins/auth';
+import { getDb } from '../lib/db.js';
+import { requireAuth } from '../plugins/auth.js';
 
 async function resolveScheduledDayType(db: ReturnType<typeof getDb>, userId: string, localDate: string) {
   const override = await db
