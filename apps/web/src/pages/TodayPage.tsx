@@ -1,49 +1,44 @@
+import { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { useQuery } from '@tanstack/react-query';
-import { TrendingUp, TrendingDown } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { CheckCircle2, Circle, Scale, NotebookText, Utensils, Dumbbell, Watch, RefreshCw } from 'lucide-react';
 import { spacing, radius } from '@setline/design-tokens';
 import { typeScale } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';
-import { Card, Button } from '../components';
+import { Button, Card, Checkbox, Input, useToast } from '../components';
 import { useApiClient } from '../lib/api-client';
 
-/**
- * Today — dashboard with a pre-workout preview card (style guide §18
- * Idea 5) and a "From Apple Health" metric grid with trend-vs-30-day-avg
- * indicators (style guide §18 Idea 4). cycleLengthWeeks/
- * estimatedDurationMinutes come from docs/data-model.md's TrainingProgram/
- * WorkoutTemplate fields.
- *
- * Mobile-first: base layout stacks planned-workout + metrics in a single
- * column (matching `Screen/Mobile/Today`); the 2-column layout (matching
- * `Screen/Web/Today`'s "planned workout + check-in on the left, ... on
- * the right" per style guide §14) only applies from `tablet` up.
- */
-interface TodayMetric {
-  label: string;
-  value: string;
-  trendDirection: 'up' | 'down';
-  trendLabel: string;
-}
-
-/**
- * Response shape of GET /v1/dashboard/today (see
- * apps/api/src/routes/dashboard.ts) — a passthrough aggregate, not yet a
- * finalized Zod schema. weekLabel/dayLabel/estimatedDurationMinutes are
- * always null until phase-4 program-activation work lands server-side.
- */
 interface DashboardTodayResponse {
   localDate: string;
   sessions: { id: string; status: string; templateId: string | null }[];
-  activitySummary: {
-    steps: number | null;
-    activeEnergyKcal: string | null;
-    exerciseMinutes: number | null;
+  manualEntry: {
+    localDate: string;
+    morningWeightValue: number | null;
+    morningWeightUnit: 'lb' | 'kg' | null;
+    notes: string | null;
+    mood: number | null;
+    preWorkoutMealLogged: boolean | null;
   } | null;
-  nutritionSnapshot: { caloriesKcal: string | null } | null;
+  activitySummary: {
+    activeEnergyKcal?: string | null;
+    exerciseMinutes?: number | null;
+    appleMoveTimeMinutes?: number | null;
+    sourceBundleId?: string | null;
+    updatedAt?: string;
+  } | null;
+  nutritionSnapshot: { caloriesKcal?: string | null } | null;
+  syncState: { status?: 'ok' | 'syncing' | 'error' | 'needs_attention'; lastSuccessfulSyncAt?: string | null } | null;
   weekLabel: string | null;
   dayLabel: string | null;
   estimatedDurationMinutes: number | null;
+}
+
+interface DailyManualEntryPatch {
+  morningWeightValue?: number | null;
+  morningWeightUnit?: 'lb' | 'kg' | null;
+  notes?: string | null;
+  mood?: number | null;
+  preWorkoutMealLogged?: boolean | null;
 }
 
 const Grid = styled.div`
@@ -51,191 +46,306 @@ const Grid = styled.div`
   grid-template-columns: 1fr;
   gap: ${spacing[24]}px;
 
-  ${mq.tablet} {
-    grid-template-columns: 1.4fr 1fr;
+  ${mq.desktop} {
+    grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.85fr);
+    align-items: start;
   }
 `;
-
-const Section = styled.section`
+const Stack = styled.div`
   display: flex;
   flex-direction: column;
-  gap: ${spacing[12]}px;
+  gap: ${spacing[16]}px;
 `;
-
-const SectionTitle = styled.h2`
-  font-size: ${typeScale.sectionTitle.fontSize}px;
-  font-weight: ${typeScale.sectionTitle.fontWeight};
-  margin: 0;
-`;
-
-const WorkoutSubtitle = styled.p`
-  font-size: ${typeScale.compactBody.fontSize}px;
-  color: ${(p) => p.theme.text.secondary};
-  margin: 0 0 ${spacing[16]}px;
-`;
-
-const ActionRow = styled.div`
+const Header = styled.div`
   display: flex;
   flex-direction: column;
-  gap: ${spacing[8]}px;
-
-  ${mq.tablet} {
-    flex-direction: row;
-  }
+  gap: ${spacing[4]}px;
 `;
-
-const MetricGrid = styled.div`
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: ${spacing[12]}px;
-
-  ${mq.tablet} {
-    grid-template-columns: 1fr 1fr;
-  }
-`;
-
-const MetricTile = styled(Card)`
-  border-radius: ${radius.large}px;
-`;
-
-const MetricLabel = styled.div`
+const Eyebrow = styled.span`
   font-size: ${typeScale.label.fontSize}px;
   color: ${(p) => p.theme.text.secondary};
 `;
-
-const MetricValue = styled.div`
-  font-size: ${typeScale.numericMetric.fontSize}px;
-  font-weight: ${typeScale.numericMetric.fontWeight};
-  font-variant-numeric: tabular-nums;
+const Title = styled.h1`
+  margin: 0;
+  font-size: ${typeScale.pageTitle.fontSize}px;
 `;
-
-const TrendRow = styled.div<{ $direction: 'up' | 'down' }>`
+const Subtitle = styled.p`
+  margin: 0;
+  color: ${(p) => p.theme.text.secondary};
+  font-size: ${typeScale.body.fontSize}px;
+`;
+const RitualCard = styled(Card)`
+  display: flex;
+  flex-direction: column;
+  gap: ${spacing[16]}px;
+`;
+const StepRow = styled.div<{ $passive?: boolean }>`
+  display: flex;
+  gap: ${spacing[12]}px;
+  align-items: flex-start;
+  opacity: ${(p) => (p.$passive ? 0.88 : 1)};
+`;
+const StepContent = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: ${spacing[8]}px;
+`;
+const StepHeader = styled.div`
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: ${typeScale.caption.fontSize}px;
-  color: ${(p) => (p.$direction === 'up' ? p.theme.status.success : p.theme.status.error)};
+  justify-content: space-between;
+  gap: ${spacing[12]}px;
 `;
+const StepTitle = styled.h2`
+  margin: 0;
+  font-size: ${typeScale.sectionTitle.fontSize}px;
+`;
+const StepBody = styled.p`
+  margin: 0;
+  color: ${(p) => p.theme.text.secondary};
+  font-size: ${typeScale.compactBody.fontSize}px;
+`;
+const Divider = styled.hr`
+  margin: 0;
+  border: none;
+  border-top: 1px solid ${(p) => p.theme.border.subtle};
+`;
+const InlineRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: ${spacing[8]}px;
+  align-items: center;
+`;
+const NotesArea = styled.textarea`
+  width: 100%;
+  min-height: 88px;
+  resize: vertical;
+  border: 1px solid ${(p) => p.theme.border.default};
+  border-radius: ${radius.small}px;
+  background: ${(p) => p.theme.surface.raised};
+  color: ${(p) => p.theme.text.primary};
+  padding: ${spacing[12]}px;
+  font: inherit;
 
-async function fetchToday(
-  api: ReturnType<typeof useApiClient>,
-  localDate: string,
-): Promise<DashboardTodayResponse> {
+  &:focus-visible {
+    outline: 2px solid ${(p) => p.theme.action.primary};
+    outline-offset: 2px;
+  }
+`;
+const MoodButton = styled.button<{ $selected: boolean }>`
+  width: 40px;
+  height: 40px;
+  border-radius: ${radius.full}px;
+  border: 1px solid ${(p) => (p.$selected ? p.theme.action.primary : p.theme.border.default)};
+  background: ${(p) => (p.$selected ? p.theme.action.accentSubtle : p.theme.surface.raised)};
+  cursor: pointer;
+  font-size: 20px;
+`;
+const PassiveChip = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: ${spacing[4]}px;
+  border-radius: ${radius.full}px;
+  background: ${(p) => p.theme.surface.sunken};
+  padding: ${spacing[4]}px ${spacing[12]}px;
+  color: ${(p) => p.theme.text.secondary};
+  font-size: ${typeScale.caption.fontSize}px;
+`;
+const MetaList = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: ${spacing[8]}px;
+`;
+const MetaTile = styled.div`
+  border: 1px solid ${(p) => p.theme.border.subtle};
+  border-radius: ${radius.small}px;
+  padding: ${spacing[12]}px;
+  background: ${(p) => p.theme.surface.sunken};
+`;
+const MetaLabel = styled.div`
+  font-size: ${typeScale.caption.fontSize}px;
+  color: ${(p) => p.theme.text.secondary};
+`;
+const MetaValue = styled.div`
+  font-size: ${typeScale.body.fontSize}px;
+  font-weight: 600;
+`;
+const statusCopy = {
+  ok: 'Synced',
+  syncing: 'Updating health data…',
+  error: 'Health sync needs attention',
+  needs_attention: 'Health sync needs attention',
+} as const;
+const moodOptions = [
+  { value: 1, label: 'Awful', emoji: '😫' },
+  { value: 2, label: 'Low', emoji: '😕' },
+  { value: 3, label: 'Okay', emoji: '😐' },
+  { value: 4, label: 'Good', emoji: '🙂' },
+  { value: 5, label: 'Great', emoji: '😄' },
+] as const;
+
+function todayLocalDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+function formatLongDate(localDate: string) {
+  return new Date(`${localDate}T12:00:00`).toLocaleDateString(undefined, {
+    weekday: 'long', month: 'long', day: 'numeric',
+  });
+}
+function formatTime(value?: string | null) {
+  if (!value) return null;
+  return new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+function fetchToday(api: ReturnType<typeof useApiClient>, localDate: string) {
   return api.get<DashboardTodayResponse>(`/dashboard/today?localDate=${localDate}`);
 }
-
-function todaysLocalDate(): string {
-  return new Date().toISOString().slice(0, 10);
+function patchDaily(api: ReturnType<typeof useApiClient>, localDate: string, body: DailyManualEntryPatch) {
+  return api.patch(`/me/daily-entries/${localDate}`, body);
 }
 
 export function TodayPage() {
   const api = useApiClient();
-  const localDate = todaysLocalDate();
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['today', localDate],
-    queryFn: () => fetchToday(api, localDate),
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const localDate = todayLocalDate();
+  const { data, isLoading, isError } = useQuery({ queryKey: ['today', localDate], queryFn: () => fetchToday(api, localDate) });
+  const manual = data?.manualEntry;
+  const [weight, setWeight] = useState('');
+  const [journal, setJournal] = useState('');
+  const [selectedMood, setSelectedMood] = useState<number | null>(null);
+
+  useEffect(() => {
+    setWeight(manual?.morningWeightValue?.toString() ?? '');
+    setJournal(manual?.notes ?? '');
+    setSelectedMood(manual?.mood ?? null);
+  }, [manual?.morningWeightValue, manual?.notes, manual?.mood]);
+
+  const saveMutation = useMutation({
+    mutationFn: (body: DailyManualEntryPatch) => patchDaily(api, localDate, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['today', localDate] });
+      toast.show({ variant: 'success', message: 'Today updated.' });
+    },
+    onError: () => toast.show({ variant: 'error', message: 'Could not save today.', actionLabel: 'Retry now' }),
   });
 
-  const plannedSession = data?.sessions.find((s) => s.status !== 'abandoned') ?? null;
-
-  // TODO: apps/api's /v1/dashboard/today doesn't yet expose 30-day-avg
-  // comparisons (only raw daily_activity_summary/daily_nutrition_snapshot
-  // rows) — trend direction/label are display-only placeholders until a
-  // trend-comparison endpoint exists.
-  const rawMetrics: (TodayMetric | null)[] = data
-    ? [
-        data.activitySummary?.steps != null
-          ? {
-              label: 'Steps',
-              value: data.activitySummary.steps.toLocaleString(),
-              trendDirection: 'up',
-              trendLabel: 'today',
-            }
-          : null,
-        data.activitySummary?.activeEnergyKcal != null
-          ? {
-              label: 'Active Calories',
-              value: Math.round(Number(data.activitySummary.activeEnergyKcal)).toString(),
-              trendDirection: 'up',
-              trendLabel: 'today',
-            }
-          : null,
-        data.activitySummary?.exerciseMinutes != null
-          ? {
-              label: 'Exercise Minutes',
-              value: data.activitySummary.exerciseMinutes.toString(),
-              trendDirection: 'up',
-              trendLabel: 'today',
-            }
-          : null,
-        data.nutritionSnapshot?.caloriesKcal != null
-          ? {
-              label: 'Calories (MFP)',
-              value: Math.round(Number(data.nutritionSnapshot.caloriesKcal)).toLocaleString(),
-              trendDirection: 'up',
-              trendLabel: 'today',
-            }
-          : null,
-      ]
-    : [];
-  const metrics: TodayMetric[] = rawMetrics.filter((m): m is TodayMetric => m !== null);
+  const workoutDone = Boolean(data?.sessions.length);
+  const mealDone = Boolean(manual?.preWorkoutMealLogged);
+  const weightDone = manual?.morningWeightValue != null;
+  const journalDone = Boolean((manual?.notes ?? '').trim()) || manual?.mood != null;
+  const syncDone = Boolean(data?.activitySummary);
+  const syncStatus = data?.syncState?.status ?? 'ok';
 
   return (
     <Grid>
-      <Section>
-        <SectionTitle>Today's Workout</SectionTitle>
+      <Stack>
+        <Header>
+          <Eyebrow>{data ? formatLongDate(data.localDate) : formatLongDate(localDate)}</Eyebrow>
+          <Title>Today ritual</Title>
+          <Subtitle>Move through your morning in order. Auto-synced steps check themselves off.</Subtitle>
+        </Header>
+        <RitualCard>
+          {isLoading ? <span>Loading…</span> : isError ? <span>Couldn't load today.</span> : (
+            <>
+              <StepRow>
+                {weightDone ? <CheckCircle2 size={22} /> : <Circle size={22} />}
+                <StepContent>
+                  <StepHeader>
+                    <StepTitle style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Scale size={18} /> Morning weight</StepTitle>
+                    {weightDone ? <PassiveChip>{manual?.morningWeightValue} {manual?.morningWeightUnit ?? 'lb'}</PassiveChip> : null}
+                  </StepHeader>
+                  <StepBody>Log your morning weigh-in before anything else.</StepBody>
+                  <InlineRow>
+                    <div style={{ flex: 1, minWidth: 180 }}>
+                      <Input label="Weight" value={weight} onChange={(e) => setWeight(e.target.value)} inputMode="decimal" unit={manual?.morningWeightUnit ?? 'lb'} />
+                    </div>
+                    <Button onClick={() => saveMutation.mutate({ morningWeightValue: weight ? Number(weight) : null, morningWeightUnit: manual?.morningWeightUnit ?? 'lb' })} disabled={saveMutation.isPending}>Save</Button>
+                  </InlineRow>
+                </StepContent>
+              </StepRow>
+              <Divider />
+              <StepRow>
+                {journalDone ? <CheckCircle2 size={22} /> : <Circle size={22} />}
+                <StepContent>
+                  <StepHeader>
+                    <StepTitle style={{ display: 'flex', alignItems: 'center', gap: 8 }}><NotebookText size={18} /> Journal + mood</StepTitle>
+                  </StepHeader>
+                  <StepBody>Short note and a quick read on how you feel.</StepBody>
+                  <InlineRow>
+                    {moodOptions.map((m) => (
+                      <MoodButton key={m.value} $selected={selectedMood === m.value} aria-label={m.label} onClick={() => setSelectedMood(m.value)}>{m.emoji}</MoodButton>
+                    ))}
+                  </InlineRow>
+                  <NotesArea value={journal} onChange={(e) => setJournal(e.target.value)} placeholder="Energy, soreness, sleep, anything worth noting." />
+                  <InlineRow>
+                    <Button onClick={() => saveMutation.mutate({ notes: journal || null, mood: selectedMood })} disabled={saveMutation.isPending}>Save journal</Button>
+                  </InlineRow>
+                </StepContent>
+              </StepRow>
+              <Divider />
+              <StepRow>
+                {mealDone ? <CheckCircle2 size={22} /> : <Circle size={22} />}
+                <StepContent>
+                  <StepHeader>
+                    <StepTitle style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Utensils size={18} /> Pre-workout meal</StepTitle>
+                    {mealDone ? <PassiveChip>Logged in MFP</PassiveChip> : null}
+                  </StepHeader>
+                  <StepBody>No nutrition details here — just mark it done once it’s in MyFitnessPal.</StepBody>
+                  <Checkbox checked={mealDone} onChange={(e) => saveMutation.mutate({ preWorkoutMealLogged: e.target.checked })} label="Done in MyFitnessPal" />
+                </StepContent>
+              </StepRow>
+              <Divider />
+              <StepRow>
+                {workoutDone ? <CheckCircle2 size={22} /> : <Circle size={22} />}
+                <StepContent>
+                  <StepHeader>
+                    <StepTitle style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Dumbbell size={18} /> Workout</StepTitle>
+                    {data?.estimatedDurationMinutes ? <PassiveChip>~{data.estimatedDurationMinutes} min</PassiveChip> : null}
+                  </StepHeader>
+                  <StepBody>
+                    {data?.dayLabel ? `${data.weekLabel ?? 'Scheduled'} · ${data.dayLabel}` : 'No scheduled day type resolved yet.'}
+                  </StepBody>
+                  <InlineRow>
+                    <Button disabled={!data?.dayLabel}>Start workout</Button>
+                    <Button variant="secondary" disabled={!data?.dayLabel}>Preview</Button>
+                  </InlineRow>
+                </StepContent>
+              </StepRow>
+              <Divider />
+              <StepRow $passive>
+                {syncDone ? <CheckCircle2 size={22} /> : <RefreshCw size={22} />}
+                <StepContent>
+                  <StepHeader>
+                    <StepTitle style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Watch size={18} /> Watch auto-sync</StepTitle>
+                    <PassiveChip>{statusCopy[syncStatus as keyof typeof statusCopy] ?? 'Synced'}</PassiveChip>
+                  </StepHeader>
+                  <StepBody>
+                    Passive step — your watch fills this in after training.
+                    {formatTime(data?.syncState?.lastSuccessfulSyncAt) ? ` Last sync ${formatTime(data?.syncState?.lastSuccessfulSyncAt)}.` : ''}
+                  </StepBody>
+                  <MetaList>
+                    <MetaTile><MetaLabel>Exercise</MetaLabel><MetaValue>{data?.activitySummary?.exerciseMinutes ?? data?.activitySummary?.appleMoveTimeMinutes ?? '—'} min</MetaValue></MetaTile>
+                    <MetaTile><MetaLabel>Active kcal</MetaLabel><MetaValue>{data?.activitySummary?.activeEnergyKcal ? Math.round(Number(data.activitySummary.activeEnergyKcal)) : '—'}</MetaValue></MetaTile>
+                    <MetaTile><MetaLabel>MFP kcal</MetaLabel><MetaValue>{data?.nutritionSnapshot?.caloriesKcal ? Math.round(Number(data.nutritionSnapshot.caloriesKcal)) : '—'}</MetaValue></MetaTile>
+                  </MetaList>
+                </StepContent>
+              </StepRow>
+            </>
+          )}
+        </RitualCard>
+      </Stack>
+      <Stack>
         <Card>
-          {isLoading ? (
-            <span>Loading…</span>
-          ) : isError ? (
-            <span>Couldn't load today's plan.</span>
-          ) : plannedSession ? (
-            <>
-              <strong>Workout in progress</strong>
-              <WorkoutSubtitle>
-                Status: {plannedSession.status}
-                {data?.estimatedDurationMinutes ? ` · ~${data.estimatedDurationMinutes} min` : ''}
-              </WorkoutSubtitle>
-              <ActionRow>
-                <Button variant="primary">Continue Workout</Button>
-                <Button variant="secondary">Preview</Button>
-              </ActionRow>
-            </>
-          ) : (
-            <>
-              <span>No workout planned today.</span>
-              <ActionRow>
-                <Button variant="primary">Start Ad-hoc Workout</Button>
-              </ActionRow>
-            </>
-          )}
+          <StepTitle style={{ marginBottom: 8 }}>Today summary</StepTitle>
+          <StepBody>{[weightDone, journalDone, mealDone, workoutDone, syncDone].filter(Boolean).length} of 5 steps complete.</StepBody>
+          <MetaList>
+            <MetaTile><MetaLabel>Weight</MetaLabel><MetaValue>{manual?.morningWeightValue ?? '—'} {manual?.morningWeightUnit ?? ''}</MetaValue></MetaTile>
+            <MetaTile><MetaLabel>Mood</MetaLabel><MetaValue>{selectedMood ? moodOptions.find((m) => m.value === selectedMood)?.emoji : '—'}</MetaValue></MetaTile>
+            <MetaTile><MetaLabel>Day type</MetaLabel><MetaValue>{data?.dayLabel ?? 'Rest / none'}</MetaValue></MetaTile>
+          </MetaList>
         </Card>
-      </Section>
-
-      <Section>
-        <SectionTitle>From Apple Health</SectionTitle>
-        <MetricGrid>
-          {isLoading ? (
-            <span>Loading…</span>
-          ) : metrics.length === 0 ? (
-            <span>No Apple Health data synced for today yet.</span>
-          ) : (
-            metrics.map((metric) => {
-              const TrendIcon = metric.trendDirection === 'up' ? TrendingUp : TrendingDown;
-              return (
-                <MetricTile key={metric.label}>
-                  <MetricLabel>{metric.label}</MetricLabel>
-                  <MetricValue>{metric.value}</MetricValue>
-                  <TrendRow $direction={metric.trendDirection}>
-                    <TrendIcon size={14} aria-hidden="true" />
-                    {metric.trendLabel}
-                  </TrendRow>
-                </MetricTile>
-              );
-            })
-          )}
-        </MetricGrid>
-      </Section>
+      </Stack>
     </Grid>
   );
 }
