@@ -2,6 +2,7 @@ export * from './SignInPage';
 export * from './SignUpPage';
 export * from './TodayPage';
 export * from './WorkoutLoggerPage';
+export * from './WorkoutSessionPage';
 export * from './ProgramEditorPage';
 export * from './ExerciseHistoryPage';
 export * from './ProgressPage';

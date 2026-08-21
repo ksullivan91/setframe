@@ -9,19 +9,16 @@ import {
   ExerciseHistoryPage,
   ProgressPage,
   SettingsPage,
+  WorkoutSessionPage,
 } from './pages';
 
-/**
- * Note: no web SessionSummary route — per style guide §14/§19.2,
- * SessionSummary is a mobile-only screen (`Screen/Mobile/SessionSummary`);
- * web's WorkoutLogger surfaces the same PR-badge signal inline instead.
- */
 function AuthenticatedApp() {
   return (
     <AppShell>
       <Routes>
         <Route path="/today" element={<TodayPage />} />
         <Route path="/training" element={<ProgramEditorPage />} />
+        <Route path="/workout/:sessionId" element={<WorkoutSessionPage />} />
         <Route path="/history" element={<ExerciseHistoryPage />} />
         <Route path="/progress" element={<ProgressPage />} />
         <Route path="/settings" element={<SettingsPage />} />

@@ -114,6 +114,7 @@ export const dashboardRoutes: FastifyPluginAsyncZod = async (fastify) => {
         syncState: syncState[0] ?? null,
         weekLabel: null,
         dayLabel: nextDayType?.name ?? null,
+        dayTypeId: nextDayType?.id ?? null,
         estimatedDurationMinutes: nextDayType?.estimatedDurationMinutes ?? null,
       };
     },

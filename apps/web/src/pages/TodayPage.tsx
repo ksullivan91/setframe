@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Circle, Scale, NotebookText, Utensils, Dumbbell, Watch, RefreshCw } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { spacing, radius } from '@setline/design-tokens';
+import type { WorkoutSession } from '@setline/schemas';
 import { typeScale } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';
 import { Button, Card, Checkbox, Input, useToast } from '../components';
@@ -30,6 +32,7 @@ interface DashboardTodayResponse {
   syncState: { status?: 'ok' | 'syncing' | 'error' | 'needs_attention'; lastSuccessfulSyncAt?: string | null } | null;
   weekLabel: string | null;
   dayLabel: string | null;
+  dayTypeId: string | null;
   estimatedDurationMinutes: number | null;
 }
 
@@ -197,6 +200,9 @@ function formatTime(value?: string | null) {
   if (!value) return null;
   return new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
+function localTimezone() {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
 function fetchToday(api: ReturnType<typeof useApiClient>, localDate: string) {
   return api.get<DashboardTodayResponse>(`/dashboard/today?localDate=${localDate}`);
 }
@@ -206,6 +212,7 @@ function patchDaily(api: ReturnType<typeof useApiClient>, localDate: string, bod
 
 export function TodayPage() {
   const api = useApiClient();
+  const navigate = useNavigate();
   const toast = useToast();
   const queryClient = useQueryClient();
   const localDate = todayLocalDate();
@@ -228,6 +235,19 @@ export function TodayPage() {
       toast.show({ variant: 'success', message: 'Today updated.' });
     },
     onError: () => toast.show({ variant: 'error', message: 'Could not save today.', actionLabel: 'Retry now' }),
+  });
+
+  const startWorkoutMutation = useMutation({
+    mutationFn: async () => {
+      if (data?.sessions[0]?.id) return { id: data.sessions[0].id } as Pick<WorkoutSession, 'id'>;
+      return api.post<WorkoutSession>('/workout-sessions', {
+        templateId: data?.dayTypeId ?? undefined,
+        localDate,
+        timezone: localTimezone(),
+      });
+    },
+    onSuccess: (session) => navigate(`/workout/${session.id}`),
+    onError: () => toast.show({ variant: 'error', message: 'Could not start workout.', actionLabel: 'Retry now' }),
   });
 
   const workoutDone = Boolean(data?.sessions.length);
@@ -307,8 +327,8 @@ export function TodayPage() {
                     {data?.dayLabel ? `${data.weekLabel ?? 'Scheduled'} · ${data.dayLabel}` : 'No scheduled day type resolved yet.'}
                   </StepBody>
                   <InlineRow>
-                    <Button disabled={!data?.dayLabel}>Start workout</Button>
-                    <Button variant="secondary" disabled={!data?.dayLabel}>Preview</Button>
+                    <Button disabled={!data?.dayLabel || startWorkoutMutation.isPending} onClick={() => startWorkoutMutation.mutate()}>Start workout</Button>
+                    <Button variant="secondary" disabled>Preview</Button>
                   </InlineRow>
                 </StepContent>
               </StepRow>
