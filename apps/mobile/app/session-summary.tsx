@@ -1,51 +1,132 @@
-import { ScrollView, View, Text, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useMemo } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Trophy } from 'lucide-react-native';
+import { useQuery } from '@tanstack/react-query';
+import { calculateVolume, estimateOneRepMax } from '@setline/domain';
+import type { WorkoutSessionDetail, WorkoutSet } from '@setline/schemas';
 import { Card } from '../src/components/Card';
 import { Button } from '../src/components/Button';
 import { SetRowReadOnly } from '../src/components/SetRow';
+import { useApiClient } from '../src/lib/api-client';
 import { useTheme } from '../src/theme/ThemeProvider';
 import { spacing, typeScale } from '../src/theme/getTheme';
 
-/**
- * `Screen/Mobile/SessionSummary` per style guide §17 — dedicated
- * mobile-only post-workout recap: title/date header, 3-up stat row
- * (Duration / Volume / PRs), a highlighted PR card (trophy icon,
- * accent-subtle background), a condensed per-exercise set list, and
- * Share/Done actions. Backed by `detectWeightPR`/`detectRepPR`
- * (docs/data-model.md §8 decision 5) — no schema change needed.
- */
+function formatDuration(startedAt: string | null, completedAt: string | null) {
+  if (!startedAt || !completedAt) return '—';
+  const minutes = Math.max(0, Math.round((new Date(completedAt).getTime() - new Date(startedAt).getTime()) / 60000));
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return hours > 0 ? `${hours}h ${remainder}m` : `${minutes} min`;
+}
+
+function formatDate(localDate: string) {
+  return new Date(`${localDate}T12:00:00`).toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
+function findPrSet(session: WorkoutSessionDetail) {
+  for (const exerciseLog of session.exercises) {
+    const prSet = exerciseLog.sets.find((set) => set.isPrWeight || set.isPrReps);
+    if (prSet) return { exerciseName: exerciseLog.exercise.name, set: prSet, previous: exerciseLog.previousSession?.sets.at(-1) };
+  }
+  return null;
+}
+
+function formatSet(set: { weightValue: number | null; weightUnit?: string | null; reps: number | null }) {
+  const weight = set.weightValue != null ? `${set.weightValue} ${set.weightUnit ?? 'lb'}` : '—';
+  const reps = set.reps != null ? `${set.reps}` : '—';
+  return `${weight} × ${reps}`;
+}
+
+function totalPrs(session: WorkoutSessionDetail) {
+  return session.exercises.reduce((count, exerciseLog) => count + exerciseLog.sets.filter((set) => set.isPrWeight || set.isPrReps).length, 0);
+}
+
+function bestEstimated1rm(sets: WorkoutSet[]) {
+  const values = sets.filter((set) => set.weightValue != null && set.reps != null).map((set) => estimateOneRepMax(set.weightValue!, set.reps!));
+  return values.length ? `${Math.round(Math.max(...values))} lb` : '—';
+}
+
 export default function SessionSummaryScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const api = useApiClient();
+  const { sessionId: rawSessionId } = useLocalSearchParams<{ sessionId?: string | string[] }>();
+  const sessionId = Array.isArray(rawSessionId) ? rawSessionId[0] : rawSessionId;
+
+  const sessionQuery = useQuery({
+    queryKey: ['mobile-session-summary', sessionId],
+    queryFn: () => api.get<WorkoutSessionDetail>(`/workout-sessions/${sessionId}`),
+    enabled: Boolean(sessionId),
+  });
+
+  const allSets = useMemo(() => sessionQuery.data?.exercises.flatMap((exerciseLog) => exerciseLog.sets) ?? [], [sessionQuery.data]);
+  const volume = useMemo(() => calculateVolume(allSets), [allSets]);
+  const prSummary = useMemo(() => (sessionQuery.data ? findPrSet(sessionQuery.data) : null), [sessionQuery.data]);
+
+  if (sessionQuery.isLoading) {
+    return (
+      <View style={[styles.centered, { backgroundColor: theme.surface.canvas }]}> 
+        <ActivityIndicator color={theme.action.primary} />
+      </View>
+    );
+  }
+
+  if (sessionQuery.isError || !sessionQuery.data) {
+    return (
+      <View style={[styles.centered, { backgroundColor: theme.surface.canvas, padding: spacing[16] }]}> 
+        <Text style={{ color: theme.text.primary, textAlign: 'center' }}>Couldn&apos;t load session summary.</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={{ backgroundColor: theme.surface.canvas }} contentContainerStyle={styles.content}>
-      <Text style={[styles.title, { color: theme.text.primary }]}>Push Day A</Text>
-      <Text style={[styles.date, { color: theme.text.secondary }]}>Today, 6:42 PM</Text>
+      <Text style={[styles.title, { color: theme.text.primary }]}>{sessionQuery.data.status === 'completed' ? 'Workout complete' : 'Workout summary'}</Text>
+      <Text style={[styles.date, { color: theme.text.secondary }]}>{formatDate(sessionQuery.data.localDate)}</Text>
 
       <View style={styles.statRow}>
-        <Stat label="Duration" value="52 min" />
-        <Stat label="Volume" value="12,840 lb" />
-        <Stat label="PRs" value="1" />
+        <Stat label="Duration" value={formatDuration(sessionQuery.data.startedAt, sessionQuery.data.completedAt)} />
+        <Stat label="Volume" value={volume ? `${volume.toLocaleString()} lb` : '—'} />
+        <Stat label="PRs" value={`${totalPrs(sessionQuery.data)}`} />
       </View>
 
-      <Card style={[styles.prCard, { backgroundColor: theme.action.accentSubtle }]}>
-        <View style={styles.prHeader}>
-          <Trophy size={20} color={theme.action.primary} />
-          <Text style={[styles.prTitle, { color: theme.action.primary }]}>New PR</Text>
-        </View>
-        <Text style={{ color: theme.text.primary }}>
-          Barbell Bench Press — 195 lb × 6, up from 185 lb × 8
-        </Text>
-      </Card>
+      {prSummary ? (
+        <Card style={[styles.prCard, { backgroundColor: theme.action.accentSubtle }]}>
+          <View style={styles.prHeader}>
+            <Trophy size={20} color={theme.action.primary} />
+            <Text style={[styles.prTitle, { color: theme.action.primary }]}>New PR</Text>
+          </View>
+          <Text style={{ color: theme.text.primary }}>
+            {prSummary.exerciseName} — {formatSet(prSummary.set)}
+            {prSummary.previous ? `, up from ${formatSet(prSummary.previous)}` : ''}
+          </Text>
+        </Card>
+      ) : null}
 
       <Card>
-        <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Barbell Bench Press</Text>
-        <SetRowReadOnly setLabel="Set 1" valueLabel="185 × 8" />
-        <SetRowReadOnly setLabel="Set 2" valueLabel="185 × 8" />
-        <SetRowReadOnly setLabel="Set 3" valueLabel="195 × 6" isPr />
+        <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Session stats</Text>
+        <SetRowReadOnly setLabel="Sets logged" valueLabel={`${allSets.length}`} />
+        <SetRowReadOnly setLabel="Best est. 1RM" valueLabel={bestEstimated1rm(allSets)} />
       </Card>
+
+      {sessionQuery.data.exercises.map((exerciseLog) => (
+        <Card key={exerciseLog.id}>
+          <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>{exerciseLog.exercise.name}</Text>
+          {exerciseLog.sets.map((set, index) => (
+            <SetRowReadOnly
+              key={set.id}
+              setLabel={`Set ${index + 1}`}
+              valueLabel={formatSet(set)}
+              isPr={set.isPrWeight || set.isPrReps}
+            />
+          ))}
+        </Card>
+      ))}
 
       <View style={styles.actionRow}>
         <View style={{ flex: 1 }}>
@@ -77,6 +158,11 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   content: {
     padding: spacing[16],
     gap: spacing[16],
@@ -91,13 +177,16 @@ const styles = StyleSheet.create({
   statRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: spacing[8],
   },
   stat: {
     alignItems: 'center',
     gap: spacing[4],
+    flex: 1,
   },
   statValue: {
     fontWeight: '600',
+    textAlign: 'center',
   },
   statLabel: {
     fontSize: typeScale.label.fontSize,
