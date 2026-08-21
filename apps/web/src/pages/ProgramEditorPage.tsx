@@ -385,6 +385,7 @@ export function ProgramEditorPage() {
   const [overrideNote, setOverrideNote] = useState('');
   const [newDayTypeName, setNewDayTypeName] = useState('');
   const [newExerciseId, setNewExerciseId] = useState('');
+  const [customExerciseName, setCustomExerciseName] = useState('');
   const [prescriptionKind, setPrescriptionKind] = useState('sets_reps');
   const [editState, setEditState] = useState<EditState | null>(null);
 
@@ -450,6 +451,15 @@ export function ProgramEditorPage() {
     mutationFn: (body: { exerciseId: string; prescription: Prescription }) =>
       api.post(`/day-types/${selectedDayTypeId}/exercises`, body),
     onSuccess: () => invalidateTraining(),
+  });
+
+  const createExercise = useMutation({
+    mutationFn: (body: { name: string }) => api.post<Exercise>('/exercises', body),
+    onSuccess: (created) => {
+      queryClient.invalidateQueries({ queryKey: ['exercises'] });
+      setNewExerciseId(created.id);
+      setCustomExerciseName('');
+    },
   });
 
   const patchExercise = useMutation({
@@ -567,9 +577,35 @@ export function ProgramEditorPage() {
             )}
 
             <PrescriptionGrid>
-              <Select label="Exercise" value={newExerciseId} onChange={(e) => setNewExerciseId(e.target.value)} options={[{ value: '', label: 'Select exercise' }, ...exercises.map((exercise) => ({ value: exercise.id, label: exercise.name }))]} />
+              <Select
+                label="Exercise"
+                value={newExerciseId}
+                onChange={(e) => setNewExerciseId(e.target.value)}
+                options={[
+                  { value: '', label: 'Select exercise' },
+                  ...exercises.map((exercise) => ({
+                    value: exercise.id,
+                    label: exercise.isCustom ? `${exercise.name} (custom)` : exercise.name,
+                  })),
+                ]}
+              />
               <Select label="Prescription type" value={prescriptionKind} onChange={(e) => setPrescriptionKind(e.target.value)} options={prescriptionOptions} />
             </PrescriptionGrid>
+            <Row style={{ gap: 8 }}>
+              <input
+                placeholder="Create a new exercise…"
+                value={customExerciseName}
+                onChange={(e) => setCustomExerciseName(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <Button
+                variant="secondary"
+                onClick={() => customExerciseName.trim() && createExercise.mutate({ name: customExerciseName.trim() })}
+                disabled={!customExerciseName.trim() || createExercise.isPending}
+              >
+                <Plus size={16} />Create exercise
+              </Button>
+            </Row>
             <Button onClick={() => newExerciseId && addExercise.mutate({ exerciseId: newExerciseId, prescription: emptyPrescription(prescriptionKind) })} disabled={!newExerciseId}><Plus size={16} />Add exercise</Button>
           </Card>
         </Column>
