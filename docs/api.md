@@ -84,6 +84,14 @@ DELETE /v1/workout-sets/:setId
 POST   /v1/workout-exercise-logs/:exerciseLogId/sets/reorder
 ```
 
+`POST /v1/workout-sessions` with a `templateId` pre-populates each
+exercise's sets from its planned `prescription` (sets/reps, top+backoff
+split, timed, distance, duration) — set type and target reps/duration/
+distance are filled in, weight is left blank for the user to log. Extra
+sets (e.g. an additional PR-chase set) can still be added freely via
+`POST .../sets`.
+
+
 ## Daily manual inputs
 
 ```text

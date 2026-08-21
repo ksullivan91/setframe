@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { and, eq, isNotNull, ne } from 'drizzle-orm';
 import { z } from 'zod';
@@ -9,6 +10,7 @@ import {
   workoutExerciseLogSchema,
   workoutSessionSchema,
   workoutSetSchema,
+  type Prescription,
 } from '@setline/schemas';
 import { detectRepPR, detectWeightPR, type HistoricalSet } from '@setline/domain';
 import {
@@ -22,6 +24,7 @@ import {
 import { getDb } from '../lib/db.js';
 import { requireAuth } from '../plugins/auth.js';
 import { badRequest, forbidden, notFound } from '../lib/errors.js';
+
 
 const prEligibleSetTypes: ReadonlySet<LoggedSetType> = new Set(['working', 'top', 'backoff']);
 type LoggedSetType = 'warmup' | 'working' | 'top' | 'backoff' | 'drop' | 'failure';
@@ -80,11 +83,92 @@ function toSetResponse(row: typeof workoutSet.$inferSelect) {
     distanceValue: row.distanceValue != null ? Number(row.distanceValue) : null,
     distanceUnit: row.distanceUnit,
     rpe: row.rpe != null ? Number(row.rpe) : null,
-    isPrWeight: row.notes?.includes('[pr_weight]') ?? false,
-    isPrReps: row.notes?.includes('[pr_reps]') ?? false,
+    isPrWeight: row.isPrWeight,
+    isPrReps: row.isPrReps,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
+}
+
+/**
+ * Expand a day-type's planned prescription into a list of draft sets to
+ * pre-populate when a session is created from a template. Weight is left
+ * blank (that's what the user logs), but set type / target reps / target
+ * duration / target distance are filled in from the plan so the user is
+ * editing a pre-built structure rather than starting from a blank screen.
+ */
+function expandPrescriptionToSetDrafts(prescription: Prescription): Array<{
+  setType: LoggedSetType;
+  reps: number | null;
+  durationSeconds: number | null;
+  distanceValue: number | null;
+  distanceUnit: 'm' | 'km' | 'mi' | null;
+}> {
+  switch (prescription.kind) {
+    case 'sets_reps':
+    case 'per_side':
+    case 'bodyweight_reps':
+      return Array.from({ length: prescription.sets }, () => ({
+        setType: 'working' as LoggedSetType,
+        reps: prescription.repsMin,
+        durationSeconds: null,
+        distanceValue: null,
+        distanceUnit: null,
+      }));
+    case 'top_set_backoff':
+      return [
+        ...Array.from({ length: prescription.topSets }, () => ({
+          setType: 'top' as LoggedSetType,
+          reps: prescription.topRepsMin,
+          durationSeconds: null,
+          distanceValue: null,
+          distanceUnit: null,
+        })),
+        ...Array.from({ length: prescription.backoffSets }, () => ({
+          setType: 'backoff' as LoggedSetType,
+          reps: prescription.backoffRepsMin,
+          durationSeconds: null,
+          distanceValue: null,
+          distanceUnit: null,
+        })),
+      ];
+    case 'timed':
+      return Array.from({ length: prescription.sets }, () => ({
+        setType: 'working' as LoggedSetType,
+        reps: null,
+        durationSeconds: prescription.durationSeconds,
+        distanceValue: null,
+        distanceUnit: null,
+      }));
+    case 'distance':
+      return Array.from({ length: prescription.sets }, () => ({
+        setType: 'working' as LoggedSetType,
+        reps: null,
+        durationSeconds: null,
+        distanceValue: prescription.distanceValue,
+        distanceUnit: prescription.distanceUnit,
+      }));
+    case 'duration':
+      return [
+        {
+          setType: 'working' as LoggedSetType,
+          reps: null,
+          durationSeconds: prescription.durationMinutes * 60,
+          distanceValue: null,
+          distanceUnit: null,
+        },
+      ];
+    case 'distanceDuration':
+      return [
+        {
+          setType: 'working' as LoggedSetType,
+          reps: null,
+          durationSeconds: prescription.durationMinutes * 60,
+          distanceValue: prescription.distanceMiles,
+          distanceUnit: 'mi',
+        },
+      ];
+  }
 }
 
 const sessionParamsSchema = z.object({ sessionId: z.string().uuid() });
@@ -133,13 +217,6 @@ async function getOwnedSet(db: ReturnType<typeof getDb>, setId: string, userId: 
   if (!row) throw notFound('Set not found');
   if (row.session.userId !== userId) throw forbidden('Not allowed to access this set');
   return row;
-}
-
-function withPrFlags(notes: string | null, isPrWeight: boolean, isPrReps: boolean) {
-  const tokens = new Set((notes ?? '').split(' ').filter(Boolean).filter((part) => !part.startsWith('[pr_')));
-  if (isPrWeight) tokens.add('[pr_weight]');
-  if (isPrReps) tokens.add('[pr_reps]');
-  return Array.from(tokens).join(' ') || null;
 }
 
 async function getHistoricalSets(
@@ -260,16 +337,39 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
           .where(eq(dayTypeExercise.dayTypeId, request.body.templateId));
 
         if (templateExercises.length) {
-          await db.insert(workoutExerciseLog).values(
-            templateExercises.map(({ dayTypeExercise: templateExercise, exercise: exerciseRow }) => ({
-              sessionId: session.id,
-              exerciseId: exerciseRow.id,
-              exerciseNameSnapshot: exerciseRow.name,
-              sortOrder: templateExercise.sortOrder,
-              prescriptionSnapshot: templateExercise.prescription,
-              notes: templateExercise.notes ?? null,
-            })),
-          );
+          const insertedLogs = await db
+            .insert(workoutExerciseLog)
+            .values(
+              templateExercises.map(({ dayTypeExercise: templateExercise, exercise: exerciseRow }) => ({
+                sessionId: session.id,
+                exerciseId: exerciseRow.id,
+                exerciseNameSnapshot: exerciseRow.name,
+                sortOrder: templateExercise.sortOrder,
+                prescriptionSnapshot: templateExercise.prescription,
+                notes: templateExercise.notes ?? null,
+              })),
+            )
+            .returning();
+
+          const setDrafts = insertedLogs.flatMap((log) => {
+            const prescription = log.prescriptionSnapshot as Prescription | null;
+            if (!prescription) return [];
+            return expandPrescriptionToSetDrafts(prescription).map((draft, index) => ({
+              exerciseLogId: log.id,
+              clientId: randomUUID(),
+              sortOrder: index,
+              setType: draft.setType,
+              reps: draft.reps,
+              durationSeconds: draft.durationSeconds,
+              distanceValue: draft.distanceValue?.toString() ?? null,
+              distanceUnit: draft.distanceUnit,
+              completed: false,
+            }));
+          });
+
+          if (setDrafts.length) {
+            await db.insert(workoutSet).values(setDrafts);
+          }
         }
       }
 
@@ -485,7 +585,9 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
           distanceUnit: request.body.distanceUnit ?? null,
           rpe: request.body.rpe?.toString() ?? null,
           completed: true,
-          notes: withPrFlags(null, prFlags.isPrWeight, prFlags.isPrReps),
+          isPrWeight: prFlags.isPrWeight,
+          isPrReps: prFlags.isPrReps,
+          notes: null,
         })
         .returning();
       reply.status(201);
@@ -529,7 +631,8 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
           distanceValue: request.body.distanceValue?.toString() ?? ownedSet.set.distanceValue,
           distanceUnit: request.body.distanceUnit ?? ownedSet.set.distanceUnit,
           rpe: request.body.rpe?.toString() ?? ownedSet.set.rpe,
-          notes: withPrFlags(ownedSet.set.notes, prFlags.isPrWeight, prFlags.isPrReps),
+          isPrWeight: prFlags.isPrWeight,
+          isPrReps: prFlags.isPrReps,
           updatedAt: new Date(),
         })
         .where(eq(workoutSet.id, request.params.setId))
