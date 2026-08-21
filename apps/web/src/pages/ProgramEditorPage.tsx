@@ -63,6 +63,12 @@ const LibraryCard = styled(Card)`
   gap: ${spacing[12]}px;
 `;
 
+const StackCard = styled(Card)`
+  display: flex;
+  flex-direction: column;
+  gap: ${spacing[12]}px;
+`;
+
 const LibraryItem = styled.button<{ $active: boolean }>`
   text-align: left;
   padding: ${spacing[12]}px;
@@ -114,16 +120,35 @@ const DayGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: ${spacing[8]}px;
+
+  ${mq.tablet} {
+    gap: ${spacing[4]}px;
+  }
 `;
 
 const DayCell = styled.button<{ $active?: boolean }>`
-  padding: ${spacing[12]}px ${spacing[8]}px;
+  display: flex;
+  flex-direction: column;
+  gap: ${spacing[4]}px;
+  padding: ${spacing[8]}px ${spacing[4]}px;
   border-radius: ${radius.small}px;
   border: 1px solid ${(p) => (p.$active ? p.theme.action.primary : p.theme.border.subtle)};
   background: ${(p) => (p.$active ? p.theme.action.accentSubtle : p.theme.surface.sunken)};
   cursor: pointer;
-  min-height: 80px;
+  min-height: 64px;
   text-align: left;
+  font-size: ${typeScale.caption.fontSize}px;
+`;
+
+const DayName = styled.span`
+  font-weight: 600;
+  font-size: ${typeScale.compactBody.fontSize}px;
+`;
+
+const DayLabel = styled.span`
+  color: ${(p) => p.theme.text.secondary};
+  overflow-wrap: break-word;
+  line-height: 1.2;
 `;
 
 const Backdrop = styled.div`
@@ -383,6 +408,7 @@ export function ProgramEditorPage() {
   const [mode, setMode] = useState<'perpetual' | 'block'>('perpetual');
   const [overrideDate, setOverrideDate] = useState(currentDate());
   const [overrideNote, setOverrideNote] = useState('');
+  const [overrideDayTypeId, setOverrideDayTypeId] = useState<string>('');
   const [newDayTypeName, setNewDayTypeName] = useState('');
   const [newExerciseId, setNewExerciseId] = useState('');
   const [customExerciseName, setCustomExerciseName] = useState('');
@@ -395,12 +421,25 @@ export function ProgramEditorPage() {
 
   const activeProgram = useMemo(() => programs?.find((p) => p.isActive) ?? programs?.[0] ?? null, [programs]);
 
+  const createProgram = useMutation({
+    mutationFn: (body: { name: string }) => api.post<TrainingProgram>('/programs', body),
+    onSuccess: (created) => {
+      queryClient.invalidateQueries({ queryKey: ['programs'] });
+      setSelectedProgramId(created.id);
+    },
+  });
+
   useEffect(() => {
     if (activeProgram && selectedProgramId !== activeProgram.id) {
       setSelectedProgramId(activeProgram.id);
       setMode(activeProgram.cycleLengthWeeks ? 'block' : 'perpetual');
+    } else if (programs && programs.length === 0 && !createProgram.isPending && !createProgram.isSuccess) {
+      // New users have no program yet — schedule slots require one to
+      // attach to, so create a sensible default rather than leaving the
+      // schedule/override UI silently broken (POST .../null/... 400s).
+      createProgram.mutate({ name: 'My Training Program' });
     }
-  }, [activeProgram, selectedProgramId]);
+  }, [activeProgram, selectedProgramId, programs, createProgram]);
 
   useEffect(() => {
     if (dayTypes.length && !selectedDayTypeId) setSelectedDayTypeId(dayTypes[0]!.id);
@@ -547,7 +586,7 @@ export function ProgramEditorPage() {
         </Column>
 
         <Column>
-          <Card>
+          <StackCard>
             <Row style={{ justifyContent: 'space-between' }}>
               <div>
                 <h2 style={{ margin: '0 0 4px 0' }}>{selectedDayType?.name ?? 'Select a day type'}</h2>
@@ -591,13 +630,15 @@ export function ProgramEditorPage() {
               />
               <Select label="Prescription type" value={prescriptionKind} onChange={(e) => setPrescriptionKind(e.target.value)} options={prescriptionOptions} />
             </PrescriptionGrid>
-            <Row style={{ gap: 8 }}>
-              <input
-                placeholder="Create a new exercise…"
-                value={customExerciseName}
-                onChange={(e) => setCustomExerciseName(e.target.value)}
-                style={{ flex: 1 }}
-              />
+            <Row style={{ gap: 8, alignItems: 'flex-end' }}>
+              <div style={{ flex: 1 }}>
+                <Input
+                  label="Create a new exercise"
+                  placeholder="e.g. Cable Face Pull"
+                  value={customExerciseName}
+                  onChange={(e) => setCustomExerciseName(e.target.value)}
+                />
+              </div>
               <Button
                 variant="secondary"
                 onClick={() => customExerciseName.trim() && createExercise.mutate({ name: customExerciseName.trim() })}
@@ -607,35 +648,41 @@ export function ProgramEditorPage() {
               </Button>
             </Row>
             <Button onClick={() => newExerciseId && addExercise.mutate({ exerciseId: newExerciseId, prescription: emptyPrescription(prescriptionKind) })} disabled={!newExerciseId}><Plus size={16} />Add exercise</Button>
-          </Card>
+          </StackCard>
         </Column>
 
         <Column>
-          <Card>
+          <StackCard>
             <h2 style={{ margin: '0 0 12px 0' }}>Program schedule</h2>
-            <Select label="Mode" value={mode} onChange={(e) => { const next = e.target.value as 'perpetual' | 'block'; setMode(next); patchProgram.mutate({ cycleLengthWeeks: next === 'block' ? 1 : null }); }} options={modeOptions} />
-            <DayGrid>
-              {dayNames.map((day, dayIndex) => {
-                const slot = slotsByDay.get(dayIndex);
-                const label = dayTypes.find((type) => type.id === slot?.dayTypeId)?.name ?? 'Unassigned';
-                return (
-                  <DayCell key={day} $active={Boolean(slot)} onClick={() => selectedDayTypeId && upsertSlot.mutate({ id: slot?.id, dayTypeId: selectedDayTypeId, weekNumber: mode === 'block' ? 1 : null, dayIndex, sortOrder: dayIndex })}>
-                    <strong>{day}</strong>
-                    <Small>{label}</Small>
-                  </DayCell>
-                );
-              })}
-            </DayGrid>
-          </Card>
+            {!selectedProgramId ? (
+              <Small>Setting up your training program…</Small>
+            ) : (
+              <>
+                <Select label="Mode" value={mode} onChange={(e) => { const next = e.target.value as 'perpetual' | 'block'; setMode(next); patchProgram.mutate({ cycleLengthWeeks: next === 'block' ? 1 : null }); }} options={modeOptions} />
+                <DayGrid>
+                  {dayNames.map((day, dayIndex) => {
+                    const slot = slotsByDay.get(dayIndex);
+                    const label = dayTypes.find((type) => type.id === slot?.dayTypeId)?.name ?? 'Unassigned';
+                    return (
+                      <DayCell key={day} $active={Boolean(slot)} onClick={() => selectedDayTypeId && upsertSlot.mutate({ id: slot?.id, dayTypeId: selectedDayTypeId, weekNumber: mode === 'block' ? 1 : null, dayIndex, sortOrder: dayIndex })}>
+                        <DayName>{day}</DayName>
+                        <DayLabel>{label}</DayLabel>
+                      </DayCell>
+                    );
+                  })}
+                </DayGrid>
+              </>
+            )}
+          </StackCard>
 
-          <Card>
+          <StackCard>
             <strong>Ad hoc override</strong>
             <Input label="Date" type="date" value={overrideDate} onChange={(e) => setOverrideDate(e.target.value)} />
-            <Select label="Override day type" value={selectedDayTypeId ?? ''} onChange={(e) => setSelectedDayTypeId(e.target.value)} options={dayTypes.map((type) => ({ value: type.id, label: type.name }))} />
+            <Select label="Override day type" value={overrideDayTypeId} onChange={(e) => setOverrideDayTypeId(e.target.value)} options={[{ value: '', label: 'Select day type' }, ...dayTypes.map((type) => ({ value: type.id, label: type.name }))]} />
             <TextArea value={overrideNote} onChange={(e) => setOverrideNote(e.target.value)} placeholder="Travel, swap, extra conditioning…" />
-            <Button onClick={() => selectedDayTypeId && putOverride.mutate({ dayTypeId: selectedDayTypeId, note: overrideNote || null })} disabled={!selectedDayTypeId}>Save override</Button>
+            <Button onClick={() => overrideDayTypeId && putOverride.mutate({ dayTypeId: overrideDayTypeId, note: overrideNote || null })} disabled={!overrideDayTypeId}>Save override</Button>
             <Small>Resolved now: {overrideData?.scheduledDayType?.name ?? 'None'} ({overrideData?.source ?? 'none'})</Small>
-          </Card>
+          </StackCard>
         </Column>
       </Layout>
 

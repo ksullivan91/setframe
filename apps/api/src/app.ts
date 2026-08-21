@@ -52,6 +52,10 @@ export function buildApp() {
   app.register(cors, {
     // ADR 0004: CORS must explicitly allow the Cloudflare Pages web
     // origin(s); wide-open in non-production for local dev convenience.
+    // @fastify/cors defaults `methods` to 'GET,HEAD,POST' only, which
+    // silently fails PATCH/PUT/DELETE preflights — this API uses all of
+    // those, so the full method set must be listed explicitly.
+    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'PUT', 'DELETE'],
     origin(origin, callback) {
       if (process.env.NODE_ENV !== 'production') {
         callback(null, true);
