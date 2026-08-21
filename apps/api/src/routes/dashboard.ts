@@ -47,10 +47,13 @@ async function resolveScheduledDayType(db: ReturnType<typeof getDb>, userId: str
     .where(eq(programScheduleSlot.programVersionId, version.id));
   if (!slots.length) return null;
 
-  const start = program.startDate ? new Date(`${program.startDate}T00:00:00Z`) : new Date(`${localDate}T00:00:00Z`);
   const target = new Date(`${localDate}T00:00:00Z`);
+  // dayIndex is always the actual day-of-week (0=Sun..6=Sat), matching how
+  // the Training page's schedule grid assigns slots — it is NOT an offset
+  // from the program start date.
+  const dayIndex = target.getUTCDay();
+  const start = program.startDate ? new Date(`${program.startDate}T00:00:00Z`) : target;
   const diffDays = Math.floor((target.getTime() - start.getTime()) / 86400000);
-  const dayIndex = diffDays >= 0 ? diffDays % 7 : ((diffDays % 7) + 7) % 7;
   const weekNumber = program.cycleLengthWeeks
     ? ((Math.floor(Math.max(diffDays, 0) / 7) % program.cycleLengthWeeks) + 1)
     : null;
