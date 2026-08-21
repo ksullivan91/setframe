@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, ChevronUp, Plus } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import { spacing, radius } from '@setline/design-tokens';
 import type {
+  CreatePlannedSetInput,
   DayType,
   DayTypeExercise,
+  DayTypeExercisePlannedSet,
   Exercise,
   Prescription,
   ProgramScheduleSlot,
@@ -21,6 +23,7 @@ interface DayTypeDetail extends DayType {
 }
 
 interface EditState {
+  dayTypeId: string;
   exerciseId: string;
   exerciseName: string;
   prescription: Prescription;
@@ -108,6 +111,37 @@ const TextArea = styled.textarea`
   resize: vertical;
 `;
 
+const DisclosureButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: ${spacing[8]}px;
+  background: none;
+  border: none;
+  padding: ${spacing[8]}px 0;
+  color: ${(p) => p.theme.text.primary};
+  font-weight: 600;
+  font-size: ${typeScale.compactBody.fontSize}px;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid ${(p) => p.theme.action.primary};
+    outline-offset: 2px;
+  }
+`;
+
+const PlannedSetRow = styled.div`
+  display: grid;
+  grid-template-columns: minmax(90px, 0.7fr) repeat(3, minmax(64px, 1fr)) auto auto;
+  gap: ${spacing[8]}px;
+  align-items: end;
+  padding: ${spacing[8]}px 0;
+  border-top: 1px solid ${(p) => p.theme.border.subtle};
+
+  ${mq.tablet} {
+    grid-template-columns: 1fr;
+  }
+`;
+
 const DayGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -157,6 +191,22 @@ const prescriptionOptions = [
   { value: 'bodyweight_reps', label: 'Bodyweight reps' },
 ];
 
+const plannedSetTypeOptions = [
+  { value: 'warmup', label: 'Warm-up' },
+  { value: 'working', label: 'Working' },
+  { value: 'top', label: 'Top set' },
+  { value: 'backoff', label: 'Backoff' },
+  { value: 'drop', label: 'Drop set' },
+  { value: 'failure', label: 'To failure' },
+  { value: 'bodyweight', label: 'Bodyweight' },
+  { value: 'timed', label: 'Timed' },
+  { value: 'distance', label: 'Distance' },
+];
+
+function newDraftPlannedSet(): CreatePlannedSetInput {
+  return { setType: 'working', reps: 8 };
+}
+
 function summarizePrescription(p: Prescription) {
   switch (p.kind) {
     case 'sets_reps':
@@ -199,6 +249,110 @@ function moveItem(items: string[], from: number, to: number) {
   if (!item) return items;
   next.splice(to, 0, item);
   return next;
+}
+
+/**
+ * Progressive-disclosure editor for individually-different planned sets
+ * (user-experience-redesign.md §9, e.g. a top set followed by lighter
+ * backoff sets). Collapsed by default so the common "N sets × reps"
+ * case above stays the primary, uncluttered path.
+ */
+function PlannedSetsEditor({ dayTypeId, exerciseId }: { dayTypeId: string; exerciseId: string }) {
+  const api = useApiClient();
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+
+  const queryKey = ['planned-sets', dayTypeId, exerciseId];
+  const { data: plannedSets = [] } = useQuery({
+    queryKey,
+    queryFn: () => api.get<DayTypeExercisePlannedSet[]>(`/day-types/${dayTypeId}/exercises/${exerciseId}/planned-sets`),
+    enabled: open,
+  });
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey });
+
+  const addSet = useMutation({
+    mutationFn: (body: CreatePlannedSetInput) => api.post(`/day-types/${dayTypeId}/exercises/${exerciseId}/planned-sets`, body),
+    onSuccess: invalidate,
+  });
+
+  const patchSet = useMutation({
+    mutationFn: (args: { id: string; body: Partial<CreatePlannedSetInput> }) =>
+      api.patch(`/day-types/${dayTypeId}/exercises/${exerciseId}/planned-sets/${args.id}`, args.body),
+    onSuccess: invalidate,
+  });
+
+  const removeSet = useMutation({
+    mutationFn: (id: string) => api.del<void>(`/day-types/${dayTypeId}/exercises/${exerciseId}/planned-sets/${id}`),
+    onSuccess: () => {
+      invalidate();
+      toast.show({ variant: 'success', message: 'Set removed.' });
+    },
+  });
+
+  return (
+    <div>
+      <DisclosureButton type="button" aria-expanded={open} onClick={() => setOpen((prev) => !prev)}>
+        {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        Customize individual sets
+      </DisclosureButton>
+      {open ? (
+        <div>
+          <Small>
+            Optional — specify each set individually (e.g. a heavier top set followed by lighter backoffs). Leave
+            empty to use the summary prescription above for every set.
+          </Small>
+          {plannedSets.map((set, index) => (
+            <PlannedSetRow key={set.id}>
+              <Select
+                label={`Set ${index + 1} type`}
+                value={set.setType}
+                options={plannedSetTypeOptions}
+                onChange={(e) => patchSet.mutate({ id: set.id, body: { setType: e.target.value as CreatePlannedSetInput['setType'] } })}
+              />
+              <Input
+                label="Reps"
+                inputMode="numeric"
+                value={set.reps ?? ''}
+                onChange={(e) => patchSet.mutate({ id: set.id, body: { reps: Number(e.target.value) || undefined } })}
+              />
+              <Input
+                label="Load"
+                inputMode="decimal"
+                value={set.loadValue ?? ''}
+                onChange={(e) => patchSet.mutate({ id: set.id, body: { loadValue: Number(e.target.value) || undefined, loadUnit: set.loadUnit ?? 'lb' } })}
+              />
+              <Input
+                label="RPE"
+                inputMode="decimal"
+                value={set.rpe ?? ''}
+                onChange={(e) => patchSet.mutate({ id: set.id, body: { rpe: Number(e.target.value) || undefined } })}
+              />
+              <IconButton aria-label={`Move set ${index + 1} up`} disabled={index === 0} onClick={() => moveSet(plannedSets, index, -1)}>
+                <ChevronUp size={16} />
+              </IconButton>
+              <IconButton aria-label={`Remove set ${index + 1}`} onClick={() => removeSet.mutate(set.id)}>
+                <Trash2 size={16} />
+              </IconButton>
+            </PlannedSetRow>
+          ))}
+          <Button variant="secondary" onClick={() => addSet.mutate(newDraftPlannedSet())} disabled={addSet.isPending}>
+            <Plus size={16} />Add set
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  );
+
+  function moveSet(sets: DayTypeExercisePlannedSet[], index: number, delta: number) {
+    const nextIndex = index + delta;
+    if (nextIndex < 0 || nextIndex >= sets.length) return;
+    const plannedSetIdsInOrder = moveItem(sets.map((s) => s.id), index, nextIndex);
+    api
+      .post(`/day-types/${dayTypeId}/exercises/${exerciseId}/planned-sets/reorder`, { plannedSetIdsInOrder })
+      .then(invalidate);
+  }
 }
 
 function ExerciseEditModal({
@@ -346,6 +500,8 @@ function ExerciseEditModal({
         )}
 
         <TextArea value={draft.notes} onChange={(e) => setDraft((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Notes" />
+
+        <PlannedSetsEditor dayTypeId={state.dayTypeId} exerciseId={state.exerciseId} />
 
         <Row style={{ justifyContent: 'space-between' }}>
           <Button variant="destructive" onClick={onDelete}>Delete</Button>
@@ -571,6 +727,7 @@ export function ProgramEditorPage() {
                         label: 'Edit',
                         onClick: () =>
                           setEditState({
+                            dayTypeId: exercise.dayTypeId,
                             exerciseId: exercise.id,
                             exerciseName: exercises.find((item) => item.id === exercise.exerciseId)?.name ?? exercise.exerciseId,
                             prescription: exercise.prescription,

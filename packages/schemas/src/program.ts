@@ -98,7 +98,7 @@ export const dayTypeExerciseSchema = z.object({
 });
 export type DayTypeExercise = z.infer<typeof dayTypeExerciseSchema>;
 
-const plannedSetTypeSchema = z.enum([
+export const plannedSetTypeSchema = z.enum([
   'warmup',
   'working',
   'top',
