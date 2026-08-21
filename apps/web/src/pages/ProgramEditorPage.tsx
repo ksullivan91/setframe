@@ -173,7 +173,7 @@ const Modal = styled(Card)`
 
 const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const modeOptions = [
-  { value: 'perpetual', label: 'Perpetual' },
+  { value: 'perpetual', label: 'Repeats weekly' },
   { value: 'block', label: 'Block' },
 ];
 const prescriptionOptions = [
@@ -582,14 +582,14 @@ export function ProgramEditorPage() {
     <Column>
       <div>
         <SectionTitle>Training</SectionTitle>
-        <Small>Day-type library, builder, schedule, and one-off override.</Small>
+        <Small>Workout library, builder, schedule, and schedule exceptions.</Small>
       </div>
       <Layout>
         <Column>
           <LibraryCard>
-            <strong>Day-type library</strong>
-            <Input label="New day type" value={newDayTypeName} onChange={(e) => setNewDayTypeName(e.target.value)} placeholder="Upper A, Recovery Walk…" />
-            <Button onClick={() => newDayTypeName.trim() && createDayType.mutate({ name: newDayTypeName.trim() })} disabled={!newDayTypeName.trim() || createDayType.isPending}>Create day type</Button>
+            <strong>Workout library</strong>
+            <Input label="New workout" value={newDayTypeName} onChange={(e) => setNewDayTypeName(e.target.value)} placeholder="Upper A, Recovery Walk…" />
+            <Button onClick={() => newDayTypeName.trim() && createDayType.mutate({ name: newDayTypeName.trim() })} disabled={!newDayTypeName.trim() || createDayType.isPending}>Create workout</Button>
             {dayTypes.map((dayType) => (
               <LibraryItem key={dayType.id} $active={selectedDayTypeId === dayType.id} onClick={() => setSelectedDayTypeId(dayType.id)}>
                 <strong>{dayType.name}</strong>
@@ -603,7 +603,7 @@ export function ProgramEditorPage() {
           <StackCard>
             <Row style={{ justifyContent: 'space-between' }}>
               <div>
-                <h2 style={{ margin: '0 0 4px 0' }}>{selectedDayType?.name ?? 'Select a day type'}</h2>
+                <h2 style={{ margin: '0 0 4px 0' }}>{selectedDayType?.name ?? 'Select a workout'}</h2>
                 <Small>{selectedDayType?.description ?? 'Build the exercise list and prescription here.'}</Small>
               </div>
               {selectedDayType ? <Button variant="destructive" onClick={() => deleteDayType.mutate(selectedDayType.id)}>Delete</Button> : null}
@@ -701,12 +701,12 @@ export function ProgramEditorPage() {
           </StackCard>
 
           <StackCard>
-            <strong>Ad hoc override</strong>
+            <strong>Schedule exception</strong>
             <Input label="Date" type="date" value={overrideDate} onChange={(e) => setOverrideDate(e.target.value)} />
-            <Select label="Override day type" value={overrideDayTypeId} onChange={(e) => setOverrideDayTypeId(e.target.value)} options={[{ value: '', label: 'Select day type' }, ...dayTypes.map((type) => ({ value: type.id, label: type.name }))]} />
+            <Select label="Workout" value={overrideDayTypeId} onChange={(e) => setOverrideDayTypeId(e.target.value)} options={[{ value: '', label: 'Select a workout' }, ...dayTypes.map((type) => ({ value: type.id, label: type.name }))]} />
             <TextArea value={overrideNote} onChange={(e) => setOverrideNote(e.target.value)} placeholder="Travel, swap, extra conditioning…" />
-            <Button onClick={() => overrideDayTypeId && putOverride.mutate({ dayTypeId: overrideDayTypeId, note: overrideNote || null })} disabled={!overrideDayTypeId}>Save override</Button>
-            <Small>Resolved now: {overrideData?.scheduledDayType?.name ?? 'None'} ({overrideData?.source ?? 'none'})</Small>
+            <Button onClick={() => overrideDayTypeId && putOverride.mutate({ dayTypeId: overrideDayTypeId, note: overrideNote || null })} disabled={!overrideDayTypeId}>Save exception</Button>
+            <Small>Currently scheduled: {overrideData?.scheduledDayType?.name ?? 'None'} ({overrideData?.source ?? 'none'})</Small>
           </StackCard>
         </Column>
       </Layout>

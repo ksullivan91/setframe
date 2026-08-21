@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, Circle, Scale, NotebookText, Utensils, Dumbbell, Watch, RefreshCw, X } from 'lucide-react';
+import { CheckCircle2, Circle, Scale, NotebookText, Utensils, Dumbbell, Watch, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { spacing, radius } from '@setline/design-tokens';
 import type { DayTypeExercise, Exercise, WorkoutSession } from '@setline/schemas';
 import { typeScale } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';
-import { Button, Card, Checkbox, IconButton, Input, useToast } from '../components';
+import { Button, Card, Checkbox, Input, Modal, useToast } from '../components';
 import { useApiClient } from '../lib/api-client';
 import { summarizePrescription } from '../lib/prescription';
 
@@ -188,30 +188,6 @@ const MetaValue = styled.div`
   font-size: ${typeScale.body.fontSize}px;
   font-weight: 600;
 `;
-const Backdrop = styled.div`
-  position: fixed;
-  inset: 0;
-  background: rgba(21, 21, 34, 0.56);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: ${spacing[16]}px;
-  z-index: 1000;
-`;
-const PreviewModal = styled(Card)`
-  width: min(480px, 100%);
-  max-height: 90vh;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: ${spacing[16]}px;
-`;
-const PreviewHeader = styled.div`
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: ${spacing[12]}px;
-`;
 const PreviewExerciseRow = styled.div`
   display: flex;
   flex-direction: column;
@@ -278,23 +254,12 @@ export function TodayPage() {
   const [journal, setJournal] = useState('');
   const [selectedMood, setSelectedMood] = useState<number | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const previewCloseButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     setWeight(manual?.morningWeightValue?.toString() ?? '');
     setJournal(manual?.notes ?? '');
     setSelectedMood(manual?.mood ?? null);
   }, [manual?.morningWeightValue, manual?.notes, manual?.mood]);
-
-  useEffect(() => {
-    if (!previewOpen) return;
-    previewCloseButtonRef.current?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setPreviewOpen(false);
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [previewOpen]);
 
   const saveMutation = useMutation({
     mutationFn: (body: DailyManualEntryPatch) => patchDaily(api, localDate, body),
@@ -353,7 +318,7 @@ export function TodayPage() {
               {data?.estimatedDurationMinutes ? <PassiveChip>~{data.estimatedDurationMinutes} min</PassiveChip> : null}
             </WorkoutCardHeader>
             <StepBody>
-              {data?.dayLabel ? `${data.weekLabel ?? 'Scheduled'} · ${data.dayLabel}` : 'No scheduled day type resolved yet.'}
+              {data?.dayLabel ? `${data.weekLabel ?? 'Scheduled'} · ${data.dayLabel}` : 'No workout scheduled yet.'}
             </StepBody>
             <InlineRow>
               <Button disabled={!data?.dayLabel || startWorkoutMutation.isPending} onClick={() => startWorkoutMutation.mutate()}>
@@ -443,35 +408,27 @@ export function TodayPage() {
           <MetaList>
             <MetaTile><MetaLabel>Weight</MetaLabel><MetaValue>{manual?.morningWeightValue ?? '—'} {manual?.morningWeightUnit ?? ''}</MetaValue></MetaTile>
             <MetaTile><MetaLabel>Mood</MetaLabel><MetaValue>{selectedMood ? moodOptions.find((m) => m.value === selectedMood)?.emoji : '—'}</MetaValue></MetaTile>
-            <MetaTile><MetaLabel>Day type</MetaLabel><MetaValue>{data?.dayLabel ?? 'Rest / none'}</MetaValue></MetaTile>
+            <MetaTile><MetaLabel>Workout</MetaLabel><MetaValue>{data?.dayLabel ?? 'Rest / none'}</MetaValue></MetaTile>
           </MetaList>
         </Card>
       </Stack>
     </Grid>
-    {previewOpen ? (
-      <Backdrop onClick={() => setPreviewOpen(false)}>
-        <PreviewModal role="dialog" aria-modal="true" aria-labelledby="preview-modal-title" onClick={(e) => e.stopPropagation()}>
-          <PreviewHeader>
-            <div>
-              <StepTitle id="preview-modal-title" style={{ margin: 0 }}>{dayTypePreviewQuery.data?.name ?? 'Today\u2019s plan'}</StepTitle>
-              <StepBody>Planned exercises — nothing is logged until you start the workout.</StepBody>
-            </div>
-            <IconButton ref={previewCloseButtonRef} aria-label="Close preview" onClick={() => setPreviewOpen(false)}>
-              <X size={16} />
-            </IconButton>
-          </PreviewHeader>
-          {dayTypePreviewQuery.isLoading ? <StepBody>Loading plan…</StepBody> : null}
-          {dayTypePreviewQuery.data?.exercises.length === 0 ? <StepBody>No exercises added to this day type yet.</StepBody> : null}
-          {dayTypePreviewQuery.data?.exercises.map((ex) => (
-            <PreviewExerciseRow key={ex.id}>
-              <PreviewExerciseName>{exerciseNameById.get(ex.exerciseId) ?? 'Exercise'}</PreviewExerciseName>
-              <PreviewPlan>{summarizePrescription(ex.prescription)}</PreviewPlan>
-            </PreviewExerciseRow>
-          ))}
-          <Button onClick={() => setPreviewOpen(false)}>Close</Button>
-        </PreviewModal>
-      </Backdrop>
-    ) : null}
+    <Modal
+      open={previewOpen}
+      onClose={() => setPreviewOpen(false)}
+      title={dayTypePreviewQuery.data?.name ?? 'Today\u2019s plan'}
+      description="Planned exercises — nothing is logged until you start the workout."
+    >
+      {dayTypePreviewQuery.isLoading ? <StepBody>Loading plan…</StepBody> : null}
+      {dayTypePreviewQuery.data?.exercises.length === 0 ? <StepBody>No exercises added to this workout yet.</StepBody> : null}
+      {dayTypePreviewQuery.data?.exercises.map((ex) => (
+        <PreviewExerciseRow key={ex.id}>
+          <PreviewExerciseName>{exerciseNameById.get(ex.exerciseId) ?? 'Exercise'}</PreviewExerciseName>
+          <PreviewPlan>{summarizePrescription(ex.prescription)}</PreviewPlan>
+        </PreviewExerciseRow>
+      ))}
+      <Button onClick={() => setPreviewOpen(false)}>Close</Button>
+    </Modal>
     </>
   );
 }
