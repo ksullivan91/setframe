@@ -550,7 +550,7 @@ export function TodayPage() {
                 <Button variant="secondary" onClick={() => setExceptionOpen(true)}>
                   Swap today
                 </Button>
-                <Button variant="secondary" onClick={() => setSkipOpen(true)}>
+                <Button variant="tertiary" onClick={() => setSkipOpen(true)}>
                   Skip today
                 </Button>
               </InlineRow>

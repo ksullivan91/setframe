@@ -542,7 +542,7 @@ export function ProgramCreationWizardPage() {
 
           <Footer>
             <Row>
-              <Button variant="secondary" onClick={goToEditor}>Exit to full editor</Button>
+              <Button variant="tertiary" onClick={goToEditor}>Switch to full editor</Button>
               {currentStep > 0 ? (
                 <Button variant="secondary" onClick={() => setCurrentStep((step) => Math.max(0, step - 1))}>
                   <ArrowLeft size={16} /> Back
