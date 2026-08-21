@@ -1190,7 +1190,7 @@ export function ProgramEditorPage() {
           <StackCard>
             <h2 style={{ margin: '0 0 12px 0' }}>Program schedule</h2>
             {!selectedProgramId ? (
-              <Small>Setting up your training program…</Small>
+              <Small>Set up your training program to see it here.</Small>
             ) : (
               <>
                 <Select label="Mode" value={mode} onChange={(e) => { const next = e.target.value as 'perpetual' | 'block'; setMode(next); patchProgram.mutate({ cycleLengthWeeks: next === 'block' ? 1 : null }); }} options={modeOptions} />
