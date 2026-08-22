@@ -98,7 +98,7 @@ interface DailyManualEntryPatch {
   preWorkoutMealLogged?: boolean | null;
 }
 
-type TodayWorkoutState = 'no-program' | 'unscheduled' | 'scheduled' | 'in-progress';
+type TodayWorkoutState = 'no-program' | 'unscheduled' | 'scheduled' | 'in-progress' | 'completed';
 
 const Grid = styled.div`
   display: grid;
@@ -144,6 +144,17 @@ const WorkoutCard = styled(Card)`
   gap: ${spacing[12]}px;
   border-color: ${(p) => p.theme.action.primary};
   background: ${(p) => p.theme.action.accentSubtle};
+`;
+/** Story 06: subtle success-tinted surface for a completed scheduled
+ * workout — translucent/opaque green accent, not a saturated CTA color,
+ * per the story's explicit "completion semantics, not a new primary
+ * button color" guidance. */
+const CompletedWorkoutCard = styled(Card)`
+  display: flex;
+  flex-direction: column;
+  gap: ${spacing[12]}px;
+  border-color: ${(p) => p.theme.status.success}55;
+  background: ${(p) => p.theme.status.success}14;
 `;
 const WorkoutCardHeader = styled.div`
   display: flex;
@@ -545,26 +556,37 @@ export function TodayPage() {
   const postWorkoutVolume = sumVolume(postWorkoutReviewQuery.data);
   const todayWorkoutState: TodayWorkoutState = activeSession
     ? 'in-progress'
-    : showProgramSetupPrompt
-      ? 'no-program'
-      : data?.dayTypeId
-        ? 'scheduled'
-        : 'unscheduled';
+    // A completed session for today must win over "not started yet" —
+    // otherwise Today would offer Start/Resume for a workout that's
+    // already done (Story 06). Checked before no-program/scheduled so a
+    // completed ad-hoc/off-schedule session still surfaces correctly.
+    : completedSession
+      ? 'completed'
+      : showProgramSetupPrompt
+        ? 'no-program'
+        : data?.dayTypeId
+          ? 'scheduled'
+          : 'unscheduled';
   const workoutCardTitle =
     todayWorkoutState === 'no-program'
       ? 'Set up your training'
       : todayWorkoutState === 'in-progress'
         ? 'Workout ready to resume'
-        : "Today's workout";
+        : todayWorkoutState === 'completed'
+          ? 'Workout complete'
+          : "Today's workout";
   const workoutCardBody =
     todayWorkoutState === 'no-program'
       ? "Create your first training program to automatically schedule workouts here."
       : todayWorkoutState === 'in-progress'
         ? `You already started this session${formatTime(activeSession?.startedAt) ? ` at ${formatTime(activeSession?.startedAt)}` : ''}. Pick up where you left off.`
-        : todayWorkoutState === 'scheduled'
-          ? `${data?.weekLabel ?? 'Scheduled'} · ${data?.dayLabel}${data?.scheduleSource === 'override' ? ' · changed for today' : ''}`
-          : 'No workout scheduled yet. Choose a workout for today or adjust today’s plan without changing your recurring schedule.';
-  const showWorkoutDuration = todayWorkoutState !== 'no-program' && Boolean(data?.estimatedDurationMinutes);
+        : todayWorkoutState === 'completed'
+          ? `Workout complete${formatTime(completedSession?.completedAt) ? ` at ${formatTime(completedSession?.completedAt)}` : ''}.`
+          : todayWorkoutState === 'scheduled'
+            ? `${data?.weekLabel ?? 'Scheduled'} · ${data?.dayLabel}${data?.scheduleSource === 'override' ? ' · changed for today' : ''}`
+            : 'No workout scheduled yet. Choose a workout for today or adjust today’s plan without changing your recurring schedule.';
+  const showWorkoutDuration = todayWorkoutState !== 'no-program' && todayWorkoutState !== 'completed' && Boolean(data?.estimatedDurationMinutes);
+  const PrimaryWorkoutCard = todayWorkoutState === 'completed' ? CompletedWorkoutCard : WorkoutCard;
 
   return (
     <>
@@ -577,16 +599,39 @@ export function TodayPage() {
           </Header>
 
           {showProgramSetupPrompt || (!isLoading && !isError) ? (
-            <WorkoutCard>
+            <PrimaryWorkoutCard>
               <WorkoutCardHeader>
                 <SectionTitle style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Dumbbell size={18} />
+                  {todayWorkoutState === 'completed' ? <CheckCircle2 size={18} /> : <Dumbbell size={18} />}
                   {workoutCardTitle}
                 </SectionTitle>
                 {showWorkoutDuration ? <PassiveChip>~{data?.estimatedDurationMinutes} min</PassiveChip> : null}
               </WorkoutCardHeader>
               <StepBody>{workoutCardBody}</StepBody>
-              {todayWorkoutState !== 'no-program' && data?.override?.note ? <PassiveChip>{data.override.note}</PassiveChip> : null}
+              {todayWorkoutState !== 'no-program' && todayWorkoutState !== 'completed' && data?.override?.note ? (
+                <PassiveChip>{data.override.note}</PassiveChip>
+              ) : null}
+              {todayWorkoutState === 'completed' ? (
+                <>
+                  {postWorkoutReviewQuery.isLoading ? <StepBody>Loading workout summary…</StepBody> : null}
+                  {postWorkoutReviewQuery.data ? (
+                    <MetaList>
+                      <MetaTile>
+                        <MetaLabel>Exercises</MetaLabel>
+                        <MetaValue>{postWorkoutReviewQuery.data.exercises.length}</MetaValue>
+                      </MetaTile>
+                      <MetaTile>
+                        <MetaLabel>Sets logged</MetaLabel>
+                        <MetaValue>{postWorkoutSets}</MetaValue>
+                      </MetaTile>
+                      <MetaTile>
+                        <MetaLabel>Total volume</MetaLabel>
+                        <MetaValue>{postWorkoutVolume ? `${postWorkoutVolume} lb` : '—'}</MetaValue>
+                      </MetaTile>
+                    </MetaList>
+                  ) : null}
+                </>
+              ) : null}
               <InlineRow>
                 {todayWorkoutState === 'no-program' ? (
                   <Button onClick={() => navigate('/training/new')}>Start guided setup</Button>
@@ -594,6 +639,11 @@ export function TodayPage() {
                 {todayWorkoutState === 'in-progress' ? (
                   <Button disabled={startWorkoutMutation.isPending} onClick={() => startWorkoutMutation.mutate()}>
                     Resume workout
+                  </Button>
+                ) : null}
+                {todayWorkoutState === 'completed' && completedSession ? (
+                  <Button variant="secondary" onClick={() => navigate(`/workout/${completedSession.id}`)}>
+                    Review completed workout
                   </Button>
                 ) : null}
                 {todayWorkoutState === 'scheduled' ? (
@@ -618,7 +668,8 @@ export function TodayPage() {
                   </Button>
                 ) : null}
               </InlineRow>
-            </WorkoutCard>
+            </PrimaryWorkoutCard>
+
           ) : null}
 
           <RitualCard>
@@ -824,37 +875,6 @@ export function TodayPage() {
                   </Button>
                 </InlineRow>
               </SummaryList>
-            </Card>
-          ) : null}
-
-          {!activeSession && completedSession ? (
-            <Card>
-              <SectionTitle style={{ marginBottom: 8 }}>Post-workout review</SectionTitle>
-              {postWorkoutReviewQuery.isLoading ? <StepBody>Loading workout summary…</StepBody> : null}
-              {postWorkoutReviewQuery.data ? (
-                <SummaryList>
-                  <StepBody>
-                    Workout complete{formatTime(completedSession.completedAt) ? ` at ${formatTime(completedSession.completedAt)}` : ''}.
-                  </StepBody>
-                  <MetaList>
-                    <MetaTile>
-                      <MetaLabel>Exercises</MetaLabel>
-                      <MetaValue>{postWorkoutReviewQuery.data.exercises.length}</MetaValue>
-                    </MetaTile>
-                    <MetaTile>
-                      <MetaLabel>Sets logged</MetaLabel>
-                      <MetaValue>{postWorkoutSets}</MetaValue>
-                    </MetaTile>
-                    <MetaTile>
-                      <MetaLabel>Total volume</MetaLabel>
-                      <MetaValue>{postWorkoutVolume ? `${postWorkoutVolume} lb` : '—'}</MetaValue>
-                    </MetaTile>
-                  </MetaList>
-                  <Button variant="secondary" onClick={() => navigate(`/workout/${completedSession.id}`)}>
-                    Review completed workout
-                  </Button>
-                </SummaryList>
-              ) : null}
             </Card>
           ) : null}
         </Stack>

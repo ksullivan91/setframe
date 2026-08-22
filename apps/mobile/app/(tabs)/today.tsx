@@ -101,7 +101,7 @@ interface DailyManualEntryPatch {
   preWorkoutMealLogged?: boolean | null;
 }
 
-type TodayWorkoutState = 'no-program' | 'unscheduled' | 'scheduled' | 'in-progress';
+type TodayWorkoutState = 'no-program' | 'unscheduled' | 'scheduled' | 'in-progress' | 'completed';
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 type DashboardSyncStatus = NonNullable<DashboardTodayResponse['syncState']>['status'];
 
@@ -365,27 +365,36 @@ export default function TodayScreen() {
 
   const todayWorkoutState: TodayWorkoutState = activeSession
     ? 'in-progress'
-    : showProgramSetupPrompt
-      ? 'no-program'
-      : todayQuery.data?.dayTypeId
-        ? 'scheduled'
-        : 'unscheduled';
+    // A completed session for today must win over "not started yet" —
+    // otherwise Today would offer Start/Resume for a workout that's
+    // already done (Story 06). Mirrors the web fix.
+    : completedSession
+      ? 'completed'
+      : showProgramSetupPrompt
+        ? 'no-program'
+        : todayQuery.data?.dayTypeId
+          ? 'scheduled'
+          : 'unscheduled';
 
   const workoutTitle =
     todayWorkoutState === 'no-program'
       ? 'Set up your training'
       : todayWorkoutState === 'in-progress'
         ? 'Workout ready to resume'
-        : "Today's workout";
+        : todayWorkoutState === 'completed'
+          ? 'Workout complete'
+          : "Today's workout";
 
   const workoutBody =
     todayWorkoutState === 'no-program'
       ? 'Create your first training program to automatically schedule workouts here.'
       : todayWorkoutState === 'in-progress'
         ? `You already started this session${formatTime(activeSession?.startedAt) ? ` at ${formatTime(activeSession?.startedAt)}` : ''}. Pick up where you left off.`
-        : todayWorkoutState === 'scheduled'
-          ? `${todayQuery.data?.weekLabel ?? 'Scheduled'} · ${todayQuery.data?.dayLabel}${todayQuery.data?.scheduleSource === 'override' ? ' · changed for today' : ''}`
-          : 'No workout scheduled yet. Choose a workout for today or adjust today’s plan without changing your recurring schedule.';
+        : todayWorkoutState === 'completed'
+          ? `Workout complete${formatTime(completedSession?.completedAt) ? ` at ${formatTime(completedSession?.completedAt)}` : ''}.`
+          : todayWorkoutState === 'scheduled'
+            ? `${todayQuery.data?.weekLabel ?? 'Scheduled'} · ${todayQuery.data?.dayLabel}${todayQuery.data?.scheduleSource === 'override' ? ' · changed for today' : ''}`
+            : 'No workout scheduled yet. Choose a workout for today or adjust today’s plan without changing your recurring schedule.';
 
   const weightDone = manual?.morningWeightValue != null;
   const bpDone = manual?.systolicBp != null || manual?.diastolicBp != null;
@@ -419,13 +428,24 @@ export default function TodayScreen() {
         <Text style={[styles.helperText, { color: theme.text.secondary }]}>Last updated {formatDateTime(new Date(todayQuery.dataUpdatedAt).toISOString())}</Text>
       ) : null}
 
-      <Card style={[styles.workoutCard, { borderColor: theme.action.primary, backgroundColor: theme.action.accentSubtle }]}>
+      <Card
+        style={[
+          styles.workoutCard,
+          todayWorkoutState === 'completed'
+            ? { borderColor: `${theme.status.success}55`, backgroundColor: `${theme.status.success}14` }
+            : { borderColor: theme.action.primary, backgroundColor: theme.action.accentSubtle },
+        ]}
+      >
         <View style={styles.cardHeaderRow}>
           <View style={styles.titleWithIcon}>
-            <Dumbbell size={18} color={theme.text.primary} />
+            {todayWorkoutState === 'completed' ? (
+              <CheckCircle2 size={18} color={theme.text.primary} />
+            ) : (
+              <Dumbbell size={18} color={theme.text.primary} />
+            )}
             <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>{workoutTitle}</Text>
           </View>
-          {todayQuery.data?.estimatedDurationMinutes ? (
+          {todayQuery.data?.estimatedDurationMinutes && todayWorkoutState !== 'completed' ? (
             <View style={[styles.chip, { backgroundColor: theme.surface.sunken }]}>
               <Text style={[styles.chipLabel, { color: theme.text.secondary }]}>~{todayQuery.data.estimatedDurationMinutes} min</Text>
             </View>
@@ -440,7 +460,7 @@ export default function TodayScreen() {
         ) : (
           <>
             <Text style={[styles.bodyText, { color: theme.text.secondary }]}>{workoutBody}</Text>
-            {todayQuery.data?.override?.note ? (
+            {todayQuery.data?.override?.note && todayWorkoutState !== 'completed' ? (
               <View style={[styles.chip, { backgroundColor: theme.surface.sunken }]}>
                 <Text style={[styles.chipLabel, { color: theme.text.secondary }]}>{todayQuery.data.override.note}</Text>
               </View>
@@ -448,6 +468,13 @@ export default function TodayScreen() {
             <View style={styles.ctaStack}>
               {todayWorkoutState === 'no-program' ? <Button label="Start guided setup" onPress={() => router.push('/program-wizard')} /> : null}
               {todayWorkoutState === 'in-progress' ? <Button label="Resume workout" loading={startWorkoutMutation.isPending} onPress={() => startWorkoutMutation.mutate()} /> : null}
+              {todayWorkoutState === 'completed' && completedSession ? (
+                <Button
+                  label="Review completed workout"
+                  variant="secondary"
+                  onPress={() => router.push({ pathname: '/session-summary', params: { sessionId: completedSession.id } })}
+                />
+              ) : null}
               {todayWorkoutState === 'scheduled' ? (
                 <>
                   <Button label="Start workout" loading={startWorkoutMutation.isPending} onPress={() => startWorkoutMutation.mutate()} />
@@ -609,13 +636,6 @@ export default function TodayScreen() {
           </View>
         </View>
       </Card>
-
-      {completedSession && !activeSession ? (
-        <Card>
-          <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Workout complete</Text>
-          <Text style={[styles.bodyText, { color: theme.text.secondary }]}>Workout complete{formatTime(completedSession.completedAt) ? ` at ${formatTime(completedSession.completedAt)}` : ''}.</Text>
-        </Card>
-      ) : null}
     </ScrollView>
   );
 }
