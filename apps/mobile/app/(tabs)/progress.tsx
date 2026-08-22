@@ -8,12 +8,23 @@ import { useApiClient } from '../../src/lib/api-client';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { spacing, typeScale } from '../../src/theme/getTheme';
 
+// Local (not UTC) calendar date — passed to the API so "last N weeks" is
+// computed relative to the user's actual today, not the server's UTC clock.
+function todayLocalDate() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export default function ProgressScreen() {
   const theme = useTheme();
   const api = useApiClient();
+  const localDate = todayLocalDate();
   const query = useQuery({
-    queryKey: ['progress-overview'],
-    queryFn: () => api.get<ProgressOverviewResponse>('/progress/overview?weeks=8'),
+    queryKey: ['progress-overview', localDate],
+    queryFn: () => api.get<ProgressOverviewResponse>(`/progress/overview?weeks=8&localDate=${localDate}`),
   });
 
   const consistencySummaryLabel = useMemo(() => {

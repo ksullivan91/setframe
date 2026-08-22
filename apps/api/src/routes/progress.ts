@@ -15,6 +15,22 @@ function isoWeekStart(date: Date): string {
 }
 
 /**
+ * Computes the "since" cutoff date-string for a "last N weeks" window.
+ * Accepts an optional client-supplied `localDate` (the requesting user's
+ * current local calendar date, e.g. "2025-08-22") so the boundary reflects
+ * the user's actual "today" rather than the server's UTC clock — the same
+ * pattern used by /dashboard/today and /me/daily-entries/:localDate.
+ * Falls back to server UTC "today" only if the client omits it (e.g. older
+ * clients not yet updated), which can drift by up to a day for users far
+ * from UTC.
+ */
+function sinceLocalDateFor(weeksBack: number, localDate?: string): string {
+  const base = localDate ? new Date(`${localDate}T00:00:00Z`) : new Date();
+  base.setUTCDate(base.getUTCDate() - weeksBack * 7);
+  return base.toISOString().slice(0, 10);
+}
+
+/**
  * GET /v1/progress/consistency — backs the Progress screen's "Consistency
  * (last N weeks)" widget (docs/api.md "Progress", data-model.md §8
  * decision 4). Computed on read from workout_session rows; uses
@@ -30,16 +46,17 @@ export const progressRoutes: FastifyPluginAsyncZod = async (fastify) => {
     {
       preHandler: requireAuth,
       schema: {
-        querystring: z.object({ weeks: z.coerce.number().int().positive().max(52).default(8) }),
+        querystring: z.object({
+          weeks: z.coerce.number().int().positive().max(52).default(8),
+          localDate: z.string().date().optional(),
+        }),
         response: { 200: progressOverviewResponseSchema },
       },
     },
     async (request) => {
       const db = getDb();
       const weeksBack = request.query.weeks;
-      const since = new Date();
-      since.setUTCDate(since.getUTCDate() - weeksBack * 7);
-      const sinceLocalDate = since.toISOString().slice(0, 10);
+      const sinceLocalDate = sinceLocalDateFor(weeksBack, request.query.localDate);
 
       const sessions = await db
         .select()
@@ -331,7 +348,10 @@ export const progressRoutes: FastifyPluginAsyncZod = async (fastify) => {
     {
       preHandler: requireAuth,
       schema: {
-        querystring: z.object({ weeks: z.coerce.number().int().positive().max(52).default(8) }),
+        querystring: z.object({
+          weeks: z.coerce.number().int().positive().max(52).default(8),
+          localDate: z.string().date().optional(),
+        }),
         response: {
           200: z.array(progressConsistencyWeekSchema),
         },
@@ -340,9 +360,7 @@ export const progressRoutes: FastifyPluginAsyncZod = async (fastify) => {
     async (request) => {
       const db = getDb();
       const weeksBack = request.query.weeks;
-      const since = new Date();
-      since.setUTCDate(since.getUTCDate() - weeksBack * 7);
-      const sinceLocalDate = since.toISOString().slice(0, 10);
+      const sinceLocalDate = sinceLocalDateFor(weeksBack, request.query.localDate);
 
       const sessions = await db
         .select()
