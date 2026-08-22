@@ -11,3 +11,4 @@ export * from './SetRow';
 export * from './TrendCard';
 export * from './ConsistencyStreakGrid';
 export * from './SyncStatusPill';
+export * from './WeekScheduleEditor';

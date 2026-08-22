@@ -8,6 +8,7 @@ import { Button } from '../src/components/Button';
 import { Input } from '../src/components/Input';
 import { Select, type SelectOption } from '../src/components/Select';
 import { AddExercisePicker } from '../src/components/AddExercisePicker';
+import { WeekScheduleEditor } from '../src/components/WeekScheduleEditor';
 import { useApiClient } from '../src/lib/api-client';
 import { summarizePrescription } from '../src/lib/prescription';
 import { useTheme } from '../src/theme/ThemeProvider';
@@ -23,7 +24,6 @@ interface WizardWorkoutDraft {
   name: string;
 }
 
-const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const EMPTY_SCHEDULE_SLOTS: ProgramScheduleSlot[] = [];
 
 const modeOptions: SelectOption<'perpetual' | 'block'>[] = [
@@ -314,42 +314,36 @@ export default function ProgramWizardScreen() {
             {workouts.length === 0 ? (
               <Text style={{ color: theme.text.secondary }}>Create workouts first.</Text>
             ) : (
-              dayNames.map((dayName, dayIndex) => {
-                const assignedDayTypeId = scheduleByDay[dayIndex] ?? '';
-                const assignedWorkout = workouts.find((workout) => workout.dayTypeId === assignedDayTypeId) ?? null;
-                const slot = scheduleSlots.find(
-                  (item) => item.dayIndex === dayIndex && (item.weekNumber === null || item.weekNumber === 1),
-                );
-                return (
-                  <Card key={dayName}>
-                    <Text style={{ color: theme.text.primary, fontWeight: '600' }}>{dayName}</Text>
-                    <Text style={{ color: theme.text.secondary }}>{assignedWorkout?.name ?? 'Rest / unassigned'}</Text>
-                    <Select
-                      label="Workout"
-                      value={assignedDayTypeId}
-                      onChange={(nextDayTypeId) => {
-                        if (!nextDayTypeId) {
-                          if (slot) removeSlot.mutate(slot.id);
-                          setScheduleByDay((current) => ({ ...current, [dayIndex]: null }));
-                          return;
-                        }
-                        setScheduleByDay((current) => ({ ...current, [dayIndex]: nextDayTypeId }));
-                        upsertSlot.mutate({
-                          id: slot?.id,
-                          dayTypeId: nextDayTypeId,
-                          weekNumber: mode === 'block' ? 1 : null,
-                          dayIndex,
-                          sortOrder: dayIndex,
-                        });
-                      }}
-                      options={[
-                        { value: '', label: 'Unassigned' },
-                        ...workouts.map((workout) => ({ value: workout.dayTypeId, label: workout.name })),
-                      ]}
-                    />
-                  </Card>
-                );
-              })
+              <WeekScheduleEditor
+                workouts={workouts.map((workout) => ({ id: workout.dayTypeId, name: workout.name }))}
+                assignmentsByDay={scheduleByDay}
+                selectedWorkoutId={selectedWorkout?.dayTypeId ?? null}
+                onSelectWorkout={(workoutId) =>
+                  setSelectedWorkoutTempId(workouts.find((workout) => workout.dayTypeId === workoutId)?.tempId ?? null)
+                }
+                isLoading={scheduleSlotsQuery.isLoading}
+                disabled={!programId}
+                onAssignDay={(dayIndex, dayTypeId) => {
+                  const slot = scheduleSlots.find(
+                    (item) => item.dayIndex === dayIndex && (item.weekNumber === null || item.weekNumber === 1),
+                  );
+                  setScheduleByDay((current) => ({ ...current, [dayIndex]: dayTypeId }));
+                  upsertSlot.mutate({
+                    id: slot?.id,
+                    dayTypeId,
+                    weekNumber: mode === 'block' ? 1 : null,
+                    dayIndex,
+                    sortOrder: dayIndex,
+                  });
+                }}
+                onClearDay={(dayIndex) => {
+                  const slot = scheduleSlots.find(
+                    (item) => item.dayIndex === dayIndex && (item.weekNumber === null || item.weekNumber === 1),
+                  );
+                  if (slot) removeSlot.mutate(slot.id);
+                  setScheduleByDay((current) => ({ ...current, [dayIndex]: null }));
+                }}
+              />
             )}
           </View>
         ) : null}

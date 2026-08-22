@@ -14,3 +14,4 @@ export * from './Stepper';
 export * from './Tabs';
 export * from './Skeleton';
 export * from './ProgressRing';
+export * from './WeekScheduleEditor';

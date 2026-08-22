@@ -13,7 +13,7 @@ import type {
   ProgramScheduleSlot,
   TrainingProgram,
 } from '@setframe/schemas';
-import { Button, Card, IconButton, Input, Menu, Modal as SharedModal, Select, Tabs, useToast } from '../components';
+import { Button, Card, IconButton, Input, Menu, Modal as SharedModal, Select, Tabs, WeekScheduleEditor, useToast } from '../components';
 import { AddExercisePicker, emptyPrescription } from '../components/AddExercisePicker';
 import { typeScale } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';
@@ -224,42 +224,6 @@ const PlannedSetRow = styled.div`
   }
 `;
 
-const DayGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: ${spacing[8]}px;
-
-  ${mq.tablet} {
-    gap: ${spacing[4]}px;
-  }
-`;
-
-const DayCell = styled.button<{ $active?: boolean }>`
-  display: flex;
-  flex-direction: column;
-  gap: ${spacing[4]}px;
-  padding: ${spacing[8]}px ${spacing[4]}px;
-  border-radius: ${radius.small}px;
-  border: 1px solid ${(p) => (p.$active ? p.theme.action.primary : p.theme.border.subtle)};
-  background: ${(p) => (p.$active ? p.theme.action.accentSubtle : p.theme.surface.sunken)};
-  cursor: pointer;
-  min-height: 64px;
-  text-align: left;
-  font-size: ${typeScale.caption.fontSize}px;
-`;
-
-const DayName = styled.span`
-  font-weight: 600;
-  font-size: ${typeScale.compactBody.fontSize}px;
-`;
-
-const DayLabel = styled.span`
-  color: ${(p) => p.theme.text.secondary};
-  overflow-wrap: break-word;
-  line-height: 1.2;
-`;
-
-const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const modeOptions = [
   { value: 'perpetual', label: 'Repeats weekly' },
   { value: 'block', label: 'Block' },
@@ -983,37 +947,25 @@ export function ProgramEditorPage() {
             ) : (
               <>
                 <Select label="Mode" value={mode} onChange={(e) => { const next = e.target.value as 'perpetual' | 'block'; setMode(next); patchProgram.mutate({ cycleLengthWeeks: next === 'block' ? 1 : null }); }} options={modeOptions} />
-                <Small>Select a workout below, then click a day to assign it. Click an assigned day again to clear it.</Small>
-                <Row style={{ flexWrap: 'wrap' }}>
-                  {dayTypes.map((dayType) => (
-                    <LibraryItem key={dayType.id} $active={selectedDayTypeId === dayType.id} onClick={() => setSelectedDayTypeId(dayType.id)} style={{ flex: '0 0 auto' }}>
-                      <strong>{dayType.name}</strong>
-                    </LibraryItem>
-                  ))}
-                </Row>
-                <DayGrid>
-                  {dayNames.map((day, dayIndex) => {
+                <WeekScheduleEditor
+                  workouts={dayTypes.map((dayType) => ({ id: dayType.id, name: dayType.name }))}
+                  assignmentsByDay={Object.fromEntries([...slotsByDay].map(([dayIndex, slot]) => [dayIndex, slot.dayTypeId]))}
+                  selectedWorkoutId={selectedDayTypeId}
+                  onSelectWorkout={setSelectedDayTypeId}
+                  onAssignDay={(dayIndex, dayTypeId) =>
+                    upsertSlot.mutate({
+                      id: slotsByDay.get(dayIndex)?.id,
+                      dayTypeId,
+                      weekNumber: mode === 'block' ? 1 : null,
+                      dayIndex,
+                      sortOrder: dayIndex,
+                    })
+                  }
+                  onClearDay={(dayIndex) => {
                     const slot = slotsByDay.get(dayIndex);
-                    const label = dayTypes.find((type) => type.id === slot?.dayTypeId)?.name ?? 'Unassigned';
-                    const handleClick = () => {
-                      if (slot && slot.dayTypeId === selectedDayTypeId) {
-                        // Clicking the already-assigned day type again clears it,
-                        // instead of silently re-PATCHing to the same value.
-                        removeSlot.mutate(slot.id);
-                        return;
-                      }
-                      if (selectedDayTypeId) {
-                        upsertSlot.mutate({ id: slot?.id, dayTypeId: selectedDayTypeId, weekNumber: mode === 'block' ? 1 : null, dayIndex, sortOrder: dayIndex });
-                      }
-                    };
-                    return (
-                      <DayCell key={day} $active={Boolean(slot)} onClick={handleClick}>
-                        <DayName>{day}</DayName>
-                        <DayLabel>{label}</DayLabel>
-                      </DayCell>
-                    );
-                  })}
-                </DayGrid>
+                    if (slot) removeSlot.mutate(slot.id);
+                  }}
+                />
               </>
             )}
           </StackCard>

@@ -5,7 +5,7 @@ import { ArrowLeft, ArrowRight, Plus, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { spacing, radius } from '@setframe/design-tokens';
 import type { DayType, DayTypeExercise, Exercise, Prescription, ProgramScheduleSlot, TrainingProgram } from '@setframe/schemas';
-import { Button, Card, Input, Select, Stepper, useToast } from '../components';
+import { Button, Card, Input, Select, Stepper, WeekScheduleEditor, useToast } from '../components';
 import { AddExercisePicker } from '../components/AddExercisePicker';
 import { useApiClient } from '../lib/api-client';
 import { mq } from '../theme/breakpoints';
@@ -161,22 +161,6 @@ const ExerciseCard = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${spacing[8]}px;
-`;
-
-const ScheduleGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
-  gap: ${spacing[8]}px;
-`;
-
-const DayCard = styled.div<{ $active: boolean }>`
-  border-radius: ${radius.large}px;
-  border: 1px solid ${(p) => (p.$active ? p.theme.action.primary : p.theme.border.subtle)};
-  background: ${(p) => (p.$active ? p.theme.action.accentSubtle : p.theme.surface.raised)};
-  padding: ${spacing[12]}px;
-  display: flex;
-  flex-direction: column;
-  gap: ${spacing[4]}px;
 `;
 
 const Footer = styled.div`
@@ -474,42 +458,32 @@ export function ProgramCreationWizardPage() {
               {workouts.length === 0 ? (
                 <EmptyState>Create workouts first.</EmptyState>
               ) : (
-                <ScheduleGrid>
-                  {dayNames.map((dayName, dayIndex) => {
-                    const assignedDayTypeId = scheduleByDay[dayIndex] ?? '';
-                    const assignedWorkout = workouts.find((workout) => workout.dayTypeId === assignedDayTypeId) ?? null;
+                <WeekScheduleEditor
+                  workouts={workouts.map((workout) => ({ id: workout.dayTypeId, name: workout.name }))}
+                  assignmentsByDay={scheduleByDay}
+                  selectedWorkoutId={selectedWorkout?.dayTypeId ?? null}
+                  onSelectWorkout={(workoutId) =>
+                    setSelectedWorkoutTempId(workouts.find((workout) => workout.dayTypeId === workoutId)?.tempId ?? null)
+                  }
+                  isLoading={scheduleSlotsQuery.isLoading}
+                  disabled={!programId}
+                  onAssignDay={(dayIndex, dayTypeId) => {
                     const slot = scheduleSlots.find((item) => item.dayIndex === dayIndex && (item.weekNumber === null || item.weekNumber === 1));
-
-                    return (
-                      <DayCard key={dayName} $active={Boolean(assignedWorkout)}>
-                        <strong>{dayName}</strong>
-                        <Small>{assignedWorkout?.name ?? 'Rest / unassigned'}</Small>
-                        <Select
-                          label="Workout"
-                          value={assignedDayTypeId}
-                          onChange={(e) => {
-                            const nextDayTypeId = e.target.value;
-                            if (!nextDayTypeId) {
-                              if (slot) removeSlot.mutate(slot.id);
-                              setScheduleByDay((current) => ({ ...current, [dayIndex]: null }));
-                              return;
-                            }
-
-                            setScheduleByDay((current) => ({ ...current, [dayIndex]: nextDayTypeId }));
-                            upsertSlot.mutate({
-                              id: slot?.id,
-                              dayTypeId: nextDayTypeId,
-                              weekNumber: mode === 'block' ? 1 : null,
-                              dayIndex,
-                              sortOrder: dayIndex,
-                            });
-                          }}
-                          options={[{ value: '', label: 'Unassigned' }, ...workouts.map((workout) => ({ value: workout.dayTypeId, label: workout.name }))]}
-                        />
-                      </DayCard>
-                    );
-                  })}
-                </ScheduleGrid>
+                    setScheduleByDay((current) => ({ ...current, [dayIndex]: dayTypeId }));
+                    upsertSlot.mutate({
+                      id: slot?.id,
+                      dayTypeId,
+                      weekNumber: mode === 'block' ? 1 : null,
+                      dayIndex,
+                      sortOrder: dayIndex,
+                    });
+                  }}
+                  onClearDay={(dayIndex) => {
+                    const slot = scheduleSlots.find((item) => item.dayIndex === dayIndex && (item.weekNumber === null || item.weekNumber === 1));
+                    if (slot) removeSlot.mutate(slot.id);
+                    setScheduleByDay((current) => ({ ...current, [dayIndex]: null }));
+                  }}
+                />
               )}
             </>
           ) : null}
