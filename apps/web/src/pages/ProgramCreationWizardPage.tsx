@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { spacing, radius } from '@setframe/design-tokens';
 import type { DayType, DayTypeExercise, Exercise, Prescription, ProgramScheduleSlot, TrainingProgram } from '@setframe/schemas';
 import { Button, Card, Input, Select, Stepper, useToast } from '../components';
+import { AddExercisePicker } from '../components/AddExercisePicker';
 import { useApiClient } from '../lib/api-client';
 import { mq } from '../theme/breakpoints';
 import { typeScale } from '../theme/typeScale';
@@ -25,14 +26,6 @@ const EMPTY_SCHEDULE_SLOTS: ProgramScheduleSlot[] = [];
 const modeOptions = [
   { value: 'perpetual', label: 'Repeats weekly' },
   { value: 'block', label: 'Fixed block/cycle' },
-];
-const prescriptionOptions = [
-  { value: 'sets_reps', label: 'Sets + reps' },
-  { value: 'timed', label: 'Timed sets' },
-  { value: 'duration', label: 'Duration' },
-  { value: 'distanceDuration', label: 'Distance + duration' },
-  { value: 'distance', label: 'Distance' },
-  { value: 'bodyweight_reps', label: 'Bodyweight reps' },
 ];
 const steps = [
   { key: 'program', title: 'Program', description: 'Name it and choose how it repeats.' },
@@ -205,22 +198,6 @@ const SummaryList = styled.div`
   gap: ${spacing[8]}px;
 `;
 
-function emptyPrescription(kind: string): Prescription {
-  switch (kind) {
-    case 'timed':
-      return { kind: 'timed', sets: 3, durationSeconds: 60 };
-    case 'duration':
-      return { kind: 'duration', durationMinutes: 30 };
-    case 'distanceDuration':
-      return { kind: 'distanceDuration', distanceMiles: 3, durationMinutes: 30 };
-    case 'distance':
-      return { kind: 'distance', sets: 1, distanceValue: 1, distanceUnit: 'mi' };
-    case 'bodyweight_reps':
-      return { kind: 'bodyweight_reps', sets: 3, repsMin: 8 };
-    default:
-      return { kind: 'sets_reps', sets: 3, repsMin: 8 };
-  }
-}
 
 function summarizePrescription(prescription: Prescription) {
   switch (prescription.kind) {
@@ -257,13 +234,16 @@ export function ProgramCreationWizardPage() {
   const [workoutName, setWorkoutName] = useState('');
   const [workouts, setWorkouts] = useState<WizardWorkoutDraft[]>([]);
   const [selectedWorkoutTempId, setSelectedWorkoutTempId] = useState<string | null>(null);
-  const [selectedExerciseId, setSelectedExerciseId] = useState('');
-  const [customExerciseName, setCustomExerciseName] = useState('');
-  const [prescriptionKind, setPrescriptionKind] = useState('sets_reps');
+  const [addExerciseOpen, setAddExerciseOpen] = useState(false);
   const [scheduleByDay, setScheduleByDay] = useState<Record<number, string | null>>({});
 
   const { data: programs } = useQuery({ queryKey: ['programs'], queryFn: () => api.get<TrainingProgram[]>('/programs') });
-  const { data: exercises = [] } = useQuery({ queryKey: ['exercises'], queryFn: () => api.get<Exercise[]>('/exercises') });
+  const {
+    data: exercises = [],
+    isLoading: exercisesLoading,
+    isError: exercisesError,
+    refetch: refetchExercises,
+  } = useQuery({ queryKey: ['exercises'], queryFn: () => api.get<Exercise[]>('/exercises') });
   // `?? EMPTY_SCHEDULE_SLOTS` (not `= []`) so the fallback is a stable
   // reference — a fresh `[]` on every render here fed straight into a
   // useEffect dependency below and caused an infinite render loop while the
@@ -327,10 +307,8 @@ export function ProgramCreationWizardPage() {
 
   const createExercise = useMutation({
     mutationFn: (body: { name: string }) => api.post<Exercise>('/exercises', body),
-    onSuccess: async (created) => {
+    onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['exercises'] });
-      setSelectedExerciseId(created.id);
-      setCustomExerciseName('');
     },
     onError: () => toast.show({ variant: 'error', message: 'Could not create exercise.' }),
   });
@@ -463,45 +441,8 @@ export function ProgramCreationWizardPage() {
                   </Row>
                   {selectedWorkout ? (
                     <Stack>
-                      <Row style={{ alignItems: 'flex-end' }}>
-                        <div style={{ flex: 1 }}>
-                          <Select
-                            label="Exercise"
-                            value={selectedExerciseId}
-                            onChange={(e) => setSelectedExerciseId(e.target.value)}
-                            options={[
-                              { value: '', label: 'Select exercise' },
-                              ...exercises.map((exercise) => ({
-                                value: exercise.id,
-                                label: exercise.isCustom ? `${exercise.name} (custom)` : exercise.name,
-                              })),
-                            ]}
-                          />
-                        </div>
-                        <div style={{ minWidth: 180 }}>
-                          <Select label="Prescription" value={prescriptionKind} onChange={(e) => setPrescriptionKind(e.target.value)} options={prescriptionOptions} />
-                        </div>
-                      </Row>
-                      <Row style={{ alignItems: 'flex-end' }}>
-                        <div style={{ flex: 1 }}>
-                          <Input label="Need a custom exercise?" value={customExerciseName} onChange={(e) => setCustomExerciseName(e.target.value)} placeholder="Cable face pull" />
-                        </div>
-                        <Button variant="secondary" onClick={() => customExerciseName.trim() && createExercise.mutate({ name: customExerciseName.trim() })} disabled={!customExerciseName.trim() || createExercise.isPending}>
-                          <Plus size={16} /> Create exercise
-                        </Button>
-                      </Row>
-                      <Button
-                        onClick={() =>
-                          selectedExerciseId &&
-                          addExercise.mutate({
-                            dayTypeId: selectedWorkout.dayTypeId,
-                            exerciseId: selectedExerciseId,
-                            prescription: emptyPrescription(prescriptionKind),
-                          })
-                        }
-                        disabled={!selectedExerciseId || addExercise.isPending}
-                      >
-                        <Plus size={16} /> Add to {selectedWorkout.name}
+                      <Button onClick={() => setAddExerciseOpen(true)}>
+                        <Plus size={16} /> Add exercise to {selectedWorkout.name}
                       </Button>
 
                       <Stack>
@@ -657,6 +598,22 @@ export function ProgramCreationWizardPage() {
           </MobileDetails>
         </AsideCard>
       </Grid>
+
+      {addExerciseOpen && selectedWorkout ? (
+        <AddExercisePicker
+          exercises={exercises}
+          exercisesLoading={exercisesLoading}
+          exercisesError={exercisesError}
+          onRetryExercises={refetchExercises}
+          onClose={() => setAddExerciseOpen(false)}
+          isCreatingExercise={createExercise.isPending}
+          onCreateExercise={(name) => createExercise.mutateAsync({ name })}
+          isAddingExercise={addExercise.isPending}
+          onAddExercise={(exerciseId, prescription) =>
+            addExercise.mutate({ dayTypeId: selectedWorkout.dayTypeId, exerciseId, prescription })
+          }
+        />
+      ) : null}
     </Page>
   );
 }

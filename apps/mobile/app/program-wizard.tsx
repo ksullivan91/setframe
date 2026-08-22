@@ -7,6 +7,7 @@ import { Card } from '../src/components/Card';
 import { Button } from '../src/components/Button';
 import { Input } from '../src/components/Input';
 import { Select, type SelectOption } from '../src/components/Select';
+import { AddExercisePicker } from '../src/components/AddExercisePicker';
 import { useApiClient } from '../src/lib/api-client';
 import { summarizePrescription } from '../src/lib/prescription';
 import { useTheme } from '../src/theme/ThemeProvider';
@@ -30,38 +31,12 @@ const modeOptions: SelectOption<'perpetual' | 'block'>[] = [
   { value: 'block', label: 'Fixed block/cycle' },
 ];
 
-const prescriptionOptions: SelectOption<string>[] = [
-  { value: 'sets_reps', label: 'Sets + reps' },
-  { value: 'timed', label: 'Timed sets' },
-  { value: 'duration', label: 'Duration' },
-  { value: 'distanceDuration', label: 'Distance + duration' },
-  { value: 'distance', label: 'Distance' },
-  { value: 'bodyweight_reps', label: 'Bodyweight reps' },
-];
-
 const steps = [
   { key: 'program', title: 'Program', description: 'Name it and choose how it repeats.' },
   { key: 'workouts', title: 'Workouts', description: 'Create your first workout templates.' },
   { key: 'exercises', title: 'Exercises', description: 'Add the main exercises for each workout.' },
   { key: 'schedule', title: 'Schedule', description: 'Assign workouts to your week.' },
 ];
-
-function emptyPrescription(kind: string): Prescription {
-  switch (kind) {
-    case 'timed':
-      return { kind: 'timed', sets: 3, durationSeconds: 60 };
-    case 'duration':
-      return { kind: 'duration', durationMinutes: 30 };
-    case 'distanceDuration':
-      return { kind: 'distanceDuration', distanceMiles: 3, durationMinutes: 30 };
-    case 'distance':
-      return { kind: 'distance', sets: 1, distanceValue: 1, distanceUnit: 'mi' };
-    case 'bodyweight_reps':
-      return { kind: 'bodyweight_reps', sets: 3, repsMin: 8 };
-    default:
-      return { kind: 'sets_reps', sets: 3, repsMin: 8 };
-  }
-}
 
 function nextTempId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
@@ -91,9 +66,7 @@ export default function ProgramWizardScreen() {
   const [workoutName, setWorkoutName] = useState('');
   const [workouts, setWorkouts] = useState<WizardWorkoutDraft[]>([]);
   const [selectedWorkoutTempId, setSelectedWorkoutTempId] = useState<string | null>(null);
-  const [selectedExerciseId, setSelectedExerciseId] = useState('');
-  const [customExerciseName, setCustomExerciseName] = useState('');
-  const [prescriptionKind, setPrescriptionKind] = useState('sets_reps');
+  const [addExerciseOpen, setAddExerciseOpen] = useState(false);
   const [scheduleByDay, setScheduleByDay] = useState<Record<number, string | null>>({});
 
   const {
@@ -165,12 +138,11 @@ export default function ProgramWizardScreen() {
 
   const createExercise = useMutation({
     mutationFn: (body: { name: string }) => api.post<Exercise>('/exercises', body),
-    onSuccess: async (created) => {
+    onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['exercises'] });
-      setSelectedExerciseId(created.id);
-      setCustomExerciseName('');
     },
-    onError: () => Alert.alert('Could not create exercise', 'Please try again.'),
+    // Errors surface inline inside AddExercisePicker (which preserves the
+    // typed name for retry) rather than as a modal Alert.
   });
 
   const addExercise = useMutation({
@@ -227,6 +199,7 @@ export default function ProgramWizardScreen() {
   };
 
   return (
+    <>
     <ScrollView style={{ backgroundColor: theme.surface.canvas }} contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <Text style={[styles.eyebrow, { color: theme.text.secondary }]}>New here?</Text>
@@ -302,58 +275,9 @@ export default function ProgramWizardScreen() {
                 </View>
                 {selectedWorkout ? (
                   <View style={styles.stack}>
-                    {exercisesLoading ? (
-                      <Text style={{ color: theme.text.secondary }}>Loading exercise catalog…</Text>
-                    ) : exercisesError ? (
-                      <View style={styles.chipRow}>
-                        <Text style={{ color: theme.text.secondary }}>Couldn&apos;t load exercises.</Text>
-                        <Button label="Retry" variant="secondary" onPress={() => refetchExercises()} />
-                      </View>
-                    ) : (
-                      <Select
-                        label="Exercise"
-                        value={selectedExerciseId}
-                        onChange={setSelectedExerciseId}
-                        options={[
-                          { value: '', label: 'Select exercise' },
-                          ...exercises.map((exercise) => ({
-                            value: exercise.id,
-                            label: exercise.isCustom ? `${exercise.name} (custom)` : exercise.name,
-                          })),
-                        ]}
-                      />
-                    )}
-                    <Select
-                      label="Prescription"
-                      value={prescriptionKind}
-                      onChange={setPrescriptionKind}
-                      options={prescriptionOptions}
-                    />
-                    <Input
-                      label="Need a custom exercise?"
-                      value={customExerciseName}
-                      onChangeText={setCustomExerciseName}
-                      placeholder="Cable face pull"
-                    />
                     <Button
-                      label="Create exercise"
-                      variant="secondary"
-                      onPress={() => customExerciseName.trim() && createExercise.mutate({ name: customExerciseName.trim() })}
-                      disabled={!customExerciseName.trim() || exercisesLoading}
-                      loading={createExercise.isPending}
-                    />
-                    <Button
-                      label={`Add to ${selectedWorkout.name}`}
-                      onPress={() =>
-                        selectedExerciseId &&
-                        addExercise.mutate({
-                          dayTypeId: selectedWorkout.dayTypeId,
-                          exerciseId: selectedExerciseId,
-                          prescription: emptyPrescription(prescriptionKind),
-                        })
-                      }
-                      disabled={!selectedExerciseId}
-                      loading={addExercise.isPending}
+                      label={`Add exercise to ${selectedWorkout.name}`}
+                      onPress={() => setAddExerciseOpen(true)}
                     />
                     {(selectedWorkoutDetail.data?.exercises ?? []).length === 0 ? (
                       <Text style={{ color: theme.text.secondary }}>
@@ -457,6 +381,23 @@ export default function ProgramWizardScreen() {
         </View>
       </Card>
     </ScrollView>
+    {selectedWorkout ? (
+      <AddExercisePicker
+        open={addExerciseOpen}
+        exercises={exercises}
+        exercisesLoading={exercisesLoading}
+        exercisesError={exercisesError}
+        onRetryExercises={() => refetchExercises()}
+        onClose={() => setAddExerciseOpen(false)}
+        onCreateExercise={(name) => createExercise.mutateAsync({ name })}
+        isCreatingExercise={createExercise.isPending}
+        onAddExercise={(exerciseId, prescription) =>
+          addExercise.mutate({ dayTypeId: selectedWorkout.dayTypeId, exerciseId, prescription })
+        }
+        isAddingExercise={addExercise.isPending}
+      />
+    ) : null}
+    </>
   );
 }
 
