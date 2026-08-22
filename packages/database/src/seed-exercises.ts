@@ -6,7 +6,7 @@
  * ON CONFLICT DO NOTHING, so it will never duplicate rows.
  *
  * `seedSystemExercises` is also invoked automatically once at API
- * startup (see apps/api/src/app.ts) — Story 02 found that this catalog
+ * startup (see apps/api/src/index.ts) — Story 02 found that this catalog
  * was previously only ever populated by a developer manually running
  * this script, so a fresh/recreated database (e.g. after rotating the
  * Neon project) silently had zero system exercises with no error
