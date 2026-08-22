@@ -10,6 +10,7 @@ import { typeScale } from './typeScale';
  * revisit if/when dark mode ships.
  */
 export const clerkAppearance: Appearance = {
+  theme: 'simple',
   variables: {
     colorPrimary: colorRamps.accent[600],
     colorText: colorRamps.neutral[900],
@@ -48,9 +49,27 @@ export const clerkAppearance: Appearance = {
     header: {
       display: 'none',
     },
-    footer: {
-      background: 'transparent',
-      boxShadow: 'none',
+    // Figma's SignIn/SignUp frames (node 17:2) show a single email+password
+    // form with no social auth and no Clerk branding — hide those sections
+    // rather than theme them, since Figma doesn't have an equivalent.
+    socialButtonsBlockButton: {
+      display: 'none',
+    },
+    socialButtonsBlockButtonText: {
+      display: 'none',
+    },
+    dividerRow: {
+      display: 'none',
+    },
+    // NOTE: the "Secured by Clerk / Development mode" badge is not part of
+    // the customizable elements config — it's a fixed indicator only shown
+    // on Development Clerk instances (see Clerk's environments docs) and
+    // will disappear automatically once we switch to a Production instance
+    // + custom accounts.setframe.app domain (holstered per user request).
+    // Hiding `footer` here would also remove the "Don't have an account?"
+    // link Figma *does* show, so we leave it visible.
+    footerAction: {
+      marginTop: `${spacing[8]}px`,
     },
     formButtonPrimary: {
       fontSize: `${typeScale.button.fontSize}px`,
@@ -69,13 +88,6 @@ export const clerkAppearance: Appearance = {
     formFieldLabel: {
       fontSize: `${typeScale.label.fontSize}px`,
       color: colorRamps.neutral[600],
-    },
-    socialButtonsBlockButton: {
-      borderRadius: `${radius.small}px`,
-      borderColor: colorRamps.neutral[200],
-    },
-    dividerLine: {
-      backgroundColor: colorRamps.neutral[200],
     },
     footerActionLink: {
       color: colorRamps.accent[600],
