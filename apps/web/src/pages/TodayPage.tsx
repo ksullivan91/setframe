@@ -359,7 +359,11 @@ const moodOptions = [
 ] as const;
 
 function todayLocalDate() {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = `${now.getMonth() + 1}`.padStart(2, '0');
+  const day = `${now.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 function formatLongDate(localDate: string) {
   return new Date(`${localDate}T12:00:00`).toLocaleDateString(undefined, {
