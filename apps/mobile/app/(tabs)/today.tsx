@@ -31,6 +31,7 @@ import { MetricTile } from '../../src/components/MetricTile';
 import { SyncStatusPill, type SyncStatus } from '../../src/components/SyncStatusPill';
 import { Checkbox } from '../../src/components/Checkbox';
 import { useApiClient } from '../../src/lib/api-client';
+import { useLocalDate } from '../../src/lib/useLocalDate';
 import { healthKit, type DailyHealthMetrics } from '../../src/healthkit/HealthKitAdapter';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { radius, spacing, typeScale } from '../../src/theme/getTheme';
@@ -112,13 +113,6 @@ const moodOptions = [
   { value: 5, label: 'Great', emoji: '😄' },
 ] as const;
 
-function todayLocalDate() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = `${now.getMonth() + 1}`.padStart(2, '0');
-  const day = `${now.getDate()}`.padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
 
 function formatLongDate(localDate: string) {
   return new Date(`${localDate}T12:00:00`).toLocaleDateString(undefined, {
@@ -201,7 +195,7 @@ export default function TodayScreen() {
   const router = useRouter();
   const api = useApiClient();
   const queryClient = useQueryClient();
-  const localDate = todayLocalDate();
+  const localDate = useLocalDate();
   const [weight, setWeight] = useState('');
   const [systolic, setSystolic] = useState('');
   const [diastolic, setDiastolic] = useState('');
@@ -215,6 +209,7 @@ export default function TodayScreen() {
   const [weightError, setWeightError] = useState<string | null>(null);
   const [bpError, setBpError] = useState<string | null>(null);
   const initialHydratedRef = useRef(false);
+  const hydratedLocalDateRef = useRef<string | null>(null);
   const lastSavedSectionRef = useRef<'weight' | 'bp' | 'journal' | 'meal' | null>(null);
 
   useEffect(() => {
@@ -241,13 +236,19 @@ export default function TodayScreen() {
 
   useEffect(() => {
     if (!manual) return;
-    if (!initialHydratedRef.current) {
+    // Full re-hydration on first load AND whenever the local calendar date
+    // changes (e.g. the app was left open/backgrounded across midnight) —
+    // without this, a rolled-over day's empty state never overwrites the
+    // previous day's still-displayed weight/BP/journal input values
+    // (Story 07: stale local-date carryover).
+    if (!initialHydratedRef.current || hydratedLocalDateRef.current !== localDate) {
       setWeight(manual.morningWeightValue?.toString() ?? '');
       setSystolic(manual.systolicBp?.toString() ?? '');
       setDiastolic(manual.diastolicBp?.toString() ?? '');
       setJournal(manual.notes ?? '');
       setSelectedMood(manual.mood ?? null);
       initialHydratedRef.current = true;
+      hydratedLocalDateRef.current = localDate;
       return;
     }
 
@@ -267,7 +268,7 @@ export default function TodayScreen() {
         break;
     }
     lastSavedSectionRef.current = null;
-  }, [manual]);
+  }, [manual, localDate]);
 
   const saveMutation = useMutation({
     mutationFn: (body: DailyManualEntryPatch) => api.patch('/me/daily-entries/' + localDate, body),

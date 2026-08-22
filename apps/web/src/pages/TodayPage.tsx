@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useLocalDate } from '../lib/useLocalDate';
 import {
   AlertCircle,
   CheckCircle2,
@@ -358,13 +359,6 @@ const moodOptions = [
   { value: 5, label: 'Great', emoji: '😄' },
 ] as const;
 
-function todayLocalDate() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = `${now.getMonth() + 1}`.padStart(2, '0');
-  const day = `${now.getDate()}`.padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
 function formatLongDate(localDate: string) {
   return new Date(`${localDate}T12:00:00`).toLocaleDateString(undefined, {
     weekday: 'long',
@@ -412,7 +406,7 @@ export function TodayPage() {
   const navigate = useNavigate();
   const toast = useToast();
   const queryClient = useQueryClient();
-  const localDate = todayLocalDate();
+  const localDate = useLocalDate();
   const programsQuery = useQuery({
     queryKey: ['programs'],
     queryFn: () => api.get<{ id: string }[]>('/programs'),
