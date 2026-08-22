@@ -20,6 +20,14 @@ export interface ModalProps {
   maxWidth?: number;
 }
 
+/**
+ * Below this width the dialog behaves as a near-full-screen bottom
+ * sheet instead of a centered card (Story 05) — mobile Safari's
+ * browser chrome eats into small-viewport centered dialogs, and a
+ * sheet anchored to the bottom edge scrolls more predictably.
+ */
+const MOBILE_SHEET_BREAKPOINT = 640;
+
 const Backdrop = styled.div`
   position: fixed;
   inset: 0;
@@ -29,6 +37,11 @@ const Backdrop = styled.div`
   justify-content: center;
   padding: ${spacing[16]}px;
   z-index: 1000;
+
+  @media (max-width: ${MOBILE_SHEET_BREAKPOINT}px) {
+    align-items: flex-end;
+    padding: 0;
+  }
 `;
 
 const DialogCard = styled(Card)<{ $maxWidth: number }>`
@@ -38,6 +51,13 @@ const DialogCard = styled(Card)<{ $maxWidth: number }>`
   display: flex;
   flex-direction: column;
   gap: ${spacing[16]}px;
+
+  @media (max-width: ${MOBILE_SHEET_BREAKPOINT}px) {
+    width: 100%;
+    max-height: 85vh;
+    border-radius: 16px 16px 0 0;
+    padding-bottom: max(${spacing[16]}px, env(safe-area-inset-bottom));
+  }
 `;
 
 const Header = styled.div`
@@ -45,6 +65,14 @@ const Header = styled.div`
   align-items: flex-start;
   justify-content: space-between;
   gap: ${spacing[12]}px;
+
+  @media (max-width: ${MOBILE_SHEET_BREAKPOINT}px) {
+    position: sticky;
+    top: 0;
+    background: ${(p) => p.theme.surface.raised};
+    padding-bottom: ${spacing[8]}px;
+    z-index: 1;
+  }
 `;
 
 const TitleGroup = styled.div`

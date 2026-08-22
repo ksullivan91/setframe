@@ -894,7 +894,17 @@ export function TodayPage() {
             <PreviewPlan>{summarizePrescription(ex.prescription)}</PreviewPlan>
           </PreviewExerciseRow>
         ))}
-        <Button onClick={() => setPreviewOpen(false)}>Close</Button>
+        {todayWorkoutState === 'scheduled' ? (
+          <Button
+            disabled={startWorkoutMutation.isPending}
+            onClick={() => {
+              setPreviewOpen(false);
+              startWorkoutMutation.mutate();
+            }}
+          >
+            Start workout
+          </Button>
+        ) : null}
       </Modal>
 
       <Modal
