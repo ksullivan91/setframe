@@ -4,7 +4,7 @@ Status: Proposed. Date: 2026-08-20.
 
 ## Context
 
-Setline needs multi-user auth from day one across three surfaces (React
+Setframe needs multi-user auth from day one across three surfaces (React
 web, React Native/Expo mobile, Fastify API), with strict per-user data
 isolation and no reliance on client-supplied identity.
 
@@ -34,7 +34,7 @@ user id supplied in the request body/query.
   ownership-checking logic uniform across all `/v1/*` routes.
 - Keeping an internal `user.id` (rather than using `clerk_user_id`
   everywhere) decouples the database schema from the auth provider,
-  should Setline ever need to migrate providers, and gives a stable id
+  should Setframe ever need to migrate providers, and gives a stable id
   format (UUID) consistent with the rest of the schema.
 
 ## Consequences

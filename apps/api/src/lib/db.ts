@@ -1,4 +1,4 @@
-import { createDb, type Database } from '@setline/database';
+import { createDb, type Database } from '@setframe/database';
 import { getEnv } from './env.js';
 
 /**

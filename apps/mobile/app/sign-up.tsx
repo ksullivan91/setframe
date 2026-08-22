@@ -44,7 +44,7 @@ export default function SignUpScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.surface.canvas }]}>
-      <Text style={[styles.wordmark, { color: theme.text.primary }]}>Setline</Text>
+      <Text style={[styles.wordmark, { color: theme.text.primary }]}>Setframe</Text>
       <Text style={[styles.tagline, { color: theme.text.secondary }]}>
         Train with intent. Sync with Apple Health.
       </Text>

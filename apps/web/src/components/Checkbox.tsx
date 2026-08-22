@@ -1,7 +1,7 @@
 import { forwardRef, useId, type InputHTMLAttributes } from 'react';
 import styled from 'styled-components';
 import { Check } from 'lucide-react';
-import { spacing } from '@setline/design-tokens';
+import { spacing } from '@setframe/design-tokens';
 import { typeScale } from '../theme/typeScale';
 
 export interface CheckboxProps extends InputHTMLAttributes<HTMLInputElement> {

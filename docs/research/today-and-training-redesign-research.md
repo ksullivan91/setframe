@@ -1,6 +1,6 @@
-# Setline UX Competitive Research Report
+# Setframe UX Competitive Research Report
 
-**Prepared for:** Setline redesign — "Today" daily-ritual screen & "Training" program builder
+**Prepared for:** Setframe redesign — "Today" daily-ritual screen & "Training" program builder
 **Date:** August 2026
 **Scope:** Tightly focused on two specific UX problems as requested — not a general fitness app survey.
 
@@ -34,7 +34,7 @@ WHOOP's app is organized around three primary daily scores — Sleep, Recovery (
 - **Binary/quick-tap inputs, not open text.** This dramatically lowers the friction of manual data entry.
 - **No explicit "done/not done" checkbox UI** — completion is implicitly tracked (the journal prompt disappears once completed).
 
-**What WHOOP does NOT do well for Setline's use case:**
+**What WHOOP does NOT do well for Setframe's use case:**
 - WHOOP has no workout planning or program-building features — it only logs what the hardware detects.
 - The Journal is behaviors-focused (inputs that affect recovery), not a sequential morning "to-do" list.
 - Manual workout logging is minimal; WHOOP is primarily a passive biometric device.
@@ -69,7 +69,7 @@ The help doc confirms that Readiness is composed of overnight HRV, resting heart
 
 ### 1.3 Streaks — The Ordered Daily Habit Checklist
 
-Streaks is the closest verified example of the pure "daily habit checklist" UX pattern Setline is aiming for. It is an **Apple Design Award winner**, and its App Store description is precise:
+Streaks is the closest verified example of the pure "daily habit checklist" UX pattern Setframe is aiming for. It is an **Apple Design Award winner**, and its App Store description is precise:
 
 > "Track up to 24 tasks you want to complete each day. Your goal is to build a streak of consecutive days."
 > "Streaks automatically knows when you complete tasks linked to the Health app, such as water tracking and caffeine tracking."
@@ -79,12 +79,12 @@ Streaks is the closest verified example of the pure "daily habit checklist" UX p
 
 **Key UX patterns (verified from App Store listing + user reviews):**
 
-- **Mixed manual + auto-completed tasks in one list.** A user review explicitly calls this out as a key differentiator: *"Many of the tasks can be automatically tracked/completed by syncing with your phone's data, which has proved to be very handy since I don't like having to manually track tasks."* This is exactly the mixed-modality problem Setline faces: some items (workout, calories burned) can be auto-marked via Apple Health; others (weigh-in, journal entry, meal log) require manual completion.
+- **Mixed manual + auto-completed tasks in one list.** A user review explicitly calls this out as a key differentiator: *"Many of the tasks can be automatically tracked/completed by syncing with your phone's data, which has proved to be very handy since I don't like having to manually track tasks."* This is exactly the mixed-modality problem Setframe faces: some items (workout, calories burned) can be auto-marked via Apple Health; others (weigh-in, journal entry, meal log) require manual completion.
 - **Visual "done vs. not done" treatment.** Streaks uses a circular icon for each habit. When completed, the circle fills in with a solid color representing completion. Incomplete tasks show as outlined/hollow circles. This is the most commonly cited "satisfying" interaction in reviews.
 - **Today Widget for ambient awareness.** The App Store listing explicitly touts: *"Today Widget allows you to quickly view and complete your tasks."* This means the checklist surface extends beyond the app — actionable at a glance from the home screen.
 - **No enforced order.** Despite feeling like a sequence, Streaks allows tasks to be completed in any order. The "sequence" is psychological (tasks are laid out on a grid and you work through them) but not locked programmatically.
-- **Streak continuity as the motivational engine.** The "streak" metaphor — consecutive days of completing your routine — is the engagement hook. Setline's morning ritual has a natural version of this (did you log everything today?).
-- **Negative tasks (habits to break).** Streaks supports "negative tasks" — this is a nuance Setline doesn't need immediately, but it demonstrates the system can represent different task *types* visually.
+- **Streak continuity as the motivational engine.** The "streak" metaphor — consecutive days of completing your routine — is the engagement hook. Setframe's morning ritual has a natural version of this (did you log everything today?).
+- **Negative tasks (habits to break).** Streaks supports "negative tasks" — this is a nuance Setframe doesn't need immediately, but it demonstrates the system can represent different task *types* visually.
 
 **What Streaks does NOT do:**
 - No workout program builder or exercise logging.
@@ -95,7 +95,7 @@ Streaks is the closest verified example of the pure "daily habit checklist" UX p
 
 ### 1.4 Apple Activity / Fitness App — Rings as Actionable Daily Goals
 
-Apple's native Activity app (watchOS/iOS) is the most widely-used reference point for daily fitness goal tracking among Apple Watch users — directly relevant to Setline's Apple Health sync.
+Apple's native Activity app (watchOS/iOS) is the most widely-used reference point for daily fitness goal tracking among Apple Watch users — directly relevant to Setframe's Apple Health sync.
 
 **Key UX patterns (sourced from Apple's own platform documentation and App Store listing for Apple Fitness+):**
 
@@ -103,7 +103,7 @@ Apple's native Activity app (watchOS/iOS) is the most widely-used reference poin
 - **No explicit "not started" vs. "in progress" vs. "done" distinction** beyond the ring fill level. A ring at 0% looks the same structurally as a ring at 50% — only the fill arc differs.
 - **Source:** Apple Fitness+ landing page and App Store listing for Apple Watch, confirmed in Apple's platform guidance: https://www.apple.com/apple-fitness-plus/
 - **Activity summaries are passive by default.** The iPhone Fitness app shows historical activity data but requires the user to navigate to it. There is no active daily prompt ("You haven't logged your weight yet").
-- **Key gap for Setline:** Apple's own ecosystem deliberately does not create a morning ritual prompt or checklist. This is by design — Apple Health is a platform, not a coaching app. This creates a genuine opportunity for Setline to fill the gap that Apple intentionally leaves open.
+- **Key gap for Setframe:** Apple's own ecosystem deliberately does not create a morning ritual prompt or checklist. This is by design — Apple Health is a platform, not a coaching app. This creates a genuine opportunity for Setframe to fill the gap that Apple intentionally leaves open.
 
 ---
 
@@ -130,7 +130,7 @@ Habitica (formerly HabitRPG) is a gamified task/habit manager that turns daily h
 
 ---
 
-### ✅ Actionable UX Pattern Recommendations for Setline "Today" Screen
+### ✅ Actionable UX Pattern Recommendations for Setframe "Today" Screen
 
 **Rec 1: Lead with auto-synced data, prompt for manual completions.**
 Mirror WHOOP's and Oura's pattern of surfacing auto-populated data first (Apple Watch workout, calories, active calories), then explicitly prompting for the manual items that remain (weight, journal, meal log). The framing should be: *"Your Watch captured your workout. 3 things still to log."* This reduces the feeling of burden — the app acknowledges what it already knows.
@@ -139,13 +139,13 @@ Mirror WHOOP's and Oura's pattern of surfacing auto-populated data first (Apple 
 Display each ritual item (Weight Log, Journal, Meal Log, Today's Workout) as a card or row with a clear binary visual state: incomplete (outlined, gray or muted) vs. complete (filled, brand-colored, with a checkmark or strikethrough). Do not lock users into a strict sequence — Streaks' research shows users find forced ordering frustrating — but present items in the natural temporal order (morning check-in items first, workout card in the middle, post-workout items last). This soft-ordering matches the user's described real workflow without requiring it.
 
 **Rec 3: Differentiate manual-entry items from auto-sync items with a persistent visual indicator.**
-Streaks does this partially, but Setline can be more explicit: a small Watch icon (⌚) or sync badge on items that will auto-complete via Apple Health (workout, calories burned), vs. a pencil/tap icon on items requiring manual input (weight, journal, meal log). This sets correct expectations and reduces double-entry anxiety ("did my Watch already log this?").
+Streaks does this partially, but Setframe can be more explicit: a small Watch icon (⌚) or sync badge on items that will auto-complete via Apple Health (workout, calories burned), vs. a pencil/tap icon on items requiring manual input (weight, journal, meal log). This sets correct expectations and reduces double-entry anxiety ("did my Watch already log this?").
 
 **Rec 4: Use a completion summary state, not a blank screen.**
 When all daily items are complete, show a brief "daily summary" state — aggregate: total calories in vs. out, today's day-type name (e.g., "Upper A — Complete ✓"), streak count, and a single key stat from the Watch sync (e.g., Active Calories: 480). This mirrors WHOOP's post-completion recovery summary and Oura's daily score card — it converts the checklist from a task manager into a satisfying daily health snapshot. This is the moment when the app becomes a journal rather than a to-do list.
 
 **Rec 5: Add a single "day tone" input that sits above the checklist — fast, not a form.**
-WHOOP Journal and Oura Tags both show that brief self-reported mood/wellness input, when it takes under 5 seconds, is used consistently. For Setline's morning ritual, put a 5-option emoji-style "how are you feeling today?" selector (e.g., 💪 Great / 😊 Good / 😐 Okay / 😴 Tired / 🤕 Rough) as the very first tap on the Today screen — before the checklist. This is lower friction than a text journal and gives meaningful context for the day's training intent. Save the open journal text field for an optional expand action.
+WHOOP Journal and Oura Tags both show that brief self-reported mood/wellness input, when it takes under 5 seconds, is used consistently. For Setframe's morning ritual, put a 5-option emoji-style "how are you feeling today?" selector (e.g., 💪 Great / 😊 Good / 😐 Okay / 😴 Tired / 🤕 Rough) as the very first tap on the Today screen — before the checklist. This is lower friction than a text journal and gives meaningful context for the day's training intent. Save the open journal text field for an optional expand action.
 
 ---
 ---
@@ -176,8 +176,8 @@ Strong is one of the most widely recommended strength tracking apps, verified by
 - **Duration exercise support exists but is secondary.** The App Store listing notes "Duration Exercises" as a supported type, and a top App Store review explicitly describes the limitation: *"Some pairings are not currently allowed, like added weight and duration, so it's not currently possible to have a record of, say, doing planks for 30 seconds with a 20 lb weight on your back."* This is a concrete UX gap: exercise type fields are discrete (reps, or duration, or distance) rather than composable. The user's workaround (*"combine weight and reps and put the time in the reps field in seconds"*) is a classic sign of a missing field type.
 - **No block-vs-perpetual distinction.** Strong has no concept of a "program" with an end date or a cycling multi-week structure. All routines are perpetual by definition — you manually pick which one to run.
 
-**What this means for Setline:**
-Strong proves that users will tolerate a no-program-layer experience for pure strength logging, but this is a *gap* not a best practice. The user review identifying the duration+weight limitation is a verified real-world pain point that is directly applicable to Setline's need to support mobility (duration-only), cycling (distance + duration), and strength work (sets/reps) in the same plan.
+**What this means for Setframe:**
+Strong proves that users will tolerate a no-program-layer experience for pure strength logging, but this is a *gap* not a best practice. The user review identifying the duration+weight limitation is a verified real-world pain point that is directly applicable to Setframe's need to support mobility (duration-only), cycling (distance + duration), and strength work (sets/reps) in the same plan.
 
 ---
 
@@ -197,7 +197,7 @@ Fitbod takes a fundamentally different approach: it generates workouts algorithm
 - **Muscle Recovery Tracking as the "why."** Fitbod's unique contribution to the program-builder UX is surfacing muscle fatigue states visually (fresh → recovered → fatigued). This functions as a daily readiness cue: "Your chest and shoulders are recovered — today's session focuses on these."
 - **No multi-week block structure.** Fitbod explicitly acknowledges it is perpetual: the algorithm continuously adapts. There is no "4-week program start/end" concept unless you create a Training Plan through the premium features (which offers pre-built plans but still within Fitbod's algorithmic framework).
 - **Training Plans (premium feature, per Fitbod Help Center structure).** Fitbod's Help Center reveals a "Training Plans" section under the "Workout & Training Features" category. The search function returns references to "Max Effort Day" as a Training Plan concept. *However, specific UI details of the Training Plans flow could not be fully verified from public documentation during this research session.*
-- **What Fitbod lacks for Setline:** Users who want explicit named day-types and self-authored program structure (like Setline's user) are not Fitbod's target. The "less planning, more progress" philosophy is the anti-pattern to what Setline needs to build.
+- **What Fitbod lacks for Setframe:** Users who want explicit named day-types and self-authored program structure (like Setframe's user) are not Fitbod's target. The "less planning, more progress" philosophy is the anti-pattern to what Setframe needs to build.
 
 ---
 
@@ -206,7 +206,7 @@ Fitbod takes a fundamentally different approach: it generates workouts algorithm
 Hevy is a newer (~2020) strength tracking app with strong user community traction. Its website is JavaScript-heavy and did not render content for direct inspection, but its App Store listing is widely referenced in fitness communities.
 
 **What can be verified:**
-- Hevy's core organization system uses **Routines** (named workout templates) that can be organized into **Folders**. This is the most directly relevant pattern for Setline's "named day-types" concept.
+- Hevy's core organization system uses **Routines** (named workout templates) that can be organized into **Folders**. This is the most directly relevant pattern for Setframe's "named day-types" concept.
 - Hevy's Help Center (though individual article pages returned 404s) confirms the category structure: "Routines" is a top-level organizational concept.
 - Third-party user comparisons (widely cited in /r/fitness and /r/hevy communities, though not independently fetchable) describe Hevy as having a cleaner routine-library UX than Strong, with a dedicated "Routines" tab that functions as a template library separate from the workout logging tab.
 
@@ -237,13 +237,13 @@ TrainHeroic is a coach-to-athlete platform where athletes follow programs author
 
 ### 2.5 Strava / Garmin Connect — Distance + Duration Activity Logging
 
-For the cardio/duration side of Setline's mixed-modality problem (bike ride, 5 miles / 30 min), Strava and Garmin Connect are the dominant apps.
+For the cardio/duration side of Setframe's mixed-modality problem (bike ride, 5 miles / 30 min), Strava and Garmin Connect are the dominant apps.
 
 **Key verified UX patterns:**
 - **Activity type is the primary organizational concept.** In Strava and Garmin, every logged activity has a type (Run, Ride, Walk, Yoga, Strength Training, etc.) with associated metrics appropriate to that type. A Run shows pace + distance + elevation. A Strength Training session shows duration + estimated calories. This type-aware display pattern means the UI naturally renders different metrics for different modalities.
 - **Source basis:** Strava's and Garmin Connect's activity type systems are described in widely published reviews and their own developer documentation, though direct URL access to their help docs was not available in this session.
 - **No program builder.** Neither Strava nor Garmin Connect has a user-facing "training program builder" with named day-types. Garmin Connect has "Training Plans" but these are coach-authored templates downloaded to your device — not user-created custom programs.
-- **The core insight for Setline:** The way Strava/Garmin handle mixed-modality logging — by letting the *activity type* drive which metrics are shown — is the right model for Setline's exercise entry UX. When a user adds "bike ride" to their plan, the input fields should automatically switch to distance + duration. When they add "back squat," the fields switch to sets × reps × weight.
+- **The core insight for Setframe:** The way Strava/Garmin handle mixed-modality logging — by letting the *activity type* drive which metrics are shown — is the right model for Setframe's exercise entry UX. When a user adds "bike ride" to their plan, the input fields should automatically switch to distance + duration. When they add "back squat," the fields switch to sets × reps × weight.
 
 ---
 
@@ -260,14 +260,14 @@ After researching all target apps, the answer is: **almost none expose this as a
 | JuggernautAI | Fixed blocks (3–6 weeks) | Phase labels (Peak, Accumulation) exposed as informational |
 | Strava/Garmin | No program layer | Just activity logs |
 
-**The implication for Setline:** The perpetual-vs-block distinction is a **genuine market gap** — no mainstream app surveyed presents this as a first-class user-configurable option. Setline has an opportunity to be one of the first consumer-facing apps to expose this clearly: "Is this program a repeating cycle (runs forever, restarts at week 1 after week 4) or a fixed block (runs 4 weeks, then you decide what's next)?"
+**The implication for Setframe:** The perpetual-vs-block distinction is a **genuine market gap** — no mainstream app surveyed presents this as a first-class user-configurable option. Setframe has an opportunity to be one of the first consumer-facing apps to expose this clearly: "Is this program a repeating cycle (runs forever, restarts at week 1 after week 4) or a fixed block (runs 4 weeks, then you decide what's next)?"
 
 ---
 
-### ✅ Actionable UX Pattern Recommendations for Setline "Training" Program Builder
+### ✅ Actionable UX Pattern Recommendations for Setframe "Training" Program Builder
 
 **Rec 1: Make "Day Type" a first-class reusable template entity, surfaced in a dedicated library.**
-Strong and Hevy both demonstrate that named routines (workout templates) should live in a **persistent library tab** separate from the calendar/schedule view. For Setline, the "Day Type" (Upper A, Lower B, Recovery Walk, etc.) should be a named, reusable object that a user creates once and then assigns to calendar positions. Think of it like a CSS class: define it once, apply it many times. The library view shows all defined day-types as cards with their name, a visual modality badge (💪 Strength / 🚶 Cardio / 🧘 Mobility / 🚴 Cycling), and a count of exercises/items in the day.
+Strong and Hevy both demonstrate that named routines (workout templates) should live in a **persistent library tab** separate from the calendar/schedule view. For Setframe, the "Day Type" (Upper A, Lower B, Recovery Walk, etc.) should be a named, reusable object that a user creates once and then assigns to calendar positions. Think of it like a CSS class: define it once, apply it many times. The library view shows all defined day-types as cards with their name, a visual modality badge (💪 Strength / 🚶 Cardio / 🧘 Mobility / 🚴 Cycling), and a count of exercises/items in the day.
 
 **Rec 2: Use exercise-type-aware input fields that auto-switch based on modality — no inconsistency.**
 The Strong user review about duration+weight combinations, and Strava's activity-type-driven metrics display, both point to the same solution: when a user adds an exercise or activity to a Day Type, the input fields should be determined by the exercise type, not by a fixed form. Define three input schemas:
@@ -282,23 +282,23 @@ At the "Create Program" step, present a clear binary choice:
   - **Repeating Routine** — *"No end date. After Week 4, start back at Week 1 automatically."*
   - **Fixed Block** — *"Runs for X weeks, then stops. You decide what comes next."*
   
-  This is a gap in every app surveyed. For Setline's described user (who alternates between fixed 12-week programs and a perpetual strength split), this choice directly maps to their mental model. The UI for both is the same (a weekly calendar builder) — only the behavior on "last week" differs.
+  This is a gap in every app surveyed. For Setframe's described user (who alternates between fixed 12-week programs and a perpetual strength split), this choice directly maps to their mental model. The UI for both is the same (a weekly calendar builder) — only the behavior on "last week" differs.
 
 **Rec 4: Enable per-day ad hoc overrides via a "swap day" action that doesn't mutate the underlying program.**
 This is the critical "life/travel override" requirement. The pattern to follow is a *non-destructive override*: a calendar day can be swapped to any other Day Type from the library, or replaced with a free-form "custom day," without modifying the program template. Visually, swapped days should be distinguishable from the planned days (e.g., a small "✏️ Modified" badge on the calendar cell) so the user can see when they've deviated from their plan. A "Restore to plan" action returns the day to its programmed intent. This respects the plan without making the user feel they've "broken" their program when life intervenes.
 
 **Rec 5: Separate the "Plan" view from the "Log" view with a clear handoff moment.**
-The research across all apps shows that the two UX modes — *planning* (what am I supposed to do?) and *logging* (recording what I did) — are frequently conflated, creating cognitive friction. For Setline's Today screen, the "Training" section should show the *planned* day's workout as a checklist of exercises/activities. When the user starts logging, each item transitions from a "plan card" (gray, shows target: 3×8 @ 185 lbs) to an "active log card" (live, shows actual: Set 1 ✓ 185, Set 2 ✓ 190). Once all sets are logged, the exercise row shows a completion state distinct from the plan state. This is analogous to how WHOOP separates your Strain target (planned) from your actual Strain accumulation (logged).
+The research across all apps shows that the two UX modes — *planning* (what am I supposed to do?) and *logging* (recording what I did) — are frequently conflated, creating cognitive friction. For Setframe's Today screen, the "Training" section should show the *planned* day's workout as a checklist of exercises/activities. When the user starts logging, each item transitions from a "plan card" (gray, shows target: 3×8 @ 185 lbs) to an "active log card" (live, shows actual: Set 1 ✓ 185, Set 2 ✓ 190). Once all sets are logged, the exercise row shows a completion state distinct from the plan state. This is analogous to how WHOOP separates your Strain target (planned) from your actual Strain accumulation (logged).
 
 ---
 
-## Cross-Cutting Observations for Setline
+## Cross-Cutting Observations for Setframe
 
-1. **The "Today" screen and the "Training" program builder are deeply interdependent.** The most common UX failure in fitness apps is designing these as two unrelated features. The Today screen should *consume* the program builder's output — the planned Day Type for today — and display it as the workout checklist section. This single data connection turns Setline from two separate tools into one coherent system.
+1. **The "Today" screen and the "Training" program builder are deeply interdependent.** The most common UX failure in fitness apps is designing these as two unrelated features. The Today screen should *consume* the program builder's output — the planned Day Type for today — and display it as the workout checklist section. This single data connection turns Setframe from two separate tools into one coherent system.
 
-2. **No existing app does all of this well in one product.** WHOOP does the morning ritual best but has no program structure. Strong and Hevy do workout logging well but have no daily ritual or block programming. Fitbod hides the program structure behind AI. This is Setline's genuine whitespace.
+2. **No existing app does all of this well in one product.** WHOOP does the morning ritual best but has no program structure. Strong and Hevy do workout logging well but have no daily ritual or block programming. Fitbod hides the program structure behind AI. This is Setframe's genuine whitespace.
 
-3. **Apple Watch auto-sync is a differentiator, not a checkbox feature.** For Setline's Apple Health users, auto-syncing Watch workout data into the Today checklist (automatically completing the "Workout" item when the Watch detects a matching session) is the interaction that makes the daily ritual feel "smart" rather than burdensome. Streaks demonstrates that this auto-completion of HealthKit-linked tasks is one of the most-praised features in user reviews.
+3. **Apple Watch auto-sync is a differentiator, not a checkbox feature.** For Setframe's Apple Health users, auto-syncing Watch workout data into the Today checklist (automatically completing the "Workout" item when the Watch detects a matching session) is the interaction that makes the daily ritual feel "smart" rather than burdensome. Streaks demonstrates that this auto-completion of HealthKit-linked tasks is one of the most-praised features in user reviews.
 
 ---
 
@@ -359,7 +359,7 @@ The Strong App Store listing states plainly:
 
 This is unambiguous: routines in Strong are fully custom-named by the user. There is no preset list of routine categories or mandatory naming convention. A user can create a routine called "Upper A," "Thursday Chaos," "Hotel Room," or "Recovery Walk" — the name field is a free-text input with no constraints. Strong ships with some example/starter routines (e.g., "Starting Strength," "StrongLifts 5x5" as references), but these are illustrative starter content, not a fixed taxonomy. The user can ignore, rename, or delete them.
 
-**Critical limitation that is separate from naming:** Strong caps free users at **3 custom routines** total. This is a paywall constraint on *quantity*, not a constraint on *naming freedom*. Strong PRO removes this limit. For Setline, the lesson is clear: naming freedom and quantity limits are orthogonal design decisions — don't accidentally couple them.
+**Critical limitation that is separate from naming:** Strong caps free users at **3 custom routines** total. This is a paywall constraint on *quantity*, not a constraint on *naming freedom*. Strong PRO removes this limit. For Setframe, the lesson is clear: naming freedom and quantity limits are orthogonal design decisions — don't accidentally couple them.
 
 **Also notable:** A top App Store review explicitly praises routine naming flexibility as part of what makes Strong feel personal:
 > "It has a huge wealth of features for building sets...It makes routines or lets you start empty sets."
@@ -368,9 +368,9 @@ The phrase "start empty sets" confirms that Strong supports creating a routine e
 
 ---
 
-#### Fitbod — ⚠️ App-Fixed Split Taxonomy with Limited User Customization. Anti-Pattern for Setline.
+#### Fitbod — ⚠️ App-Fixed Split Taxonomy with Limited User Customization. Anti-Pattern for Setframe.
 
-**Verdict: App-fixed preset taxonomy at the program-structure level. Pattern to avoid for Setline's day-type concept.**
+**Verdict: App-fixed preset taxonomy at the program-structure level. Pattern to avoid for Setframe's day-type concept.**
 
 This is the most important finding in this addendum, and it is now *directly verified* from Fitbod's own official product documentation.
 
@@ -399,7 +399,7 @@ The algorithm *enforces* structural splits — the splits are not named template
 
 **Source:** https://fitbod.me/blog/fitbod-2024-product-roundup/ — *"Custom Exercises: Personalize your workouts like never before"* listed as a 2025 roadmap item.
 
-**For Setline:** Fitbod's approach is the clearest example of the anti-pattern to avoid. Fitbod's splits are an app-owned vocabulary. "Upper A" would not exist in Fitbod's world — only "Upper Body" exists, and the algorithm decides what "Upper Body" means to your muscles that day. This is powerful for AI-driven recommendations but completely wrong for a user who has a specific named training methodology they've built themselves.
+**For Setframe:** Fitbod's approach is the clearest example of the anti-pattern to avoid. Fitbod's splits are an app-owned vocabulary. "Upper A" would not exist in Fitbod's world — only "Upper Body" exists, and the algorithm decides what "Upper Body" means to your muscles that day. This is powerful for AI-driven recommendations but completely wrong for a user who has a specific named training methodology they've built themselves.
 
 ---
 
@@ -414,7 +414,7 @@ The Hevy Help Center search result (the only Hevy documentation that loaded duri
 
 This language — "creating a routine" as a user-initiated action — confirms that routines in Hevy are user-created entities, not app-fixed presets. The phrasing "only include the sets you typically complete" is instructional guidance for *content*, not a constraint on *naming*. Combined with the Hevy website's confirmation that "Routines" with "Folders" is the primary organizational concept, the inference is sound: Hevy routines are freely named by the user.
 
-Hevy's folder organization further supports this: a user can create a folder called "My PPL Split" or "Vacation Workouts" or "Upper A / Upper B" — the folder is just a free-text label. This is the closest existing app to Setline's desired day-type library pattern.
+Hevy's folder organization further supports this: a user can create a folder called "My PPL Split" or "Vacation Workouts" or "Upper A / Upper B" — the folder is just a free-text label. This is the closest existing app to Setframe's desired day-type library pattern.
 
 **⚠️ Verification note:** The specific article text confirming free-text naming in Hevy's routine creation flow was not directly accessible (all article-level Hevy help URLs returned 404s). The above is inferred with high confidence from the available documentation fragments and organizational structure. It should be treated as *strongly probable but not line-for-line verified* from a citable article.
 
@@ -446,7 +446,7 @@ A user who trains "Upper A" (heavy horizontal push emphasis), "Upper B" (heavy v
 
 ---
 
-### ✅ Revised and Expanded Recommendations for Setline's Training Builder (Day-Type Authoring)
+### ✅ Revised and Expanded Recommendations for Setframe's Training Builder (Day-Type Authoring)
 
 The original five recommendations stand. This addendum adds one new, explicitly scoped recommendation and materially deepens Recommendation 1 from the original report.
 
@@ -454,22 +454,22 @@ The original five recommendations stand. This addendum adds one new, explicitly 
 
 **Rec 1 (Revised & Deepened): Day Type must be a fully user-authored, free-text-named entity — zero app-imposed vocabulary, zero preset list.**
 
-The research finding is direct: **Fitbod = anti-pattern; Strong and Hevy = good pattern.** Setline must side firmly with Strong and Hevy on this axis.
+The research finding is direct: **Fitbod = anti-pattern; Strong and Hevy = good pattern.** Setframe must side firmly with Strong and Hevy on this axis.
 
 Concretely, this means:
 - When a user creates a new Day Type, the first and only required field is a **free-text name field** with a blinking cursor and no placeholder suggestions beyond a ghost-text hint like *"e.g. Upper A, Recovery Walk, Leg Day"* (illustrative, not constraining).
 - There must be **no dropdown, no picker, no preset category list** that the user is asked to conform to before naming their day. The name is the identity. Don't ask the user to first pick "Strength" or "Cardio" or "Upper Body" — that forces them into the app's vocabulary before they've expressed their own.
 - The user must be able to **rename** a Day Type at any time — including after it has been used in a completed program — without losing historical log data associated with that day type. This is the "rename a Git branch" pattern: the label changes, the history does not.
-- The user must be able to **delete** a Day Type they no longer use. (The Strong review explicitly called out that Strong *doesn't* allow deletion of custom exercises with no remaining records — a frustration. Setline should do better.)
+- The user must be able to **delete** a Day Type they no longer use. (The Strong review explicitly called out that Strong *doesn't* allow deletion of custom exercises with no remaining records — a frustration. Setframe should do better.)
 - The user must be able to **duplicate** a Day Type as a starting point for a similar one (e.g., create "Upper B" by duplicating "Upper A" and swapping two exercises).
 
-**The optional enhancement:** After the user has named their Day Type and added content, Setline can *optionally and silently* infer a modality classification (Strength, Cardio, Mobility, Mixed) based on the exercise types in the day — and use this for filtering, search, or icon display — without ever surfacing that classification to the user as a required step. The classification is a UX convenience layer, not a taxonomy the user must navigate.
+**The optional enhancement:** After the user has named their Day Type and added content, Setframe can *optionally and silently* infer a modality classification (Strength, Cardio, Mobility, Mixed) based on the exercise types in the day — and use this for filtering, search, or icon display — without ever surfacing that classification to the user as a required step. The classification is a UX convenience layer, not a taxonomy the user must navigate.
 
 ---
 
 **Rec 6 (New): Treat Day Type templates and scheduled program instances as two explicitly separate layers — and make this distinction visible to users in the UI.**
 
-This emerges directly from the fixed-vs-user-authored research. The naming confusion most apps cause is conflating the *template* (what "Upper A" always contains) with the *scheduled instance* (the specific occurrence of Upper A on Tuesday of Week 2). These need to be architecturally and visually distinct in Setline's UI, because:
+This emerges directly from the fixed-vs-user-authored research. The naming confusion most apps cause is conflating the *template* (what "Upper A" always contains) with the *scheduled instance* (the specific occurrence of Upper A on Tuesday of Week 2). These need to be architecturally and visually distinct in Setframe's UI, because:
 
 1. **Editing a template** should propagate forward (all future instances of Upper A update), but not retroactively alter logged history.
 2. **Editing a single scheduled instance** (the ad hoc override case) should affect only that day — it's a "detach from template" operation, like breaking a recurring calendar event.
@@ -479,7 +479,7 @@ This emerges directly from the fixed-vs-user-authored research. The naming confu
 
 ### Updated Comparison Table: User-Authored vs. Fixed Taxonomy
 
-| App | Day-Type Naming | Fixed or User-Authored? | Can Rename? | Can Delete? | Can Create From Scratch? | Setline Pattern Rating |
+| App | Day-Type Naming | Fixed or User-Authored? | Can Rename? | Can Delete? | Can Create From Scratch? | Setframe Pattern Rating |
 |---|---|---|---|---|---|---|
 | **Strong** | Free-text routine name | ✅ Fully user-authored | ✅ Yes | ⚠️ Limited (exercises: no; routines: yes) | ✅ Blank slate | ✅ **Good pattern — follow this** |
 | **Hevy** | Free-text routine name + free-text folder | ✅ Fully user-authored | ✅ Yes (inferred) | ✅ Yes (inferred) | ✅ Yes (inferred) | ✅ **Good pattern — follow this** |

@@ -1,5 +1,5 @@
 import { createGlobalStyle } from 'styled-components';
-import { fontFamily } from '@setline/design-tokens';
+import { fontFamily } from '@setframe/design-tokens';
 
 export const GlobalStyle = createGlobalStyle`
   *, *::before, *::after {

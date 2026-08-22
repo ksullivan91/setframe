@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { View, Text, Pressable, Modal, FlatList, StyleSheet } from 'react-native';
 import { ChevronDown, Check } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
-import { radius, spacing } from '@setline/design-tokens';
+import { radius, spacing } from '@setframe/design-tokens';
 import { typeScale } from '../theme/getTheme';
 
 export interface SelectOption<T extends string> {

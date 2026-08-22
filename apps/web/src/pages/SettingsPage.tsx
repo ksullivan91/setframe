@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useClerk, useUser } from '@clerk/clerk-react';
-import { spacing, radius } from '@setline/design-tokens';
+import { spacing, radius } from '@setframe/design-tokens';
 import { typeScale } from '../theme/typeScale';
 import { Card, Button } from '../components';
 import { useApiClient } from '../lib/api-client';
-import type { NotificationPreference, User } from '@setline/schemas';
+import type { NotificationPreference, User } from '@setframe/schemas';
 
 /**
  * Settings — Account/Preferences/Apple Health sync/Notifications/Danger

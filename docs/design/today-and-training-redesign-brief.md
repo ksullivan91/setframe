@@ -16,7 +16,7 @@ A **sequential checklist of the day's ritual steps**, each either auto-synced (f
 
 1. **Morning weight** — manual entry (already have `daily_manual_entry.morningWeightValue`)
 2. **Journal / mood** — manual entry (short text + mood selector) — **new field needed**
-3. **Pre-workout meal** — logged externally in MyFitnessPal; Setline just shows a "logged in MFP ✓" checkbox or link-out, not full nutrition tracking (no MFP API integration in this phase — manual "done" toggle only)
+3. **Pre-workout meal** — logged externally in MyFitnessPal; Setframe just shows a "logged in MFP ✓" checkbox or link-out, not full nutrition tracking (no MFP API integration in this phase — manual "done" toggle only)
 4. **Workout** — tap to start today's scheduled session (existing workflow, now the 4th ritual step, not the sole focus)
 5. **Watch auto-sync** — calories/duration pulled in automatically after the fact (already exists via `daily_activity_summary`); shown as a completed step once data lands, not something the user "does"
 
@@ -83,7 +83,7 @@ Progress, Settings, Sign In/Up, and nav shell remain as-is per prior confirmatio
 
 ## 4. Suggested Sequencing
 1. Approve this brief (you are here).
-2. Figma: redesign Today (ritual checklist) and Training (day-type library + schedule builder + override modal), web + mobile parity, using existing style guide (`docs/design/setline-figma-style-guide.md`) as the base system — no new color/typography work needed, just new layout/components.
+2. Figma: redesign Today (ritual checklist) and Training (day-type library + schedule builder + override modal), web + mobile parity, using existing style guide (`docs/design/setframe-figma-style-guide.md`) as the base system — no new color/typography work needed, just new layout/components.
 3. Update `docs/data-model.md` and `docs/api.md` for the schema/endpoint changes in §2.6/§2.7 and §1.4/§1.5.
 4. Migrate DB (new tables/columns), implement new API routes.
 5. Rebuild `TodayPage`/`ProgramEditorPage` (web) and mobile equivalents against the new schema.

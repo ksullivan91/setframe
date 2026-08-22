@@ -1,4 +1,4 @@
-# Setline — API Resource Map (Phase 0 Draft)
+# Setframe — API Resource Map (Phase 0 Draft)
 
 Status: Proposed, pending review. Base path `/v1`.
 

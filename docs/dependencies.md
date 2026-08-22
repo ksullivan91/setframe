@@ -1,4 +1,4 @@
-# Setline — Proposed Dependency Set (Phase 0 Draft → Confirmed at Phase 1-2)
+# Setframe — Proposed Dependency Set (Phase 0 Draft → Confirmed at Phase 1-2)
 
 Status: Confirmed for `apps/api`, `apps/web`, `apps/mobile` scaffolds
 (Phase 1-2 implementation, 2026-08-20). Versions below reflect what

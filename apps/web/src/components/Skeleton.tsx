@@ -1,5 +1,5 @@
 import styled, { keyframes } from 'styled-components';
-import { radius } from '@setline/design-tokens';
+import { radius } from '@setframe/design-tokens';
 
 const shimmer = keyframes`
   0% {

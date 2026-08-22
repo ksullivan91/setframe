@@ -4,7 +4,7 @@ Status: Proposed. Date: 2026-08-20.
 
 ## Context
 
-Setline's mobile app must read HealthKit activity, activity-summary/ring,
+Setframe's mobile app must read HealthKit activity, activity-summary/ring,
 heart/fitness, body-weight, and MyFitnessPal-via-HealthKit nutrition data,
 using Expo development builds (not Expo Go), with authorization,
 statistics/collection queries, activity summary queries, provenance,

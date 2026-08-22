@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { MoreVertical } from 'lucide-react';
-import { radius, spacing } from '@setline/design-tokens';
+import { radius, spacing } from '@setframe/design-tokens';
 import { typeScale } from '../theme/typeScale';
 import { IconButton } from './IconButton';
 

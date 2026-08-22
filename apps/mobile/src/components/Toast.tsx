@@ -1,7 +1,7 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { CircleCheck, CircleX } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
-import { radius, spacing } from '@setline/design-tokens';
+import { radius, spacing } from '@setframe/design-tokens';
 import { typeScale } from '../theme/getTheme';
 
 export interface ToastProps {

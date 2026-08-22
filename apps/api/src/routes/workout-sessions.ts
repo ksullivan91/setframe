@@ -10,8 +10,8 @@ import {
   workoutSessionSchema,
   workoutSetSchema,
   type Prescription,
-} from '@setline/schemas';
-import { detectRepPR, detectWeightPR, type HistoricalSet } from '@setline/domain';
+} from '@setframe/schemas';
+import { detectRepPR, detectWeightPR, type HistoricalSet } from '@setframe/domain';
 import {
   dayType,
   dayTypeExercise,
@@ -20,7 +20,7 @@ import {
   workoutExerciseLog,
   workoutSession,
   workoutSet,
-} from '@setline/database';
+} from '@setframe/database';
 import { getDb } from '../lib/db.js';
 import { requireAuth } from '../plugins/auth.js';
 import { badRequest, forbidden, notFound } from '../lib/errors.js';

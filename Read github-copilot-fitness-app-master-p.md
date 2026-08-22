@@ -14,7 +14,7 @@ Begin with Phase 0 only. Do not proceed beyond Phase 0 until you have:
 
 
 
-Read setline-branding-figma-mcp-copilot-prompt.md in full.
+Read setframe-branding-figma-mcp-copilot-prompt.md in full.
 
 
 
@@ -46,11 +46,11 @@ Do not implement production UI yet.
 
 
 
-Inspect the Figma file through MCP, audit its variables, components, typography, spacing, color system, layouts, and responsive patterns, then create the requested Setline Figma audit and proposed rebranding/design-system direction.
+Inspect the Figma file through MCP, audit its variables, components, typography, spacing, color system, layouts, and responsive patterns, then create the requested Setframe Figma audit and proposed rebranding/design-system direction.
 
 
 
-Present the proposed Setline adaptation to me for approval before modifying the application UI broadly.
+Present the proposed Setframe adaptation to me for approval before modifying the application UI broadly.
 
 Do not begin implementing application features yet.
 

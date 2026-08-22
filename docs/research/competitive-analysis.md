@@ -1,11 +1,11 @@
-# Competitive UX Research Report for Setline
+# Competitive UX Research Report for Setframe
 
 Date: 2026-08-20. Sources: Apple App Store reviews/listings, Fitbod's
 official algorithm blog documentation, press coverage of Whoop (Tom's
 Guide), MyFitnessPal review coverage (PCMag), and general Apple
 Fitness+/Apple Health iOS 17+ coverage.
 
-**Purpose**: ground Setline's design/architecture iteration in real
+**Purpose**: ground Setframe's design/architecture iteration in real
 competitive UX patterns, scoped strictly to what fits our locked
 spec (strength-training logging, program building, HealthKit
 read/reconcile, simple daily check-ins) — explicitly excluding
@@ -31,7 +31,7 @@ Strong's core reputation is built on **ruthless UI minimalism**. App Store revie
 - **Superset support**: exercises can be grouped. During a superset, you alternate between exercises in the group, each with their own set rows.
 - **Apple Watch companion**: logs sets from the wrist, syncs in real-time to iPhone. Consistently called "amazing" in reviews — specifically that watch and phone can be edited simultaneously.
 
-### Feature Ideas for Setline
+### Feature Ideas for Setframe
 - **One-tap set completion + rest timer trigger**: make checking off a set and starting the rest timer a single tap, not two interactions. Users love not having to think.
 - **Plate calculator accessible from within the active set row**: a calculator icon on the weight input field, not buried in a menu.
 - **Inline PR badge on set completion** — show a small trophy/badge on the set row itself when a PR is logged, without any navigation interruption.
@@ -39,7 +39,7 @@ Strong's core reputation is built on **ruthless UI minimalism**. App Store revie
 
 ### Patterns to Avoid
 - **Exercise type rigidity**: Strong users complain they can't pair "weight + duration" (e.g., weighted plank). The data model treats exercise types as mutually exclusive, making edge-case exercises awkward. Design your `ExerciseType` model to support compound inputs from the start.
-- **Custom exercise deletion impossible**: if a custom exercise has history attached, Strong won't let you delete it — only "hide" it. Users find this confusing. Setline should support soft-delete with history preservation as a distinct, understandable state.
+- **Custom exercise deletion impossible**: if a custom exercise has history attached, Strong won't let you delete it — only "hide" it. Users find this confusing. Setframe should support soft-delete with history preservation as a distinct, understandable state.
 - **Can't customize built-in exercise names**: power users want to rename "Romanian Deadlift" to "RDL." A simple `displayName` override field on the user's exercise record handles this.
 
 ---
@@ -58,16 +58,16 @@ Hevy is widely seen as **Strong's closest rival**, positioned as "Strong with be
 - **Exercise library search with muscle group filters**: browse-and-filter by primary/secondary muscle group before adding. Users frequently mention this as faster than Strong's search when they don't know the exact exercise name.
 - **"Last time" context in active workout**: each set row shows the previous session's weight × reps in small greyed text directly below the input fields. No need to navigate away to see what you did last week.
 
-### Feature Ideas for Setline
+### Feature Ideas for Setframe
 - **"Last time" ghost text on set rows**: show `prev: 185lb × 5` in the weight/reps fields as placeholder text or a subtext label. Zero extra taps — just visible context while logging.
 - **Post-workout summary card**: after finishing a session, surface a summary screen (total volume, sets completed, PRs set, duration). Make it shareable as an image. This is a clear session endpoint, which improves satisfaction and retention.
 - **Calendar heatmap on the History/Progress screen**: a month or week strip showing which days had workouts logged. Immediately communicates consistency without needing to read numbers.
 - **Muscle group filter on exercise picker**: when adding an exercise to a workout or program day, allow filtering by muscle group (push/pull/legs or chest/back/quads/etc.) rather than requiring keyword search.
 
 ### Patterns to Avoid
-- **Social feed notifications bleeding into workout flow**: Hevy's social layer generates "likes/comments on your workout" notifications that interrupt the workout experience for users who aren't there for the social features. Setline has no social scope — no feed, but also make sure activity notifications (e.g., sync confirmations) are low-noise.
+- **Social feed notifications bleeding into workout flow**: Hevy's social layer generates "likes/comments on your workout" notifications that interrupt the workout experience for users who aren't there for the social features. Setframe has no social scope — no feed, but also make sure activity notifications (e.g., sync confirmations) are low-noise.
 - **Analytics overload on the Progress screen**: Hevy surfaces 7+ chart types per exercise. Users report feeling overwhelmed when they first open the analytics section. Prioritize 2-3 metrics prominently (1RM trend, volume trend, PR history) and put the rest behind a "more" toggle.
-- **Over-generous free tier reducing upgrade motivation**: not a UX issue per se, but a business model note — Hevy's unlimited free tier means users have less incentive to upgrade. Setline should scope what's free vs. gated thoughtfully.
+- **Over-generous free tier reducing upgrade motivation**: not a UX issue per se, but a business model note — Hevy's unlimited free tier means users have less incentive to upgrade. Setframe should scope what's free vs. gated thoughtfully.
 
 ---
 
@@ -89,14 +89,14 @@ Whoop's app is consistently cited by reviewers (Tom's Guide, general fitness pre
 - **Metrics grid (below Highlights)**: compact icon-grid of health categories (Activity, Heart, Body Measurements, Nutrition, etc.) that lets power users navigate to any data type. Clean visual hierarchy — summary first, drill-down second.
 - **Trend indicators with baseline comparison**: individual metrics show a sparkline plus a ±% comparison vs. the prior 30-day baseline. E.g., "Steps: 8,432 today • ↑12% vs your average."
 
-### Feature Ideas for Setline
+### Feature Ideas for Setframe
 - **"Today" screen top section = 3-metric readiness strip**: show Morning Weight, Blood Pressure trend direction (stable/up/down), and Steps from HealthKit as a horizontal 3-card row at the top. Each card tappable to see 30-day history. Derived from Whoop's single-screen daily answer + Apple Health's metrics grid.
 - **Color/icon-coded trend direction on check-in metrics**: body weight "↑ 1.2lb this week" in neutral gray vs. blood pressure trending high in amber — low-effort contextual signal without medical claims.
 - **Configurable morning journal questions**: 3-5 user-defined daily prompts (e.g., "Sleep quality 1-5", "Recovery feel 1-5") that sit above the workout prompt on the Today screen. Log them in under 30 seconds. Store as `DailyCheckin` rows to enable later correlation views.
 
 ### Patterns to Avoid
-- **Whoop's initial overwhelm problem**: Tom's Guide reviewer explicitly wrote "Whoop can feel overwhelming for the first week or so." The app has too many unlabeled charts and non-obvious interaction patterns for new users. **Setline should label every metric, explain every chart**, especially given HealthKit data that users may not have conceptual models for.
-- **Apple Health's data-overload default view**: the Health app shows 100+ data categories with no initial prioritization. Users who aren't data-literate bounce. Setline should never present raw HealthKit data as-is — always present a curated, labeled summary view, not a dump.
+- **Whoop's initial overwhelm problem**: Tom's Guide reviewer explicitly wrote "Whoop can feel overwhelming for the first week or so." The app has too many unlabeled charts and non-obvious interaction patterns for new users. **Setframe should label every metric, explain every chart**, especially given HealthKit data that users may not have conceptual models for.
+- **Apple Health's data-overload default view**: the Health app shows 100+ data categories with no initial prioritization. Users who aren't data-literate bounce. Setframe should never present raw HealthKit data as-is — always present a curated, labeled summary view, not a dump.
 - **Passive data without actionable context**: Apple Health shows "exercise minutes: 23" with no context about whether that's good, bad, on-trend, or relevant to today's planned workout. Add baseline comparison ("vs your 30-day avg") and a brief label on every HealthKit metric card.
 
 ---
@@ -115,16 +115,16 @@ Fitbod's core differentiator is its algorithm (documented publicly on their blog
 - **Progression rule transparency**: the algorithm blog post explains that rep ranges, set counts, and rest periods are programmed from published sport science (citing Schoenfeld 2017, Grgic 2018). Users who read this trust the suggestions more. *Lesson: show your work when making prescription suggestions — even a brief tooltip ("Based on your 3-day volume" or "Progressive overload: +5lb from last session") dramatically improves user trust in programmatic suggestions.*
 
 **Specific praised patterns (Future):**
-Future's UX is primarily human-coach-delivered (out of Setline's scope), but its **workout preview UX** is worth noting: before a workout begins, users see a "today's workout" card that includes exercise list, estimated duration, and an intensity indicator. This pre-session context-setting is praised for reducing friction — users know what they're walking into before they start logging.
+Future's UX is primarily human-coach-delivered (out of Setframe's scope), but its **workout preview UX** is worth noting: before a workout begins, users see a "today's workout" card that includes exercise list, estimated duration, and an intensity indicator. This pre-session context-setting is praised for reducing friction — users know what they're walking into before they start logging.
 
-### Feature Ideas for Setline
+### Feature Ideas for Setframe
 - **Progression rule picker with plain-English labels**: in the ProgramEditor, when a user sets a progression rule for an exercise (e.g., "add 5lb when all reps hit"), show a brief plain-language tooltip like "Linear progression: add weight each session when you complete all prescribed reps. Common for beginners on compound lifts." Don't just show `rule: DOUBLE_PROGRESSION`.
 - **Pre-workout preview card on the Today screen**: before starting a workout session, show a "Today: Push A — 6 exercises, ~50 min" summary card. Tapping it opens the WorkoutLogger. Sets expectations and reduces friction.
 - **"Rename metric for clarity" principle**: call the user-facing 1RM display "Estimated Max" or "Strength Score," not "1RM" or "Projected 1RM." Fitbod's documented user research found the latter confused non-powerlifters.
 
 ### Patterns to Avoid
-- **Black-box suggestions**: Fitbod's most common complaint thread is "why did it suggest THIS workout today?" when users don't understand the muscle recovery model. Since Setline's programming is human-set (not algorithmic), this is less of a risk — but wherever you surface a suggestion (e.g., "add 5lb this session" based on a progression rule), always show the reason inline.
-- **Over-complex program template building**: Fitbod hides program structure behind multiple menu layers. Setline's ProgramEditor should keep the weekly day sequence and exercise assignment visible in one scrollable canvas — not buried in nested screens.
+- **Black-box suggestions**: Fitbod's most common complaint thread is "why did it suggest THIS workout today?" when users don't understand the muscle recovery model. Since Setframe's programming is human-set (not algorithmic), this is less of a risk — but wherever you surface a suggestion (e.g., "add 5lb this session" based on a progression rule), always show the reason inline.
+- **Over-complex program template building**: Fitbod hides program structure behind multiple menu layers. Setframe's ProgramEditor should keep the weekly day sequence and exercise assignment visible in one scrollable canvas — not buried in nested screens.
 
 ---
 
@@ -132,7 +132,7 @@ Future's UX is primarily human-coach-delivered (out of Setline's scope), but its
 
 ### What's Well-Regarded
 
-MFP's food database (20.5M+ items, cited in App Store listing) is its moat and most praised feature. But for Setline's purposes, the relevant UX is how MFP **surfaces daily nutrition summaries** — since Setline will pull MFP data through HealthKit.
+MFP's food database (20.5M+ items, cited in App Store listing) is its moat and most praised feature. But for Setframe's purposes, the relevant UX is how MFP **surfaces daily nutrition summaries** — since Setframe will pull MFP data through HealthKit.
 
 **Specific praised patterns:**
 - **Daily macro ring/bar summary**: the home screen shows a calorie "remaining" calculation (Goal − Food − Exercise = Remaining) as a prominent number, plus a bar chart of Protein / Carbs / Fat in grams vs. goal. Users cite this as the reason they open the app daily — it answers "how am I doing today" in 2 seconds.
@@ -141,13 +141,13 @@ MFP's food database (20.5M+ items, cited in App Store listing) is its moat and m
 - **Nutrient detail drill-down**: tapping any macro opens a full micronutrient breakdown. Sodium, fiber, sugars, saturated fat — all present but behind a tap. Default view is clean; detail is accessible.
 
 **Patterns to Avoid:**
-- **Logging friction driving abandonment**: MFP's #1 cited complaint is that barcode scanning, search, and meal construction is too slow. Users stop logging after 2-3 weeks. Since Setline is *reading* MFP data via HealthKit (not asking users to log food natively), you sidestep this entirely — but it validates keeping your HealthKit data ingestion fully passive/automatic, never asking users to manually re-enter nutrition data.
-- **Ad/upsell interruptions in the data flow**: MFP Premium upsells appear mid-scroll in the nutrition diary. Users find this jarring. Keep Setline's HealthKit data section ad-free and non-paywalled.
-- **Precision theater**: MFP shows nutritional data to 1 decimal gram precision (e.g., "47.3g protein"). Users report this false precision creates anxiety over minor deviations. For Setline's HealthKit nutrition display, **round to whole numbers** and show a contextual range or goal comparison, not raw decimal values.
+- **Logging friction driving abandonment**: MFP's #1 cited complaint is that barcode scanning, search, and meal construction is too slow. Users stop logging after 2-3 weeks. Since Setframe is *reading* MFP data via HealthKit (not asking users to log food natively), you sidestep this entirely — but it validates keeping your HealthKit data ingestion fully passive/automatic, never asking users to manually re-enter nutrition data.
+- **Ad/upsell interruptions in the data flow**: MFP Premium upsells appear mid-scroll in the nutrition diary. Users find this jarring. Keep Setframe's HealthKit data section ad-free and non-paywalled.
+- **Precision theater**: MFP shows nutritional data to 1 decimal gram precision (e.g., "47.3g protein"). Users report this false precision creates anxiety over minor deviations. For Setframe's HealthKit nutrition display, **round to whole numbers** and show a contextual range or goal comparison, not raw decimal values.
 
 ---
 
-## Top 5 Actionable Ideas for Setline
+## Top 5 Actionable Ideas for Setframe
 
 ---
 
@@ -163,7 +163,7 @@ MFP's food database (20.5M+ items, cited in App Store listing) is its moat and m
 ### Idea 2: Inline PR Badge + Post-Session Summary Card (no ceremony during logging, payoff at the end)
 **What**: During logging, when a set is completed that beats the user's all-time record for that exercise, show a small `🏆` badge on the completed set row — non-blocking, no modal. After the session is marked "Done," show a dedicated summary screen: total volume, duration, PRs set (with exercise names), and a shareable workout card image.
 
-**Why it wins**: Strong's inline PR badge is loved but the session has no clear "win" moment. Hevy's post-session card is loved but some users feel the in-workout PR feedback is too subtle. Combine both. The during-workout badge is satisfying; the end-of-session card gives closure and a social-sharing hook (without requiring a social feed in Setline).
+**Why it wins**: Strong's inline PR badge is loved but the session has no clear "win" moment. Hevy's post-session card is loved but some users feel the in-workout PR feedback is too subtle. Combine both. The during-workout badge is satisfying; the end-of-session card gives closure and a social-sharing hook (without requiring a social feed in Setframe).
 
 **Screens/model touched**: `WorkoutLogger` (set row component — add `isPR: boolean` flag computed on log submission) + new `SessionSummaryScreen` (post-workout). Data model: `WorkoutSession` may need a `prs: ExercisePR[]` derived field or a `PersonalRecord` table with `userId`, `exerciseId`, `metric` (weight/1rm/volume), `value`, `achievedAt`.
 
@@ -190,7 +190,7 @@ MFP's food database (20.5M+ items, cited in App Store listing) is its moat and m
 
 Each card is tappable to open a 30-day sparkline view. Metrics that haven't been authorized or don't have data show a dimmed "Connect" state, not an error.
 
-**Why it wins**: Apple Health dumps 100+ metrics with no hierarchy. Whoop's single-screen daily answer is too hardware-dependent. Setline can sit in between — curated, labeled, contextual — without requiring Whoop hardware. The MFP nutrition card specifically converts the HealthKit `dietaryProtein` / `dietaryEnergyConsumed` HK types (which MFP writes to HealthKit when users sync) into a usable at-a-glance view.
+**Why it wins**: Apple Health dumps 100+ metrics with no hierarchy. Whoop's single-screen daily answer is too hardware-dependent. Setframe can sit in between — curated, labeled, contextual — without requiring Whoop hardware. The MFP nutrition card specifically converts the HealthKit `dietaryProtein` / `dietaryEnergyConsumed` HK types (which MFP writes to HealthKit when users sync) into a usable at-a-glance view.
 
 **Screens/model touched**: `TodayScreen` — new `HealthMetricGrid` component. Data model: `DailyHealthSnapshot` table (`userId`, `date`, `steps`, `activeCalories`, `exerciseMinutes`, `caloriesConsumed`, `proteinGrams`) populated by background HealthKit sync job. Body weight stored in existing `DailyCheckin` table.
 
@@ -205,10 +205,10 @@ Today: Pull B  ·  Week 2 Day 3
 ```
 Tapping "Preview" shows the exercise list with prescribed sets × reps × weight. Tapping "Start Workout" launches the `WorkoutLogger` pre-populated.
 
-**Why it wins**: Fitbod's pre-workout preview card is consistently cited as reducing pre-session friction ("I know what I'm doing before I get to the gym"). Strong and Hevy require users to navigate to their routine list and manually start a session from scratch. Setline's program model means you know what day it is — use that data to create a zero-navigation path from Today → active workout.
+**Why it wins**: Fitbod's pre-workout preview card is consistently cited as reducing pre-session friction ("I know what I'm doing before I get to the gym"). Strong and Hevy require users to navigate to their routine list and manually start a session from scratch. Setframe's program model means you know what day it is — use that data to create a zero-navigation path from Today → active workout.
 
 **Screens/model touched**: `TodayScreen` (new `ScheduledWorkoutCard` component) + `WorkoutLogger` (receives pre-populated exercise + prescription data). Data model: relies on `Program` → `ProgramWeek` → `ProgramDay` → `ProgramExercise` already in scope; needs a `currentProgramDayIndex` tracking field on the user's active `ProgramEnrollment` record, or derived from `WorkoutSession` history.
 
 ---
 
-*Report complete. All five ideas are grounded in documented user behavior from competitive apps, scoped strictly to Setline's existing feature surface, and mapped to concrete screens and data model touch points.*
+*Report complete. All five ideas are grounded in documented user behavior from competitive apps, scoped strictly to Setframe's existing feature surface, and mapped to concrete screens and data model touch points.*

@@ -1,6 +1,6 @@
-# Setline UX Refinement — Focused Iteration
+# Setframe UX Refinement — Focused Iteration
 
-I want you to make a focused UX refinement pass on Setline based on the latest implementation.
+I want you to make a focused UX refinement pass on Setframe based on the latest implementation.
 
 Do **not** perform another broad application-wide redesign. The recent architecture changes are moving in the right direction, and several screens — especially Today and the guided setup flow — are substantially better.
 
@@ -48,7 +48,7 @@ Keep the current Today-first product direction.
 
 Keep the existing guided setup concept.
 
-Keep the current Setline visual identity.
+Keep the current Setframe visual identity.
 
 This iteration is about improving hierarchy and interaction clarity, not rethinking the entire app.
 
@@ -195,7 +195,7 @@ When the user has no active/configured training program, replace the standalone 
 Conceptually:
 
 ```text
-NEW TO SETLINE?
+NEW TO SETFRAME?
 
 Build your training program
 
@@ -219,7 +219,7 @@ Remove the header-level button when the banner is shown.
 
 # 8. Do not copy the Resume Workout banner exactly
 
-Setline already has a useful Resume Workout banner.
+Setframe already has a useful Resume Workout banner.
 
 Preserve the semantic distinction between:
 
@@ -471,7 +471,7 @@ Recommended model:
 
 ## Primary
 
-Use solid Setline purple.
+Use solid Setframe purple.
 
 Purpose:
 
@@ -543,7 +543,7 @@ Do not use destructive styling for normal cancellation/navigation.
 
 # 18. Color should communicate meaning
 
-Keep Setline purple as the primary brand/action color.
+Keep Setframe purple as the primary brand/action color.
 
 Do not create a third chromatic button color purely to create variety.
 

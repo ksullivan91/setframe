@@ -1,8 +1,8 @@
 import 'styled-components';
-import type { SemanticTheme } from '@setline/design-tokens';
+import type { SemanticTheme } from '@setframe/design-tokens';
 
 /**
- * Extends styled-components' DefaultTheme with Setline's semantic theme
+ * Extends styled-components' DefaultTheme with Setframe's semantic theme
  * shape so `props.theme.text.primary` etc. is typed everywhere.
  */
 declare module 'styled-components' {

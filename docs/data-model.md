@@ -1,4 +1,4 @@
-# Setline — Data Model (Phase 0 Draft)
+# Setframe — Data Model (Phase 0 Draft)
 
 Status: Proposed, pending review. No migrations exist yet — this defines
 the target Drizzle/PostgreSQL schema shape for Phase 2+.

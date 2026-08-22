@@ -3,7 +3,7 @@ import { colorRamps } from './color-ramps';
 /**
  * Semantic color aliases, one object per theme mode. Mirrors the Figma
  * `Semantic/*` variable aliases (Text, Surface, Border, Action, Status)
- * that flip per mode — see docs/design/setline-figma-style-guide.md §1.
+ * that flip per mode — see docs/design/setframe-figma-style-guide.md §1.
  *
  * Consumers (web `styled-components` theme, mobile RN theme) should
  * always reference these semantic tokens, never raw ramp steps, so

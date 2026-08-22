@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { NavLink } from 'react-router-dom';
 import { CalendarCheck, Dumbbell, History, TrendingUp, Settings as SettingsIcon } from 'lucide-react';
 import { UserButton } from '@clerk/clerk-react';
-import { spacing } from '@setline/design-tokens';
+import { spacing } from '@setframe/design-tokens';
 import { typeScale } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';
 import { ActiveWorkoutBanner } from './ActiveWorkoutBanner';
@@ -145,7 +145,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <Shell>
       <Sidebar aria-label="Primary">
-        <Wordmark>Setline</Wordmark>
+        <Wordmark>Setframe</Wordmark>
         <AccountRow>
           <UserButton afterSignOutUrl="/sign-in" />
         </AccountRow>

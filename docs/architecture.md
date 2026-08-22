@@ -1,10 +1,10 @@
-# Setline — Architecture (Phase 0 Draft)
+# Setframe — Architecture (Phase 0 Draft)
 
 Status: Proposed, pending user review. No code has been generated yet.
 
 ## 1. Product summary
 
-Setline is a multi-user fitness training + health-sync platform. It replaces
+Setframe is a multi-user fitness training + health-sync platform. It replaces
 spreadsheets and fragmented fitness apps with:
 
 - Flexible training programs/templates (intent) vs. workout sessions (fact).
@@ -20,7 +20,7 @@ spreadsheets and fragmented fitness apps with:
 ## 2. Repository layout (proposed)
 
 ```text
-setline/
+setframe/
   apps/
     api/            Fastify REST API
     web/             React + Vite SPA
@@ -116,7 +116,7 @@ concrete, measured need.
 ## 8. Decisions (2026-08-20)
 
 1. Neon topology confirmed: one Neon project, branch-per-environment.
-2. GitHub repository confirmed: `https://github.com/ksullivan91/setline`.
+2. GitHub repository confirmed: `https://github.com/ksullivan91/setframe`.
 3. Apple Developer Program: **not yet enrolled**. Tracked as a Phase
    7/11 blocker in `docs/dependencies.md` and `docs/adr/0001-healthkit-adapter.md`
    — recommend starting enrollment now given Apple's review isn't instant,

@@ -1,4 +1,4 @@
-import { parseApiEnv, type ApiEnv } from '@setline/config';
+import { parseApiEnv, type ApiEnv } from '@setframe/config';
 
 /**
  * Lazily parsed env — deferred until first access so the process can boot

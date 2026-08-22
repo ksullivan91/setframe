@@ -1,7 +1,7 @@
 import { forwardRef, useId, type SelectHTMLAttributes } from 'react';
 import styled from 'styled-components';
 import { ChevronDown } from 'lucide-react';
-import { radius, spacing } from '@setline/design-tokens';
+import { radius, spacing } from '@setframe/design-tokens';
 import { typeScale } from '../theme/typeScale';
 
 export interface SelectOption {

@@ -1,10 +1,10 @@
-# Copilot Instructions — Setline
+# Copilot Instructions — Setframe
 
 ## What this repo is
 
-Setline is a multi-user fitness training + Apple Health sync platform. See
+Setframe is a multi-user fitness training + Apple Health sync platform. See
 `github-copilot-fitness-app-master-prompt.md` (product/architecture spec)
-and `setline-branding-figma-mcp-copilot-prompt.md` (design-system spec) for
+and `setframe-branding-figma-mcp-copilot-prompt.md` (design-system spec) for
 the full requirements this repo implements. `docs/architecture.md`,
 `docs/data-model.md`, `docs/api.md`, `docs/dependencies.md`, and
 `docs/adr/*` are the living Phase 0 design record — keep them in sync with
@@ -25,7 +25,7 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 
 ## AI-assisted code review
 
-Setline uses two review layers, both backed by GitHub Copilot (no external
+Setframe uses two review layers, both backed by GitHub Copilot (no external
 AI service or token required):
 
 1. **Pre-commit (local)** — `.githooks/pre-commit` runs the Copilot CLI's

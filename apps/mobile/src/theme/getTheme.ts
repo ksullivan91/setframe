@@ -1,7 +1,7 @@
-import { spacing, radius, typeScale as rawTypeScale, themes, type SemanticTheme, type TypeScaleToken } from '@setline/design-tokens';
+import { spacing, radius, typeScale as rawTypeScale, themes, type SemanticTheme, type TypeScaleToken } from '@setframe/design-tokens';
 
 /**
- * Mobile theme wrapper around `@setline/design-tokens`. Dark mode is
+ * Mobile theme wrapper around `@setframe/design-tokens`. Dark mode is
  * structurally supported (themes.dark is fully wired) but deferred per
  * the design docs — `getTheme` defaults to 'light' and there is no UI
  * toggle yet, matching apps/web's `getTheme.ts` convention.
@@ -11,7 +11,7 @@ export function getTheme(mode: 'light' | 'dark' = 'light'): SemanticTheme {
 }
 
 /**
- * `@setline/design-tokens`' `typeScale` is typed as `Record<string,
+ * `@setframe/design-tokens`' `typeScale` is typed as `Record<string,
  * TypeScaleToken>`, so with `noUncheckedIndexedAccess` every property
  * access (`typeScale.body`, etc.) is seen as possibly `undefined` even
  * though every named key is guaranteed to exist. Re-typing this as a

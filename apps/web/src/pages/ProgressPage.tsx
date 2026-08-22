@@ -1,7 +1,7 @@
 import styled from 'styled-components';
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { spacing } from '@setline/design-tokens';
+import { spacing } from '@setframe/design-tokens';
 import { Card, Skeleton, SkeletonStack } from '../components';
 import { typeScale } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';

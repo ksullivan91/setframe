@@ -1,6 +1,6 @@
 import type { HTMLAttributes } from 'react';
 import styled from 'styled-components';
-import { radius, spacing } from '@setline/design-tokens';
+import { radius, spacing } from '@setframe/design-tokens';
 
 export interface CardProps extends HTMLAttributes<HTMLDivElement> {}
 

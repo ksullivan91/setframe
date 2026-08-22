@@ -1,5 +1,5 @@
 {
-  "name": "@setline/database",
+  "name": "@setframe/database",
   "version": "0.0.0",
   "private": true,
   "main": "./src/index.ts",
@@ -12,7 +12,7 @@
   "dependencies": {
     "drizzle-orm": "0.45.2",
     "@neondatabase/serverless": "1.1.0",
-    "@setline/schemas": "0.0.0"
+    "@setframe/schemas": "0.0.0"
   },
   "devDependencies": {
     "drizzle-kit": "0.31.10",

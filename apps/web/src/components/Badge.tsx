@@ -1,7 +1,7 @@
 import type { HTMLAttributes, ReactNode } from 'react';
 import styled, { css } from 'styled-components';
 import { Trophy } from 'lucide-react';
-import { radius, spacing } from '@setline/design-tokens';
+import { radius, spacing } from '@setframe/design-tokens';
 import { typeScale } from '../theme/typeScale';
 
 export type BadgeTone = 'neutral' | 'success' | 'error' | 'caution' | 'accent';

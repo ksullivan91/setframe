@@ -1,4 +1,4 @@
-import type { Prescription } from '@setline/schemas';
+import type { Prescription } from '@setframe/schemas';
 
 export function summarizePrescription(prescription: Prescription | null): string {
   if (!prescription) return 'Planned: —';

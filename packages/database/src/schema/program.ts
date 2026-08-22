@@ -14,7 +14,7 @@ import {
 import { distanceUnitEnum, loadUnitEnum, progressionRuleTypeEnum, setTypeEnum } from './enums';
 import { user } from './user';
 import { exercise } from './exercise';
-import type { Prescription } from '@setline/schemas';
+import type { Prescription } from '@setframe/schemas';
 
 export const trainingProgram = pgTable(
   'training_program',

@@ -1,7 +1,7 @@
 import { forwardRef, type ButtonHTMLAttributes } from 'react';
 import styled, { css, keyframes } from 'styled-components';
 import { Check } from 'lucide-react';
-import { radius, spacing } from '@setline/design-tokens';
+import { radius, spacing } from '@setframe/design-tokens';
 import { typeScale } from '../theme/typeScale';
 import { ProgressRing } from './ProgressRing';
 

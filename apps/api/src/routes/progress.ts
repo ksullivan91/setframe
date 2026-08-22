@@ -1,9 +1,9 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { and, desc, eq, gte } from 'drizzle-orm';
 import { z } from 'zod';
-import { progressConsistencyWeekSchema, progressOverviewResponseSchema } from '@setline/schemas';
-import { calculateVolume, estimateOneRepMax, summarizeConsistency } from '@setline/domain';
-import { dailyManualEntry, workoutExerciseLog, workoutSession, workoutSet } from '@setline/database';
+import { progressConsistencyWeekSchema, progressOverviewResponseSchema } from '@setframe/schemas';
+import { calculateVolume, estimateOneRepMax, summarizeConsistency } from '@setframe/domain';
+import { dailyManualEntry, workoutExerciseLog, workoutSession, workoutSet } from '@setframe/database';
 import { getDb } from '../lib/db.js';
 import { requireAuth } from '../plugins/auth.js';
 

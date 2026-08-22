@@ -1,4 +1,4 @@
-# Setline — Proposed Design System Direction (v0, Draft)
+# Setframe — Proposed Design System Direction (v0, Draft)
 
 Status: **Proposal only — not approved, not implemented.** No components or
 tokens have been coded yet. This synthesizes
@@ -7,7 +7,7 @@ direction for your review.
 
 ## 1. Brand recap (from the branding prompt)
 
-Setline should feel: focused, modern, precise, athletic, calm, trustworthy,
+Setframe should feel: focused, modern, precise, athletic, calm, trustworthy,
 data-aware, premium-without-luxury, serious-without-clinical. Avoid:
 aggressive/macho/CrossFit-cliché, neon/cyberpunk, medical-portal, generic
 enterprise SaaS, gamified-for-its-own-sake.
@@ -16,7 +16,7 @@ enterprise SaaS, gamified-for-its-own-sake.
 
 Following the Fluent "one brand ramp + one neutral ramp" methodology (§4 of
 the audit), rejecting File 3's pink/black and File 1's default lavender
-tint as "not distinctly Setline." The earlier draft of this doc proposed a
+tint as "not distinctly Setframe." The earlier draft of this doc proposed a
 blue/teal accent — the user rejected that ("blue/teal is boring... big fan
 of purple") and requested a purple direction, sourced from a 4th reference
 file (`docs/design/figma-reference-audit.md` §5).
@@ -79,7 +79,7 @@ color.chart.series1 .. color.chart.series4
 - **Primary typeface: Inter** (from File 1) — open-licensed (SIL OFL), free
   to ship on web and React Native, already has strong numeral-legibility
   features (tabular figures, stylistic sets) which directly serves
-  Setline's "275 × 5" / "169.6 lb" legibility requirement from the master
+  Setframe's "275 × 5" / "169.6 lb" legibility requirement from the master
   spec.
 - Reject Circular Std (File 3) due to commercial licensing — do not bundle
   it.
@@ -108,7 +108,7 @@ Proposed scale (to refine once implemented against real screens):
 - Spacing scale: adopt the master spec's suggested `4/8/12/16/24/32/40/48`,
   which is a superset compatible with File 1's observed 8/24 usage.
 - Radius: adopt a **restrained 2-tier** scale rather than File 1's full
-  4/8/12/20 range — Setline is not a decorative dashboard; propose `8px`
+  4/8/12/20 range — Setframe is not a decorative dashboard; propose `8px`
   (small controls: inputs, chips, small buttons) and `16px` (cards/sheets).
   Reject File 3's ultra-tight `2px` (reads as dated/skeuomorphic) and File
   1's `20px` (reads as too soft/consumer-app for a training-record tool).
@@ -125,11 +125,11 @@ Proposed scale (to refine once implemented against real screens):
 
 - **Web** ("Today"/"Progress"/dashboard-style screens): File 1's
   three-column shell (`Sidebar` + content + optional `RightSidebar`) and
-  unified `Card`/metric-tile anatomy — adapted with Setline's own tokens.
+  unified `Card`/metric-tile anatomy — adapted with Setframe's own tokens.
 - **Mobile**: File 3's single-column `Appbar` + scrollable body shell, its
   screen inventory (steps/calories/distance/calendar/history), and its
   compact metric-tile anatomy (icon + label + big number) — reimplemented
-  with Flexbox/auto-layout (not absolute positioning), Setline tokens, and
+  with Flexbox/auto-layout (not absolute positioning), Setframe tokens, and
   verified contrast (reject the 60%-opacity-text-on-color pattern found in
   the audit).
 - **Both**: Fluent's per-control light/dark parity discipline as an
@@ -145,14 +145,14 @@ Order of first implementation once approved, straight from the audit's
 4. Web `AppShell` (sidebar/header) — informed by File 1.
 5. Mobile tab shell + `Appbar` — informed by File 3.
 6. `SetRow` (the master spec's "most important component") — not directly
-   sourced from any reference file; Setline-original, designed against the
+   sourced from any reference file; Setframe-original, designed against the
    numeric-legibility type tokens above.
 
 ## 8. What needs your decision before implementation starts
 
 1. **Accent color** — ✅ implemented in Figma: purple/indigo-violet ramp
    generated from `#6979F8` (step 500), see
-   `docs/design/setline-figma-style-guide.md`. Review the live ramp in
+   `docs/design/setframe-figma-style-guide.md`. Review the live ramp in
    Figma and confirm, or request adjustments.
 2. **Typeface** — approve Inter, or provide a different open-licensed
    preference. (Already used in the Figma typography specimen.)
@@ -165,5 +165,5 @@ Order of first implementation once approved, straight from the audit's
    despite the audit's recommendation?
 
 Token files and Figma components now exist (see
-`docs/design/setline-figma-style-guide.md`) — no production app screens
+`docs/design/setframe-figma-style-guide.md`) — no production app screens
 have been built yet.

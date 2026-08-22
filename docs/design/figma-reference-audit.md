@@ -1,4 +1,4 @@
-# Setline — Figma Reference Audit
+# Setframe — Figma Reference Audit
 
 Status: Draft for review. No application UI has been built or modified.
 Connected via GitHub Copilot CLI's remote Figma MCP server
@@ -43,7 +43,7 @@ guesses):**
 - Typography: **Inter**, Regular 400 for labels (12–14px, 16–20px line
   height), Semi Bold 600 for metric numbers (24px/36px line height). Uses
   stylistic-set font features (`ss01`, `cv01`, `cv11`) for tabular/legible
-  numerals — directly relevant to Setline's "numbers must be extremely
+  numerals — directly relevant to Setframe's "numbers must be extremely
   legible" requirement.
 - Color sample: card background `#edeefc` (very light indigo/lavender
   tint), primary text `#1c1c1c` ("black/100%" semantic token, not pure
@@ -54,22 +54,22 @@ guesses):**
 - Has light and dark theme variants (seen in the "SnowUI" cover/thumbnail
   frame: light dashboard + a near-identical dark dashboard).
 
-**Assessment for Setline:**
+**Assessment for Setframe:**
 - ✅ Reusable: the three-column shell, the single unifying `Card` primitive
   for both KPI tiles and charts, the metric-tile anatomy (label → big
   number → trend), semantic color-alias approach, dual light/dark theme.
-- ✅ This maps almost directly onto Setline's `MetricTile`,
+- ✅ This maps almost directly onto Setframe's `MetricTile`,
   `DailyMetricRow`, `ActivitySummary`, and web `AppShell`/dashboard-style
   "Today"/"Progress" screens.
-- ⚠️ Too generic-SaaS to copy literally: needs Setline's own type scale,
+- ⚠️ Too generic-SaaS to copy literally: needs Setframe's own type scale,
   color ramp, and restrained-elevation direction (master spec explicitly
   warns against "generic enterprise SaaS" and "dense enterprise tables").
-- ❌ Not reusable as-is: this is a desktop-dashboard-first layout; Setline's
+- ❌ Not reusable as-is: this is a desktop-dashboard-first layout; Setframe's
   primary surface is mobile logging, so this kit only really informs the
   **web** "Today"/"Progress"/"Training" screens, not mobile.
 - Brand-specific to strip: "SnowUI" wordmark/branding, the exact lavender
   tint if it reads as too closely tied to this kit's identity (it's generic
-  enough to be safe, but Setline should pick its own accent rather than
+  enough to be safe, but Setframe should pick its own accent rather than
   reuse `#edeefc` verbatim).
 
 ## 3. File 2 — Microsoft Fluent 2 Web audit
@@ -80,7 +80,7 @@ plugin generates a full accessible color ramp and a "UI Preview Sticker
 Sheet" (brand ramp swatches, neutral ramp swatches, applied to real
 controls: toggles, radios, buttons, input fields, in both light and dark).
 
-**Assessment for Setline:**
+**Assessment for Setframe:**
 - ✅ Reusable *methodology*, not literal tokens: Fluent's core idea — derive
   a full semantic ramp (`brand-10` … `brand-160`-style steps, neutral ramp)
   from **one accent + one neutral base**, and apply it consistently to
@@ -90,10 +90,10 @@ controls: toggles, radios, buttons, input fields, in both light and dark).
   `color.surface.raised`, etc., per the master spec's semantic-token
   requirement).
 - ✅ Reusable: light/dark parity shown side-by-side for every control in
-  the sticker sheet is a good QA pattern to adopt for Setline's own
+  the sticker sheet is a good QA pattern to adopt for Setframe's own
   component audit once tokens exist.
 - ❌ Not reusable: Microsoft's actual brand blue and Fluent's specific
-  iconography/wordmark are Microsoft's identity — Setline must pick its
+  iconography/wordmark are Microsoft's identity — Setframe must pick its
   own accent (per branding spec: "one clear primary accent," avoiding
   "excessive electric blue").
 - This file is best used as a **process reference** (how to structure a
@@ -107,12 +107,12 @@ controls: toggles, radios, buttons, input fields, in both light and dark).
   distance, points) → small square metric `Cards` (icon + label + big
   number, e.g. "235 Kcal" for Treadmill) → weekly `Calendar` strip → recent
   activity list.
-- Covers exactly the metric types Setline needs on mobile: steps, distance,
+- Covers exactly the metric types Setframe needs on mobile: steps, distance,
   calories, workout duration/timers, weekly calendar, GPS route map,
   subscription/paywall screen, profile, activity history list.
 - Small metric-card anatomy (icon top-left, label, big bold number, thin
   gradient accent line at the top edge) is a strong, compact pattern for
-  Setline's mobile `MetricTile`/`DailyMetricRow`.
+  Setframe's mobile `MetricTile`/`DailyMetricRow`.
 
 **Design tokens observed:**
 - Typography: **Circular Std** (Book 400 / Bold 700) — a licensed
@@ -127,14 +127,14 @@ controls: toggles, radios, buttons, input fields, in both light and dark).
   (`left-[14.29%]`, `top-[calc(50%+28px)]`, etc.) rather than auto-layout/
   flex — brittle for responsive/dynamic content and a bad pattern to port
   into React Native (which has no absolute-percentage-based layout
-  primitive as clean as this implies; Setline mobile should use Flexbox).
+  primitive as clean as this implies; Setframe mobile should use Flexbox).
 - ⚠️ Some text sits at low opacity (60%) directly on a colored background —
-  needs a contrast check before Setline reuses that treatment; don't
+  needs a contrast check before Setframe reuses that treatment; don't
   inherit without verifying WCAG contrast.
 - Heavy pink/black branding and "Realti"/kit-specific iconography must be
   fully replaced — this is the most brand-specific of the three files.
 
-**Assessment for Setline:**
+**Assessment for Setframe:**
 - ✅ Reusable: screen inventory/IA (which metrics go where), the compact
   metric-tile anatomy, single-column mobile shell, calendar-strip pattern.
 - ❌ Not reusable: Circular Std font, pink/black palette, absolute-layout
@@ -177,7 +177,7 @@ mobile IA).
   — a nice, minimal-palette trick).
 - **Status/accent secondary**: `#00C48C` (green) and `#FF647C` (red/coral)
   appear elsewhere in the file's node tree (likely chart/status use) —
-  useful precedent for Setline's existing `status.success`/`status.error`
+  useful precedent for Setframe's existing `status.success`/`status.error`
   semantic slots, not for the primary accent.
 - **Typography**: SF Pro Display (headings, Light/Semibold) and SF Pro Text
   (body/labels, Light/Regular/Medium) — Apple's system font. Not
@@ -188,20 +188,20 @@ mobile IA).
 - **Radius**: blog-card thumbnail images use a tight `5px` — closer to
   File 3's dense/sharp end than File 1's soft `20px`.
 
-**Assessment for Setline:**
+**Assessment for Setframe:**
 - ✅ Reusable: the `#6979f8` indigo-violet as a literal starting point for
-  Setline's primary accent — it satisfies the brand brief's "one clear
+  Setframe's primary accent — it satisfies the brand brief's "one clear
   accent, not neon/cyberpunk, not medical-blue" criteria while genuinely
   reading as purple/violet rather than blue/teal. The near-black
   (`#151522`) neutral-text convention lines up with what Files 1 & 3
   already independently converged on, so keeping "near-black, not pure
-  black" as Setline's neutral-ramp anchor is now a 3-for-3 cross-file
+  black" as Setframe's neutral-ramp anchor is now a 3-for-3 cross-file
   pattern.
 - ✅ Reusable: using the near-black neutral as the dark-theme surface color
   too (rather than a separate near-black-navy token) — a genuinely useful,
   minimal-palette technique worth adopting.
 - ⚠️ Use as a **starting point, not a literal lock**: `#6979f8` is one
-  specific indigo; Setline should still run it (and 1–2 nearby
+  specific indigo; Setframe should still run it (and 1–2 nearby
   variants — more violet/less blue, or slightly deeper/more saturated) through
   a proper ramp-generation pass (per File 2's Fluent methodology, §3/§6
   below) and a contrast check (WCAG AA against both the near-black text
@@ -214,26 +214,26 @@ mobile IA).
 
 ## 6. Cross-file synthesis
 
-| Pattern | Source | Setline decision |
+| Pattern | Source | Setframe decision |
 |---|---|---|
 | Semantic color aliases over raw hex | Files 1 & 2 | **Adopt.** `packages/design-tokens` uses semantic names only. |
 | Card/tile as the one grouping primitive (not nested cards) | File 1 | **Adopt**, restrained per master spec §16 (use whitespace/dividers before shadows). |
 | Metric anatomy: label → large number → trend/context | Files 1 & 3 | **Adopt** for `MetricTile`, `DailyMetricRow`, `PRBadge`. |
 | Brand ramp + neutral ramp generation methodology | File 2 | **Adopt process**, not Microsoft's actual colors. |
-| Light/dark theme parity shown per-control | File 2 | **Adopt as a QA practice** once Setline components exist. |
+| Light/dark theme parity shown per-control | File 2 | **Adopt as a QA practice** once Setframe components exist. |
 | Mobile single-column, appbar+body, calendar strip | File 3 | **Adopt IA**, not its visuals. |
 | Absolute/percentage positioning for layout | File 3 | **Reject** — use Flexbox/auto-layout equivalents. |
 | Near-black (not pure `#000000`) text/neutral anchor | Files 1, 3 & 4 independently | **Adopt** — 3-for-3 cross-file convention. |
 | Indigo/violet accent (`#6979f8`) | File 4 | **Adopt as starting point** for primary accent, pending ramp-generation + contrast pass (§5, §8). |
 | Circular Std / any file's specific typeface | Files 1, 3 & 4 use Inter / Circular Std / SF Pro respectively | Decide separately (§7). Inter remains the practical cross-platform (web + Android + iOS) choice; Circular Std and SF Pro are not. |
-| Pink/black, Microsoft blue, "SnowUI"/"Realti" branding | Files 1–3 | **Reject entirely** — none of it becomes Setline's identity. |
+| Pink/black, Microsoft blue, "SnowUI"/"Realti" branding | Files 1–3 | **Reject entirely** — none of it becomes Setframe's identity. |
 
 ## 7. Font licensing note
 
 - **Inter** (File 1): SIL Open Font License — safe to use/ship on web and
   mobile.
 - **Circular Std** (File 3): a commercial font (Lineto) — **not** safe to
-  bundle/ship without a license. If Setline wants a geometric-sans feel
+  bundle/ship without a license. If Setframe wants a geometric-sans feel
   similar to Circular Std, use a comparable open-licensed alternative
   (e.g., system fonts, or an open geometric sans) rather than embedding
   Circular Std files.
@@ -242,11 +242,11 @@ mobile IA).
   web/Android; Inter remains the practical single cross-platform choice.
 - Fluent's default web font (Segoe UI / system-ui stack) is effectively
   "use the OS font," which is a safe, zero-licensing-risk default worth
-  considering for Setline too.
+  considering for Setframe too.
 
 ## 8. What's next
 
-See `docs/design/setline-design-system.md` for the proposed Setline token
+See `docs/design/setframe-design-system.md` for the proposed Setframe token
 direction synthesized from this audit, and
 `docs/design/figma-to-code-map.md` for the component-to-implementation
 mapping. Both are proposals pending your approval before any application UI

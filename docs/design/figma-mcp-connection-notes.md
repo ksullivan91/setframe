@@ -82,7 +82,7 @@ local HTTP endpoint the desktop app opens once you're already signed in:
    the local server just proxies its access.
 6. Verify tools appear (`/env` or `/mcp` status), then re-attempt the Figma
    inspection/audit workflow from
-   `setline-branding-figma-mcp-copilot-prompt.md` §9 against the three
+   `setframe-branding-figma-mcp-copilot-prompt.md` §9 against the three
    reference files.
 
 Caveat: this requires the Figma desktop app to stay open and the target file

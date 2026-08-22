@@ -2,8 +2,8 @@ import styled, { keyframes } from 'styled-components';
 import { Dumbbell, ArrowRight } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useLocation, useNavigate } from 'react-router-dom';
-import type { WorkoutSession } from '@setline/schemas';
-import { spacing, radius } from '@setline/design-tokens';
+import type { WorkoutSession } from '@setframe/schemas';
+import { spacing, radius } from '@setframe/design-tokens';
 import { useApiClient } from '../lib/api-client';
 
 const pulse = keyframes`

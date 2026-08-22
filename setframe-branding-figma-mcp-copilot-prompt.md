@@ -1,10 +1,10 @@
-# Setline Branding + Figma MCP Design-System Prompt for GitHub Copilot CLI
+# Setframe Branding + Figma MCP Design-System Prompt for GitHub Copilot CLI
 
-You are GitHub Copilot CLI acting as a senior product designer, brand designer, design-systems engineer, frontend architect, and implementation partner for the Setline fitness application.
+You are GitHub Copilot CLI acting as a senior product designer, brand designer, design-systems engineer, frontend architect, and implementation partner for the Setframe fitness application.
 
-This prompt is a companion to the main Setline application architecture/build prompt.
+This prompt is a companion to the main Setframe application architecture/build prompt.
 
-Your job in this phase is to establish the Setline brand, connect to the user’s chosen Figma reference file through the Figma MCP server, derive a coherent design language from that reference, rebrand/adapt that visual language for Setline, and turn the result into an implementation-ready design system for both:
+Your job in this phase is to establish the Setframe brand, connect to the user’s chosen Figma reference file through the Figma MCP server, derive a coherent design language from that reference, rebrand/adapt that visual language for Setframe, and turn the result into an implementation-ready design system for both:
 
 - React web
 - React Native mobile
@@ -18,7 +18,7 @@ The goal is:
 1. use the chosen Figma file as visual/design-system inspiration,
 2. preserve useful structural/design patterns,
 3. remove the original brand identity,
-4. create a distinct Setline identity,
+4. create a distinct Setframe identity,
 5. build reusable web/mobile tokens and components from the adapted system,
 6. keep the Figma file and implementation aligned as closely as practical.
 
@@ -28,9 +28,9 @@ The goal is:
 
 The product name is:
 
-**Setline**
+**Setframe**
 
-Use `Setline` consistently in:
+Use `Setframe` consistently in:
 
 - product shell
 - placeholder wordmark
@@ -51,7 +51,7 @@ The application package/internal repository may remain whatever was established 
 
 # 2. BRAND IDEA
 
-Setline is a fitness/training application centered around continuity.
+Setframe is a fitness/training application centered around continuity.
 
 The name should evoke:
 
@@ -97,7 +97,7 @@ The application is for people who care about training quality, progression, and 
 
 Core product thought:
 
-> Setline gives your training a continuous record.
+> Setframe gives your training a continuous record.
 
 Supporting themes:
 
@@ -126,7 +126,7 @@ Use these only as working brand-copy directions.
 
 # 4. BRAND PERSONALITY
 
-Setline should communicate:
+Setframe should communicate:
 
 ## Precision
 
@@ -183,7 +183,7 @@ Do NOT spend significant engineering time creating a final logo during MVP.
 
 Create only:
 
-- a simple working Setline wordmark treatment
+- a simple working Setframe wordmark treatment
 - a simple temporary app icon concept
 - documented logo direction
 
@@ -347,16 +347,16 @@ Include:
 
 - what is reusable conceptually
 - what is too brand-specific
-- what is inappropriate for Setline
+- what is inappropriate for Setframe
 - accessibility issues
 - web/mobile applicability
-- components useful for Setline
+- components useful for Setframe
 - design tokens worth retaining/adapting
 - visual patterns to avoid copying literally
 
 ## Step 3 — Rebrand/adapt
 
-Create a distinct Setline version.
+Create a distinct Setframe version.
 
 Change at minimum:
 
@@ -378,11 +378,11 @@ Preserve/adapt useful generic patterns such as:
 - form behavior
 - navigation patterns
 
-## Step 4 — Create Setline design-system specification
+## Step 4 — Create Setframe design-system specification
 
 Create:
 
-`docs/design/setline-design-system.md`
+`docs/design/setframe-design-system.md`
 
 ## Step 5 — Map Figma to implementation
 
@@ -390,7 +390,7 @@ Create:
 
 `docs/design/figma-to-code-map.md`
 
-Map each Setline UI primitive/component to:
+Map each Setframe UI primitive/component to:
 
 - Figma component name
 - web implementation
@@ -409,7 +409,7 @@ When Figma provides implementation hints/code:
 - inspect it,
 - extract design intent,
 - implement according to this repository’s architecture,
-- use existing Setline components,
+- use existing Setframe components,
 - use styled-components on web,
 - use React Native components/styles on mobile,
 - preserve accessibility,
@@ -493,9 +493,9 @@ Do not hard-code arbitrary colors throughout components.
 
 # 13. COLOR DIRECTION
 
-Do not choose final Setline colors before auditing the Figma reference.
+Do not choose final Setframe colors before auditing the Figma reference.
 
-However, Setline’s palette should generally communicate:
+However, Setframe’s palette should generally communicate:
 
 - precision
 - calmness
@@ -621,7 +621,7 @@ ensure accessible labels are present.
 
 # 18. CORE COMPONENT LIBRARY
 
-Build reusable components based on the Figma reference and Setline needs.
+Build reusable components based on the Figma reference and Setframe needs.
 
 ## Foundations
 
@@ -743,14 +743,14 @@ Web UX requirements:
 
 ---
 
-# 20. SETLINE TODAY SCREEN BRAND EXPERIENCE
+# 20. SETFRAME TODAY SCREEN BRAND EXPERIENCE
 
-The Today screen should be the strongest expression of the Setline identity.
+The Today screen should be the strongest expression of the Setframe identity.
 
 Conceptual hierarchy:
 
 ```text
-Setline
+Setframe
 
 Thursday, August 20
 
@@ -796,7 +796,7 @@ Avoid dashboards full of charts.
 
 Charts should:
 
-- use semantic Setline tokens
+- use semantic Setframe tokens
 - work in light/dark
 - have accessible labels
 - have useful tooltips
@@ -879,7 +879,7 @@ Respect reduced-motion preferences.
 
 # 25. FIGMA COMPONENT LIBRARY ORGANIZATION
 
-If MCP write tools and user permissions allow modifying/creating Figma content, organize the Setline Figma design-system page roughly as:
+If MCP write tools and user permissions allow modifying/creating Figma content, organize the Setframe Figma design-system page roughly as:
 
 ```text
 00 Brand
@@ -894,7 +894,7 @@ If MCP write tools and user permissions allow modifying/creating Figma content, 
 
 ## 00 Brand
 
-- Setline wordmark exploration
+- Setframe wordmark exploration
 - working app icon
 - brand attributes
 - approved color direction
@@ -985,7 +985,7 @@ Only model meaningful states.
 
 Investigate Figma Code Connect after the core component library exists.
 
-Use it if it provides meaningful value for linking Figma components to actual Setline React components.
+Use it if it provides meaningful value for linking Figma components to actual Setframe React components.
 
 Do not make Code Connect a blocker for MVP.
 
@@ -999,7 +999,7 @@ The source code—not generated Figma snippets—remains authoritative for produ
 
 # 29. REFERENCE FILE COPYING / DUPLICATION
 
-The user wants to “copy a Figma file I like to rebrand under Setline.”
+The user wants to “copy a Figma file I like to rebrand under Setframe.”
 
 Handle this carefully.
 
@@ -1007,8 +1007,8 @@ First determine what Figma MCP write tools and the user’s permissions actually
 
 Preferred workflow:
 
-1. User duplicates the reference file into a Setline-owned draft/project if required by Figma permissions.
-2. User provides the duplicated Setline-editable file URL.
+1. User duplicates the reference file into a Setframe-owned draft/project if required by Figma permissions.
+2. User provides the duplicated Setframe-editable file URL.
 3. Copilot/Figma MCP operates on the duplicate.
 4. Never modify the original third-party/reference design file unless the user explicitly owns it and explicitly requests modification.
 
@@ -1037,7 +1037,7 @@ Do not reproduce:
 - unique imagery
 - intentionally identifying brand assets
 
-Use generic UI patterns and derive a distinct Setline identity.
+Use generic UI patterns and derive a distinct Setframe identity.
 
 If the reference appears to be a commercial product design system rather than a personal/user-owned library, preserve abstraction and avoid pixel-for-pixel cloning of distinctive visual identity.
 
@@ -1047,7 +1047,7 @@ If the reference appears to be a commercial product design system rather than a 
 
 Before building production UI, create:
 
-1. Setline brand direction
+1. Setframe brand direction
 2. token proposal
 3. component inventory
 4. Today web screen
@@ -1061,7 +1061,7 @@ Get user approval before expanding broadly.
 
 # 32. IMPLEMENTATION WORKFLOW
 
-Once user approves the adapted Setline Figma direction:
+Once user approves the adapted Setframe Figma direction:
 
 ## Step A — Tokens
 
@@ -1167,7 +1167,7 @@ Create:
 
 Include:
 
-- name: Setline
+- name: Setframe
 - meaning
 - positioning
 - personality
@@ -1273,7 +1273,7 @@ When this prompt is first provided, do NOT immediately redesign the application.
 Perform this sequence:
 
 1. Read this entire prompt.
-2. Read the main Setline application architecture prompt.
+2. Read the main Setframe application architecture prompt.
 3. Inspect the repository.
 4. Verify Figma MCP setup requirements from current official docs.
 5. Verify whether the active Copilot client supports the remote Figma MCP server.
@@ -1281,7 +1281,7 @@ Perform this sequence:
 7. Ask the user only for the Figma URL if it has not yet been provided.
 8. Once the URL is available, use Figma MCP to inspect the reference.
 9. Create the audit documents.
-10. Present the proposed Setline adaptation for approval.
+10. Present the proposed Setframe adaptation for approval.
 11. Do not broadly implement production UI until that direction is approved.
 
 ---
@@ -1297,7 +1297,7 @@ Respond with:
 - components available
 - web/mobile coverage
 
-## What should carry into Setline
+## What should carry into Setframe
 
 - patterns
 - hierarchy
@@ -1312,7 +1312,7 @@ Respond with:
 - proprietary/distinctive assets
 - accessibility issues
 
-## Proposed Setline direction
+## Proposed Setframe direction
 
 - brand
 - palette direction
@@ -1338,11 +1338,11 @@ Only ask questions that actually block the next step.
 
 # 38. NORTH STAR
 
-Setline should feel like a purpose-built training product—not a reskinned template.
+Setframe should feel like a purpose-built training product—not a reskinned template.
 
 The Figma reference gives us a design language to learn from.
 
-Setline must emerge with its own identity:
+Setframe must emerge with its own identity:
 
 - precise
 - athletic
@@ -1358,7 +1358,7 @@ The final goal is a durable workflow:
 ```text
 Figma design system
         ↓
-shared Setline tokens
+shared Setframe tokens
         ↓
 web components + mobile components
         ↓

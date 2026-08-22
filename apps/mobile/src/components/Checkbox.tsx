@@ -1,7 +1,7 @@
 import { Pressable, View, StyleSheet } from 'react-native';
 import { Check } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
-import { radius } from '@setline/design-tokens';
+import { radius } from '@setframe/design-tokens';
 
 export interface CheckboxProps {
   checked: boolean;

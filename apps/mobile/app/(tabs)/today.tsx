@@ -593,7 +593,7 @@ export default function TodayScreen() {
             </View>
             <Text style={[styles.bodyText, { color: theme.text.secondary }]}> 
               {syncPillStatus === 'syncing'
-                ? 'Setline is currently reconciling your latest health data.'
+                ? 'Setframe is currently reconciling your latest health data.'
                 : syncPillStatus === 'needs_attention'
                   ? 'Connect and sync Apple Health after training so Today and Progress stay current.'
                   : 'Passive step — your watch fills this in after training.'}

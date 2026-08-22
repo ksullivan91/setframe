@@ -1,6 +1,6 @@
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import styled from 'styled-components';
-import { radius } from '@setline/design-tokens';
+import { radius } from '@setframe/design-tokens';
 
 export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /** Accessible label — required since IconButton has no visible text. */

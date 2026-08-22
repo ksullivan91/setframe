@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, type GestureResponderEvent } from 'react-native';
 import type { LucideIcon } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
-import { radius } from '@setline/design-tokens';
+import { radius } from '@setframe/design-tokens';
 
 export interface IconButtonProps {
   icon: LucideIcon;

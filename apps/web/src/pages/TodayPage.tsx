@@ -14,8 +14,8 @@ import {
   Watch,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { spacing, radius } from '@setline/design-tokens';
-import type { DayTypeExercise, Exercise, WorkoutSession, WorkoutSessionDetail } from '@setline/schemas';
+import { spacing, radius } from '@setframe/design-tokens';
+import type { DayTypeExercise, Exercise, WorkoutSession, WorkoutSessionDetail } from '@setframe/schemas';
 import { typeScale } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';
 import {
@@ -758,7 +758,7 @@ export function TodayPage() {
                     </StepHeader>
                     <StepBody>
                       {syncStatus === 'syncing'
-                        ? 'Setline is currently reconciling your latest health data.'
+                        ? 'Setframe is currently reconciling your latest health data.'
                         : syncStatus === 'never_synced'
                           ? 'Connect and sync Apple Health after training so Today and Progress stay current.'
                           : 'Passive step — your watch fills this in after training.'}

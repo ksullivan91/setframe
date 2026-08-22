@@ -1,4 +1,4 @@
-import type { Prescription } from '@setline/schemas';
+import type { Prescription } from '@setframe/schemas';
 
 /** Human-readable summary of a planned exercise prescription (e.g. "3 × 8"). Shared between the Today "Preview" modal and the workout logging screen so both describe a plan identically. */
 export function summarizePrescription(prescription: Prescription | null): string {

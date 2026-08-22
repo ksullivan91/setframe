@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View, TextInput, Text, StyleSheet, type KeyboardTypeOptions } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
-import { radius, spacing } from '@setline/design-tokens';
+import { radius, spacing } from '@setframe/design-tokens';
 import { typeScale } from '../theme/getTheme';
 
 export interface InputProps {

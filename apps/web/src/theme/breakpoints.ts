@@ -3,7 +3,7 @@
  * small/mobile viewports; use these `min-width` queries to progressively
  * enhance layout for larger screens — never `max-width` queries that
  * shrink a desktop-first layout down. Matches the mobile/web parity
- * pairs documented in docs/design/setline-figma-style-guide.md §14/§19.2
+ * pairs documented in docs/design/setframe-figma-style-guide.md §14/§19.2
  * (narrow viewport ≈ the Figma mobile screens, wide viewport ≈ the
  * Figma web screens/AppShell).
  */

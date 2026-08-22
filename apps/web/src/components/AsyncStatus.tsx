@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { Loader2, Check, AlertCircle } from 'lucide-react';
-import { spacing } from '@setline/design-tokens';
+import { spacing } from '@setframe/design-tokens';
 import { typeScale } from '../theme/typeScale';
 
 export type AsyncStatus = 'idle' | 'loading' | 'success' | 'error';

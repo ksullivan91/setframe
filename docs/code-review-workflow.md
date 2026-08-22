@@ -1,6 +1,6 @@
-# Setline code-review workflow
+# Setframe code-review workflow
 
-Setline's automated review setup is a direct port of the GitLab-Duo-based
+Setframe's automated review setup is a direct port of the GitLab-Duo-based
 pre-commit review pattern used in `crewvette-replatform`, `er-re-platform`,
 and `blueprint` — adapted to GitHub + GitHub Copilot, since that's the
 platform and AI vendor this project standardizes on.
@@ -13,10 +13,10 @@ script (`.duo/scripts/review.py`) called the GitLab Duo Chat REST API with
 a `DUO_GITLAB_TOKEN`, archived the response, and a Kiro hook orchestrated
 "my review" + "Duo's review" into one verdict.
 
-Setline doesn't need that plumbing, because **both review layers are
+Setframe doesn't need that plumbing, because **both review layers are
 GitHub Copilot** — there's no second vendor to bridge:
 
-| Layer | Duo-era mechanism | Setline mechanism |
+| Layer | Duo-era mechanism | Setframe mechanism |
 |---|---|---|
 | Local self-review | Kiro agent reasoning inline | GitHub Copilot CLI's built-in `/review` agent |
 | Independent second opinion | GitLab Duo Chat API + PAT | GitHub's native Copilot PR code review (`copilot-pull-request-reviewer[bot]`) |
@@ -78,12 +78,12 @@ Reviewers, just automatic. Copilot always leaves a comment-only review
 
 To inspect or change it:
 ```bash
-gh api repos/ksullivan91/setline/rulesets
+gh api repos/ksullivan91/setframe/rulesets
 ```
 
 ## What's intentionally not ported from the Duo setup
 
-- **Steering docs equivalent** (`.duo/steering/*.md`): Setline uses
+- **Steering docs equivalent** (`.duo/steering/*.md`): Setframe uses
   `.github/copilot-instructions.md` instead — Copilot CLI and GitHub's
   Copilot code review both read repo-root instructions natively, so a
   separate prompt-assembly script isn't needed.
