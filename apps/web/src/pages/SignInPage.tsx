@@ -2,6 +2,7 @@ import styled from 'styled-components';
 import { SignIn as ClerkSignIn } from '@clerk/clerk-react';
 import { spacing, radius } from '@setframe/design-tokens';
 import { typeScale } from '../theme/typeScale';
+import { clerkAppearance } from '../theme/clerkAppearance';
 
 /**
  * SignIn — page chrome only around Clerk's own `<SignIn/>` mount point.
@@ -51,7 +52,7 @@ export function SignInPage() {
       <Wordmark>Setframe</Wordmark>
       <Tagline>Plan. Log. Progress.</Tagline>
       <AuthCard>
-        <ClerkSignIn routing="path" path="/sign-in" signUpUrl="/sign-up" />
+        <ClerkSignIn routing="path" path="/sign-in" signUpUrl="/sign-up" appearance={clerkAppearance} />
       </AuthCard>
     </Wrapper>
   );
