@@ -145,16 +145,108 @@ const WorkoutCard = styled(Card)`
   border-color: ${(p) => p.theme.action.primary};
   background: ${(p) => p.theme.action.accentSubtle};
 `;
-/** Story 06: subtle success-tinted surface for a completed scheduled
- * workout — translucent/opaque green accent, not a saturated CTA color,
- * per the story's explicit "completion semantics, not a new primary
- * button color" guidance. */
+/** Finishing a workout is the high point of the day, so the completed
+ * card is the one celebratory surface in Today: a success-tinted gradient
+ * with a soft glow behind the check, rather than the flat neutral panel
+ * every other state uses. Still tint-based, not a saturated CTA fill —
+ * completion semantics, not a new primary button color (Story 06). */
 const CompletedWorkoutCard = styled(Card)`
   display: flex;
   flex-direction: column;
   gap: ${spacing[12]}px;
-  border-color: ${(p) => p.theme.status.success}55;
-  background: ${(p) => p.theme.status.success}14;
+  position: relative;
+  overflow: hidden;
+  border-color: ${(p) => p.theme.status.success}66;
+  background: linear-gradient(
+    145deg,
+    ${(p) => p.theme.status.success}24 0%,
+    ${(p) => p.theme.status.success}0F 45%,
+    ${(p) => p.theme.surface.raised} 100%
+  );
+
+  /* Glow anchored behind the check badge in the top-left. */
+  &::before {
+    content: '';
+    position: absolute;
+    top: -70px;
+    left: -50px;
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    background: radial-gradient(circle, ${(p) => p.theme.status.success}33 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  > * {
+    position: relative;
+  }
+`;
+
+const celebrate = keyframes`
+  0% { transform: scale(0.4); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+`;
+
+/* Green check on a light halo, matching the CheckCircle2 every other
+ * completed check-in step uses. A white check on the mint success fill
+ * only reaches 2.26:1, below the 3:1 required for graphical objects. */
+const CompletionBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  color: ${(p) => p.theme.status.success};
+  background: ${(p) => p.theme.surface.raised};
+  box-shadow: 0 0 0 5px ${(p) => p.theme.status.success}1F;
+  animation: ${celebrate} 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+`;
+
+/** Success-tinted stat tiles. The neutral sunken surface used elsewhere
+ * reads as disabled against the green card. */
+/* Three even columns so the third stat never orphans onto its own row. */
+const CompletedMetaList = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: ${spacing[8]}px;
+
+  @media (max-width: 420px) {
+    grid-template-columns: repeat(2, 1fr);
+
+    > *:last-child {
+      grid-column: 1 / -1;
+    }
+  }
+`;
+
+const CompletedMetaTile = styled.div`
+  border: 1px solid ${(p) => p.theme.status.success}33;
+  border-radius: ${radius.small}px;
+  padding: ${spacing[12]}px;
+  background: ${(p) => p.theme.surface.raised}CC;
+`;
+
+const CompletedMetaValue = styled.div`
+  font-size: ${typeScale.pageTitle.fontSize}px;
+  line-height: 1.1;
+  font-weight: 700;
+  color: ${(p) => p.theme.status.success};
+  white-space: nowrap;
+`;
+
+/* Units ride along at label size so a four-digit volume still fits a
+   third-width tile on a narrow phone. */
+const CompletedMetaUnit = styled.span`
+  font-size: ${typeScale.label.fontSize}px;
+  font-weight: 600;
+  margin-left: 2px;
 `;
 const WorkoutCardHeader = styled.div`
   display: flex;
@@ -573,7 +665,7 @@ export function TodayPage() {
       : todayWorkoutState === 'in-progress'
         ? 'Workout ready to resume'
         : todayWorkoutState === 'completed'
-          ? 'Workout complete'
+          ? 'Workout complete!'
           : "Today's workout";
   const workoutCardBody =
     todayWorkoutState === 'no-program'
@@ -581,7 +673,7 @@ export function TodayPage() {
       : todayWorkoutState === 'in-progress'
         ? `You already started this session${formatTime(activeSession?.startedAt) ? ` at ${formatTime(activeSession?.startedAt)}` : ''}. Pick up where you left off.`
         : todayWorkoutState === 'completed'
-          ? `Workout complete${formatTime(completedSession?.completedAt) ? ` at ${formatTime(completedSession?.completedAt)}` : ''}.`
+          ? `Nice work — that's today's training done${formatTime(completedSession?.completedAt) ? `, finished at ${formatTime(completedSession?.completedAt)}` : ''}.`
           : todayWorkoutState === 'scheduled'
             ? `${data?.weekLabel ?? 'Scheduled'} · ${data?.dayLabel}${data?.scheduleSource === 'override' ? ' · changed for today' : ''}`
             : 'No workout scheduled yet. Choose a workout for today or adjust today’s plan without changing your recurring schedule.';
@@ -602,7 +694,13 @@ export function TodayPage() {
             <PrimaryWorkoutCard>
               <WorkoutCardHeader>
                 <SectionTitle style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {todayWorkoutState === 'completed' ? <CheckCircle2 size={18} /> : <Dumbbell size={18} />}
+                  {todayWorkoutState === 'completed' ? (
+                    <CompletionBadge>
+                      <CheckCircle2 size={26} strokeWidth={2.5} aria-hidden="true" />
+                    </CompletionBadge>
+                  ) : (
+                    <Dumbbell size={18} />
+                  )}
                   {workoutCardTitle}
                 </SectionTitle>
                 {showWorkoutDuration ? <PassiveChip>~{data?.estimatedDurationMinutes} min</PassiveChip> : null}
@@ -615,20 +713,29 @@ export function TodayPage() {
                 <>
                   {postWorkoutReviewQuery.isLoading ? <StepBody>Loading workout summary…</StepBody> : null}
                   {postWorkoutReviewQuery.data ? (
-                    <MetaList>
-                      <MetaTile>
+                    <CompletedMetaList>
+                      <CompletedMetaTile>
                         <MetaLabel>Exercises</MetaLabel>
-                        <MetaValue>{postWorkoutReviewQuery.data.exercises.length}</MetaValue>
-                      </MetaTile>
-                      <MetaTile>
+                        <CompletedMetaValue>{postWorkoutReviewQuery.data.exercises.length}</CompletedMetaValue>
+                      </CompletedMetaTile>
+                      <CompletedMetaTile>
                         <MetaLabel>Sets logged</MetaLabel>
-                        <MetaValue>{postWorkoutSets}</MetaValue>
-                      </MetaTile>
-                      <MetaTile>
+                        <CompletedMetaValue>{postWorkoutSets}</CompletedMetaValue>
+                      </CompletedMetaTile>
+                      <CompletedMetaTile>
                         <MetaLabel>Total volume</MetaLabel>
-                        <MetaValue>{postWorkoutVolume ? `${postWorkoutVolume} lb` : '—'}</MetaValue>
-                      </MetaTile>
-                    </MetaList>
+                        <CompletedMetaValue>
+                          {postWorkoutVolume ? (
+                            <>
+                              {postWorkoutVolume}
+                              <CompletedMetaUnit>lb</CompletedMetaUnit>
+                            </>
+                          ) : (
+                            '—'
+                          )}
+                        </CompletedMetaValue>
+                      </CompletedMetaTile>
+                    </CompletedMetaList>
                   ) : null}
                 </>
               ) : null}
@@ -642,8 +749,8 @@ export function TodayPage() {
                   </Button>
                 ) : null}
                 {todayWorkoutState === 'completed' && completedSession ? (
-                  <Button variant="secondary" onClick={() => navigate(`/workout/${completedSession.id}`)}>
-                    Review completed workout
+                  <Button onClick={() => navigate(`/workout/${completedSession.id}`)}>
+                    Review workout
                   </Button>
                 ) : null}
                 {todayWorkoutState === 'scheduled' ? (

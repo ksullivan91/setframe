@@ -78,10 +78,10 @@ describe('TodayPage completed-workout state', () => {
 
     renderTodayPage();
 
-    expect(await screen.findByText('Workout complete')).toBeInTheDocument();
+    expect(await screen.findByText('Workout complete!')).toBeInTheDocument();
     expect(screen.queryByText('Start workout')).not.toBeInTheDocument();
     expect(screen.queryByText("Change today's workout")).not.toBeInTheDocument();
     expect(screen.queryByText('Skip today')).not.toBeInTheDocument();
-    expect(screen.getByText('Review completed workout')).toBeInTheDocument();
+    expect(screen.getByText('Review workout')).toBeInTheDocument();
   });
 });

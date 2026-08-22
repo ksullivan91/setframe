@@ -35,6 +35,7 @@ import { useLocalDate } from '../../src/lib/useLocalDate';
 import { healthKit, type DailyHealthMetrics } from '../../src/healthkit/HealthKitAdapter';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { radius, spacing, typeScale } from '../../src/theme/getTheme';
+import type { WorkoutSessionDetail } from '@setframe/schemas';
 
 interface DashboardSessionSummary {
   id: string;
@@ -164,6 +165,32 @@ function parseOptionalInteger(value: string) {
   if (!parsed.ok || parsed.value == null) return parsed;
   if (!Number.isInteger(parsed.value)) return { ok: false as const, value: null };
   return parsed;
+}
+
+function sumCompletedSets(session?: WorkoutSessionDetail | null) {
+  if (!session) return 0;
+  return session.exercises.reduce(
+    (total, exercise) =>
+      total +
+      exercise.sets.filter(
+        (set) => set.reps != null || set.weightValue != null || set.durationSeconds != null || set.distanceValue != null,
+      ).length,
+    0,
+  );
+}
+
+function sumVolume(session?: WorkoutSessionDetail | null) {
+  if (!session) return null;
+  const total = session.exercises.reduce(
+    (sum, exercise) =>
+      sum +
+      exercise.sets.reduce((setSum, set) => {
+        if (set.weightValue == null || set.reps == null || set.weightUnit !== 'lb') return setSum;
+        return setSum + set.weightValue * set.reps;
+      }, 0),
+    0,
+  );
+  return total > 0 ? Math.round(total) : null;
 }
 
 function StepStatusIcon({ done }: { done: boolean }) {
@@ -363,6 +390,14 @@ export default function TodayScreen() {
     [todayQuery.data?.sessions],
   );
 
+  const completedSummaryQuery = useQuery({
+    queryKey: ['today-post-workout-review', completedSession?.id],
+    queryFn: () => api.get<WorkoutSessionDetail>(`/workout-sessions/${completedSession?.id}`),
+    enabled: Boolean(completedSession?.id && !activeSession),
+  });
+  const completedSets = sumCompletedSets(completedSummaryQuery.data);
+  const completedVolume = sumVolume(completedSummaryQuery.data);
+
   const todayWorkoutState: TodayWorkoutState = activeSession
     ? 'in-progress'
     // A completed session for today must win over "not started yet" —
@@ -382,7 +417,7 @@ export default function TodayScreen() {
       : todayWorkoutState === 'in-progress'
         ? 'Workout ready to resume'
         : todayWorkoutState === 'completed'
-          ? 'Workout complete'
+          ? 'Workout complete!'
           : "Today's workout";
 
   const workoutBody =
@@ -391,7 +426,7 @@ export default function TodayScreen() {
       : todayWorkoutState === 'in-progress'
         ? `You already started this session${formatTime(activeSession?.startedAt) ? ` at ${formatTime(activeSession?.startedAt)}` : ''}. Pick up where you left off.`
         : todayWorkoutState === 'completed'
-          ? `Workout complete${formatTime(completedSession?.completedAt) ? ` at ${formatTime(completedSession?.completedAt)}` : ''}.`
+          ? `Nice work — that's today's training done${formatTime(completedSession?.completedAt) ? `, finished at ${formatTime(completedSession?.completedAt)}` : ''}.`
           : todayWorkoutState === 'scheduled'
             ? `${todayQuery.data?.weekLabel ?? 'Scheduled'} · ${todayQuery.data?.dayLabel}${todayQuery.data?.scheduleSource === 'override' ? ' · changed for today' : ''}`
             : 'No workout scheduled yet. Choose a workout for today or adjust today’s plan without changing your recurring schedule.';
@@ -432,14 +467,16 @@ export default function TodayScreen() {
         style={[
           styles.workoutCard,
           todayWorkoutState === 'completed'
-            ? { borderColor: `${theme.status.success}55`, backgroundColor: `${theme.status.success}14` }
+            ? { borderColor: `${theme.status.success}66`, backgroundColor: `${theme.status.success}1F` }
             : { borderColor: theme.action.primary, backgroundColor: theme.action.accentSubtle },
         ]}
       >
         <View style={styles.cardHeaderRow}>
           <View style={styles.titleWithIcon}>
             {todayWorkoutState === 'completed' ? (
-              <CheckCircle2 size={18} color={theme.text.primary} />
+              <View style={[styles.completionBadge, { backgroundColor: theme.surface.raised }]}>
+                <CheckCircle2 size={24} strokeWidth={2.5} color={theme.status.success} />
+              </View>
             ) : (
               <Dumbbell size={18} color={theme.text.primary} />
             )}
@@ -465,13 +502,40 @@ export default function TodayScreen() {
                 <Text style={[styles.chipLabel, { color: theme.text.secondary }]}>{todayQuery.data.override.note}</Text>
               </View>
             ) : null}
+            {todayWorkoutState === 'completed' && completedSummaryQuery.data ? (
+              <View style={styles.completedStatRow}>
+                {[
+                  { label: 'Exercises', value: String(completedSummaryQuery.data.exercises.length) },
+                  { label: 'Sets logged', value: String(completedSets) },
+                  { label: 'Total volume', value: completedVolume ? String(completedVolume) : '—', unit: completedVolume ? 'lb' : undefined },
+                ].map((stat) => (
+                  <View
+                    key={stat.label}
+                    style={[
+                      styles.completedStatTile,
+                      { borderColor: `${theme.status.success}33`, backgroundColor: theme.surface.raised },
+                    ]}
+                  >
+                    <Text style={[styles.chipLabel, { color: theme.text.secondary }]}>{stat.label}</Text>
+                    <Text
+                      style={[styles.completedStatValue, { color: theme.status.success }]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.7}
+                    >
+                      {stat.value}
+                      {stat.unit ? <Text style={styles.completedStatUnit}>{stat.unit}</Text> : null}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
             <View style={styles.ctaStack}>
               {todayWorkoutState === 'no-program' ? <Button label="Start guided setup" onPress={() => router.push('/program-wizard')} /> : null}
               {todayWorkoutState === 'in-progress' ? <Button label="Resume workout" loading={startWorkoutMutation.isPending} onPress={() => startWorkoutMutation.mutate()} /> : null}
               {todayWorkoutState === 'completed' && completedSession ? (
                 <Button
-                  label="Review completed workout"
-                  variant="secondary"
+                  label="Review workout"
                   onPress={() => router.push({ pathname: '/session-summary', params: { sessionId: completedSession.id } })}
                 />
               ) : null}
@@ -677,6 +741,34 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: spacing[8],
+  },
+  completionBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  completedStatRow: {
+    flexDirection: 'row',
+    gap: spacing[8],
+  },
+  completedStatTile: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: radius.small,
+    padding: spacing[12],
+    gap: spacing[4],
+  },
+  completedStatValue: {
+    fontSize: typeScale.pageTitle.fontSize,
+    fontWeight: '700',
+  },
+  // Units ride along at label size so a four-digit volume still fits a
+  // third-width tile on a narrow phone.
+  completedStatUnit: {
+    fontSize: typeScale.label.fontSize,
+    fontWeight: '600',
   },
   titleWithIcon: {
     flexDirection: 'row',
