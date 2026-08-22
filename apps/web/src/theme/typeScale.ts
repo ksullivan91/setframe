@@ -1,12 +1,12 @@
-import { typeScale as rawTypeScale, type TypeScaleToken } from '@setline/design-tokens';
+import { typeScale as rawTypeScale, type TypeScaleToken } from '@setframe/design-tokens';
 
 /**
- * `@setline/design-tokens`' `typeScale` is declared as `Record<string,
+ * `@setframe/design-tokens`' `typeScale` is declared as `Record<string,
  * TypeScaleToken>`, so both direct lookups and its own `TypeScaleKey`
  * export (`keyof typeof typeScale`) widen to `string`, making every
  * lookup `TypeScaleToken | undefined` under `noUncheckedIndexedAccess`.
- * All of Setline's actual scale keys are known and stable (see
- * docs/design/setline-design-system.md §3) — this re-exports the same
+ * All of Setframe's actual scale keys are known and stable (see
+ * docs/design/setframe-design-system.md §3) — this re-exports the same
  * object under a locally-declared literal key union instead of
  * scattering non-null assertions across every component.
  */

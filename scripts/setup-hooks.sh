@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Installs Setline's git hooks (currently: Copilot pre-commit code review).
+# Installs Setframe's git hooks (currently: Copilot pre-commit code review).
 #
 # Run once per clone:
 #   scripts/setup-hooks.sh

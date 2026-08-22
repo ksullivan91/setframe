@@ -1,6 +1,6 @@
 import styled from 'styled-components';
 import { SignUp as ClerkSignUp } from '@clerk/clerk-react';
-import { spacing, radius } from '@setline/design-tokens';
+import { spacing, radius } from '@setframe/design-tokens';
 import { typeScale } from '../theme/typeScale';
 
 /** SignUp — same Clerk-chrome pattern as SignInPage, per style guide §13. */
@@ -42,7 +42,7 @@ const AuthCard = styled.div`
 export function SignUpPage() {
   return (
     <Wrapper>
-      <Wordmark>Setline</Wordmark>
+      <Wordmark>Setframe</Wordmark>
       <Tagline>Create your account</Tagline>
       <AuthCard>
         <ClerkSignUp routing="path" path="/sign-up" signInUrl="/sign-in" />

@@ -1,4 +1,4 @@
-import { themes, type ThemeMode } from '@setline/design-tokens';
+import { themes, type ThemeMode } from '@setframe/design-tokens';
 
 /**
  * Resolves the active semantic theme object for styled-components'

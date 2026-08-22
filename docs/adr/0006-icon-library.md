@@ -4,13 +4,13 @@ Status: Accepted. Date: 2026-08-20.
 
 ## Context
 
-`setline-branding-figma-mcp-copilot-prompt.md` §17 (Iconography) requires:
+`setframe-branding-figma-mcp-copilot-prompt.md` §17 (Iconography) requires:
 "Use a consistent icon library only after checking license and
 cross-platform practicality... Avoid mixing icon styles." Several Figma
 components built so far (`IconButton` ×4, drag-handle reorder glyphs,
 sync-status indicators) currently use plain text-character placeholders
 (`+`, `−`, `⧉`, `≡`) pending this decision, and are explicitly flagged as
-such in `docs/design/setline-figma-style-guide.md`.
+such in `docs/design/setframe-figma-style-guide.md`.
 
 The app is a single web (React) + single mobile (React Native/Expo)
 codebase per the master spec, so the icon library must ship first-class
@@ -28,7 +28,7 @@ packages for both without a style mismatch between platforms.
 ## Decision
 
 Adopt **Lucide** (`lucide-react` for web, `lucide-react-native` for
-mobile) as Setline's icon library.
+mobile) as Setframe's icon library.
 
 Rationale:
 1. **License**: ISC is short, permissive, no attribution/royalty
@@ -38,7 +38,7 @@ Rationale:
    icon set/style on web and mobile without a community-wrapper gap.
 3. **Style consistency**: single line-icon style (consistent stroke
    width, rounded caps) matches the restrained, non-decorative visual
-   direction already established in the Setline Figma file (thin
+   direction already established in the Setframe Figma file (thin
    strokes, subtle fills, no gradients/shadows).
 4. **Practicality**: tree-shakeable SVG components in both packages
    keep bundle size proportional to actual icons used, no icon-font
@@ -51,7 +51,7 @@ Rationale:
   using `+`/`−`/`⧉`/`≡` characters should be swapped for the
   corresponding Lucide glyphs (`Plus`, `Minus`, `Copy`, `GripVertical`,
   `Check`, `X`, etc.) — tracked as a follow-up pass in the Figma design
-  file and noted in `docs/design/setline-figma-style-guide.md`.
+  file and noted in `docs/design/setframe-figma-style-guide.md`.
 - When application code begins (Phase 6+), `lucide-react` and
   `lucide-react-native` should be added to the web and mobile package
   dependency sets respectively.

@@ -21,7 +21,7 @@ import {
 import { user } from './user';
 import { dayType, trainingProgram } from './program';
 import { exercise } from './exercise';
-import type { Prescription } from '@setline/schemas';
+import type { Prescription } from '@setframe/schemas';
 
 export const workoutSession = pgTable(
   'workout_session',

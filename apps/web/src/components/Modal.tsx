@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { X } from 'lucide-react';
-import { spacing } from '@setline/design-tokens';
+import { spacing } from '@setframe/design-tokens';
 import { Card } from './Card';
 import { IconButton } from './IconButton';
 

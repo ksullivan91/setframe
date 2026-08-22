@@ -3,8 +3,8 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-nat
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Trophy } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
-import { calculateVolume, estimateOneRepMax } from '@setline/domain';
-import type { WorkoutSessionDetail, WorkoutSet } from '@setline/schemas';
+import { calculateVolume, estimateOneRepMax } from '@setframe/domain';
+import type { WorkoutSessionDetail, WorkoutSet } from '@setframe/schemas';
 import { Card } from '../src/components/Card';
 import { Button } from '../src/components/Button';
 import { SetRowReadOnly } from '../src/components/SetRow';

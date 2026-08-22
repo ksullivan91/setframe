@@ -4,7 +4,7 @@ Status: Proposed. Date: 2026-08-20.
 
 ## Context
 
-Setline needs production hosting for a React SPA, a Fastify API, and a
+Setframe needs production hosting for a React SPA, a Fastify API, and a
 PostgreSQL database, plus a path to iOS distribution, while explicitly
 avoiding infrastructure complexity beyond what a single-service MVP needs
 (master spec §34: no Kubernetes/microservices/etc.).
@@ -65,7 +65,7 @@ avoiding infrastructure complexity beyond what a single-service MVP needs
 
 - Neon topology confirmed: **one Neon project, branch-per-environment**
   (dev/test/prod branches), as proposed above.
-- GitHub repository confirmed: `https://github.com/ksullivan91/setline`.
+- GitHub repository confirmed: `https://github.com/ksullivan91/setframe`.
   This monorepo will be pushed there; Cloudflare Pages and Railway GitHub
   integrations should both point at this repo once Phase 1 scaffolding
   exists.

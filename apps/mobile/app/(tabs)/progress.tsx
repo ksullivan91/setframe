@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
-import type { ProgressOverviewResponse } from '@setline/schemas';
+import type { ProgressOverviewResponse } from '@setframe/schemas';
 import { ConsistencyStreakGrid } from '../../src/components/ConsistencyStreakGrid';
 import { TrendCard } from '../../src/components/TrendCard';
 import { useApiClient } from '../../src/lib/api-client';

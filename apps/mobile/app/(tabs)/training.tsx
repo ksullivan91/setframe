@@ -3,8 +3,8 @@ import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 're
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, GripVertical } from 'lucide-react-native';
-import { calculateVolume, detectRepPR, detectWeightPR, estimateOneRepMax } from '@setline/domain';
-import type { Exercise, WorkoutSession, WorkoutSessionDetail, WorkoutSet } from '@setline/schemas';
+import { calculateVolume, detectRepPR, detectWeightPR, estimateOneRepMax } from '@setframe/domain';
+import type { Exercise, WorkoutSession, WorkoutSessionDetail, WorkoutSet } from '@setframe/schemas';
 import { Card } from '../../src/components/Card';
 import { Button } from '../../src/components/Button';
 import { SetRowEditable } from '../../src/components/SetRow';

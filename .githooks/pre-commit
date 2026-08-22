@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Setline pre-commit code review.
+# Setframe pre-commit code review.
 #
 # GitHub-native replacement for the GitLab-Duo pre-commit hook used in
 # sibling repos (crewvette-replatform, er-re-platform, blueprint). See

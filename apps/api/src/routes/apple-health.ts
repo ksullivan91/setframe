@@ -1,7 +1,7 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { dailyActivitySummary, dailyNutritionSnapshot, integrationSyncState } from '@setline/database';
+import { dailyActivitySummary, dailyNutritionSnapshot, integrationSyncState } from '@setframe/database';
 import { getDb } from '../lib/db.js';
 import { requireAuth } from '../plugins/auth.js';
 

@@ -5,7 +5,7 @@ import { Checkbox } from './Checkbox';
 import { Input } from './Input';
 import { IconButton } from './IconButton';
 import { PrBadge } from './Badge';
-import { spacing } from '@setline/design-tokens';
+import { spacing } from '@setframe/design-tokens';
 import { typeScale } from '../theme/getTheme';
 
 export interface SetRowReadOnlyProps {

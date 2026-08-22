@@ -1,7 +1,7 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { eq } from 'drizzle-orm';
-import { notificationPreferenceSchema, updateNotificationPreferenceSchema } from '@setline/schemas';
-import { userNotificationPreference } from '@setline/database';
+import { notificationPreferenceSchema, updateNotificationPreferenceSchema } from '@setframe/schemas';
+import { userNotificationPreference } from '@setframe/database';
 import { getDb } from '../lib/db.js';
 import { requireAuth } from '../plugins/auth.js';
 

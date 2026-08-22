@@ -12,7 +12,7 @@ import {
   scheduleOverride,
   trainingProgram,
   workoutSession,
-} from '@setline/database';
+} from '@setframe/database';
 import { getDb } from '../lib/db.js';
 import { requireAuth } from '../plugins/auth.js';
 

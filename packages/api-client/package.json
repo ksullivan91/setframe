@@ -1,5 +1,5 @@
 {
-  "name": "@setline/api-client",
+  "name": "@setframe/api-client",
   "version": "0.0.0",
   "private": true,
   "main": "./src/index.ts",
@@ -8,7 +8,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@setline/schemas": "*"
+    "@setframe/schemas": "*"
   },
   "devDependencies": {
     "typescript": "5.9.3"

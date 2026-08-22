@@ -1,6 +1,6 @@
-# Setline UX Architecture & Application Enhancement
+# Setframe UX Architecture & Application Enhancement
 
-I want you to perform a comprehensive UX architecture and implementation improvement of the Setline application.
+I want you to perform a comprehensive UX architecture and implementation improvement of the Setframe application.
 
 Do **not** treat this as a cosmetic redesign or a collection of isolated styling changes.
 
@@ -20,7 +20,7 @@ The objective is to improve the **entire user workflow**, not merely the appeara
 
 # 1. Product vision
 
-Setline is intended to become a personal fitness tracking and training application that replaces much of a workflow currently performed manually through ChatGPT.
+Setframe is intended to become a personal fitness tracking and training application that replaces much of a workflow currently performed manually through ChatGPT.
 
 The primary workflow is not simply:
 
@@ -79,11 +79,11 @@ For example, a real daily input may look conceptually like:
 >
 > Then analyze Apple Health data and overall progress.
 
-Setline should capture this information structurally so that historical fitness analysis does **not depend upon conversational memory**.
+Setframe should capture this information structurally so that historical fitness analysis does **not depend upon conversational memory**.
 
 The database should become the durable source of truth.
 
-AI may eventually interpret that history, but AI should consume structured Setline data rather than being relied upon to remember it.
+AI may eventually interpret that history, but AI should consume structured Setframe data rather than being relied upon to remember it.
 
 ---
 
@@ -614,7 +614,7 @@ Historical reference should help logging rather than make the screen visually no
 
 # 11. Improve workout-session logging
 
-The workout session is a core Setline workflow and should be highly optimized for repeated use.
+The workout session is a core Setframe workflow and should be highly optimized for repeated use.
 
 The current session requires each individual set to be edited and saved independently.
 
@@ -837,9 +837,9 @@ The current Today page already contains the beginning of the correct product mod
 * watch auto-sync
 * daily summary
 
-Develop this into Setline's primary daily dashboard.
+Develop this into Setframe's primary daily dashboard.
 
-The user should be able to open Setline in the morning and understand:
+The user should be able to open Setframe in the morning and understand:
 
 1. What am I doing today?
 2. What should I record?
@@ -1036,7 +1036,7 @@ This screen should connect **logging** with **understanding**.
 
 The existing Progress page currently has a large empty state around an 8-week consistency section.
 
-Progress should become the historical intelligence layer of Setline.
+Progress should become the historical intelligence layer of Setframe.
 
 Consider sections such as:
 
@@ -1149,7 +1149,7 @@ At the same time, don't fill empty screens with decorative noise.
 
 # 25. Historical records are first-class product data
 
-One of the major reasons for building Setline is that conversational AI is not an ideal long-term fitness database.
+One of the major reasons for building Setframe is that conversational AI is not an ideal long-term fitness database.
 
 Therefore:
 
@@ -1439,7 +1439,7 @@ Maintain hierarchy and action priority at every breakpoint.
 
 The current visual style is clean and should not be thrown away.
 
-Preserve the existing Setline visual identity where possible.
+Preserve the existing Setframe visual identity where possible.
 
 The problem is primarily hierarchy and workflow.
 
@@ -1594,7 +1594,7 @@ The application should feel safe to use while tired, training, or moving between
 
 # 38. Primary workflow optimization
 
-Optimize Setline for this repeated daily loop:
+Optimize Setframe for this repeated daily loop:
 
 ```text
 Open Today
@@ -2010,7 +2010,7 @@ After implementation, summarize:
 6. Remaining UX debt.
 7. Any recommendations for the next iteration.
 
-The goal is not simply to make Setline look better.
+The goal is not simply to make Setframe look better.
 
 The goal is to make the application feel like a coherent personal fitness system in which planning, daily tracking, training execution, Apple Health context, history, and progress all reinforce one another.
 
@@ -2086,7 +2086,7 @@ Routes present under `apps/mobile/app/`:
    ghost values (already partially mocked via `previousWeight`/
    `previousReps` props on `SetRowEditable` — good bones, just needs
    real data), PR detection wired to real historical sets via
-   `@setline/domain`'s `detectWeightPR` (already imported, just fed
+   `@setframe/domain`'s `detectWeightPR` (already imported, just fed
    mock `history` array), persistence/error/loading states.
 5. **Phase 5 parity** (after web Phase 5 ships): real Today ritual —
    dashboard fetch, manual entry persistence, live sync status, schedule

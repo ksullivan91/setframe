@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, ChevronDown, ChevronUp, Plus, Sparkles, Trash2 } from 'lucide-react';
-import { spacing, radius } from '@setline/design-tokens';
+import { spacing, radius } from '@setframe/design-tokens';
 import type {
   CreatePlannedSetInput,
   DayType,
@@ -12,7 +12,7 @@ import type {
   Prescription,
   ProgramScheduleSlot,
   TrainingProgram,
-} from '@setline/schemas';
+} from '@setframe/schemas';
 import { Button, Card, IconButton, Input, Menu, Modal as SharedModal, Select, Tabs, useToast } from '../components';
 import { typeScale } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';
@@ -1055,7 +1055,7 @@ export function ProgramEditorPage() {
         <OnboardingBanner>
           <OnboardingEyebrow>
             <Sparkles size={14} aria-hidden="true" />
-            New to Setline?
+            New to Setframe?
           </OnboardingEyebrow>
           <h2 style={{ margin: 0 }}>Build your training program</h2>
           <Small>Create your workouts and weekly schedule in a few guided steps.</Small>

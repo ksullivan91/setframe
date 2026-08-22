@@ -5,8 +5,8 @@ import {
   dailyActivitySummary,
   dailyManualEntry,
   dailyNutritionSnapshot,
-} from '@setline/database';
-import { dailyManualEntrySchema, patchDailyManualEntrySchema } from '@setline/schemas';
+} from '@setframe/database';
+import { dailyManualEntrySchema, patchDailyManualEntrySchema } from '@setframe/schemas';
 import { getDb } from '../lib/db.js';
 import { requireAuth } from '../plugins/auth.js';
 

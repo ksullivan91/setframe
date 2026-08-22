@@ -1,6 +1,6 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import { getTheme } from './getTheme';
-import type { SemanticTheme } from '@setline/design-tokens';
+import type { SemanticTheme } from '@setframe/design-tokens';
 
 const ThemeContext = createContext<SemanticTheme>(getTheme('light'));
 

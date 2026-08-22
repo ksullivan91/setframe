@@ -1,5 +1,5 @@
 {
-  "name": "@setline/domain",
+  "name": "@setframe/domain",
   "version": "0.0.0",
   "private": true,
   "main": "./src/index.ts",
@@ -9,7 +9,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@setline/schemas": "*"
+    "@setframe/schemas": "*"
   },
   "devDependencies": {
     "typescript": "5.9.3",

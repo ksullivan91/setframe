@@ -1,8 +1,8 @@
 /**
  * Raw color ramps. Generated as HSL ramps (hue held constant, lightness/
  * saturation stepped) anchored on the exact hexes chosen in the Figma file
- * (`Setline/Color` variable collection) — see
- * docs/design/setline-figma-style-guide.md §1.
+ * (`Setframe/Color` variable collection) — see
+ * docs/design/setframe-figma-style-guide.md §1.
  *
  * Do not hand-edit individual steps without regenerating the whole ramp;
  * these must stay derivable from the two anchor hexes (`accent.500`,

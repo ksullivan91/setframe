@@ -6,9 +6,9 @@ import {
   exerciseHistoryResponseSchema,
   exerciseProgressResponseSchema,
   exerciseSchema,
-} from '@setline/schemas';
-import { exercise, workoutExerciseLog, workoutSession, workoutSet } from '@setline/database';
-import { calculateVolume, detectRepPR, detectWeightPR, estimateOneRepMax, type HistoricalSet } from '@setline/domain';
+} from '@setframe/schemas';
+import { exercise, workoutExerciseLog, workoutSession, workoutSet } from '@setframe/database';
+import { calculateVolume, detectRepPR, detectWeightPR, estimateOneRepMax, type HistoricalSet } from '@setframe/domain';
 import { getDb } from '../lib/db.js';
 import { requireAuth } from '../plugins/auth.js';
 import { notFound, forbidden } from '../lib/errors.js';

@@ -1,12 +1,12 @@
-# Setline — Figma Style Guide (v0, in progress)
+# Setframe — Figma Style Guide (v0, in progress)
 
 Status: **Live in Figma, actively being built.** This is the first real
 design-system artifact created *in Figma itself* (not just proposal docs).
-It implements the color direction from `setline-design-system.md` and the
+It implements the color direction from `setframe-design-system.md` and the
 purple-accent audit in `figma-reference-audit.md` §5, using GitHub Copilot
 CLI's Figma MCP write tools (`use_figma`).
 
-**Figma file**: `Setline` — `https://www.figma.com/design/pb64t99w7Um3FTeFiJ1riz/Setline`
+**Figma file**: `Setframe` — `https://www.figma.com/design/pb64t99w7Um3FTeFiJ1riz/Setframe`
 (user-created project, not a reference/community file).
 
 ## Pages
@@ -17,7 +17,7 @@ CLI's Figma MCP write tools (`use_figma`).
 
 ## What's built so far
 
-### 1. Color — `Setline/Color` variable collection (Light + Dark modes)
+### 1. Color — `Setframe/Color` variable collection (Light + Dark modes)
 
 - **Accent ramp** (`Color/Accent/50…950`, 11 steps) — indigo/violet,
   anchored on the exact `#6979F8` from the "Brainstorming UI Style Kit"
@@ -50,23 +50,23 @@ inside Figma's own contrast tooling):
 
 ### 2. Typography — Inter, 11-step scale
 
-Same scale proposed in `setline-design-system.md` §3 (`display` through
+Same scale proposed in `setframe-design-system.md` §3 (`display` through
 `caption`), now rendered as a real live specimen frame with actual Inter
 Regular/Semi Bold text nodes bound to `Semantic/Text/Primary` /
 `Secondary`. Includes the numeric-legibility rows (`numericMetric`,
-`numericWorkoutSet`) called out as Setline's key requirement.
+`numericWorkoutSet`) called out as Setframe's key requirement.
 
-### 3. Spacing — `Setline/Spacing` variable collection
+### 3. Spacing — `Setframe/Spacing` variable collection
 
 8 numeric variables (`Spacing/4` … `Spacing/48`), single mode, bound as
 the actual `width` of specimen bars — not just documented, but literally
 driving node geometry so the scale can be visually audited.
 
-### 4. Radius — `Setline/Radius` variable collection
+### 4. Radius — `Setframe/Radius` variable collection
 
 3 numeric variables: `Radius/Small` (8), `Radius/Large` (16),
 `Radius/Full` (999, for pills/avatars) — matches the restrained 2-tier
-scale from `setline-design-system.md` §4.
+scale from `setframe-design-system.md` §4.
 
 ### 5. First draft components (`Components (draft)` frame)
 
@@ -81,7 +81,7 @@ All built with auto-layout (Flexbox-equivalent), not absolute positioning
 - **`SetRow`** — label ("Set 1") → large numeric value ("275 × 5",
   `numericWorkoutSet` scale) → PR badge pill using
   `Semantic/Action/AccentSubtle`. This is the master spec's flagged
-  "most important component," Setline-original (not sourced from any
+  "most important component," Setframe-original (not sourced from any
   reference file).
 
 ### 6. Second round of foundation components — grounded in real MVP flows
@@ -157,7 +157,7 @@ variables, no hardcoded hex/px, and were screenshot-verified.
   1280px desktop canvas, with the 5-item web nav from §13 ("Web nav:
   Today, Training, History, Progress, Settings" — note History exists on
   web but not mobile per spec). Adopts File 1's sidebar+content structure
-  per `setline-design-system.md` §6, with Setline's own tokens (no
+  per `setframe-design-system.md` §6, with Setframe's own tokens (no
   File-1-style card nesting in the content area).
 
 ### 8. Additional primitives — Select and Toast
@@ -205,7 +205,7 @@ content.
 - **`Screen/Web/SignIn`** (node `17:2`) — this does **not** redesign
   Clerk's own `<SignIn/>` component (per §11.5, Clerk owns the actual
   auth UI/logic); it documents the page chrome around Clerk's mount
-  point: centered card, Setline wordmark + tagline, minimal surrounding
+  point: centered card, Setframe wordmark + tagline, minimal surrounding
   layout. Field/button styling is illustrative of Clerk's appearance-API
   theming target, not custom-built production form fields.
 - **`Screen/Web/ProgramEditor`** (node `18:12`) — the last named MVP
@@ -251,7 +251,7 @@ afterward to confirm zero overlap.
   MVP priority (spec calls mobile "the trusted bridge to on-device
   data").
 - **`Card` now exists** (see §6 above), but `Stack`/`Inline`/`NumericText`
-  as named low-level primitives in `setline-design-system.md` §7 still
+  as named low-level primitives in `setframe-design-system.md` §7 still
   don't — `MetricTile`, `SetRow`, and the new components were built
   directly with ad hoc auto-layout rather than composed from shared
   layout primitives first; worth revisiting once more screens exist and
@@ -434,7 +434,7 @@ for the full license/cross-platform comparison against Phosphor,
 Heroicons, and Font Awesome. Lucide won on: permissive ISC license,
 first-class packages maintained by the same team for both platforms
 (no community-wrapper gap), and a single thin-line style consistent
-with the rest of Setline's restrained visual language.
+with the rest of Setframe's restrained visual language.
 
 **Replacement pass** (all done via real Lucide path data, not
 approximations):

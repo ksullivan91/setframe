@@ -71,7 +71,7 @@ class HealthKitAdapter {
     try {
       const available = await mod.isHealthDataAvailable();
       if (!available) return 'unavailable';
-      // Read-only permissions only — Setline never writes to HealthKit
+      // Read-only permissions only — Setframe never writes to HealthKit
       // (see app.json NSHealthUpdateUsageDescription).
       await mod.requestAuthorization({
         toRead: [

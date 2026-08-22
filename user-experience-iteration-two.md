@@ -1,4 +1,4 @@
-# Setline Training UX — Focused Empty-State and Layout Refinement
+# Setframe Training UX — Focused Empty-State and Layout Refinement
 
 The latest Training iteration is an improvement, but the first-program / no-workouts state still has several usability and layout issues.
 
@@ -403,7 +403,7 @@ Do not add another purple CTA.
 
 # 13. Do not introduce a green generic action button
 
-We considered introducing another action color because purple appears frequently throughout Setline.
+We considered introducing another action color because purple appears frequently throughout Setframe.
 
 Do **not** add green as a generic alternative CTA color.
 
@@ -529,7 +529,7 @@ Do not significantly redesign the new Training onboarding banner.
 The current direction:
 
 ```text
-NEW TO SETLINE?
+NEW TO SETFRAME?
 
 Build your training program
 Create your workouts and weekly schedule in a few guided steps.

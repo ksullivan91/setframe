@@ -1,7 +1,7 @@
 /**
- * Typography scale — Inter, per docs/design/setline-design-system.md §3
+ * Typography scale — Inter, per docs/design/setframe-design-system.md §3
  * and the live Figma specimen (style guide §2). `numericMetric` and
- * `numericWorkoutSet` use tabular figures for Setline's core "275 × 5"
+ * `numericWorkoutSet` use tabular figures for Setframe's core "275 × 5"
  * legibility requirement (master spec).
  */
 export const fontFamily = {

@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { Trophy } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
-import { radius, spacing } from '@setline/design-tokens';
+import { radius, spacing } from '@setframe/design-tokens';
 import { typeScale } from '../theme/getTheme';
 
 export type BadgeTone = 'accent' | 'success' | 'caution' | 'error' | 'neutral';

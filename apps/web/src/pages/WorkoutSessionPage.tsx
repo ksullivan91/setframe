@@ -9,9 +9,9 @@ import type {
   WorkoutSessionExerciseDetail,
   WorkoutSet,
   WorkoutSetPreviousPerformance,
-} from '@setline/schemas';
-import { calculateVolume, detectRepPR, detectWeightPR, estimateOneRepMax } from '@setline/domain';
-import { radius, spacing } from '@setline/design-tokens';
+} from '@setframe/schemas';
+import { calculateVolume, detectRepPR, detectWeightPR, estimateOneRepMax } from '@setframe/domain';
+import { radius, spacing } from '@setframe/design-tokens';
 import { AsyncStatusIndicator, Button, Card, IconButton, Input, Modal, PRBadge, Select, Skeleton, SkeletonStack, useAsyncStatus, useToast } from '../components';
 import { useApiClient } from '../lib/api-client';
 import { summarizePrescription } from '../lib/prescription';

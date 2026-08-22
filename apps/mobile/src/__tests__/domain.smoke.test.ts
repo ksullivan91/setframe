@@ -1,4 +1,4 @@
-import { detectWeightPR } from '@setline/domain';
+import { detectWeightPR } from '@setframe/domain';
 
 /**
  * Smoke test verifying `packages/domain`'s PR-detection function

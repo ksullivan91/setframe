@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
 import styled from 'styled-components';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
-import { radius, spacing } from '@setline/design-tokens';
+import { radius, spacing } from '@setframe/design-tokens';
 import { typeScale } from '../theme/typeScale';
 
 export type ToastVariant = 'success' | 'error';

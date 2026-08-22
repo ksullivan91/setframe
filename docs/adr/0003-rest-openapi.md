@@ -4,7 +4,7 @@ Status: Proposed. Date: 2026-08-20.
 
 ## Context
 
-Setline needs one API consumed by two very different clients (React web,
+Setframe needs one API consumed by two very different clients (React web,
 React Native/Expo mobile), with strong end-to-end TypeScript types and low
 operational complexity for an MVP-stage single-service backend.
 

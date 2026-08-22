@@ -3,7 +3,7 @@ import { ActivityIndicator, ScrollView, View, Text, Pressable, StyleSheet } from
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronRight } from 'lucide-react-native';
-import type { DayType, DayTypeExercise, Exercise, ProgramScheduleSlot, TrainingProgram } from '@setline/schemas';
+import type { DayType, DayTypeExercise, Exercise, ProgramScheduleSlot, TrainingProgram } from '@setframe/schemas';
 import { Card } from '../src/components/Card';
 import { Badge } from '../src/components/Badge';
 import { Button } from '../src/components/Button';

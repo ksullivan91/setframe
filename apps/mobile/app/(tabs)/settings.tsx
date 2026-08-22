@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, View, Text, Switch, StyleSheet, ActivityIndicator } from 'react-native';
 import { useClerk, useAuth, useUser } from '@clerk/clerk-expo';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { NotificationPreference, User } from '@setline/schemas';
+import type { NotificationPreference, User } from '@setframe/schemas';
 import { Card } from '../../src/components/Card';
 import { Button } from '../../src/components/Button';
 import { Select } from '../../src/components/Select';

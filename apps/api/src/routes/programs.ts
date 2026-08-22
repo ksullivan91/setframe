@@ -1,8 +1,8 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { and, eq, ne } from 'drizzle-orm';
 import { z } from 'zod';
-import { trainingProgramSchema } from '@setline/schemas';
-import { trainingProgram } from '@setline/database';
+import { trainingProgramSchema } from '@setframe/schemas';
+import { trainingProgram } from '@setframe/database';
 import { getDb } from '../lib/db.js';
 import { requireAuth } from '../plugins/auth.js';
 import { notFound } from '../lib/errors.js';

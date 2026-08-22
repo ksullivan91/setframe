@@ -9,7 +9,7 @@ import {
   programVersion,
   scheduleOverride,
   trainingProgram,
-} from '@setline/database';
+} from '@setframe/database';
 import {
   createPlannedSetSchema,
   dayTypeExercisePlannedSetSchema,
@@ -19,7 +19,7 @@ import {
   programScheduleSlotSchema,
   reorderPlannedSetsSchema,
   scheduleOverrideSchema,
-} from '@setline/schemas';
+} from '@setframe/schemas';
 import { getDb } from '../lib/db.js';
 import { forbidden, notFound } from '../lib/errors.js';
 import { requireAuth } from '../plugins/auth.js';
