@@ -15,3 +15,4 @@ export * from './Tabs';
 export * from './Skeleton';
 export * from './ProgressRing';
 export * from './WeekScheduleEditor';
+export * from './ExerciseEditModal';

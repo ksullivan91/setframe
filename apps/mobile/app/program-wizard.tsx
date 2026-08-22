@@ -1,17 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, View, Text, Alert, StyleSheet } from 'react-native';
+import { ActivityIndicator, ScrollView, View, Text, Alert, Modal, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
+import { MoreVertical } from 'lucide-react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { DayType, DayTypeExercise, Exercise, Prescription, ProgramScheduleSlot, TrainingProgram } from '@setframe/schemas';
 import { Card } from '../src/components/Card';
+import { IconButton } from '../src/components/IconButton';
+import { Toast } from '../src/components/Toast';
+import { ExerciseEditSheet, type ExerciseEditState } from '../src/components/ExerciseEditSheet';
 import { Button } from '../src/components/Button';
 import { Input } from '../src/components/Input';
 import { Select, type SelectOption } from '../src/components/Select';
 import { AddExercisePicker } from '../src/components/AddExercisePicker';
 import { WeekScheduleEditor } from '../src/components/WeekScheduleEditor';
 import { useApiClient } from '../src/lib/api-client';
+import { restoreExerciseOrder } from '@setframe/domain';
 import { summarizePrescription } from '../src/lib/prescription';
 import { useTheme } from '../src/theme/ThemeProvider';
+import { radius } from '@setframe/design-tokens';
 import { spacing, typeScale } from '../src/theme/getTheme';
 
 interface DayTypeDetail extends DayType {
@@ -67,6 +73,9 @@ export default function ProgramWizardScreen() {
   const [workouts, setWorkouts] = useState<WizardWorkoutDraft[]>([]);
   const [selectedWorkoutTempId, setSelectedWorkoutTempId] = useState<string | null>(null);
   const [addExerciseOpen, setAddExerciseOpen] = useState(false);
+  const [actionsFor, setActionsFor] = useState<DayTypeExercise | null>(null);
+  const [editState, setEditState] = useState<ExerciseEditState | null>(null);
+  const [undoState, setUndoState] = useState<{ target: DayTypeExercise; originalIndex: number } | null>(null);
   const [scheduleByDay, setScheduleByDay] = useState<Record<number, string | null>>({});
 
   const {
@@ -91,11 +100,18 @@ export default function ProgramWizardScreen() {
     [workouts, selectedWorkoutTempId],
   );
 
+  const exerciseName = (item: DayTypeExercise) =>
+    exercises.find((candidate) => candidate.id === item.exerciseId)?.name ?? 'Exercise';
+
   const selectedWorkoutDetail = useQuery({
     queryKey: ['day-type', selectedWorkout?.dayTypeId],
     queryFn: () => api.get<DayTypeDetail>(`/day-types/${selectedWorkout?.dayTypeId}`),
     enabled: Boolean(selectedWorkout?.dayTypeId),
   });
+
+  useEffect(() => {
+    setUndoState(null);
+  }, [selectedWorkoutTempId]);
 
   useEffect(() => {
     if (!selectedWorkoutTempId && workouts.length > 0) {
@@ -152,6 +168,69 @@ export default function ProgramWizardScreen() {
       await queryClient.invalidateQueries({ queryKey: ['day-type', vars.dayTypeId] });
     },
     onError: () => Alert.alert('Could not add exercise', 'Please try again.'),
+  });
+
+  /**
+   * Guided Setup writes workout exercises straight to the backend, so a
+   * removal is a real DELETE and undo has to re-create the row. Capture
+   * the position it held so undo can put it back where it was.
+   */
+  const removeExercise = useMutation({
+    mutationFn: async (target: DayTypeExercise) => {
+      const originalIndex = (selectedWorkoutDetail.data?.exercises ?? [])
+        .slice()
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .findIndex((item) => item.id === target.id);
+      await api.del(`/day-types/${target.dayTypeId}/exercises/${target.id}`);
+      return { target, originalIndex };
+    },
+    onSuccess: async (restorePoint) => {
+      await queryClient.invalidateQueries({ queryKey: ['day-type', restorePoint.target.dayTypeId] });
+      setUndoState(restorePoint);
+    },
+    onError: () => Alert.alert('Could not remove exercise', 'Please try again.'),
+  });
+
+  const undoRemoveExercise = useMutation({
+    mutationFn: async ({ target, originalIndex }: { target: DayTypeExercise; originalIndex: number }) => {
+      const restored = await api.post<DayTypeExercise>(`/day-types/${target.dayTypeId}/exercises`, {
+        exerciseId: target.exerciseId,
+        prescription: target.prescription,
+        notes: target.notes ?? undefined,
+      });
+      // Re-read the live list rather than replaying a pre-delete snapshot:
+      // the reorder endpoint rejects any payload whose id set differs from
+      // the day type's current rows, which a stale snapshot would trip as
+      // soon as anything else changed in between.
+      const detail = await api.get<DayTypeDetail>(`/day-types/${target.dayTypeId}`);
+      const currentIds = detail.exercises
+        .slice()
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((item) => item.id);
+      await api.post(`/day-types/${target.dayTypeId}/exercises/reorder`, {
+        exerciseIdsInOrder: restoreExerciseOrder({ currentIds, restoredId: restored.id, originalIndex }),
+      });
+      return target.dayTypeId;
+    },
+    onSuccess: async (dayTypeId) => {
+      await queryClient.invalidateQueries({ queryKey: ['day-type', dayTypeId] });
+    },
+    onError: async (_error, { target }) => {
+      // The re-create may already have landed; refresh so the user sees the
+      // real list instead of re-adding and creating a duplicate.
+      await queryClient.invalidateQueries({ queryKey: ['day-type', target.dayTypeId] });
+      Alert.alert('Could not fully restore exercise', 'Check the exercise list for this workout.');
+    },
+  });
+
+  const patchExercise = useMutation({
+    mutationFn: (args: { dayTypeId: string; exerciseId: string; body: { prescription: Prescription; notes: string | null } }) =>
+      api.patch(`/day-types/${args.dayTypeId}/exercises/${args.exerciseId}`, args.body),
+    onSuccess: async (_, args) => {
+      await queryClient.invalidateQueries({ queryKey: ['day-type', args.dayTypeId] });
+      setEditState(null);
+    },
+    onError: () => Alert.alert('Could not update exercise', 'Please try again.'),
   });
 
   const upsertSlot = useMutation({
@@ -279,6 +358,19 @@ export default function ProgramWizardScreen() {
                       label={`Add exercise to ${selectedWorkout.name}`}
                       onPress={() => setAddExerciseOpen(true)}
                     />
+                    {undoState ? (
+                      <Toast
+                        variant="success"
+                        message="Exercise removed."
+                        actionLabel="Undo"
+                        onAction={() => {
+                          if (undoRemoveExercise.isPending) return;
+                          setUndoState(null);
+                          undoRemoveExercise.mutate(undoState);
+                        }}
+                        onDismiss={() => setUndoState(null)}
+                      />
+                    ) : null}
                     {(selectedWorkoutDetail.data?.exercises ?? []).length === 0 ? (
                       <Text style={{ color: theme.text.secondary }}>
                         Add at least one exercise to {selectedWorkout.name}.
@@ -289,12 +381,22 @@ export default function ProgramWizardScreen() {
                         .sort((a, b) => a.sortOrder - b.sortOrder)
                         .map((exercise) => (
                           <Card key={exercise.id}>
-                            <Text style={{ color: theme.text.primary, fontWeight: '600' }}>
-                              {exercises.find((item) => item.id === exercise.exerciseId)?.name ?? 'Exercise'}
-                            </Text>
-                            <Text style={{ color: theme.text.secondary, fontSize: typeScale.caption.fontSize }}>
-                              {summarizePrescription(exercise.prescription)}
-                            </Text>
+                            <View style={styles.exerciseRow}>
+                              <View style={styles.exerciseSummary}>
+                                <Text style={{ color: theme.text.primary, fontWeight: '600' }}>
+                                  {exerciseName(exercise)}
+                                </Text>
+                                <Text style={{ color: theme.text.secondary, fontSize: typeScale.caption.fontSize }}>
+                                  {summarizePrescription(exercise.prescription)}
+                                </Text>
+                              </View>
+                              <IconButton
+                                icon={MoreVertical}
+                                variant="subtle"
+                                accessibilityLabel={`Actions for ${exerciseName(exercise)}`}
+                                onPress={() => setActionsFor(exercise)}
+                              />
+                            </View>
                           </Card>
                         ))
                     )}
@@ -375,6 +477,61 @@ export default function ProgramWizardScreen() {
         </View>
       </Card>
     </ScrollView>
+    {actionsFor ? (
+      <Modal visible animationType="fade" transparent onRequestClose={() => setActionsFor(null)}>
+        <Pressable style={sheetStyles.backdrop} onPress={() => setActionsFor(null)}>
+          <Pressable style={[sheetStyles.sheet, { backgroundColor: theme.surface.raised, borderColor: theme.border.default }]}>
+            <Text style={[sheetStyles.sheetTitle, { color: theme.text.primary }]} numberOfLines={1}>
+              {exerciseName(actionsFor)}
+            </Text>
+            <Button
+              label="Edit"
+              variant="secondary"
+              onPress={() => {
+                setEditState({
+                  dayTypeId: actionsFor.dayTypeId,
+                  exerciseId: actionsFor.id,
+                  exerciseName: exerciseName(actionsFor),
+                  prescription: actionsFor.prescription,
+                  notes: actionsFor.notes ?? '',
+                });
+                setActionsFor(null);
+              }}
+            />
+            <Button
+              label="Remove"
+              variant="secondary"
+              onPress={() => {
+                removeExercise.mutate(actionsFor);
+                setActionsFor(null);
+              }}
+            />
+            <Button label="Cancel" variant="secondary" onPress={() => setActionsFor(null)} />
+          </Pressable>
+        </Pressable>
+      </Modal>
+    ) : null}
+
+    {editState ? (
+      <ExerciseEditSheet
+        state={editState}
+        isSaving={patchExercise.isPending}
+        onClose={() => setEditState(null)}
+        onSave={(next) =>
+          patchExercise.mutate({
+            dayTypeId: next.dayTypeId,
+            exerciseId: next.exerciseId,
+            body: { prescription: next.prescription, notes: next.notes || null },
+          })
+        }
+        onRemove={() => {
+          const target = (selectedWorkoutDetail.data?.exercises ?? []).find((item) => item.id === editState.exerciseId);
+          setEditState(null);
+          if (target) removeExercise.mutate(target);
+        }}
+      />
+    ) : null}
+
     {selectedWorkout && addExerciseOpen ? (
       <AddExercisePicker
         open
@@ -419,6 +576,8 @@ const styles = StyleSheet.create({
     fontSize: typeScale.sectionTitle.fontSize,
     fontWeight: '600',
   },
+  exerciseRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[8] },
+  exerciseSummary: { flex: 1, minWidth: 0, gap: spacing[4] },
   stack: {
     gap: spacing[12],
   },
@@ -432,4 +591,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: spacing[8],
   },
+});
+
+const sheetStyles = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  sheet: {
+    borderTopLeftRadius: radius.large,
+    borderTopRightRadius: radius.large,
+    borderWidth: 1,
+    padding: spacing[16],
+    gap: spacing[8],
+  },
+  sheetTitle: { fontSize: typeScale.sectionTitle.fontSize, fontWeight: '600', marginBottom: spacing[4] },
 });

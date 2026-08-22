@@ -5,8 +5,10 @@ import { ArrowLeft, ArrowRight, Plus, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { spacing, radius } from '@setframe/design-tokens';
 import type { DayType, DayTypeExercise, Exercise, Prescription, ProgramScheduleSlot, TrainingProgram } from '@setframe/schemas';
-import { Button, Card, Input, Select, Stepper, WeekScheduleEditor, useToast } from '../components';
+import { Button, Card, Input, Menu, Select, Stepper, WeekScheduleEditor, useToast } from '../components';
 import { AddExercisePicker } from '../components/AddExercisePicker';
+import { ExerciseEditModal, type EditState } from '../components/ExerciseEditModal';
+import { restoreExerciseOrder } from '@setframe/domain';
 import { useApiClient } from '../lib/api-client';
 import { mq } from '../theme/breakpoints';
 import { typeScale } from '../theme/typeScale';
@@ -159,8 +161,16 @@ const ExerciseCard = styled.div`
   border-radius: ${radius.large}px;
   padding: ${spacing[12]}px;
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: ${spacing[8]}px;
+`;
+
+const ExerciseSummary = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${spacing[4]}px;
+  min-width: 0;
+  flex: 1;
 `;
 
 const Footer = styled.div`
@@ -219,6 +229,7 @@ export function ProgramCreationWizardPage() {
   const [workouts, setWorkouts] = useState<WizardWorkoutDraft[]>([]);
   const [selectedWorkoutTempId, setSelectedWorkoutTempId] = useState<string | null>(null);
   const [addExerciseOpen, setAddExerciseOpen] = useState(false);
+  const [editState, setEditState] = useState<EditState | null>(null);
   const [scheduleByDay, setScheduleByDay] = useState<Record<number, string | null>>({});
 
   const { data: programs } = useQuery({ queryKey: ['programs'], queryFn: () => api.get<TrainingProgram[]>('/programs') });
@@ -242,6 +253,9 @@ export function ProgramCreationWizardPage() {
   const existingProgramCount = programs?.length ?? 0;
   const activeProgram = useMemo(() => programs?.find((program) => program.id === programId) ?? null, [programId, programs]);
   const selectedWorkout = useMemo(() => workouts.find((workout) => workout.tempId === selectedWorkoutTempId) ?? null, [workouts, selectedWorkoutTempId]);
+
+  const exerciseName = (item: DayTypeExercise) =>
+    exercises.find((candidate) => candidate.id === item.exerciseId)?.name ?? 'Exercise';
 
   const selectedWorkoutDetail = useQuery({
     queryKey: ['day-type', selectedWorkout?.dayTypeId],
@@ -305,6 +319,76 @@ export function ProgramCreationWizardPage() {
       toast.show({ variant: 'success', message: 'Exercise added.' });
     },
     onError: () => toast.show({ variant: 'error', message: 'Could not add exercise.' }),
+  });
+
+  /**
+   * Guided Setup writes workout exercises straight to the backend, so a
+   * removal is a real DELETE and undo has to re-create the row. Capture
+   * the position it held so undo can put it back where it was.
+   */
+  const removeExercise = useMutation({
+    mutationFn: async (target: DayTypeExercise) => {
+      const originalIndex = (selectedWorkoutDetail.data?.exercises ?? [])
+        .slice()
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .findIndex((item) => item.id === target.id);
+      await api.del(`/day-types/${target.dayTypeId}/exercises/${target.id}`);
+      return { target, originalIndex };
+    },
+    onSuccess: async ({ target, originalIndex }) => {
+      await queryClient.invalidateQueries({ queryKey: ['day-type', target.dayTypeId] });
+      toast.show({
+        variant: 'success',
+        message: 'Exercise removed.',
+        actionLabel: 'Undo',
+        onAction: () => undoRemoveExercise.mutate({ target, originalIndex }),
+      });
+    },
+    onError: () => toast.show({ variant: 'error', message: 'Could not remove exercise.' }),
+  });
+
+  const undoRemoveExercise = useMutation({
+    mutationFn: async ({ target, originalIndex }: { target: DayTypeExercise; originalIndex: number }) => {
+      const restored = await api.post<DayTypeExercise>(`/day-types/${target.dayTypeId}/exercises`, {
+        exerciseId: target.exerciseId,
+        prescription: target.prescription,
+        notes: target.notes ?? undefined,
+      });
+      // Re-read the live list rather than replaying a pre-delete snapshot:
+      // the reorder endpoint rejects any payload whose id set differs from
+      // the day type's current rows, which a stale snapshot would trip as
+      // soon as anything else changed in between.
+      const detail = await api.get<DayTypeDetail>(`/day-types/${target.dayTypeId}`);
+      const currentIds = detail.exercises
+        .slice()
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((item) => item.id);
+      await api.post(`/day-types/${target.dayTypeId}/exercises/reorder`, {
+        exerciseIdsInOrder: restoreExerciseOrder({ currentIds, restoredId: restored.id, originalIndex }),
+      });
+      return target.dayTypeId;
+    },
+    onSuccess: async (dayTypeId) => {
+      await queryClient.invalidateQueries({ queryKey: ['day-type', dayTypeId] });
+      toast.show({ variant: 'success', message: 'Exercise restored.' });
+    },
+    onError: async (_error, { target }) => {
+      // The re-create may already have landed; refresh so the user sees the
+      // real list instead of re-adding and creating a duplicate.
+      await queryClient.invalidateQueries({ queryKey: ['day-type', target.dayTypeId] });
+      toast.show({ variant: 'error', message: 'Could not fully restore exercise. Check the list.' });
+    },
+  });
+
+  const patchExercise = useMutation({
+    mutationFn: (args: { dayTypeId: string; exerciseId: string; body: { prescription: Prescription; notes: string | null } }) =>
+      api.patch(`/day-types/${args.dayTypeId}/exercises/${args.exerciseId}`, args.body),
+    onSuccess: async (_, args) => {
+      await queryClient.invalidateQueries({ queryKey: ['day-type', args.dayTypeId] });
+      setEditState(null);
+      toast.show({ variant: 'success', message: 'Exercise updated.' });
+    },
+    onError: () => toast.show({ variant: 'error', message: 'Could not update exercise.' }),
   });
 
   const patchProgram = useMutation({
@@ -438,8 +522,29 @@ export function ProgramCreationWizardPage() {
                             .sort((a, b) => a.sortOrder - b.sortOrder)
                             .map((exercise) => (
                               <ExerciseCard key={exercise.id}>
-                                <strong>{exercises.find((item) => item.id === exercise.exerciseId)?.name ?? 'Exercise'}</strong>
-                                <Small>{summarizePrescription(exercise.prescription)}</Small>
+                                <ExerciseSummary>
+                                  <strong>{exerciseName(exercise)}</strong>
+                                  <Small>{summarizePrescription(exercise.prescription)}</Small>
+                                </ExerciseSummary>
+                                <Menu
+                                  label={`Actions for ${exerciseName(exercise)}`}
+                                  items={[
+                                    {
+                                      label: 'Edit',
+                                      onClick: () =>
+                                        setEditState({
+                                          dayTypeId: exercise.dayTypeId,
+                                          exerciseId: exercise.id,
+                                          exerciseName: exerciseName(exercise),
+                                          prescription: exercise.prescription,
+                                          notes: exercise.notes ?? '',
+                                        }),
+                                    },
+                                    // Not styled destructive: removal only detaches the
+                                    // exercise from this workout and is undoable.
+                                    { label: 'Remove', onClick: () => removeExercise.mutate(exercise) },
+                                  ]}
+                                />
                               </ExerciseCard>
                             ))
                         )}
@@ -572,6 +677,26 @@ export function ProgramCreationWizardPage() {
           </MobileDetails>
         </AsideCard>
       </Grid>
+
+      {editState ? (
+        <ExerciseEditModal
+          state={editState}
+          deleteLabel="Remove"
+          onClose={() => setEditState(null)}
+          onSave={(next) =>
+            patchExercise.mutate({
+              dayTypeId: next.dayTypeId,
+              exerciseId: next.exerciseId,
+              body: { prescription: next.prescription, notes: next.notes || null },
+            })
+          }
+          onDelete={() => {
+            const target = (selectedWorkoutDetail.data?.exercises ?? []).find((item) => item.id === editState.exerciseId);
+            setEditState(null);
+            if (target) removeExercise.mutate(target);
+          }}
+        />
+      ) : null}
 
       {addExerciseOpen && selectedWorkout ? (
         <AddExercisePicker

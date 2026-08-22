@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import styled from 'styled-components';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
 import { radius, spacing } from '@setframe/design-tokens';
@@ -10,7 +10,7 @@ export interface ToastMessage {
   id: string;
   variant: ToastVariant;
   message: string;
-  /** Only shown for error toasts — e.g. "Retry now" per style guide §8 offline strategy. */
+  /** e.g. "Retry now" per style guide §8 offline strategy, or "Undo" after a removal. */
   actionLabel?: string;
   onAction?: () => void;
 }
@@ -44,23 +44,67 @@ const ToastItem = styled.div<{ $variant: ToastVariant }>`
   min-width: 240px;
 `;
 
-const RetryButton = styled.button`
+const ActionButton = styled.button`
   margin-left: auto;
   background: none;
   border: none;
-  color: ${(p) => p.theme.status.error};
+  /* Both toast variants use a dark/saturated fill, so the inverse text
+     colour is the only one that stays legible on each. */
+  color: ${(p) => p.theme.text.inverse};
+  text-decoration: underline;
   font-weight: 600;
   cursor: pointer;
+  padding: ${spacing[4]}px ${spacing[8]}px;
+  min-height: 32px;
 `;
 
 /** ToastProvider — mount once near the app root, then call `useToast().show(...)`. */
+const DISMISS_MS = 5000;
+/**
+ * An action-bearing toast is the only route to that action — most
+ * importantly "Undo" after a removal. Five seconds isn't enough to reach a
+ * button that sits at the end of the tab order and is announced by a polite
+ * live region, so give those toasts a longer life (WCAG 2.2.1).
+ */
+const ACTIONABLE_DISMISS_MS = 20000;
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
-  const show = useCallback((toast: Omit<ToastMessage, 'id'>) => {
-    const id = crypto.randomUUID();
-    setToasts((prev) => [...prev, { ...toast, id }]);
-    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 5000);
+  const dismiss = useCallback((id: string) => {
+    const timer = timers.current.get(id);
+    if (timer) clearTimeout(timer);
+    timers.current.delete(id);
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const show = useCallback(
+    (toast: Omit<ToastMessage, 'id'>) => {
+      const id = crypto.randomUUID();
+      setToasts((prev) => [...prev, { ...toast, id }]);
+      timers.current.set(
+        id,
+        setTimeout(() => dismiss(id), toast.actionLabel ? ACTIONABLE_DISMISS_MS : DISMISS_MS),
+      );
+    },
+    [dismiss],
+  );
+
+  // Pointer or keyboard focus on a toast pauses its countdown, so the action
+  // can't disappear out from under someone who is reaching for it.
+  const pause = useCallback((id: string) => {
+    const timer = timers.current.get(id);
+    if (timer) clearTimeout(timer);
+    timers.current.delete(id);
+  }, []);
+
+  useEffect(() => {
+    const pending = timers.current;
+    return () => {
+      pending.forEach((timer) => clearTimeout(timer));
+      pending.clear();
+    };
   }, []);
 
   return (
@@ -68,15 +112,28 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <ToastStack role="status" aria-live="polite">
         {toasts.map((t) => (
-          <ToastItem key={t.id} $variant={t.variant}>
+          <ToastItem
+            key={t.id}
+            $variant={t.variant}
+            onMouseEnter={() => pause(t.id)}
+            onFocus={() => pause(t.id)}
+          >
             {t.variant === 'success' ? (
               <CheckCircle2 size={18} aria-hidden="true" />
             ) : (
               <AlertCircle size={18} aria-hidden="true" />
             )}
             {t.message}
-            {t.variant === 'error' && t.actionLabel ? (
-              <RetryButton onClick={t.onAction}>{t.actionLabel}</RetryButton>
+            {t.actionLabel ? (
+              <ActionButton
+                onClick={() => {
+                  // Dismiss first so a double-click can't fire the action twice.
+                  dismiss(t.id);
+                  t.onAction?.();
+                }}
+              >
+                {t.actionLabel}
+              </ActionButton>
             ) : null}
           </ToastItem>
         ))}
