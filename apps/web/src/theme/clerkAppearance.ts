@@ -49,28 +49,15 @@ export const clerkAppearance: Appearance = {
     header: {
       display: 'none',
     },
-    // Figma's SignIn/SignUp frames (node 17:2) show a single email+password
-    // form with no social auth and no Clerk branding — hide those sections
-    // rather than theme them, since Figma doesn't have an equivalent.
-    socialButtonsBlockButton: {
-      display: 'none',
-    },
-    socialButtonsBlockButtonText: {
-      display: 'none',
-    },
-    dividerRow: {
-      display: 'none',
-    },
+    // NOTE: Figma's SignIn/SignUp frames (node 17:2) illustrate a simplified
+    // email+password-only mock, but the app's real auth flow is Google
+    // OAuth — do NOT hide socialButtonsBlockButton/dividerRow, that would
+    // remove the only sign-in method actually in use.
     // NOTE: the "Secured by Clerk / Development mode" badge is not part of
     // the customizable elements config — it's a fixed indicator only shown
     // on Development Clerk instances (see Clerk's environments docs) and
     // will disappear automatically once we switch to a Production instance
     // + custom accounts.setframe.app domain (holstered per user request).
-    // Hiding `footer` here would also remove the "Don't have an account?"
-    // link Figma *does* show, so we leave it visible.
-    footerAction: {
-      marginTop: `${spacing[8]}px`,
-    },
     formButtonPrimary: {
       fontSize: `${typeScale.button.fontSize}px`,
       fontWeight: typeScale.button.fontWeight,
@@ -88,6 +75,18 @@ export const clerkAppearance: Appearance = {
     formFieldLabel: {
       fontSize: `${typeScale.label.fontSize}px`,
       color: colorRamps.neutral[600],
+    },
+    socialButtonsBlockButton: {
+      borderRadius: `${radius.small}px`,
+      borderColor: colorRamps.neutral[200],
+      fontSize: `${typeScale.body.fontSize}px`,
+    },
+    dividerLine: {
+      backgroundColor: colorRamps.neutral[200],
+    },
+    dividerText: {
+      color: colorRamps.neutral[600],
+      fontSize: `${typeScale.caption.fontSize}px`,
     },
     footerActionLink: {
       color: colorRamps.accent[600],
