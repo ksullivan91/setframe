@@ -381,9 +381,9 @@ export default function ProgramWizardScreen() {
         </View>
       </Card>
     </ScrollView>
-    {selectedWorkout ? (
+    {selectedWorkout && addExerciseOpen ? (
       <AddExercisePicker
-        open={addExerciseOpen}
+        open
         exercises={exercises}
         exercisesLoading={exercisesLoading}
         exercisesError={exercisesError}
