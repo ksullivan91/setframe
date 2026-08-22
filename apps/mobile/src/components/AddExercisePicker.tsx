@@ -8,15 +8,9 @@ import { typeScale } from '../theme/getTheme';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Select, type SelectOption } from './Select';
+import { prescriptionOptions } from '../lib/prescription';
 
-const prescriptionOptions: SelectOption<string>[] = [
-  { value: 'sets_reps', label: 'Sets + reps' },
-  { value: 'timed', label: 'Timed sets' },
-  { value: 'duration', label: 'Duration' },
-  { value: 'distanceDuration', label: 'Distance + duration' },
-  { value: 'distance', label: 'Distance' },
-  { value: 'bodyweight_reps', label: 'Bodyweight reps' },
-];
+
 
 export function emptyPrescription(kind: string): Prescription {
   switch (kind) {

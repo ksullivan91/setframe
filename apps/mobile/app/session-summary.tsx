@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Trophy } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import { calculateVolume, estimateOneRepMax } from '@setframe/domain';
+import { countsTowardVolume } from '../src/lib/prescription';
 import type { WorkoutSessionDetail, WorkoutSet } from '@setframe/schemas';
 import { Card } from '../src/components/Card';
 import { Button } from '../src/components/Button';
@@ -65,7 +66,16 @@ export default function SessionSummaryScreen() {
   });
 
   const allSets = useMemo(() => sessionQuery.data?.exercises.flatMap((exerciseLog) => exerciseLog.sets) ?? [], [sessionQuery.data]);
-  const volume = useMemo(() => calculateVolume(allSets), [allSets]);
+  // Only weighted strength work contributes volume; see Story 09.
+  const volume = useMemo(
+    () =>
+      calculateVolume(
+        (sessionQuery.data?.exercises ?? [])
+          .filter((exerciseLog) => countsTowardVolume(exerciseLog.prescription))
+          .flatMap((exerciseLog) => exerciseLog.sets),
+      ),
+    [sessionQuery.data],
+  );
   const prSummary = useMemo(() => (sessionQuery.data ? findPrSet(sessionQuery.data) : null), [sessionQuery.data]);
 
   if (sessionQuery.isLoading) {

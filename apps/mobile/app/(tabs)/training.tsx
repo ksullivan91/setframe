@@ -4,14 +4,37 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, GripVertical } from 'lucide-react-native';
 import { calculateVolume, detectRepPR, detectWeightPR, estimateOneRepMax } from '@setframe/domain';
-import type { Exercise, WorkoutSession, WorkoutSessionDetail, WorkoutSet } from '@setframe/schemas';
+import type {
+  Exercise,
+  Prescription,
+  WorkoutSession,
+  WorkoutSessionDetail,
+  WorkoutSet,
+  WorkoutSetPreviousPerformance,
+} from '@setframe/schemas';
+
+/** The performance fields shared by a logged set and a previous-session set. */
+type WorkoutSetLike = Pick<
+  WorkoutSetPreviousPerformance,
+  'weightValue' | 'weightUnit' | 'reps' | 'durationSeconds' | 'distanceValue' | 'distanceUnit' | 'rpe'
+>;
 import { Card } from '../../src/components/Card';
 import { Button } from '../../src/components/Button';
 import { SetRowEditable } from '../../src/components/SetRow';
 import { IconButton } from '../../src/components/IconButton';
 import { Select } from '../../src/components/Select';
 import { useApiClient } from '../../src/lib/api-client';
-import { summarizePrescription } from '../../src/lib/prescription';
+import {
+  countsTowardVolume,
+  formatSessionSet,
+  getPrescriptionDefinition,
+  isSessionSetLogged,
+  resolveSessionFields,
+  summarizePrescription,
+  validateSessionSet,
+  type PrescriptionDefinition,
+  type SessionField,
+} from '../../src/lib/prescription';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { spacing, typeScale } from '../../src/theme/getTheme';
 
@@ -38,9 +61,11 @@ interface ExerciseHistoryResponse {
   nextCursor: string | null;
 }
 
+/** Draft values keyed by the shared `SessionField` identifiers, so the same
+ *  prescription definition drives mobile and web identically. */
 interface SetDraft {
-  weight: string;
-  reps: string;
+  values: Partial<Record<SessionField, string>>;
+  distanceUnit: string;
   completed: boolean;
 }
 
@@ -73,16 +98,80 @@ function parseNumber(value: string) {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function formatSetValue(set: { weightValue: number | null; weightUnit?: string | null; reps: number | null }) {
-  const weight = set.weightValue != null ? `${set.weightValue}${set.weightUnit ?? 'lb'}` : '—';
-  const reps = set.reps != null ? `${set.reps}` : '—';
-  return `${weight} × ${reps}`;
+/* Duration is persisted in seconds; continuous efforts read far better in
+   minutes, so the draft holds the displayed unit and converts either way. */
+function secondsToDisplay(seconds: number | null | undefined, definition: PrescriptionDefinition): string {
+  if (seconds == null) return '';
+  if (definition.units.duration !== 'minutes') return `${seconds}`;
+  const minutes = seconds / 60;
+  return `${Number.isInteger(minutes) ? minutes : Number(minutes.toFixed(2))}`;
 }
 
-function getPreviousLabel(set: { weightValue: number | null; reps: number | null } | undefined) {
+function displayToSeconds(value: string | undefined, definition: PrescriptionDefinition): number | undefined {
+  const parsed = parseNumber(value ?? '');
+  if (parsed == null) return undefined;
+  return definition.units.duration === 'minutes' ? Math.round(parsed * 60) : parsed;
+}
+
+function buildDraft(set: WorkoutSet, definition: PrescriptionDefinition, prescription: Prescription | null): SetDraft {
   return {
-    previousWeight: set?.weightValue != null ? `${set.weightValue}` : undefined,
-    previousReps: set?.reps != null ? `${set.reps}` : undefined,
+    values: {
+      setType: set.setType,
+      weight: set.weightValue?.toString() ?? '',
+      reps: set.reps?.toString() ?? '',
+      duration: secondsToDisplay(set.durationSeconds, definition),
+      distance: set.distanceValue?.toString() ?? '',
+      rpe: set.rpe?.toString() ?? '',
+    },
+    distanceUnit: set.distanceUnit ?? definition.units.distance,
+    completed: isSessionSetLogged(prescription, set),
+  };
+}
+
+function draftToValues(draft: SetDraft, definition: PrescriptionDefinition) {
+  return {
+    setType: draft.values.setType ?? 'working',
+    weightValue: parseNumber(draft.values.weight ?? '') ?? null,
+    reps: parseNumber(draft.values.reps ?? '') ?? null,
+    durationSeconds: displayToSeconds(draft.values.duration, definition) ?? null,
+    distanceValue: parseNumber(draft.values.distance ?? '') ?? null,
+    rpe: parseNumber(draft.values.rpe ?? '') ?? null,
+  };
+}
+
+/* Only visible fields are submitted. A hidden field is omitted from the patch
+   entirely rather than sent as null, so nothing the user cannot see is
+   silently wiped. */
+function buildSetPatch(set: WorkoutSet, draft: SetDraft, visible: SessionField[], definition: PrescriptionDefinition) {
+  const patch: Record<string, unknown> = {};
+  if (visible.includes('setType')) patch.setType = draft.values.setType ?? set.setType;
+  if (visible.includes('weight')) {
+    const weightValue = parseNumber(draft.values.weight ?? '');
+    patch.weightValue = weightValue;
+    patch.weightUnit = weightValue != null ? set.weightUnit ?? 'lb' : undefined;
+  }
+  if (visible.includes('reps')) patch.reps = parseNumber(draft.values.reps ?? '');
+  if (visible.includes('duration')) patch.durationSeconds = displayToSeconds(draft.values.duration, definition);
+  if (visible.includes('distance')) {
+    const distanceValue = parseNumber(draft.values.distance ?? '');
+    patch.distanceValue = distanceValue;
+    patch.distanceUnit = distanceValue != null ? draft.distanceUnit : undefined;
+  }
+  if (visible.includes('rpe')) patch.rpe = parseNumber(draft.values.rpe ?? '');
+  return patch;
+}
+
+function getPreviousLabels(
+  set: WorkoutSetLike | undefined,
+  definition: PrescriptionDefinition,
+): Partial<Record<SessionField, string>> {
+  if (!set) return {};
+  return {
+    weight: set.weightValue != null ? `${set.weightValue}` : undefined,
+    reps: set.reps != null ? `${set.reps}` : undefined,
+    duration: set.durationSeconds != null ? secondsToDisplay(set.durationSeconds, definition) : undefined,
+    distance: set.distanceValue != null ? `${set.distanceValue}` : undefined,
+    rpe: set.rpe != null ? `${set.rpe}` : undefined,
   };
 }
 
@@ -187,13 +276,10 @@ export default function TrainingScreen() {
     setDrafts((prev) => {
       const next = { ...prev };
       for (const exerciseLog of sessionQuery.data.exercises) {
+        const definition = getPrescriptionDefinition(exerciseLog.prescription);
         for (const set of exerciseLog.sets) {
           if (!next[set.id]) {
-            next[set.id] = {
-              weight: set.weightValue?.toString() ?? '',
-              reps: set.reps?.toString() ?? '',
-              completed: Boolean(set.weightValue != null || set.reps != null),
-            };
+            next[set.id] = buildDraft(set, definition, exerciseLog.prescription);
           }
         }
       }
@@ -221,18 +307,28 @@ export default function TrainingScreen() {
         weightValue: sourceSet?.weightValue ?? undefined,
         weightUnit: sourceSet?.weightValue != null ? sourceSet.weightUnit ?? 'lb' : undefined,
         reps: sourceSet?.reps ?? undefined,
+        durationSeconds: sourceSet?.durationSeconds ?? undefined,
+        distanceValue: sourceSet?.distanceValue ?? undefined,
+        distanceUnit: sourceSet?.distanceValue != null ? sourceSet.distanceUnit ?? undefined : undefined,
+        rpe: sourceSet?.rpe ?? undefined,
       }),
     onSuccess: refreshSession,
   });
 
   const saveSetMutation = useMutation({
-    mutationFn: ({ setId, draft, set }: { setId: string; draft: SetDraft; set: WorkoutSet }) =>
-      api.patch<WorkoutSet>(`/workout-sets/${setId}`, {
-        setType: set.setType,
-        weightValue: parseNumber(draft.weight),
-        weightUnit: parseNumber(draft.weight) != null ? set.weightUnit ?? 'lb' : undefined,
-        reps: parseNumber(draft.reps),
-      }),
+    mutationFn: ({
+      setId,
+      draft,
+      set,
+      visible,
+      definition,
+    }: {
+      setId: string;
+      draft: SetDraft;
+      set: WorkoutSet;
+      visible: SessionField[];
+      definition: PrescriptionDefinition;
+    }) => api.patch<WorkoutSet>(`/workout-sets/${setId}`, buildSetPatch(set, draft, visible, definition)),
     onSuccess: refreshSession,
   });
 
@@ -271,13 +367,21 @@ export default function TrainingScreen() {
     return (exercisesQuery.data ?? []).filter((exercise) => !usedExerciseIds.has(exercise.id));
   }, [exercisesQuery.data, sessionQuery.data]);
 
+  // Timed, distance and bodyweight work carries no weight, so including it
+  // would contribute nothing while making the total look authoritative.
   const totalVolume = useMemo(
-    () => calculateVolume((sessionQuery.data?.exercises ?? []).flatMap((exerciseLog) => exerciseLog.sets)),
+    () =>
+      calculateVolume(
+        (sessionQuery.data?.exercises ?? [])
+          .filter((exerciseLog) => countsTowardVolume(exerciseLog.prescription))
+          .flatMap((exerciseLog) => exerciseLog.sets),
+      ),
     [sessionQuery.data],
   );
 
   const bestEstimated1rm = useMemo(() => {
     const values = (sessionQuery.data?.exercises ?? [])
+      .filter((exerciseLog) => countsTowardVolume(exerciseLog.prescription))
       .flatMap((exerciseLog) => exerciseLog.sets)
       .filter((set) => set.weightValue != null && set.reps != null)
       .map((set) => estimateOneRepMax(set.weightValue!, set.reps!));
@@ -333,13 +437,22 @@ export default function TrainingScreen() {
 
       <Card>
         <View style={styles.summaryRow}>
-          <Stat label="Sets" value={`${sessionQuery.data.exercises.reduce((sum, exerciseLog) => sum + exerciseLog.sets.length, 0)}`} />
+          <Stat
+            label="Sets"
+            value={`${sessionQuery.data.exercises.reduce(
+              (sum, exerciseLog) =>
+                sum + exerciseLog.sets.filter((set) => isSessionSetLogged(exerciseLog.prescription, set)).length,
+              0,
+            )}`}
+          />
           <Stat label="Volume" value={totalVolume ? `${totalVolume.toLocaleString()} lb` : '—'} />
           <Stat label="Best 1RM" value={bestEstimated1rm} />
         </View>
       </Card>
 
-      {sessionQuery.data.exercises.map((exerciseLog) => (
+      {sessionQuery.data.exercises.map((exerciseLog) => {
+        const definition = getPrescriptionDefinition(exerciseLog.prescription);
+        return (
         <Card key={exerciseLog.id}>
           <View style={styles.exerciseHeader}>
             <View style={styles.exerciseTitleRow}>
@@ -362,22 +475,26 @@ export default function TrainingScreen() {
               <Text style={[styles.previousTitle, { color: theme.text.secondary }]}>Previous session</Text>
               {exerciseLog.previousSession.sets.map((set, index) => (
                 <Text key={`${exerciseLog.previousSession?.sessionId}-${index}`} style={{ color: theme.text.primary }}>
-                  Set {index + 1} · {formatSetValue(set)}
+                  Set {index + 1} · {formatSessionSet(exerciseLog.prescription, set, { includeRpe: true }) || '—'}
                 </Text>
               ))}
             </Card>
           ) : null}
 
           {exerciseLog.sets.map((set, index) => {
-            const draft = drafts[set.id] ?? {
-              weight: set.weightValue?.toString() ?? '',
-              reps: set.reps?.toString() ?? '',
-              completed: Boolean(set.weightValue != null || set.reps != null),
-            };
-            const previous = getPreviousLabel(exerciseLog.previousSession?.sets[index]);
+            const draft = drafts[set.id] ?? buildDraft(set, definition, exerciseLog.prescription);
+            const draftValues = draftToValues(draft, definition);
+            // Union of the prescription's fields and anything this set already
+            // stores, so legacy values stay visible and editable.
+            const visibleFields = resolveSessionFields(exerciseLog.prescription, { ...set, ...draftValues });
+            const fieldErrors = validateSessionSet(exerciseLog.prescription, draftValues);
+            const previous = getPreviousLabels(exerciseLog.previousSession?.sets[index], definition);
             const history = historyByExerciseId.get(exerciseLog.exerciseId) ?? [];
-            const candidate = { weightValue: parseNumber(draft.weight) ?? null, reps: parseNumber(draft.reps) ?? null };
-            const isPr = draft.completed && (detectWeightPR(candidate, history) || detectRepPR(candidate, history));
+            const candidate = { weightValue: draftValues.weightValue, reps: draftValues.reps };
+            const isPr =
+              definition.countsTowardVolume &&
+              draft.completed &&
+              (detectWeightPR(candidate, history) || detectRepPR(candidate, history));
             const planned = summarizePrescription(exerciseLog.prescription).replace(/^Planned:\s*/, '');
 
             return (
@@ -388,14 +505,24 @@ export default function TrainingScreen() {
                 </View>
                 <SetRowEditable
                   setLabel={`Set ${index + 1}`}
-                  weight={draft.weight}
-                  reps={draft.reps}
-                  onChangeWeight={(value) => setDrafts((prev) => ({ ...prev, [set.id]: { ...draft, weight: value } }))}
-                  onChangeReps={(value) => setDrafts((prev) => ({ ...prev, [set.id]: { ...draft, reps: value } }))}
+                  fields={visibleFields}
+                  definition={definition}
+                  values={draft.values}
+                  errors={fieldErrors}
+                  weightUnit={set.weightUnit ?? 'lb'}
+                  distanceUnit={draft.distanceUnit}
+                  onChangeDistanceUnit={(value) =>
+                    setDrafts((prev) => ({ ...prev, [set.id]: { ...draft, distanceUnit: value } }))
+                  }
+                  onChangeField={(field, value) =>
+                    setDrafts((prev) => ({
+                      ...prev,
+                      [set.id]: { ...draft, values: { ...draft.values, [field]: value } },
+                    }))
+                  }
                   completed={draft.completed}
                   onToggleCompleted={(completed) => setDrafts((prev) => ({ ...prev, [set.id]: { ...draft, completed } }))}
-                  previousWeight={previous.previousWeight}
-                  previousReps={previous.previousReps}
+                  previous={previous}
                   isPr={isPr || set.isPrWeight || set.isPrReps}
                   onDuplicate={() => addSetMutation.mutate({ exerciseLogId: exerciseLog.id, sourceSet: set })}
                   onRemove={() =>
@@ -412,15 +539,18 @@ export default function TrainingScreen() {
                     variant="secondary"
                     fullWidth={false}
                     loading={saveSetMutation.isPending}
-                    disabled={sessionQuery.data.status === 'completed'}
-                    onPress={() => saveSetMutation.mutate({ setId: set.id, draft, set })}
+                    disabled={sessionQuery.data.status === 'completed' || Object.keys(fieldErrors).length > 0}
+                    onPress={() =>
+                      saveSetMutation.mutate({ setId: set.id, draft, set, visible: visibleFields, definition })
+                    }
                   />
                 </View>
               </View>
             );
           })}
         </Card>
-      ))}
+        );
+      })}
 
       <Card>
         <Text style={[styles.sectionLabel, { color: theme.text.primary }]}>Add exercise</Text>

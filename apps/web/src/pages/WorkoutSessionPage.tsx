@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { Copy, Plus, Trash2 } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -14,7 +14,18 @@ import { calculateVolume, detectRepPR, detectWeightPR, estimateOneRepMax } from 
 import { radius, spacing } from '@setframe/design-tokens';
 import { AsyncStatusIndicator, Button, Card, IconButton, Input, Modal, PRBadge, Select, Skeleton, SkeletonStack, useAsyncStatus, useToast } from '../components';
 import { useApiClient } from '../lib/api-client';
-import { summarizePrescription } from '../lib/prescription';
+import {
+  countsTowardVolume,
+  formatSessionSet,
+  getPrescriptionDefinition,
+  getSessionFieldLabel,
+  isSessionSetLogged,
+  resolveSessionFields,
+  summarizePrescription,
+  validateSessionSet,
+  type PrescriptionDefinition,
+  type SessionField,
+} from '../lib/prescription';
 import { typeScale } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';
 
@@ -306,14 +317,30 @@ function getDefaultSetType(sets: WorkoutSet[]): SetType {
   return lastType ?? 'working';
 }
 
-function getDraft(set: WorkoutSet): DraftValues {
+/* Duration is always persisted in seconds. Continuous efforts (a 30 minute
+   ride) are far more natural to type in minutes, so the draft holds the
+   displayed unit and converts on the way in and out. */
+function secondsToDisplay(seconds: number | null, definition: PrescriptionDefinition): string {
+  if (seconds == null) return '';
+  if (definition.units.duration !== 'minutes') return seconds.toString();
+  const minutes = seconds / 60;
+  return (Number.isInteger(minutes) ? minutes : Number(minutes.toFixed(2))).toString();
+}
+
+function displayToSeconds(value: string, definition: PrescriptionDefinition): number | undefined {
+  const parsed = parseOptionalNumber(value);
+  if (parsed == null) return undefined;
+  return definition.units.duration === 'minutes' ? Math.round(parsed * 60) : parsed;
+}
+
+function getDraft(set: WorkoutSet, definition: PrescriptionDefinition): DraftValues {
   return {
     setType: set.setType,
     weightValue: set.weightValue?.toString() ?? '',
     reps: set.reps?.toString() ?? '',
-    durationSeconds: set.durationSeconds?.toString() ?? '',
+    durationSeconds: secondsToDisplay(set.durationSeconds, definition),
     distanceValue: set.distanceValue?.toString() ?? '',
-    distanceUnit: set.distanceUnit ?? 'mi',
+    distanceUnit: set.distanceUnit ?? definition.units.distance,
     rpe: set.rpe?.toString() ?? '',
   };
 }
@@ -321,56 +348,71 @@ function getDraft(set: WorkoutSet): DraftValues {
 function getPlannedValue(set: WorkoutSet, index: number, exerciseLog: WorkoutSessionExerciseDetail) {
   const planned = exerciseLog.sets[index];
   if (!planned) return null;
-  const bits: string[] = [];
-  if (planned.weightValue != null) bits.push(`${planned.weightValue}${planned.weightUnit ?? ''}`);
-  if (planned.reps != null) bits.push(`${planned.reps} reps`);
-  if (planned.durationSeconds != null) bits.push(`${planned.durationSeconds}s`);
-  if (planned.distanceValue != null) bits.push(`${planned.distanceValue}${planned.distanceUnit ?? ''}`);
-  if (!bits.length) return summarizePrescription(exerciseLog.prescription).replace(/^Planned:\s*/, '');
-  return bits.join(' · ');
+  const summary = formatSessionSet(exerciseLog.prescription, planned);
+  if (!summary) return summarizePrescription(exerciseLog.prescription).replace(/^Planned:\s*/, '');
+  return summary;
 }
 
-function getPreviousSet(previousSessionSet: WorkoutSetPreviousPerformance | undefined) {
+function getPreviousSet(
+  previousSessionSet: WorkoutSetPreviousPerformance | undefined,
+  exerciseLog: WorkoutSessionExerciseDetail,
+) {
   if (!previousSessionSet) return null;
-  const bits: string[] = [];
-  if (previousSessionSet.weightValue != null) bits.push(`${previousSessionSet.weightValue}${previousSessionSet.weightUnit ?? ''}`);
-  if (previousSessionSet.reps != null) bits.push(`${previousSessionSet.reps} reps`);
-  if (previousSessionSet.durationSeconds != null) bits.push(`${previousSessionSet.durationSeconds}s`);
-  if (previousSessionSet.distanceValue != null) bits.push(`${previousSessionSet.distanceValue}${previousSessionSet.distanceUnit ?? ''}`);
-  if (previousSessionSet.rpe != null) bits.push(`RPE ${previousSessionSet.rpe}`);
-  return bits.join(' · ') || '—';
+  return formatSessionSet(exerciseLog.prescription, previousSessionSet, { includeRpe: true }) || '—';
 }
 
-function buildPatch(existing: WorkoutSet, draft: DraftValues) {
-  const weightValue = parseOptionalNumber(draft.weightValue);
-  const reps = parseOptionalNumber(draft.reps);
-  const durationSeconds = parseOptionalNumber(draft.durationSeconds);
-  const distanceValue = parseOptionalNumber(draft.distanceValue);
-  const rpe = parseOptionalNumber(draft.rpe);
+/* Only fields the user can actually see are submitted. A hidden field is
+   omitted from the patch entirely rather than sent as null, so switching an
+   exercise's prescription never silently wipes data the user cannot see. */
+function buildPatch(existing: WorkoutSet, draft: DraftValues, visible: SessionField[], definition: PrescriptionDefinition) {
+  const patch: Record<string, unknown> = {};
 
+  if (visible.includes('setType')) patch.setType = draft.setType;
+  if (visible.includes('weight')) {
+    const weightValue = parseOptionalNumber(draft.weightValue);
+    patch.weightValue = weightValue;
+    patch.weightUnit = weightValue != null ? existing.weightUnit ?? 'lb' : undefined;
+  }
+  if (visible.includes('reps')) patch.reps = parseOptionalNumber(draft.reps);
+  if (visible.includes('duration')) patch.durationSeconds = displayToSeconds(draft.durationSeconds, definition);
+  if (visible.includes('distance')) {
+    const distanceValue = parseOptionalNumber(draft.distanceValue);
+    patch.distanceValue = distanceValue;
+    patch.distanceUnit = distanceValue != null ? draft.distanceUnit : undefined;
+  }
+  if (visible.includes('rpe')) patch.rpe = parseOptionalNumber(draft.rpe);
+
+  return patch;
+}
+
+const patchKeysByField: Record<SessionField, (keyof WorkoutSet)[]> = {
+  setType: ['setType'],
+  weight: ['weightValue'],
+  reps: ['reps'],
+  duration: ['durationSeconds'],
+  distance: ['distanceValue', 'distanceUnit'],
+  rpe: ['rpe'],
+};
+
+function hasChanges(existing: WorkoutSet, draft: DraftValues, visible: SessionField[], definition: PrescriptionDefinition) {
+  const next = buildPatch(existing, draft, visible, definition) as Partial<Record<keyof WorkoutSet, unknown>>;
+  return visible.some((field) =>
+    patchKeysByField[field].some((key) => {
+      if (!(key in next)) return false;
+      return (next[key] ?? null) !== existing[key];
+    }),
+  );
+}
+
+function draftToValues(draft: DraftValues, definition: PrescriptionDefinition) {
   return {
     setType: draft.setType,
-    weightValue,
-    weightUnit: weightValue != null ? existing.weightUnit ?? 'lb' : undefined,
-    reps,
-    durationSeconds,
-    distanceValue,
-    distanceUnit: distanceValue != null ? draft.distanceUnit : undefined,
-    rpe,
+    weightValue: parseOptionalNumber(draft.weightValue) ?? null,
+    reps: parseOptionalNumber(draft.reps) ?? null,
+    durationSeconds: displayToSeconds(draft.durationSeconds, definition) ?? null,
+    distanceValue: parseOptionalNumber(draft.distanceValue) ?? null,
+    rpe: parseOptionalNumber(draft.rpe) ?? null,
   };
-}
-
-function hasChanges(existing: WorkoutSet, draft: DraftValues) {
-  const next = buildPatch(existing, draft);
-  return (
-    next.setType !== existing.setType ||
-    (next.weightValue ?? null) !== existing.weightValue ||
-    (next.reps ?? null) !== existing.reps ||
-    (next.durationSeconds ?? null) !== existing.durationSeconds ||
-    (next.distanceValue ?? null) !== existing.distanceValue ||
-    (next.distanceUnit ?? null) !== existing.distanceUnit ||
-    (next.rpe ?? null) !== existing.rpe
-  );
 }
 
 function isStrengthLikeSet(set: WorkoutSet | WorkoutSetPreviousPerformance) {
@@ -492,18 +534,27 @@ export function WorkoutSessionPage() {
       orderedExercises.reduce(
         (total, exerciseLog) =>
           total +
-          exerciseLog.sets.filter(
-            (set) => set.weightValue != null || set.reps != null || set.durationSeconds != null || set.distanceValue != null,
-          ).length,
+          exerciseLog.sets.filter((set) => isSessionSetLogged(exerciseLog.prescription, set)).length,
         0,
       ),
     [orderedExercises],
   );
 
-  const totalVolume = useMemo(() => calculateVolume(orderedExercises.flatMap((exerciseLog) => exerciseLog.sets)), [orderedExercises]);
+  // Timed, distance and bodyweight work carries no weight, so including it
+  // would contribute nothing while making the total look authoritative.
+  const totalVolume = useMemo(
+    () =>
+      calculateVolume(
+        orderedExercises
+          .filter((exerciseLog) => countsTowardVolume(exerciseLog.prescription))
+          .flatMap((exerciseLog) => exerciseLog.sets),
+      ),
+    [orderedExercises],
+  );
 
   const bestEstimated1rm = useMemo(() => {
     const estimates = orderedExercises
+      .filter((exerciseLog) => countsTowardVolume(exerciseLog.prescription))
       .flatMap((exerciseLog) => exerciseLog.sets)
       .filter((set) => set.weightValue != null && set.reps != null)
       .map((set) => estimateOneRepMax(set.weightValue!, set.reps!));
@@ -586,7 +637,9 @@ export function WorkoutSessionPage() {
       </SummaryCard>
 
       <ExerciseList>
-        {orderedExercises.map((exerciseLog) => (
+        {orderedExercises.map((exerciseLog) => {
+          const definition = getPrescriptionDefinition(exerciseLog.prescription);
+          return (
           <ExerciseCard key={exerciseLog.id}>
             <ExerciseHeader>
               <div>
@@ -613,7 +666,7 @@ export function WorkoutSessionPage() {
                   {exerciseLog.previousSession.sets.map((previousSet, index) => (
                     <PreviousSessionRow key={`${exerciseLog.previousSession!.sessionId}-${index}`}>
                       <PreviousSessionLabel>Set {index + 1}</PreviousSessionLabel>
-                      <span>{getPreviousSet(previousSet)}</span>
+                      <span>{getPreviousSet(previousSet, exerciseLog)}</span>
                     </PreviousSessionRow>
                   ))}
                 </PreviousSessionGrid>
@@ -623,9 +676,17 @@ export function WorkoutSessionPage() {
             {exerciseLog.sets.length ? (
               <SetList>
                 {exerciseLog.sets.map((set, index) => {
-                  const draft = drafts[set.id] ?? getDraft(set);
+                  const draft = drafts[set.id] ?? getDraft(set, definition);
+                  const draftValues = draftToValues(draft, definition);
+                  // Union of the prescription's fields and anything this set
+                  // already stores, so legacy values stay editable.
+                  const visibleFields = resolveSessionFields(exerciseLog.prescription, {
+                    ...set,
+                    ...draftValues,
+                  });
+                  const fieldErrors = validateSessionSet(exerciseLog.prescription, draftValues);
                   const plannedValue = getPlannedValue(set, index, exerciseLog);
-                  const previousValue = getPreviousSet(exerciseLog.previousSession?.sets[index]);
+                  const previousValue = getPreviousSet(exerciseLog.previousSession?.sets[index], exerciseLog);
                   const candidate = {
                     weightValue: parseOptionalNumber(draft.weightValue) ?? null,
                     reps: parseOptionalNumber(draft.reps) ?? null,
@@ -650,58 +711,93 @@ export function WorkoutSessionPage() {
                       </SetCardHeader>
 
                       <SetGrid>
-                        <Select
-                          label="Type"
-                          value={draft.setType}
-                          options={setTypeOptions}
-                          onChange={(event) =>
-                            setDrafts((prev) => ({ ...prev, [set.id]: { ...draft, setType: event.target.value as SetType } }))
+                        {visibleFields.map((field) => {
+                          const update = (patch: Partial<DraftValues>) =>
+                            setDrafts((prev) => ({ ...prev, [set.id]: { ...draft, ...patch } }));
+                          const label = getSessionFieldLabel(field, definition);
+                          const error = fieldErrors[field];
+
+                          switch (field) {
+                            case 'setType':
+                              return (
+                                <Select
+                                  key={field}
+                                  label="Type"
+                                  value={draft.setType}
+                                  options={setTypeOptions}
+                                  onChange={(event) => update({ setType: event.target.value as SetType })}
+                                />
+                              );
+                            case 'weight':
+                              return (
+                                <Input
+                                  key={field}
+                                  label={label}
+                                  value={draft.weightValue}
+                                  onChange={(event) => update({ weightValue: event.target.value })}
+                                  inputMode="decimal"
+                                  unit={set.weightUnit ?? 'lb'}
+                                  error={error}
+                                />
+                              );
+                            case 'reps':
+                              return (
+                                <Input
+                                  key={field}
+                                  label={label}
+                                  value={draft.reps}
+                                  onChange={(event) => update({ reps: event.target.value })}
+                                  inputMode="numeric"
+                                  error={error}
+                                />
+                              );
+                            case 'duration':
+                              return (
+                                <Input
+                                  key={field}
+                                  label={label}
+                                  value={draft.durationSeconds}
+                                  onChange={(event) => update({ durationSeconds: event.target.value })}
+                                  inputMode="decimal"
+                                  error={error}
+                                />
+                              );
+                            case 'distance':
+                              return (
+                                <Fragment key={field}>
+                                  <Input
+                                    label={label}
+                                    value={draft.distanceValue}
+                                    onChange={(event) => update({ distanceValue: event.target.value })}
+                                    inputMode="decimal"
+                                    error={error}
+                                  />
+                                  <Select
+                                    label="Distance unit"
+                                    value={draft.distanceUnit}
+                                    options={distanceUnitOptions}
+                                    onChange={(event) =>
+                                      update({ distanceUnit: event.target.value as DraftValues['distanceUnit'] })
+                                    }
+                                  />
+                                </Fragment>
+                              );
+                            case 'rpe':
+                              return (
+                                <Input
+                                  key={field}
+                                  label={label}
+                                  value={draft.rpe}
+                                  onChange={(event) => update({ rpe: event.target.value })}
+                                  inputMode="decimal"
+                                  labelHint="How hard the set felt, from 1 to 10."
+                                  error={error}
+                                />
+                              );
+                            default:
+                              return null;
                           }
-                        />
-                        <Input
-                          label="Weight"
-                          value={draft.weightValue}
-                          onChange={(event) => setDrafts((prev) => ({ ...prev, [set.id]: { ...draft, weightValue: event.target.value } }))}
-                          inputMode="decimal"
-                          unit={set.weightUnit ?? 'lb'}
-                        />
-                        <Input
-                          label="Reps"
-                          value={draft.reps}
-                          onChange={(event) => setDrafts((prev) => ({ ...prev, [set.id]: { ...draft, reps: event.target.value } }))}
-                          inputMode="numeric"
-                        />
-                        <Input
-                          label="RPE"
-                          value={draft.rpe}
-                          onChange={(event) => setDrafts((prev) => ({ ...prev, [set.id]: { ...draft, rpe: event.target.value } }))}
-                          inputMode="decimal"
-                          labelHint="How hard the set felt, from 1 to 10."
-                        />
-                        <Input
-                          label="Duration (sec)"
-                          value={draft.durationSeconds}
-                          onChange={(event) =>
-                            setDrafts((prev) => ({ ...prev, [set.id]: { ...draft, durationSeconds: event.target.value } }))
-                          }
-                          inputMode="numeric"
-                        />
-                        <Input
-                          label="Distance"
-                          value={draft.distanceValue}
-                          onChange={(event) =>
-                            setDrafts((prev) => ({ ...prev, [set.id]: { ...draft, distanceValue: event.target.value } }))
-                          }
-                          inputMode="decimal"
-                        />
-                        <Select
-                          label="Distance unit"
-                          value={draft.distanceUnit}
-                          options={distanceUnitOptions}
-                          onChange={(event) =>
-                            setDrafts((prev) => ({ ...prev, [set.id]: { ...draft, distanceUnit: event.target.value as DraftValues['distanceUnit'] } }))
-                          }
-                        />
+                        })}
                       </SetGrid>
 
                       <SetFooter>
@@ -711,9 +807,15 @@ export function WorkoutSessionPage() {
                         <SetActions>
                           <Button
                             variant="secondary"
-                            disabled={!hasChanges(set, draft) || saveSetMutation.isPending || query.data.status === 'completed'}
+                            disabled={
+                              !hasChanges(set, draft, visibleFields, definition) ||
+                              Object.keys(fieldErrors).length > 0 ||
+                              saveSetMutation.isPending ||
+                              query.data.status === 'completed'
+                            }
                             onClick={() => {
-                              const action = () => saveSetMutation.mutateAsync({ setId: set.id, body: buildPatch(set, draft) });
+                              const action = () =>
+                                saveSetMutation.mutateAsync({ setId: set.id, body: buildPatch(set, draft, visibleFields, definition) });
                               lastMutationRef.current = action;
                               void inlineStatus.run(action);
                             }}
@@ -744,7 +846,8 @@ export function WorkoutSessionPage() {
               <EmptyText>No sets logged yet — add the first set to start recording actual performance.</EmptyText>
             )}
           </ExerciseCard>
-        ))}
+          );
+        })}
       </ExerciseList>
 
       <Modal

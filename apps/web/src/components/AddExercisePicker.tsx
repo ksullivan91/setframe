@@ -5,6 +5,7 @@ import { spacing, radius } from '@setframe/design-tokens';
 import type { Exercise, Prescription } from '@setframe/schemas';
 import { Button, Input, Modal as SharedModal, Select } from './index';
 import { typeScale } from '../theme/typeScale';
+import { prescriptionOptions } from '../lib/prescription';
 
 const Column = styled.div`
   display: flex;
@@ -40,14 +41,7 @@ const PrescriptionGrid = styled.div`
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
 `;
 
-const prescriptionOptions = [
-  { value: 'sets_reps', label: 'Sets + reps' },
-  { value: 'timed', label: 'Timed sets' },
-  { value: 'duration', label: 'Duration' },
-  { value: 'distanceDuration', label: 'Distance + duration' },
-  { value: 'distance', label: 'Distance' },
-  { value: 'bodyweight_reps', label: 'Bodyweight reps' },
-];
+
 
 export function emptyPrescription(kind: string): Prescription {
   switch (kind) {

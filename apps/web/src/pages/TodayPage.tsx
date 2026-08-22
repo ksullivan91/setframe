@@ -35,7 +35,7 @@ import {
 import type { AsyncStatus } from '../components/AsyncStatus';
 import type { ButtonStatus } from '../components/Button';
 import { useApiClient } from '../lib/api-client';
-import { summarizePrescription } from '../lib/prescription';
+import { countsTowardVolume, isSessionSetLogged, summarizePrescription } from '../lib/prescription';
 
 interface DashboardSessionSummary {
   id: string;
@@ -488,17 +488,24 @@ function patchDaily(api: ReturnType<typeof useApiClient>, localDate: string, bod
 }
 function sumCompletedSets(session?: WorkoutSessionDetail | null) {
   if (!session) return 0;
-  return session.exercises.reduce((total, exercise) => total + exercise.sets.filter((set) => set.reps != null || set.weightValue != null || set.durationSeconds != null || set.distanceValue != null).length, 0);
+  return session.exercises.reduce(
+    (total, exercise) => total + exercise.sets.filter((set) => isSessionSetLogged(exercise.prescription, set)).length,
+    0,
+  );
 }
 function sumVolume(session?: WorkoutSessionDetail | null) {
   if (!session) return null;
+  // Timed, distance and bodyweight work carries no weight, so it contributes
+  // nothing to volume — including it only makes the total look authoritative.
   const total = session.exercises.reduce(
     (sum, exercise) =>
       sum +
-      exercise.sets.reduce((setSum, set) => {
-        if (set.weightValue == null || set.reps == null || set.weightUnit !== 'lb') return setSum;
-        return setSum + set.weightValue * set.reps;
-      }, 0),
+      (countsTowardVolume(exercise.prescription)
+        ? exercise.sets.reduce((setSum, set) => {
+            if (set.weightValue == null || set.reps == null || set.weightUnit !== 'lb') return setSum;
+            return setSum + set.weightValue * set.reps;
+          }, 0)
+        : 0),
     0,
   );
   return total > 0 ? Math.round(total) : null;

@@ -210,14 +210,7 @@ const modeOptions = [
   { value: 'perpetual', label: 'Repeats weekly' },
   { value: 'block', label: 'Block' },
 ];
-const prescriptionOptions = [
-  { value: 'sets_reps', label: 'Sets + reps' },
-  { value: 'timed', label: 'Timed sets' },
-  { value: 'duration', label: 'Duration' },
-  { value: 'distanceDuration', label: 'Distance + duration' },
-  { value: 'distance', label: 'Distance' },
-  { value: 'bodyweight_reps', label: 'Bodyweight reps' },
-];
+
 
 const plannedSetTypeOptions = [
   { value: 'warmup', label: 'Warm-up' },

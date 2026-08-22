@@ -30,6 +30,7 @@ import { Input } from '../../src/components/Input';
 import { MetricTile } from '../../src/components/MetricTile';
 import { SyncStatusPill, type SyncStatus } from '../../src/components/SyncStatusPill';
 import { Checkbox } from '../../src/components/Checkbox';
+import { countsTowardVolume, isSessionSetLogged } from '../../src/lib/prescription';
 import { useApiClient } from '../../src/lib/api-client';
 import { useLocalDate } from '../../src/lib/useLocalDate';
 import { healthKit, type DailyHealthMetrics } from '../../src/healthkit/HealthKitAdapter';
@@ -172,22 +173,24 @@ function sumCompletedSets(session?: WorkoutSessionDetail | null) {
   return session.exercises.reduce(
     (total, exercise) =>
       total +
-      exercise.sets.filter(
-        (set) => set.reps != null || set.weightValue != null || set.durationSeconds != null || set.distanceValue != null,
-      ).length,
+      exercise.sets.filter((set) => isSessionSetLogged(exercise.prescription, set)).length,
     0,
   );
 }
 
 function sumVolume(session?: WorkoutSessionDetail | null) {
   if (!session) return null;
+  // Timed, distance and bodyweight work carries no weight, so it contributes
+  // nothing to volume — including it only makes the total look authoritative.
   const total = session.exercises.reduce(
     (sum, exercise) =>
       sum +
-      exercise.sets.reduce((setSum, set) => {
-        if (set.weightValue == null || set.reps == null || set.weightUnit !== 'lb') return setSum;
-        return setSum + set.weightValue * set.reps;
-      }, 0),
+      (countsTowardVolume(exercise.prescription)
+        ? exercise.sets.reduce((setSum, set) => {
+            if (set.weightValue == null || set.reps == null || set.weightUnit !== 'lb') return setSum;
+            return setSum + set.weightValue * set.reps;
+          }, 0)
+        : 0),
     0,
   );
   return total > 0 ? Math.round(total) : null;

@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { spacing, radius } from '@setframe/design-tokens';
 import type { Prescription } from '@setframe/schemas';
 import { Button, Input, Modal as SharedModal, Select } from './index';
+import { prescriptionOptions } from '../lib/prescription';
 
 export interface EditState {
   dayTypeId: string;
@@ -36,14 +37,7 @@ const PrescriptionGrid = styled.div`
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
 `;
 
-const prescriptionOptions = [
-  { value: 'sets_reps', label: 'Sets + reps' },
-  { value: 'timed', label: 'Timed sets' },
-  { value: 'duration', label: 'Duration' },
-  { value: 'distanceDuration', label: 'Distance + duration' },
-  { value: 'distance', label: 'Distance' },
-  { value: 'bodyweight_reps', label: 'Bodyweight reps' },
-];
+
 
 /**
  * Edit an already-added workout exercise's prescription. Shared by the
