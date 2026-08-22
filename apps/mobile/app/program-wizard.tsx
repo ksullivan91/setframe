@@ -96,7 +96,12 @@ export default function ProgramWizardScreen() {
   const [prescriptionKind, setPrescriptionKind] = useState('sets_reps');
   const [scheduleByDay, setScheduleByDay] = useState<Record<number, string | null>>({});
 
-  const { data: exercises = [] } = useQuery({
+  const {
+    data: exercises = [],
+    isLoading: exercisesLoading,
+    isError: exercisesError,
+    refetch: refetchExercises,
+  } = useQuery({
     queryKey: ['exercises'],
     queryFn: () => api.get<Exercise[]>('/exercises'),
   });
@@ -297,18 +302,27 @@ export default function ProgramWizardScreen() {
                 </View>
                 {selectedWorkout ? (
                   <View style={styles.stack}>
-                    <Select
-                      label="Exercise"
-                      value={selectedExerciseId}
-                      onChange={setSelectedExerciseId}
-                      options={[
-                        { value: '', label: 'Select exercise' },
-                        ...exercises.map((exercise) => ({
-                          value: exercise.id,
-                          label: exercise.isCustom ? `${exercise.name} (custom)` : exercise.name,
-                        })),
-                      ]}
-                    />
+                    {exercisesLoading ? (
+                      <Text style={{ color: theme.text.secondary }}>Loading exercise catalog…</Text>
+                    ) : exercisesError ? (
+                      <View style={styles.chipRow}>
+                        <Text style={{ color: theme.text.secondary }}>Couldn&apos;t load exercises.</Text>
+                        <Button label="Retry" variant="secondary" onPress={() => refetchExercises()} />
+                      </View>
+                    ) : (
+                      <Select
+                        label="Exercise"
+                        value={selectedExerciseId}
+                        onChange={setSelectedExerciseId}
+                        options={[
+                          { value: '', label: 'Select exercise' },
+                          ...exercises.map((exercise) => ({
+                            value: exercise.id,
+                            label: exercise.isCustom ? `${exercise.name} (custom)` : exercise.name,
+                          })),
+                        ]}
+                      />
+                    )}
                     <Select
                       label="Prescription"
                       value={prescriptionKind}
@@ -325,7 +339,7 @@ export default function ProgramWizardScreen() {
                       label="Create exercise"
                       variant="secondary"
                       onPress={() => customExerciseName.trim() && createExercise.mutate({ name: customExerciseName.trim() })}
-                      disabled={!customExerciseName.trim()}
+                      disabled={!customExerciseName.trim() || exercisesLoading}
                       loading={createExercise.isPending}
                     />
                     <Button

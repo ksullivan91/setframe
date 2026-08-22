@@ -459,6 +459,9 @@ function PlannedSetsEditor({ dayTypeId, exerciseId }: { dayTypeId: string; exerc
  */
 function AddExercisePicker({
   exercises,
+  exercisesLoading,
+  exercisesError,
+  onRetryExercises,
   onClose,
   onCreateExercise,
   isCreatingExercise,
@@ -466,6 +469,9 @@ function AddExercisePicker({
   isAddingExercise,
 }: {
   exercises: Exercise[];
+  exercisesLoading: boolean;
+  exercisesError: boolean;
+  onRetryExercises: () => void;
   onClose: () => void;
   onCreateExercise: (name: string) => Promise<Exercise>;
   isCreatingExercise: boolean;
@@ -628,10 +634,17 @@ function AddExercisePicker({
   return (
     <SharedModal open onClose={onClose} title="Add exercise" maxWidth={480}>
       <Column>
-        <Input label="Search exercises" placeholder="Barbell Back Squat…" value={query} onChange={(e) => setQuery(e.target.value)} autoFocus />
+        <Input label="Search exercises" placeholder="Barbell Back Squat…" value={query} onChange={(e) => setQuery(e.target.value)} autoFocus disabled={exercisesLoading} />
         <Column style={{ maxHeight: 320, overflowY: 'auto', gap: spacing[4] }}>
-          {filtered.length === 0 ? (
-            <Small>No exercises match &ldquo;{query}&rdquo;.</Small>
+          {exercisesLoading ? (
+            <Small>Loading exercise catalog…</Small>
+          ) : exercisesError ? (
+            <Row style={{ alignItems: 'center', gap: spacing[8] }}>
+              <Small>Couldn&apos;t load exercises.</Small>
+              <Button variant="tertiary" onClick={onRetryExercises}>Retry</Button>
+            </Row>
+          ) : filtered.length === 0 ? (
+            <Small>{exercises.length === 0 ? 'No exercises available yet.' : `No exercises match “${query}”.`}</Small>
           ) : (
             filtered.map((exercise) => (
               <LibraryItem key={exercise.id} $active={false} onClick={() => chooseExercise(exercise)}>
@@ -642,7 +655,7 @@ function AddExercisePicker({
         </Column>
         <Row style={{ justifyContent: 'space-between' }}>
           <Small>Can&apos;t find it?</Small>
-          <Button variant="tertiary" onClick={() => setStep('create')}>
+          <Button variant="tertiary" onClick={() => setStep('create')} disabled={exercisesLoading}>
             <Plus size={16} />Create custom exercise
           </Button>
         </Row>
@@ -897,7 +910,12 @@ export function ProgramEditorPage() {
 
   const { data: programs } = useQuery({ queryKey: ['programs'], queryFn: () => api.get<TrainingProgram[]>('/programs') });
   const { data: dayTypes = [] } = useQuery({ queryKey: ['day-types'], queryFn: () => api.get<DayType[]>('/day-types') });
-  const { data: exercises = [] } = useQuery({ queryKey: ['exercises'], queryFn: () => api.get<Exercise[]>('/exercises') });
+  const {
+    data: exercises = [],
+    isLoading: exercisesLoading,
+    isError: exercisesError,
+    refetch: refetchExercises,
+  } = useQuery({ queryKey: ['exercises'], queryFn: () => api.get<Exercise[]>('/exercises') });
 
   const activeProgram = useMemo(() => programs?.find((p) => p.isActive) ?? programs?.[0] ?? null, [programs]);
 
@@ -1243,6 +1261,9 @@ export function ProgramEditorPage() {
       {addExerciseOpen && selectedDayTypeId ? (
         <AddExercisePicker
           exercises={exercises}
+          exercisesLoading={exercisesLoading}
+          exercisesError={exercisesError}
+          onRetryExercises={refetchExercises}
           onClose={() => setAddExerciseOpen(false)}
           isCreatingExercise={createExercise.isPending}
           onCreateExercise={(name) => createExercise.mutateAsync({ name })}

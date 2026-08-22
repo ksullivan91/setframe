@@ -5,8 +5,17 @@
  * run repeatedly — uses `canonicalSlug` as an upsert key via
  * ON CONFLICT DO NOTHING, so it will never duplicate rows.
  *
- * Usage: DATABASE_URL=... npx tsx packages/database/src/seed-exercises.ts
+ * `seedSystemExercises` is also invoked automatically once at API
+ * startup (see apps/api/src/app.ts) — Story 02 found that this catalog
+ * was previously only ever populated by a developer manually running
+ * this script, so a fresh/recreated database (e.g. after rotating the
+ * Neon project) silently had zero system exercises with no error
+ * anywhere in the stack. Running it idempotently on every boot closes
+ * that gap for good, independent of anyone remembering a manual step.
+ *
+ * CLI usage: DATABASE_URL=... npx tsx packages/database/src/seed-exercises.ts
  */
+import type { Database } from './client';
 import { createDb } from './client';
 import { exercise } from './schema/exercise';
 
@@ -51,12 +60,12 @@ const SYSTEM_EXERCISES: Array<{
   { name: 'Stationary Bike', canonicalSlug: 'stationary-bike', movementPattern: 'cardio', equipment: 'machine' },
 ];
 
-async function main() {
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    throw new Error('DATABASE_URL is required to run this seed script');
-  }
-  const db = createDb(databaseUrl);
+/**
+ * Idempotently inserts any missing system exercises. Existing rows
+ * (matched by `canonicalSlug`) are left untouched — safe to call on
+ * every API boot.
+ */
+export async function seedSystemExercises(db: Database) {
   const rows = SYSTEM_EXERCISES.map((e) => ({
     name: e.name,
     canonicalSlug: e.canonicalSlug,
@@ -71,10 +80,26 @@ async function main() {
     .onConflictDoNothing({ target: exercise.canonicalSlug })
     .returning({ id: exercise.id });
 
-  console.log(`Seed complete: ${inserted.length} new exercise(s) inserted (of ${rows.length} candidates).`);
+  return { insertedCount: inserted.length, candidateCount: rows.length };
 }
 
-main().catch((err) => {
-  console.error('Seed failed:', err);
-  process.exitCode = 1;
-});
+async function main() {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error('DATABASE_URL is required to run this seed script');
+  }
+  const db = createDb(databaseUrl);
+  const { insertedCount, candidateCount } = await seedSystemExercises(db);
+  console.log(`Seed complete: ${insertedCount} new exercise(s) inserted (of ${candidateCount} candidates).`);
+}
+
+// Only auto-run the CLI seeding flow when this file is executed directly
+// (`npx tsx seed-exercises.ts`), not when `seedSystemExercises` is
+// imported by the API for its on-boot idempotent seed call.
+const isDirectRun = import.meta.url === `file://${process.argv[1]}`;
+if (isDirectRun) {
+  main().catch((err) => {
+    console.error('Seed failed:', err);
+    process.exitCode = 1;
+  });
+}
