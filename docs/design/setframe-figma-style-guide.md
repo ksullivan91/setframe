@@ -861,3 +861,63 @@ expected app settings for Notifications:
   there's no `GET` list endpoint for a template's exercises) — pages
   using them show an empty/loading state with a `// TODO: apps/api needs
   to expose X` comment at the call site until the backend fills those in.
+
+## 23. Color ramp drift fix — `packages/design-tokens` is now the source of truth
+
+**Found**: a live review of the Figma file (via the Figma MCP server, connected
+directly to this file rather than the desktop-relay workaround in
+`figma-mcp-connection-notes.md`) turned up drift between the `Setframe/Color`
+variable collection and `packages/design-tokens/src/color-ramps.ts` — every
+step matched exactly at the two anchor hexes (`accent.500`, `neutral.900`)
+but had diverged elsewhere, most likely from two independent HSL-ramp
+generation passes rather than one being regenerated from the other. The
+neutral ramp also had different step sets: Figma had a `25` step code
+doesn't have; code has an `850` step Figma didn't.
+
+**Decision**: going forward, `packages/design-tokens` is the source of truth
+for ramp/status hex values, not the Figma file — code is version-controlled,
+type-checked, and consumed directly by both apps, so drift is cheaper to
+catch there. Figma should be treated as downstream and re-synced whenever
+the code ramp changes.
+
+**Fix applied** (via `use_figma`, all values pulled from
+`packages/design-tokens/src/color-ramps.ts`):
+- All 11 accent steps, 12 of 13 neutral steps, and `Status/Info` updated to
+  match code exactly (`Status/Success|Error|Caution` already matched).
+- Figma's unused `Color/Neutral/25` variable (`#fbfbfe`) was renamed in place
+  to `Color/Neutral/850` (`#28283e`) and its ramp swatch moved to sit between
+  `800` and `900` — bringing the step set to full 1:1 parity with code's 13
+  neutral steps. No semantic alias referenced `Neutral/25` before the
+  rename, so nothing else needed rebinding.
+- Verified after the fix: a fresh `getLocalVariableCollectionsAsync` dump of
+  every `Color/*` variable matches `color-ramps.ts` byte-for-byte (case
+  aside).
+
+**Also fixed**: leftover "Setline" (pre-rename) wordmark/specimen text in 6
+places — the Foundations typography specimen (`Display — Setline` →
+`Display — Setframe`), both mobile Sign In/Sign Up screens, both web Sign
+In/Sign Up screens, and the web `AppShell` sidebar wordmark.
+
+**Found but NOT fixed this pass** — flagged for a separate decision because
+the blast radius is large (every screen using these tokens re-renders):
+several `Semantic/*` alias bindings in Figma point to different ramp steps
+than their `packages/design-tokens/src/semantic-colors.ts` counterparts,
+independent of the raw-ramp-value drift fixed above:
+- `Semantic/Action/AccentSubtle` — Figma aliases it to `Accent/500` (light)
+  / `Accent/400` (dark), i.e. the same vivid step used for `Action/Primary`,
+  not a subtle tint. Code's `accentSubtle` is `Accent/100` (light) /
+  `Accent/900` (dark) — a pale tint, matching what the name implies. This
+  is very plausibly the root cause of the recurring "AccentSubtle used as a
+  solid fill reads near-identical to Primary" contrast bugs logged in §16,
+  §22 above (those fixes rebound individual components' *text* color, but
+  never touched why `AccentSubtle` itself resolves to a vivid, non-subtle
+  color).
+- `Semantic/Text/Secondary` (light), `Semantic/Text/Disabled` (light),
+  `Semantic/Surface/Canvas` (dark), `Semantic/Surface/Raised` (dark),
+  `Semantic/Action/Primary` (dark), `Semantic/Action/PrimaryHover` (dark),
+  `Semantic/Action/PrimaryText` (dark) all point to a ramp step one or two
+  positions off from their code counterpart.
+- Every **light-mode** value not listed above already matched code exactly;
+  most of the dark-mode mismatches have limited current visual impact since
+  no screen in the file has been screenshot-verified in Dark mode yet (see
+  "What's intentionally not done yet" above).

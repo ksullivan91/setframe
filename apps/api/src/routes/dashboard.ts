@@ -9,6 +9,7 @@ import {
   integrationSyncState,
   programScheduleSlot,
   programVersion,
+  restDay,
   scheduleOverride,
   trainingProgram,
   workoutSession,
@@ -101,7 +102,8 @@ export const dashboardRoutes: FastifyPluginAsyncZod = async (fastify) => {
       const userId = request.userId!;
       const { localDate } = request.query;
 
-      const [sessions, manual, activity, nutrition, syncState, nextDayType, override] = await Promise.all([
+      const [sessions, manual, activity, nutrition, syncState, nextDayType, override, rest] =
+        await Promise.all([
         db
           .select()
           .from(workoutSession)
@@ -132,6 +134,11 @@ export const dashboardRoutes: FastifyPluginAsyncZod = async (fastify) => {
           .from(scheduleOverride)
           .where(and(eq(scheduleOverride.userId, userId), eq(scheduleOverride.date, localDate)))
           .limit(1),
+        db
+          .select()
+          .from(restDay)
+          .where(and(eq(restDay.userId, userId), eq(restDay.localDate, localDate)))
+          .limit(1),
       ]);
 
       return {
@@ -146,6 +153,15 @@ export const dashboardRoutes: FastifyPluginAsyncZod = async (fastify) => {
         dayTypeId: nextDayType?.id ?? null,
         estimatedDurationMinutes: nextDayType?.estimatedDurationMinutes ?? null,
         scheduleSource: override[0] ? 'override' : nextDayType ? 'program' : 'none',
+        restDay: rest[0]
+          ? {
+              id: rest[0].id,
+              localDate: rest[0].localDate,
+              timezone: rest[0].timezone,
+              note: rest[0].note,
+              createdAt: rest[0].createdAt.toISOString(),
+            }
+          : null,
         override: override[0]
           ? {
               id: override[0].id,

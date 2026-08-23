@@ -85,3 +85,115 @@ describe('TodayPage completed-workout state', () => {
     expect(screen.getByText('Review workout')).toBeInTheDocument();
   });
 });
+
+function todayPayload(overrides: Record<string, unknown> = {}) {
+  return {
+    localDate: '2026-08-24',
+    dayTypeId: null,
+    dayLabel: null,
+    weekLabel: null,
+    sessions: [],
+    restDay: null,
+    ...overrides,
+  };
+}
+
+describe('rest days', () => {
+  it('offers a rest day alongside choosing a workout when nothing is scheduled', async () => {
+    mockGet = (path: string) => {
+      if (path.startsWith('/dashboard/today')) return Promise.resolve(todayPayload());
+      if (path === '/programs') return Promise.resolve([{ id: 'program-1', isActive: true }]);
+      return Promise.resolve([]);
+    };
+
+    renderTodayPage();
+
+    expect(await screen.findByText('Choose workout')).toBeInTheDocument();
+    expect(screen.getByText('Mark as rest day')).toBeInTheDocument();
+  });
+
+  it('offers a rest day on a day that has a workout scheduled', async () => {
+    mockGet = (path: string) => {
+      if (path.startsWith('/dashboard/today'))
+        return Promise.resolve(todayPayload({ dayTypeId: 'day-1', dayLabel: 'Push' }));
+      if (path === '/programs') return Promise.resolve([{ id: 'program-1', isActive: true }]);
+      return Promise.resolve([]);
+    };
+
+    renderTodayPage();
+
+    expect(await screen.findByText('Start workout')).toBeInTheDocument();
+    expect(screen.getByText('Rest day')).toBeInTheDocument();
+  });
+
+  // The completion state must not be the workout one: there is nothing to
+  // review, and offering a review link would be a dead end.
+  it('shows a rest completion state with no workout to review', async () => {
+    mockGet = (path: string) =>
+      path.startsWith('/dashboard/today')
+        ? Promise.resolve(
+            todayPayload({
+              dayTypeId: 'day-1',
+              dayLabel: 'Push',
+              restDay: {
+                id: 'rest-1',
+                localDate: '2026-08-24',
+                timezone: 'America/Chicago',
+                note: null,
+                createdAt: '2026-08-24T12:00:00.000Z',
+              },
+            }),
+          )
+        : Promise.resolve([]);
+
+    renderTodayPage();
+
+    expect(await screen.findByText('Rest day')).toBeInTheDocument();
+    expect(screen.queryByText('Review workout')).not.toBeInTheDocument();
+    expect(screen.queryByText('Workout complete!')).not.toBeInTheDocument();
+    expect(screen.queryByText('Start workout')).not.toBeInTheDocument();
+    expect(screen.getByText('Undo rest day')).toBeInTheDocument();
+  });
+
+  it('tells the user a rest day will not count against them', async () => {
+    mockGet = (path: string) =>
+      path.startsWith('/dashboard/today')
+        ? Promise.resolve(
+            todayPayload({
+              restDay: {
+                id: 'rest-1',
+                localDate: '2026-08-24',
+                timezone: 'America/Chicago',
+                note: null,
+                createdAt: '2026-08-24T12:00:00.000Z',
+              },
+            }),
+          )
+        : Promise.resolve([]);
+
+    renderTodayPage();
+
+    expect(await screen.findByText(/will not count against your training/)).toBeInTheDocument();
+  });
+
+  it('counts the rest day toward the day\u2019s steps', async () => {
+    mockGet = (path: string) =>
+      path.startsWith('/dashboard/today')
+        ? Promise.resolve(
+            todayPayload({
+              restDay: {
+                id: 'rest-1',
+                localDate: '2026-08-24',
+                timezone: 'America/Chicago',
+                note: null,
+                createdAt: '2026-08-24T12:00:00.000Z',
+              },
+            }),
+          )
+        : Promise.resolve([]);
+
+    renderTodayPage();
+
+    expect(await screen.findByText('1 of 5 steps complete.')).toBeInTheDocument();
+  });
+});

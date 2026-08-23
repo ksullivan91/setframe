@@ -43,6 +43,13 @@ export interface TrainingWeek {
   completionRatio: number | null;
   /** `null` when no load-bearing work was logged, so 0 is never implied. */
   volume: number | null;
+  /** Days in the week the user deliberately took off. */
+  restCount: number;
+  /**
+   * True when nothing was trained but at least one rest day was logged, so
+   * the UI can tell a deliberate week off apart from a disappearance.
+   */
+  isRestWeek: boolean;
   /** True for the week containing the window's end date. */
   isCurrent: boolean;
 }
@@ -58,6 +65,8 @@ export interface TrainingTrends {
   /** Best run within the window. Never decreases when a streak breaks. */
   longestStreakWeeks: number;
   totalCompleted: number;
+  /** Rest days logged across the window. */
+  totalRestDays: number;
   /** Mean sessions per week across the whole window, including zero weeks. */
   averageSessionsPerWeek: number;
 }
@@ -93,6 +102,8 @@ export function buildWeekWindow(endLocalDate: string, weeks: number): string[] {
 export interface TrainingTrendOptions {
   /** Planned sessions per ISO week, where known. */
   plannedByWeek?: Readonly<Record<string, number>>;
+  /** Dates the user marked as rest, `YYYY-MM-DD`. */
+  restDates?: readonly string[];
 }
 
 export function summarizeTrainingTrends(
@@ -106,6 +117,12 @@ export function summarizeTrainingTrends(
 
   const completedByWeek = new Map<string, number>();
   const volumeByWeek = new Map<string, number>();
+  const restByWeek = new Map<string, number>();
+  for (const localDate of options.restDates ?? []) {
+    const week = isoWeekStart(localDate);
+    if (!window.includes(week)) continue;
+    restByWeek.set(week, (restByWeek.get(week) ?? 0) + 1);
+  }
   for (const session of sessions) {
     const week = isoWeekStart(session.localDate);
     // Sessions outside the window are ignored rather than folded into the
@@ -120,9 +137,12 @@ export function summarizeTrainingTrends(
   const weeks: TrainingWeek[] = window.map((weekStart) => {
     const completedCount = completedByWeek.get(weekStart) ?? 0;
     const plannedCount = options.plannedByWeek?.[weekStart] ?? null;
+    const restCount = restByWeek.get(weekStart) ?? 0;
     return {
       weekStart,
       completedCount,
+      restCount,
+      isRestWeek: completedCount === 0 && restCount > 0,
       plannedCount,
       completionRatio:
         plannedCount != null && plannedCount > 0
@@ -133,13 +153,17 @@ export function summarizeTrainingTrends(
     };
   });
 
+  // Rest weeks are transparent to streaks: they neither extend a run nor end
+  // one. Counting them as trained would let someone reach a 52-week streak
+  // without training, which would make the number meaningless; ending a run
+  // on them would punish the recovery the feature exists to encourage.
   let longestStreakWeeks = 0;
   let running = 0;
   for (const week of weeks) {
     if (week.completedCount > 0) {
       running += 1;
       longestStreakWeeks = Math.max(longestStreakWeeks, running);
-    } else {
+    } else if (!week.isRestWeek) {
       running = 0;
     }
   }
@@ -150,8 +174,9 @@ export function summarizeTrainingTrends(
   let currentStreakWeeks = 0;
   const streakStart = weeks.at(-1)?.completedCount === 0 ? weeks.length - 2 : weeks.length - 1;
   for (let index = streakStart; index >= 0; index -= 1) {
-    if (weeks[index]!.completedCount > 0) currentStreakWeeks += 1;
-    else break;
+    const week = weeks[index]!;
+    if (week.completedCount > 0) currentStreakWeeks += 1;
+    else if (!week.isRestWeek) break;
   }
 
   const totalCompleted = weeks.reduce((sum, week) => sum + week.completedCount, 0);
@@ -163,6 +188,7 @@ export function summarizeTrainingTrends(
     currentStreakWeeks,
     longestStreakWeeks,
     totalCompleted,
+    totalRestDays: weeks.reduce((sum, week) => sum + week.restCount, 0),
     averageSessionsPerWeek: weeks.length ? totalCompleted / weeks.length : 0,
   };
 }

@@ -15,7 +15,13 @@ import {
   type LoadUnit,
   type ProgressSet,
 } from '@setframe/domain';
-import { dailyManualEntry, workoutExerciseLog, workoutSession, workoutSet } from '@setframe/database';
+import {
+  dailyManualEntry,
+  restDay,
+  workoutExerciseLog,
+  workoutSession,
+  workoutSet,
+} from '@setframe/database';
 import { getDb } from '../lib/db.js';
 import { requireAuth } from '../plugins/auth.js';
 
@@ -186,10 +192,18 @@ export const progressRoutes: FastifyPluginAsyncZod = async (fastify) => {
 
       const sessions = [...sessionMeta.values()];
 
+      const restRows = await db
+        .select({ localDate: restDay.localDate })
+        .from(restDay)
+        .where(
+          and(eq(restDay.userId, request.userId!), gte(restDay.localDate, sinceLocalDate)),
+        );
+
       const trends = summarizeTrainingTrends(
         sessions.map((session) => ({ localDate: session.localDate, volume: session.volume })),
         endLocalDate,
         windowWeeks,
+        { restDates: restRows.map((row) => row.localDate) },
       );
 
       const exerciseMap = new Map<
@@ -286,6 +300,7 @@ export const progressRoutes: FastifyPluginAsyncZod = async (fastify) => {
           currentStreakWeeks: trends.currentStreakWeeks,
           longestStreakWeeks: trends.longestStreakWeeks,
           totalCompleted: trends.totalCompleted,
+          totalRestDays: trends.totalRestDays,
           averageSessionsPerWeek: trends.averageSessionsPerWeek,
           volumeUnit,
         },

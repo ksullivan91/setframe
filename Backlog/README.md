@@ -11,6 +11,10 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 - `WAIT-automated-visual-and-e2e-testing.md` — deferred by request. Filed so the
   gap is tracked, deliberately not started.
+- `WAIT-figma-accentsubtle-token-fix.md` — deferred by request. Fixes
+  `Semantic/Action/AccentSubtle` and other `Semantic/*` alias mismatches
+  found during the 2026-08-23 color-token reconciliation (see
+  `docs/design/setframe-figma-style-guide.md` §23).
 
 ## Shipped
 

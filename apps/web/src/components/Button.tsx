@@ -5,7 +5,7 @@ import { radius, spacing } from '@setframe/design-tokens';
 import { typeScale } from '../theme/typeScale';
 import { ProgressRing } from './ProgressRing';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'tertiary' | 'destructive';
+export type ButtonVariant = 'primary' | 'secondary' | 'tertiary' | 'destructive' | 'success';
 
 /**
  * Optional submit-lifecycle status. When set, the button's label is
@@ -111,6 +111,16 @@ const StyledButton = styled.button<{ $variant: ButtonVariant; $status: ButtonSta
     `}
 
   ${(p) =>
+    p.$variant === 'success' &&
+    css`
+      background: ${p.theme.status.success};
+      color: ${p.theme.action.primaryText};
+      &:hover:not(:disabled) {
+        opacity: 0.9;
+      }
+    `}
+
+  ${(p) =>
     p.$status === 'success' &&
     css`
       background: ${p.theme.status.success};
@@ -160,7 +170,7 @@ const statusAnnouncement: Record<Exclude<ButtonStatus, 'idle'>, string> = {
 };
 
 /**
- * Button — primary/secondary/tertiary/destructive variants per style
+ * Button — primary/secondary/tertiary/destructive/success variants per style
  * guide §5. Pass `status="loading"`/`"success"` to morph the label into
  * a spinner or checkmark for submit interactions (see `ButtonStatus`).
  * The checkmark/spinner overlay is decorative (`aria-hidden`) — a

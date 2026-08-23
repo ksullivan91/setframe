@@ -1,8 +1,14 @@
 /**
  * Raw color ramps. Generated as HSL ramps (hue held constant, lightness/
- * saturation stepped) anchored on the exact hexes chosen in the Figma file
- * (`Setframe/Color` variable collection) — see
- * docs/design/setframe-figma-style-guide.md §1.
+ * saturation stepped) anchored on `accent.500` (#6979F8) and `neutral.900`
+ * (#151522), originally chosen alongside the Figma file's `Setframe/Color`
+ * variable collection — see docs/design/setframe-figma-style-guide.md §1.
+ *
+ * This file is the source of truth for these values (not Figma): the two
+ * drifted independently once, and code won that reconciliation since it's
+ * version-controlled and consumed directly by both apps — see
+ * docs/design/setframe-figma-style-guide.md §23. Figma should be re-synced
+ * (via `use_figma`) whenever a value here changes.
  *
  * Do not hand-edit individual steps without regenerating the whole ramp;
  * these must stay derivable from the two anchor hexes (`accent.500`,

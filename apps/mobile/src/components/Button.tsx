@@ -3,7 +3,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { radius, spacing } from '@setframe/design-tokens';
 import { typeScale } from '../theme/getTheme';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'destructive';
+export type ButtonVariant = 'primary' | 'secondary' | 'destructive' | 'success';
 
 export interface ButtonProps {
   label: string;
@@ -39,7 +39,9 @@ export function Button({
       ? theme.action.primary
       : variant === 'destructive'
         ? theme.action.destructive
-        : 'transparent';
+        : variant === 'success'
+          ? theme.status.success
+          : 'transparent';
   const textColor = variant === 'secondary' ? theme.text.primary : theme.action.primaryText;
   const borderColor = variant === 'secondary' ? theme.border.subtle : 'transparent';
 
@@ -48,6 +50,10 @@ export function Button({
       testID={testID}
       onPress={onPress}
       disabled={isDisabled}
+      accessible
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: isDisabled }}
       style={({ pressed }) => [
         styles.base,
         {
@@ -83,6 +89,7 @@ export function Button({
 const styles = StyleSheet.create({
   base: {
     borderRadius: radius.small,
+    minHeight: 44,
     paddingVertical: spacing[12],
     paddingHorizontal: spacing[16],
     alignItems: 'center',

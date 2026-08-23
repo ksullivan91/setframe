@@ -7,10 +7,10 @@ import {
   CheckCircle2,
   Circle,
   Dumbbell,
+  Moon,
   NotebookText,
   RefreshCw,
   Scale,
-  SkipForward,
   Utensils,
   Watch,
 } from 'lucide-react';
@@ -88,6 +88,13 @@ interface DashboardTodayResponse {
     createdAt: string;
     updatedAt: string;
   } | null;
+  restDay?: {
+    id: string;
+    localDate: string;
+    timezone: string;
+    note: string | null;
+    createdAt: string;
+  } | null;
 }
 
 interface DailyManualEntryPatch {
@@ -98,7 +105,13 @@ interface DailyManualEntryPatch {
   preWorkoutMealLogged?: boolean | null;
 }
 
-type TodayWorkoutState = 'no-program' | 'unscheduled' | 'scheduled' | 'in-progress' | 'completed';
+type TodayWorkoutState =
+  | 'no-program'
+  | 'unscheduled'
+  | 'scheduled'
+  | 'in-progress'
+  | 'completed'
+  | 'rested';
 
 const Grid = styled.div`
   display: grid;
@@ -207,6 +220,31 @@ const CompletionBadge = styled.span`
   @media (prefers-reduced-motion: reduce) {
     animation: none;
   }
+`;
+
+/** A rest day is a completed day, but not a celebration. It shares the
+ * success tint so the day reads as closed, and deliberately drops the
+ * gradient, glow and spring animation of the completed-workout card so
+ * finishing a workout stays the high point of Today. */
+const RestDayCard = styled(Card)`
+  display: flex;
+  flex-direction: column;
+  gap: ${spacing[12]}px;
+  border-color: ${(p) => p.theme.status.success}66;
+  background: ${(p) => p.theme.status.success}14;
+`;
+
+const RestBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  color: ${(p) => p.theme.status.success};
+  background: ${(p) => p.theme.surface.raised};
+  box-shadow: 0 0 0 5px ${(p) => p.theme.status.success}1F;
 `;
 
 /** Success-tinted stat tiles. The neutral sunken surface used elsewhere
@@ -533,7 +571,6 @@ export function TodayPage() {
   const [exceptionOpen, setExceptionOpen] = useState(false);
   const [exceptionDayTypeId, setExceptionDayTypeId] = useState('');
   const [exceptionNote, setExceptionNote] = useState('');
-  const [skipOpen, setSkipOpen] = useState(false);
   const weightStatus = useAsyncStatus();
   const journalStatus = useAsyncStatus();
   const mealStatus = useAsyncStatus();
@@ -639,12 +676,40 @@ export function TodayPage() {
       await queryClient.invalidateQueries({ queryKey: ['today', localDate] });
       toast.show({ variant: 'success', message: "Today's override cleared." });
       setExceptionOpen(false);
-      setSkipOpen(false);
     },
     onError: () => toast.show({ variant: 'error', message: "Couldn't clear today's override." }),
   });
 
-  const workoutDone = Boolean(completedSession);
+  const restDay = data?.restDay ?? null;
+
+  const markRestDayMutation = useMutation({
+    mutationFn: () =>
+      api.post('/rest-days', {
+        localDate,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['today', localDate] });
+      toast.show({ variant: 'success', message: 'Rest day logged. Recovery counts.' });
+    },
+    onError: () => toast.show({ variant: 'error', message: "Couldn't log today as a rest day." }),
+  });
+
+  const undoRestDayMutation = useMutation({
+    mutationFn: () => api.del(`/rest-days/${localDate}`),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['today', localDate] });
+      toast.show({ variant: 'success', message: 'Rest day removed.' });
+    },
+    onError: () => toast.show({ variant: 'error', message: "Couldn't undo today's rest day." }),
+  });
+
+  // A rest day closes out the day's training step: the user made a decision
+  // and acted on it, which is the behaviour worth reinforcing.
+  // A rest day closes the day out, but an active session supersedes it —
+  // otherwise the step counter would claim training is done while the card
+  // is still offering to resume a workout.
+  const workoutDone = Boolean(completedSession) || (Boolean(restDay) && !activeSession);
   const mealDone = Boolean(manual?.preWorkoutMealLogged);
   const weightDone = manual?.morningWeightValue != null;
   const journalDone = Boolean((manual?.notes ?? '').trim()) || manual?.mood != null;
@@ -661,11 +726,16 @@ export function TodayPage() {
     // completed ad-hoc/off-schedule session still surfaces correctly.
     : completedSession
       ? 'completed'
-      : showProgramSetupPrompt
-        ? 'no-program'
-        : data?.dayTypeId
-          ? 'scheduled'
-          : 'unscheduled';
+      // A logged rest day closes the day out. It sits below a real session so
+      // training always wins if both somehow exist, and above the schedule so
+      // a rested day stops advertising a workout.
+      : restDay
+        ? 'rested'
+        : showProgramSetupPrompt
+          ? 'no-program'
+          : data?.dayTypeId
+            ? 'scheduled'
+            : 'unscheduled';
   const workoutCardTitle =
     todayWorkoutState === 'no-program'
       ? 'Set up your training'
@@ -673,7 +743,9 @@ export function TodayPage() {
         ? 'Workout ready to resume'
         : todayWorkoutState === 'completed'
           ? 'Workout complete!'
-          : "Today's workout";
+          : todayWorkoutState === 'rested'
+            ? 'Rest day'
+            : "Today's workout";
   const workoutCardBody =
     todayWorkoutState === 'no-program'
       ? "Create your first training program to automatically schedule workouts here."
@@ -681,11 +753,22 @@ export function TodayPage() {
         ? `You already started this session${formatTime(activeSession?.startedAt) ? ` at ${formatTime(activeSession?.startedAt)}` : ''}. Pick up where you left off.`
         : todayWorkoutState === 'completed'
           ? `Nice work — that's today's training done${formatTime(completedSession?.completedAt) ? `, finished at ${formatTime(completedSession?.completedAt)}` : ''}.`
-          : todayWorkoutState === 'scheduled'
+          : todayWorkoutState === 'rested'
+            ? 'Today is a rest day. Recovery is when the work you have already done turns into progress — this will not count against your training.'
+            : todayWorkoutState === 'scheduled'
             ? `${data?.weekLabel ?? 'Scheduled'} · ${data?.dayLabel}${data?.scheduleSource === 'override' ? ' · changed for today' : ''}`
             : 'No workout scheduled yet. Choose a workout for today or adjust today’s plan without changing your recurring schedule.';
-  const showWorkoutDuration = todayWorkoutState !== 'no-program' && todayWorkoutState !== 'completed' && Boolean(data?.estimatedDurationMinutes);
-  const PrimaryWorkoutCard = todayWorkoutState === 'completed' ? CompletedWorkoutCard : WorkoutCard;
+  const showWorkoutDuration =
+    todayWorkoutState !== 'no-program' &&
+    todayWorkoutState !== 'completed' &&
+    todayWorkoutState !== 'rested' &&
+    Boolean(data?.estimatedDurationMinutes);
+  const PrimaryWorkoutCard =
+    todayWorkoutState === 'completed'
+      ? CompletedWorkoutCard
+      : todayWorkoutState === 'rested'
+        ? RestDayCard
+        : WorkoutCard;
 
   return (
     <>
@@ -705,6 +788,10 @@ export function TodayPage() {
                     <CompletionBadge>
                       <CheckCircle2 size={26} strokeWidth={2.5} aria-hidden="true" />
                     </CompletionBadge>
+                  ) : todayWorkoutState === 'rested' ? (
+                    <RestBadge>
+                      <Moon size={22} strokeWidth={2.5} aria-hidden="true" />
+                    </RestBadge>
                   ) : (
                     <Dumbbell size={18} />
                   )}
@@ -713,7 +800,10 @@ export function TodayPage() {
                 {showWorkoutDuration ? <PassiveChip>~{data?.estimatedDurationMinutes} min</PassiveChip> : null}
               </WorkoutCardHeader>
               <StepBody>{workoutCardBody}</StepBody>
-              {todayWorkoutState !== 'no-program' && todayWorkoutState !== 'completed' && data?.override?.note ? (
+              {todayWorkoutState !== 'no-program' &&
+              todayWorkoutState !== 'completed' &&
+              todayWorkoutState !== 'rested' &&
+              data?.override?.note ? (
                 <PassiveChip>{data.override.note}</PassiveChip>
               ) : null}
               {todayWorkoutState === 'completed' ? (
@@ -771,14 +861,34 @@ export function TodayPage() {
                     <Button variant="secondary" onClick={() => setExceptionOpen(true)}>
                       Change today&apos;s workout
                     </Button>
-                    <Button variant="tertiary" onClick={() => setSkipOpen(true)}>
-                      Skip today
+                    <Button
+                      variant="success"
+                      disabled={markRestDayMutation.isPending}
+                      onClick={() => markRestDayMutation.mutate()}
+                    >
+                      Rest day
                     </Button>
                   </>
                 ) : null}
                 {todayWorkoutState === 'unscheduled' ? (
-                  <Button variant="secondary" onClick={() => setExceptionOpen(true)}>
-                    Choose workout
+                  <>
+                    <Button onClick={() => setExceptionOpen(true)}>Choose workout</Button>
+                    <Button
+                      variant="success"
+                      disabled={markRestDayMutation.isPending}
+                      onClick={() => markRestDayMutation.mutate()}
+                    >
+                      Mark as rest day
+                    </Button>
+                  </>
+                ) : null}
+                {todayWorkoutState === 'rested' ? (
+                  <Button
+                    variant="secondary"
+                    disabled={undoRestDayMutation.isPending}
+                    onClick={() => undoRestDayMutation.mutate()}
+                  >
+                    Undo rest day
                   </Button>
                 ) : null}
               </InlineRow>
@@ -1059,34 +1169,6 @@ export function TodayPage() {
         </InlineRow>
       </Modal>
 
-      <Modal
-        open={skipOpen}
-        onClose={() => setSkipOpen(false)}
-        title="Skip today’s workout"
-        description="Keep the program intact and mark today as intentionally different."
-      >
-        <StepBody>
-          If you’re resting, traveling, or just need a break, you can swap today to another workout now and come back tomorrow without rewriting the program.
-        </StepBody>
-        <InlineRow>
-          <Button onClick={() => { setSkipOpen(false); setExceptionOpen(true); }}>
-            Swap instead
-          </Button>
-          {data?.override ? (
-            <Button variant="secondary" onClick={() => clearExceptionMutation.mutate()} disabled={clearExceptionMutation.isPending}>
-              Restore schedule
-            </Button>
-          ) : (
-            <Button variant="secondary" onClick={() => setSkipOpen(false)}>
-              Got it
-            </Button>
-          )}
-        </InlineRow>
-        <StatusBlock $tone="warning">
-          <SkipForward size={18} />
-          <StepBody>There is not yet a dedicated “skip without replacement” API, so this flow keeps today lightweight without altering the recurring program.</StepBody>
-        </StatusBlock>
-      </Modal>
     </>
   );
 }

@@ -131,6 +131,10 @@ export const progressTrainingWeekSchema = z.object({
   completionRatio: z.number().nullable(),
   /** `null` for a week of non-load training, so 0 never implies a bad week. */
   volume: z.number().nullable(),
+  /** Days in the week the user deliberately took off. */
+  restCount: z.number().int().nonnegative(),
+  /** Nothing trained but rest was logged: a week off, not a disappearance. */
+  isRestWeek: z.boolean(),
   isCurrent: z.boolean(),
 });
 export type ProgressTrainingWeek = z.infer<typeof progressTrainingWeekSchema>;
@@ -143,6 +147,7 @@ export const progressTrainingSchema = z.object({
   currentStreakWeeks: z.number().int().nonnegative(),
   longestStreakWeeks: z.number().int().nonnegative(),
   totalCompleted: z.number().int().nonnegative(),
+  totalRestDays: z.number().int().nonnegative(),
   averageSessionsPerWeek: z.number().nonnegative(),
   volumeUnit: z.enum(['lb', 'kg']),
 });

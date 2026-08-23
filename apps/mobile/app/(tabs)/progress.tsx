@@ -419,14 +419,14 @@ export default function ProgressScreen() {
       api.get<ProgressOverviewResponse>(`/progress/overview?weeks=${windowWeeks}&localDate=${localDate}`),
   });
 
-  const sessionSeries = useMemo<SeriesPoint<{ isCurrent?: boolean }>[]>(
+  const sessionSeries = useMemo<SeriesPoint<{ isCurrent?: boolean; isRest?: boolean }>[]>(
     () =>
       (query.data?.training.weeks ?? []).map((week) => ({
         localDate: week.weekStart,
         // Zero is a real, meaningful value for a week count, so it is plotted
         // rather than nulled — a missed week has to be visible.
         value: week.completedCount,
-        meta: { isCurrent: week.isCurrent },
+        meta: { isCurrent: week.isCurrent, isRest: week.isRestWeek },
       })),
     [query.data],
   );

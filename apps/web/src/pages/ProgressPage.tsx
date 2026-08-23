@@ -611,14 +611,14 @@ export function ProgressPage() {
   // not the contract as an error state instead of destructuring into a crash.
   const overview = isProgressOverview(query.data) ? query.data : null;
 
-  const sessionSeries = useMemo<SeriesPoint<{ isCurrent?: boolean }>[]>(
+  const sessionSeries = useMemo<SeriesPoint<{ isCurrent?: boolean; isRest?: boolean }>[]>(
     () =>
       (overview?.training.weeks ?? []).map((week) => ({
         localDate: week.weekStart,
         // Zero is a real, meaningful value for a week count, so it is plotted
         // rather than nulled — a missed week has to be visible.
         value: week.completedCount,
-        meta: { isCurrent: week.isCurrent },
+        meta: { isCurrent: week.isCurrent, isRest: week.isRestWeek },
       })),
     [overview],
   );
@@ -760,7 +760,7 @@ export function ProgressPage() {
                   <MetricInfo
                     label="Sessions per week"
                     explanation="How many workouts you completed in each of the last few weeks."
-                    calculation="One bar per week, Monday to Sunday. Weeks with no training are shown as empty slots so gaps stay visible."
+                    calculation="One bar per week, Monday to Sunday. Weeks with no training are shown as empty slots so gaps stay visible, and a week you spent resting is tinted rather than left grey."
                     limitation="The current week is still in progress, so its bar will usually be shorter."
                   />
                 </SectionTitle>

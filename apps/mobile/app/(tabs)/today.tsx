@@ -18,6 +18,7 @@ import {
   Dumbbell,
   Flame,
   Footprints,
+  Moon,
   NotebookText,
   RefreshCw,
   Scale,
@@ -30,8 +31,9 @@ import { Input } from '../../src/components/Input';
 import { MetricTile } from '../../src/components/MetricTile';
 import { SyncStatusPill, type SyncStatus } from '../../src/components/SyncStatusPill';
 import { Checkbox } from '../../src/components/Checkbox';
+import { Toast } from '../../src/components/Toast';
 import { countsTowardVolume, isSessionSetLogged } from '../../src/lib/prescription';
-import { useApiClient } from '../../src/lib/api-client';
+import { ApiError, useApiClient } from '../../src/lib/api-client';
 import { useLocalDate } from '../../src/lib/useLocalDate';
 import { healthKit, type DailyHealthMetrics } from '../../src/healthkit/HealthKitAdapter';
 import { useTheme } from '../../src/theme/ThemeProvider';
@@ -91,6 +93,13 @@ interface DashboardTodayResponse {
     createdAt: string;
     updatedAt?: string;
   } | null;
+  restDay?: {
+    id: string;
+    localDate: string;
+    timezone: string;
+    note: string | null;
+    createdAt: string;
+  } | null;
 }
 
 interface DailyManualEntryPatch {
@@ -103,7 +112,7 @@ interface DailyManualEntryPatch {
   preWorkoutMealLogged?: boolean | null;
 }
 
-type TodayWorkoutState = 'no-program' | 'unscheduled' | 'scheduled' | 'in-progress' | 'completed';
+type TodayWorkoutState = 'no-program' | 'unscheduled' | 'scheduled' | 'in-progress' | 'completed' | 'rested';
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 type DashboardSyncStatus = NonNullable<DashboardTodayResponse['syncState']>['status'];
 
@@ -238,6 +247,7 @@ export default function TodayScreen() {
   const [mealStatus, setMealStatus] = useState<SaveState>('idle');
   const [weightError, setWeightError] = useState<string | null>(null);
   const [bpError, setBpError] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ variant: 'success' | 'error'; message: string } | null>(null);
   const initialHydratedRef = useRef(false);
   const hydratedLocalDateRef = useRef<string | null>(null);
   const lastSavedSectionRef = useRef<'weight' | 'bp' | 'journal' | 'meal' | null>(null);
@@ -322,6 +332,36 @@ export default function TodayScreen() {
     },
   });
 
+  const markRestDayMutation = useMutation({
+    mutationFn: () =>
+      api.post('/rest-days', {
+        localDate,
+        timezone: localTimezone(),
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['today', localDate] });
+      setToast({ variant: 'success', message: 'Rest day logged. Recovery counts.' });
+    },
+    onError: (error) => {
+      setToast({
+        variant: 'error',
+        message:
+          error instanceof ApiError && error.status === 409
+            ? "Today already has a workout, so it can't be a rest day."
+            : "Couldn't log today as a rest day.",
+      });
+    },
+  });
+
+  const undoRestDayMutation = useMutation({
+    mutationFn: () => api.del(`/rest-days/${localDate}`),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['today', localDate] });
+      setToast({ variant: 'success', message: 'Rest day removed.' });
+    },
+    onError: () => setToast({ variant: 'error', message: "Couldn't undo today's rest day." }),
+  });
+
   async function saveSection(
     body: DailyManualEntryPatch,
     setStatus: (status: SaveState) => void,
@@ -401,6 +441,13 @@ export default function TodayScreen() {
   const completedSets = sumCompletedSets(completedSummaryQuery.data);
   const completedVolume = sumVolume(completedSummaryQuery.data);
 
+  const restDay = todayQuery.data?.restDay ?? null;
+  // A rest day closes out the day's training step: the user made a decision
+  // and acted on it, which is the behaviour worth reinforcing.
+  // A rest day closes the day out, but an active session supersedes it —
+  // otherwise the card would read as done while still offering to resume.
+  const workoutDone = Boolean(completedSession) || (Boolean(restDay) && !activeSession);
+
   const todayWorkoutState: TodayWorkoutState = activeSession
     ? 'in-progress'
     // A completed session for today must win over "not started yet" —
@@ -408,11 +455,16 @@ export default function TodayScreen() {
     // already done (Story 06). Mirrors the web fix.
     : completedSession
       ? 'completed'
-      : showProgramSetupPrompt
-        ? 'no-program'
-        : todayQuery.data?.dayTypeId
-          ? 'scheduled'
-          : 'unscheduled';
+      // A logged rest day closes the day out. It sits below a real session so
+      // training always wins if both somehow exist, and above the schedule so
+      // a rested day stops advertising a workout.
+      : restDay
+        ? 'rested'
+        : showProgramSetupPrompt
+          ? 'no-program'
+          : todayQuery.data?.dayTypeId
+            ? 'scheduled'
+            : 'unscheduled';
 
   const workoutTitle =
     todayWorkoutState === 'no-program'
@@ -421,7 +473,9 @@ export default function TodayScreen() {
         ? 'Workout ready to resume'
         : todayWorkoutState === 'completed'
           ? 'Workout complete!'
-          : "Today's workout";
+          : todayWorkoutState === 'rested'
+            ? 'Rest day'
+            : "Today's workout";
 
   const workoutBody =
     todayWorkoutState === 'no-program'
@@ -430,9 +484,11 @@ export default function TodayScreen() {
         ? `You already started this session${formatTime(activeSession?.startedAt) ? ` at ${formatTime(activeSession?.startedAt)}` : ''}. Pick up where you left off.`
         : todayWorkoutState === 'completed'
           ? `Nice work — that's today's training done${formatTime(completedSession?.completedAt) ? `, finished at ${formatTime(completedSession?.completedAt)}` : ''}.`
-          : todayWorkoutState === 'scheduled'
-            ? `${todayQuery.data?.weekLabel ?? 'Scheduled'} · ${todayQuery.data?.dayLabel}${todayQuery.data?.scheduleSource === 'override' ? ' · changed for today' : ''}`
-            : 'No workout scheduled yet. Choose a workout for today or adjust today’s plan without changing your recurring schedule.';
+          : todayWorkoutState === 'rested'
+            ? 'Today is a rest day. Recovery is when the work you have already done turns into progress — this will not count against your training.'
+            : todayWorkoutState === 'scheduled'
+              ? `${todayQuery.data?.weekLabel ?? 'Scheduled'} · ${todayQuery.data?.dayLabel}${todayQuery.data?.scheduleSource === 'override' ? ' · changed for today' : ''}`
+              : 'No workout scheduled yet. Choose a workout for today or adjust today’s plan without changing your recurring schedule.';
 
   const weightDone = manual?.morningWeightValue != null;
   const bpDone = manual?.systolicBp != null || manual?.diastolicBp != null;
@@ -467,25 +523,34 @@ export default function TodayScreen() {
       ) : null}
 
       <Card
+        testID={`workout-card-${todayWorkoutState}`}
         style={[
           styles.workoutCard,
           todayWorkoutState === 'completed'
             ? { borderColor: `${theme.status.success}66`, backgroundColor: `${theme.status.success}1F` }
-            : { borderColor: theme.action.primary, backgroundColor: theme.action.accentSubtle },
+            : todayWorkoutState === 'rested'
+              ? { borderColor: `${theme.status.success}66`, backgroundColor: `${theme.status.success}14` }
+              : { borderColor: theme.action.primary, backgroundColor: theme.action.accentSubtle },
         ]}
       >
         <View style={styles.cardHeaderRow}>
           <View style={styles.titleWithIcon}>
             {todayWorkoutState === 'completed' ? (
-              <View style={[styles.completionBadge, { backgroundColor: theme.surface.raised }]}>
+              <View testID="workout-done-badge" style={[styles.completionBadge, { backgroundColor: theme.surface.raised }]}>
                 <CheckCircle2 size={24} strokeWidth={2.5} color={theme.status.success} />
+              </View>
+            ) : todayWorkoutState === 'rested' ? (
+              <View testID="workout-done-badge" style={[styles.completionBadge, { backgroundColor: theme.surface.raised }]}>
+                <Moon size={22} strokeWidth={2.5} color={theme.status.success} />
               </View>
             ) : (
               <Dumbbell size={18} color={theme.text.primary} />
             )}
             <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>{workoutTitle}</Text>
           </View>
-          {todayQuery.data?.estimatedDurationMinutes && todayWorkoutState !== 'completed' ? (
+          {todayQuery.data?.estimatedDurationMinutes &&
+          todayWorkoutState !== 'completed' &&
+          todayWorkoutState !== 'rested' ? (
             <View style={[styles.chip, { backgroundColor: theme.surface.sunken }]}>
               <Text style={[styles.chipLabel, { color: theme.text.secondary }]}>~{todayQuery.data.estimatedDurationMinutes} min</Text>
             </View>
@@ -499,8 +564,10 @@ export default function TodayScreen() {
           </View>
         ) : (
           <>
-            <Text style={[styles.bodyText, { color: theme.text.secondary }]}>{workoutBody}</Text>
-            {todayQuery.data?.override?.note && todayWorkoutState !== 'completed' ? (
+            <Text testID="workout-body" style={[styles.bodyText, { color: theme.text.secondary }]}>{workoutBody}</Text>
+            {todayQuery.data?.override?.note &&
+            todayWorkoutState !== 'completed' &&
+            todayWorkoutState !== 'rested' ? (
               <View style={[styles.chip, { backgroundColor: theme.surface.sunken }]}>
                 <Text style={[styles.chipLabel, { color: theme.text.secondary }]}>{todayQuery.data.override.note}</Text>
               </View>
@@ -546,13 +613,44 @@ export default function TodayScreen() {
                 <>
                   <Button label="Start workout" loading={startWorkoutMutation.isPending} onPress={() => startWorkoutMutation.mutate()} />
                   <Button label="Preview program" variant="secondary" onPress={() => router.push('/program-editor')} />
+                  <Button
+                    label="Rest day"
+                    variant="success"
+                    testID="mark-rest-day"
+                    loading={markRestDayMutation.isPending}
+                    onPress={() => markRestDayMutation.mutate()}
+                  />
                 </>
               ) : null}
-              {todayWorkoutState === 'unscheduled' ? <Button label="Choose workout" variant="secondary" onPress={() => router.push('/program-editor')} /> : null}
+              {todayWorkoutState === 'unscheduled' ? (
+                <>
+                  <Button label="Choose workout" testID="choose-workout" onPress={() => router.push('/program-editor')} />
+                  <Button
+                    label="Mark as rest day"
+                    variant="success"
+                    testID="mark-rest-day"
+                    loading={markRestDayMutation.isPending}
+                    onPress={() => markRestDayMutation.mutate()}
+                  />
+                </>
+              ) : null}
+              {todayWorkoutState === 'rested' ? (
+                <Button
+                  label="Undo rest day"
+                  variant="secondary"
+                  testID="undo-rest-day"
+                  loading={undoRestDayMutation.isPending}
+                  onPress={() => undoRestDayMutation.mutate()}
+                />
+              ) : null}
             </View>
           </>
         )}
       </Card>
+
+      {toast ? (
+        <Toast variant={toast.variant} message={toast.message} onDismiss={() => setToast(null)} />
+      ) : null}
 
       <Card>
         <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Today&apos;s check-in</Text>

@@ -289,7 +289,7 @@ export function LineChart({
 }
 
 export interface ColumnChartProps {
-  series: SeriesPoint<{ isCurrent?: boolean }>[];
+  series: SeriesPoint<{ isCurrent?: boolean; isRest?: boolean }>[];
   height?: number;
   formatValue: (value: number) => string;
   formatPeriod?: (localDate: string) => string;
@@ -361,6 +361,9 @@ export function ColumnChart({
           {chart.columns.map((column, index) => {
             const isSelected = index === selected;
             const isCurrent = column.meta?.isCurrent === true;
+            // A week off on purpose is not the same as a week that vanished,
+            // so the zero stub is tinted rather than left neutral grey.
+            const isRest = column.meta?.isRest === true;
             // An empty period is drawn as a flat stub rather than nothing at
             // all, so a missed week reads as a real, visible zero.
             const emptyHeight = 2;
@@ -373,8 +376,10 @@ export function ColumnChart({
                   height={column.value == null || column.height < emptyHeight ? emptyHeight : column.height}
                   rx={4}
                   fill={
-                    column.value == null
-                      ? theme.chart.empty
+                    column.value === 0 || column.value == null
+                      ? isRest
+                        ? theme.chart.trend
+                        : theme.chart.empty
                       : isSelected
                         ? theme.chart.emphasis
                         : isCurrent
@@ -393,7 +398,7 @@ export function ColumnChart({
                   role="button"
                   aria-label={`${formatPeriod(column.localDate)}: ${
                     column.value == null ? emptyLabel : formatValue(column.value)
-                  }`}
+                  }${isRest ? ', rest week' : ''}`}
                   style={{ cursor: onSelectColumn ? 'pointer' : 'default', outline: 'none' }}
                   onClick={() => select(index)}
                   onFocus={() => setSelected(index)}

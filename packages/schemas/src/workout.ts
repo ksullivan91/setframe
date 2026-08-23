@@ -129,3 +129,19 @@ export const consistencyWeekSchema = z.object({
   completedCount: z.number().int().nonnegative(),
 });
 export type ConsistencyWeek = z.infer<typeof consistencyWeekSchema>;
+
+export const restDaySchema = z.object({
+  id: z.string().uuid(),
+  localDate: z.string().date(),
+  timezone: z.string(),
+  note: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type RestDay = z.infer<typeof restDaySchema>;
+
+export const createRestDaySchema = z.object({
+  localDate: z.string().date(),
+  timezone: z.string().min(1),
+  note: z.string().max(500).optional(),
+});
+export type CreateRestDayInput = z.infer<typeof createRestDaySchema>;

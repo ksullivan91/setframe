@@ -104,3 +104,28 @@ export const workoutSet = pgTable(
     index('workout_set_exercise_log_id_sort_order_idx').on(table.exerciseLogId, table.sortOrder),
   ],
 );
+
+/**
+ * A day the user deliberately took off.
+ *
+ * Kept separate from `scheduleOverride`, which is a plan and requires a
+ * `dayTypeId`: a rest day is a record of what happened, and there is nothing
+ * to schedule. Unique per user per date, so a day is either rested or not.
+ */
+export const restDay = pgTable(
+  'rest_day',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id),
+    localDate: date('local_date').notNull(),
+    timezone: text('timezone').notNull(),
+    note: text('note'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('rest_day_user_id_local_date_key').on(table.userId, table.localDate),
+  ],
+);

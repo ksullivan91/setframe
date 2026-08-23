@@ -191,3 +191,80 @@ describe('averages', () => {
     expect(trends.averageSessionsPerWeek).toBe(1);
   });
 });
+
+describe('rest days', () => {
+  const end = '2025-03-30';
+
+  function weekOf(offsetWeeks: number) {
+    const base = Date.parse('2025-03-24T00:00:00Z');
+    return new Date(base - offsetWeeks * 7 * 86_400_000).toISOString().slice(0, 10);
+  }
+
+  it('does not count a rest-only week as a trained week', () => {
+    const result = summarizeTrainingTrends(
+      [{ localDate: weekOf(2) }, { localDate: weekOf(0) }],
+      end,
+      4,
+      { restDates: [weekOf(1), weekOf(1)] },
+    );
+    expect(result.weeksTrained).toBe(2);
+    expect(result.totalRestDays).toBe(2);
+  });
+
+  // The rule the user chose: neutral. Resting must not manufacture a streak.
+  it('bridges a streak across a rest-only week without extending it', () => {
+    const rested = summarizeTrainingTrends(
+      [{ localDate: weekOf(2) }, { localDate: weekOf(0) }],
+      end,
+      4,
+      { restDates: [weekOf(1)] },
+    );
+    expect(rested.currentStreakWeeks).toBe(2);
+    expect(rested.longestStreakWeeks).toBe(2);
+  });
+
+  it('still breaks a streak on a week that was neither trained nor rested', () => {
+    const abandoned = summarizeTrainingTrends(
+      [{ localDate: weekOf(2) }, { localDate: weekOf(0) }],
+      end,
+      4,
+      {},
+    );
+    expect(abandoned.currentStreakWeeks).toBe(1);
+  });
+
+  it('cannot build a streak out of rest days alone', () => {
+    const result = summarizeTrainingTrends([], end, 4, {
+      restDates: [weekOf(0), weekOf(1), weekOf(2), weekOf(3)],
+    });
+    expect(result.currentStreakWeeks).toBe(0);
+    expect(result.longestStreakWeeks).toBe(0);
+    expect(result.weeksTrained).toBe(0);
+  });
+
+  it('marks a rest-only week so the UI can distinguish it from a gap', () => {
+    const result = summarizeTrainingTrends([{ localDate: weekOf(0) }], end, 3, {
+      restDates: [weekOf(1)],
+    });
+    const rest = result.weeks.find((week) => week.weekStart === isoWeekStart(weekOf(1)));
+    const gap = result.weeks.find((week) => week.weekStart === isoWeekStart(weekOf(2)));
+    expect(rest?.isRestWeek).toBe(true);
+    expect(rest?.restCount).toBe(1);
+    expect(gap?.isRestWeek).toBe(false);
+  });
+
+  it('does not treat a week with both training and rest as a rest week', () => {
+    const result = summarizeTrainingTrends([{ localDate: weekOf(0) }], end, 2, {
+      restDates: [weekOf(0)],
+    });
+    const current = result.weeks.at(-1)!;
+    expect(current.isRestWeek).toBe(false);
+    expect(current.restCount).toBe(1);
+    expect(current.completedCount).toBe(1);
+  });
+
+  it('ignores rest days outside the window', () => {
+    const result = summarizeTrainingTrends([], end, 2, { restDates: ['2024-01-01'] });
+    expect(result.totalRestDays).toBe(0);
+  });
+});

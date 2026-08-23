@@ -18,6 +18,7 @@ import { workoutSessionRoutes } from './routes/workout-sessions.js';
 import { dailyRoutes } from './routes/daily.js';
 import { dashboardRoutes } from './routes/dashboard.js';
 import { progressRoutes } from './routes/progress.js';
+import { restDayRoutes } from './routes/rest-days.js';
 import { notificationPreferenceRoutes } from './routes/notification-preferences.js';
 import { appleHealthRoutes } from './routes/apple-health.js';
 
@@ -86,6 +87,7 @@ export function buildApp() {
   app.register(dailyRoutes);
   app.register(dashboardRoutes);
   app.register(progressRoutes);
+  app.register(restDayRoutes);
   app.register(notificationPreferenceRoutes);
   app.register(appleHealthRoutes);
 

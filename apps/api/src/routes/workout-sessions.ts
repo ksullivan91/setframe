@@ -20,6 +20,7 @@ import {
   exercise,
   workoutExerciseLog,
   workoutSession,
+  restDay,
   workoutSet,
 } from '@setframe/database';
 import { getDb } from '../lib/db.js';
@@ -445,6 +446,17 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
         .returning();
 
       const session = rows[0]!;
+
+      // Starting a workout supersedes an earlier decision to rest, so the
+      // day cannot end up claiming both.
+      await db
+        .delete(restDay)
+        .where(
+          and(
+            eq(restDay.userId, request.userId!),
+            eq(restDay.localDate, request.body.localDate),
+          ),
+        );
 
       if (request.body.templateId) {
         const templateExercises = await db

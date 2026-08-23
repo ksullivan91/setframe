@@ -4,6 +4,10 @@ import { colorRamps } from './color-ramps';
  * Semantic color aliases, one object per theme mode. Mirrors the Figma
  * `Semantic/*` variable aliases (Text, Surface, Border, Action, Status)
  * that flip per mode — see docs/design/setframe-figma-style-guide.md §1.
+ * This file is the source of truth (not Figma); as of §23, several of
+ * Figma's `Semantic/*` alias bindings (notably `Action/AccentSubtle`, which
+ * Figma still points at a vivid ramp step rather than a subtle tint) are
+ * known to disagree with these values and haven't been reconciled yet.
  *
  * Consumers (web `styled-components` theme, mobile RN theme) should
  * always reference these semantic tokens, never raw ramp steps, so

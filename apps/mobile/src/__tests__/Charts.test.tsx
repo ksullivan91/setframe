@@ -207,6 +207,31 @@ describe('ColumnChart', () => {
     expect(cover(first.left + first.width - 0.5)).toBe(0);
     expect(cover(second.left + second.width / 2)).toBe(1);
   });
+
+  it('marks a deliberate week off as a rest week, distinct from a vanished week', () => {
+    const series: SeriesPoint<{ isCurrent?: boolean; isRest?: boolean }>[] = [
+      // A week that vanished: nothing logged, no rest recorded.
+      { localDate: '2026-01-05', value: 0 },
+      // A deliberate week off: zero trained, but rest was logged.
+      { localDate: '2026-01-12', value: 0, meta: { isRest: true } },
+      // A trained current week, whose bar already uses the trend tint.
+      { localDate: '2026-01-19', value: 4, meta: { isCurrent: true } },
+    ];
+    const rendered = renderTree(<ColumnChart series={series} formatValue={(v) => `${v}`} label="Sessions" />);
+
+    const vanishedFill = hostsByTestId(rendered, 'chart-column')[0]!.props.fill;
+    const restFill = hostsByTestId(rendered, 'chart-column')[1]!.props.fill;
+    const currentFill = hostsByTestId(rendered, 'chart-column-current')[0]!.props.fill;
+    // The rest week's zero stub takes the trend tint, unlike a vanished week.
+    expect(restFill).toEqual(currentFill);
+    expect(restFill).not.toEqual(vanishedFill);
+
+    const hits = hostsByTestId(rendered, 'chart-column-hit');
+    const restHit = hits.find((node) => node.props.accessibilityLabel.includes('rest week'));
+    expect(restHit).toBeDefined();
+    const vanishedHit = hits.find((node) => !node.props.accessibilityLabel.includes('rest week'));
+    expect(vanishedHit).toBeDefined();
+  });
 });
 
 describe('RangeSelector', () => {
