@@ -8,6 +8,7 @@ import {
   describeWeightRate,
   filterByRange,
   formatMetricValue,
+  isProgressOverview,
   metricDefinition,
   metricLabel,
   weekStartOf,
@@ -605,31 +606,36 @@ export function ProgressPage() {
       ),
   });
 
+  // A deployed API can lag the deployed client, so an older response shape is
+  // a real possibility rather than a theoretical one. Treat anything that is
+  // not the contract as an error state instead of destructuring into a crash.
+  const overview = isProgressOverview(query.data) ? query.data : null;
+
   const sessionSeries = useMemo<SeriesPoint<{ isCurrent?: boolean }>[]>(
     () =>
-      (query.data?.training.weeks ?? []).map((week) => ({
+      (overview?.training.weeks ?? []).map((week) => ({
         localDate: week.weekStart,
         // Zero is a real, meaningful value for a week count, so it is plotted
         // rather than nulled — a missed week has to be visible.
         value: week.completedCount,
         meta: { isCurrent: week.isCurrent },
       })),
-    [query.data],
+    [overview],
   );
 
   const volumeSeries = useMemo<SeriesPoint<{ isCurrent?: boolean }>[]>(
     () =>
-      (query.data?.training.weeks ?? []).map((week) => ({
+      (overview?.training.weeks ?? []).map((week) => ({
         localDate: week.weekStart,
         value: week.volume,
         meta: { isCurrent: week.isCurrent },
       })),
-    [query.data],
+    [overview],
   );
 
   if (query.isLoading) return <ProgressSkeleton />;
 
-  if (query.isError || !query.data) {
+  if (query.isError || !overview) {
     return (
       <Page>
         <h1>Progress</h1>
@@ -642,7 +648,7 @@ export function ProgressPage() {
     );
   }
 
-  const { training, bodyWeight, exercises, recentSessions } = query.data;
+  const { training, bodyWeight, exercises, recentSessions } = overview;
   const currentWeek = training.weeks.at(-1);
   const hasAnyVolume = volumeSeries.some((point) => point.value != null);
   const hasAnyData = training.totalCompleted > 0 || bodyWeight.checkInCount > 0;

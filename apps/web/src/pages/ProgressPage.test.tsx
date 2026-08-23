@@ -465,3 +465,26 @@ describe('regressions', () => {
     expect(text).not.toContain('This week');
   });
 });
+
+describe('API version skew', () => {
+  // The client deploys separately from the API, so it can outrun it. This is
+  // the literal payload the previous API build returned, which crashed the
+  // page on `training.weeks` of undefined.
+  it('shows the error state rather than crashing on a previous response shape', async () => {
+    renderProgress({
+      cards: [{ key: 'weekly-sessions', label: 'Sessions this week', value: '1' }],
+      consistency: { weeks: [], summary: { currentStreakWeeks: 1 } },
+      bodyWeight: { points: [], trendLabel: '+1.4 lb over 2 check-ins' },
+      featuredExercise: { exerciseId: 'x', exerciseName: 'Outdoor Cycle', points: [] },
+      recentSessions: [],
+    });
+    await waitFor(() => expect(screen.getByText(/could not load your progress/)).toBeTruthy());
+    // The offending copy must not leak through from the stale payload either.
+    expect(screen.queryByText(/over 2 check-ins/)).toBeNull();
+  });
+
+  it('shows the error state on a null payload', async () => {
+    renderProgress(null as never);
+    await waitFor(() => expect(screen.getByText(/could not load your progress/)).toBeTruthy());
+  });
+});
