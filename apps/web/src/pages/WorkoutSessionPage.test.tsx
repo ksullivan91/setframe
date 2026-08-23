@@ -1,7 +1,8 @@
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { ThemeProvider } from 'styled-components';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { Prescription } from '@setframe/schemas';
 import { getTheme } from '../theme/getTheme';
@@ -9,10 +10,11 @@ import { ToastProvider } from '../components/Toast';
 import { WorkoutSessionPage } from './WorkoutSessionPage';
 
 let mockGet: (path: string) => Promise<unknown> = () => new Promise(() => {});
+const mockPost = vi.fn();
 vi.mock('../lib/api-client', () => ({
   useApiClient: () => ({
     get: (path: string) => mockGet(path),
-    post: vi.fn(),
+    post: (path: string, body?: unknown) => mockPost(path, body),
     patch: vi.fn(),
     del: vi.fn(),
   }),
@@ -85,10 +87,26 @@ function buildSession(prescription: Prescription | null, setOverrides: SetOverri
   };
 }
 
-function renderSession(prescription: Prescription | null, setOverrides: SetOverrides = {}) {
+const catalog = [
+  {
+    id: 'exercise-2',
+    name: 'Barbell Back Squat',
+    isCustom: false,
+    ownerUserId: null,
+    archivedAt: null,
+    createdAt: '2026-08-22T15:00:00.000Z',
+    updatedAt: '2026-08-22T15:00:00.000Z',
+  },
+];
+
+function renderSession(
+  prescription: Prescription | null,
+  setOverrides: SetOverrides = {},
+  exercises: unknown[] = [],
+) {
   mockGet = (path: string) => {
     if (path.startsWith('/workout-sessions/')) return Promise.resolve(buildSession(prescription, setOverrides));
-    if (path === '/exercises') return Promise.resolve([]);
+    if (path === '/exercises') return Promise.resolve(exercises);
     return Promise.resolve(null);
   };
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -183,5 +201,124 @@ describe('WorkoutSessionPage prescription-aware fields', () => {
     expect(screen.getByLabelText('Reps')).toBeInTheDocument();
     expect(screen.getByLabelText('Duration (sec)')).toBeInTheDocument();
     expect(screen.getByLabelText('Distance')).toBeInTheDocument();
+  });
+});
+
+
+/**
+ * Story 08 — the mid-session Add Exercise modal used to filter the catalog
+ * down to exercises not already in the session and, when that came back
+ * empty, showed a dead-end "No more exercises available". It is now a
+ * self-contained search over the canonical catalog that never depends on
+ * Training-page state.
+ */
+describe('WorkoutSessionPage mid-session add exercise', () => {
+  beforeEach(() => {
+    mockPost.mockReset();
+    mockPost.mockResolvedValue({ id: 'log-2' });
+  });
+
+  it('searches the canonical catalog without visiting Training first', async () => {
+    const user = userEvent.setup();
+    renderSession({ kind: 'sets_reps', sets: 3, repsMin: 8 }, { weightValue: 135, reps: 5 } as SetOverrides, catalog);
+
+    await user.click(await screen.findByRole('button', { name: /add exercise/i }));
+
+    expect(await screen.findByLabelText('Search exercises')).toBeInTheDocument();
+    expect(screen.getByText('Barbell Back Squat')).toBeInTheDocument();
+    expect(screen.queryByText(/No more exercises available/i)).not.toBeInTheDocument();
+  });
+
+  it('adds a catalog exercise with its prescription and leaves logged sets intact', async () => {
+    const user = userEvent.setup();
+    renderSession({ kind: 'sets_reps', sets: 3, repsMin: 8 }, { weightValue: 135, reps: 5 } as SetOverrides, catalog);
+
+    await user.click(await screen.findByRole('button', { name: /add exercise/i }));
+    await user.click(await screen.findByText('Barbell Back Squat'));
+    await user.click(await screen.findByRole('button', { name: /add to workout/i }));
+
+    await waitFor(() =>
+      expect(mockPost).toHaveBeenCalledWith('/workout-sessions/session-1/exercises', {
+        exerciseId: 'exercise-2',
+        prescription: { kind: 'sets_reps', sets: 3, repsMin: 8 },
+      }),
+    );
+
+    // The set logged before the add is untouched.
+    expect(screen.getByLabelText('Weight')).toHaveValue('135');
+    expect(screen.getByLabelText('Reps')).toHaveValue('5');
+  });
+
+  it('creates a custom exercise and adds it without leaving the session', async () => {
+    const user = userEvent.setup();
+    mockPost.mockImplementation((path: string) => {
+      if (path === '/exercises') {
+        return Promise.resolve({
+          id: 'exercise-custom',
+          name: 'Outdoor Cycle',
+          isCustom: true,
+          ownerUserId: 'user-1',
+          archivedAt: null,
+          createdAt: '2026-08-22T15:00:00.000Z',
+          updatedAt: '2026-08-22T15:00:00.000Z',
+        });
+      }
+      return Promise.resolve({ id: 'log-2' });
+    });
+    renderSession({ kind: 'sets_reps', sets: 3, repsMin: 8 }, {}, catalog);
+
+    await user.click(await screen.findByRole('button', { name: /add exercise/i }));
+    await user.click(await screen.findByRole('button', { name: /create custom exercise/i }));
+    await user.type(await screen.findByLabelText('Exercise name'), 'Outdoor Cycle');
+    await user.click(screen.getByRole('button', { name: /create & add/i }));
+
+    // Lands straight on configure for the new exercise — no navigation away.
+    expect(await screen.findByLabelText('Prescription')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /add to workout/i }));
+
+    await waitFor(() =>
+      expect(mockPost).toHaveBeenCalledWith(
+        '/workout-sessions/session-1/exercises',
+        expect.objectContaining({ exerciseId: 'exercise-custom' }),
+      ),
+    );
+  });
+
+  // Clearing a numeric prescription field yields `Number('') === 0`, which
+  // every branch of `prescriptionSchema` rejects as non-positive. Blocking
+  // the button keeps the client from firing a request the API will 400.
+  it('blocks the add when a prescription value is cleared to zero', async () => {
+    const user = userEvent.setup();
+    renderSession({ kind: 'sets_reps', sets: 3, repsMin: 8 }, {}, catalog);
+
+    await user.click(await screen.findByRole('button', { name: /add exercise/i }));
+    await user.click(await screen.findByText('Barbell Back Squat'));
+    await user.clear(await screen.findByLabelText('Sets'));
+
+    expect(screen.getByRole('button', { name: /add to workout/i })).toBeDisabled();
+    expect(screen.getByText(/greater than zero/i)).toBeInTheDocument();
+    expect(mockPost).not.toHaveBeenCalled();
+  });
+
+  it('keeps the picker open and surfaces an error when the add fails', async () => {
+    const user = userEvent.setup();
+    mockPost.mockRejectedValue(new Error('boom'));
+    renderSession({ kind: 'sets_reps', sets: 3, repsMin: 8 }, {}, catalog);
+
+    await user.click(await screen.findByRole('button', { name: /add exercise/i }));
+    await user.click(await screen.findByText('Barbell Back Squat'));
+    await user.click(await screen.findByRole('button', { name: /add to workout/i }));
+
+    expect(await screen.findByText(/Couldn't add that exercise/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /add to workout/i })).toBeInTheDocument();
+  });
+
+  it('shows a distinct empty state when the catalog is genuinely empty', async () => {
+    const user = userEvent.setup();
+    renderSession({ kind: 'sets_reps', sets: 3, repsMin: 8 }, {}, []);
+
+    await user.click(await screen.findByRole('button', { name: /add exercise/i }));
+
+    expect(await screen.findByText('No exercises available yet.')).toBeInTheDocument();
   });
 });

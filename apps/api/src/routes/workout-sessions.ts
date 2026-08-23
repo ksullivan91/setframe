@@ -5,6 +5,7 @@ import { z } from 'zod';
 import {
   createWorkoutSessionSchema,
   createWorkoutSetSchema,
+  prescriptionSchema,
   workoutExerciseLogSchema,
   workoutSessionDetailSchema,
   workoutSessionSchema,
@@ -168,6 +169,10 @@ const exerciseLogSetsParamsSchema = z.object({ exerciseLogId: z.string().uuid() 
 const addExerciseLogSchema = z.object({
   exerciseId: z.string().uuid(),
   notes: z.string().nullable().optional(),
+  /* Story 08: an exercise added mid-session has no day-type row to inherit
+     a prescription from, so the client sends the one the user configured.
+     Optional, so older clients keep working and simply get a null snapshot. */
+  prescription: prescriptionSchema.optional(),
 });
 
 async function getOwnedSession(db: ReturnType<typeof getDb>, sessionId: string, userId: string) {
@@ -618,6 +623,7 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
           exerciseId: request.body.exerciseId,
           exerciseNameSnapshot: exerciseRows[0].name,
           notes: request.body.notes ?? null,
+          prescriptionSnapshot: request.body.prescription ?? null,
           sortOrder: existing.length,
         })
         .returning();

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { Plus } from 'lucide-react';
 import { spacing, radius } from '@setframe/design-tokens';
-import type { Exercise, Prescription } from '@setframe/schemas';
+import { prescriptionSchema, type Exercise, type Prescription } from '@setframe/schemas';
 import { Button, Input, Modal as SharedModal, Select } from './index';
 import { typeScale } from '../theme/typeScale';
 import { prescriptionOptions } from '../lib/prescription';
@@ -85,7 +85,7 @@ export function AddExercisePicker({
   onClose: () => void;
   onCreateExercise: (name: string) => Promise<Exercise>;
   isCreatingExercise: boolean;
-  onAddExercise: (exerciseId: string, prescription: Prescription) => void;
+  onAddExercise: (exerciseId: string, prescription: Prescription) => void | Promise<unknown>;
   isAddingExercise: boolean;
 }) {
   const [step, setStep] = useState<'search' | 'create' | 'configure'>('search');
@@ -95,6 +95,12 @@ export function AddExercisePicker({
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
   const [prescriptionKind, setPrescriptionKind] = useState('sets_reps');
   const [prescription, setPrescription] = useState<Prescription>(emptyPrescription('sets_reps'));
+  const [addError, setAddError] = useState<string | null>(null);
+
+  /* Every prescription field is `.positive()` in the schema, but clearing an
+     input yields `Number('') === 0`. Validate against the schema itself so
+     the button state can never drift from what the API will accept. */
+  const prescriptionValid = prescriptionSchema.safeParse(prescription).success;
 
   const filtered = useMemo(
     () => exercises.filter((exercise) => exercise.name.toLowerCase().includes(query.trim().toLowerCase())),
@@ -105,12 +111,14 @@ export function AddExercisePicker({
     setSelectedExercise(exercise);
     setPrescriptionKind('sets_reps');
     setPrescription(emptyPrescription('sets_reps'));
+    setAddError(null);
     setStep('configure');
   };
 
   const handlePrescriptionKindChange = (kind: string) => {
     setPrescriptionKind(kind);
     setPrescription(emptyPrescription(kind));
+    setAddError(null);
   };
 
   if (step === 'create') {
@@ -236,13 +244,24 @@ export function AddExercisePicker({
             </PrescriptionGrid>
           )}
 
+          {!prescriptionValid ? (
+            <Small role="alert">Every value must be greater than zero.</Small>
+          ) : null}
+          {addError ? <Small role="alert">{addError}</Small> : null}
           <Row style={{ justifyContent: 'flex-end' }}>
             <Button variant="secondary" onClick={() => setStep('search')}>Back</Button>
             <Button
-              disabled={isAddingExercise}
-              onClick={() => {
-                onAddExercise(selectedExercise.id, prescription);
-                onClose();
+              disabled={isAddingExercise || !prescriptionValid}
+              onClick={async () => {
+                // Close only once the add has landed, so a rejected request
+                // can never look like a success.
+                try {
+                  setAddError(null);
+                  await onAddExercise(selectedExercise.id, prescription);
+                  onClose();
+                } catch {
+                  setAddError("Couldn't add that exercise. Try again.");
+                }
               }}
             >
               Add to workout

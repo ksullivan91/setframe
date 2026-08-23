@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import type {
   Exercise,
+  Prescription,
   WorkoutSessionDetail,
   WorkoutSessionExerciseDetail,
   WorkoutSet,
@@ -13,6 +14,7 @@ import type {
 import { calculateVolume, detectRepPR, detectWeightPR, estimateOneRepMax } from '@setframe/domain';
 import { radius, spacing } from '@setframe/design-tokens';
 import { AsyncStatusIndicator, Button, Card, IconButton, Input, Modal, PRBadge, Select, Skeleton, SkeletonStack, useAsyncStatus, useToast } from '../components';
+import { AddExercisePicker } from '../components/AddExercisePicker';
 import { useApiClient } from '../lib/api-client';
 import {
   countsTowardVolume,
@@ -275,11 +277,6 @@ const EmptyText = styled.p`
   margin: 0;
 `;
 
-const SelectExerciseRow = styled.div`
-  display: grid;
-  gap: ${spacing[12]}px;
-`;
-
 const setTypeOptions = [
   { value: 'warmup', label: 'Warmup' },
   { value: 'working', label: 'Working' },
@@ -429,7 +426,6 @@ export function WorkoutSessionPage() {
   const [elapsedTick, setElapsedTick] = useState(0);
   const [pendingRemoval, setPendingRemoval] = useState<RemovalCandidate | null>(null);
   const [addExerciseOpen, setAddExerciseOpen] = useState(false);
-  const [newExerciseId, setNewExerciseId] = useState('');
   const lastMutationRef = useRef<(() => Promise<unknown>) | null>(null);
   const inlineStatus = useAsyncStatus();
 
@@ -501,15 +497,22 @@ export function WorkoutSessionPage() {
     onError: () => toast.show({ variant: 'error', message: 'Could not remove set.' }),
   });
 
+  /* Story 08: the session carries its own prescription snapshot because an
+     exercise added mid-session has no day-type row to inherit one from. */
   const addExerciseMutation = useMutation({
-    mutationFn: (exerciseId: string) => api.post(`/workout-sessions/${sessionId}/exercises`, { exerciseId }),
+    mutationFn: ({ exerciseId, prescription }: { exerciseId: string; prescription: Prescription }) =>
+      api.post(`/workout-sessions/${sessionId}/exercises`, { exerciseId, prescription }),
     onSuccess: async () => {
       await refreshSession();
       setAddExerciseOpen(false);
-      setNewExerciseId('');
       toast.show({ variant: 'success', message: 'Exercise added.' });
     },
     onError: () => toast.show({ variant: 'error', message: 'Could not add exercise.' }),
+  });
+
+  const createExerciseMutation = useMutation({
+    mutationFn: (name: string) => api.post<Exercise>('/exercises', { name }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['exercises'] }),
   });
 
   const finishWorkoutMutation = useMutation({
@@ -523,12 +526,6 @@ export function WorkoutSessionPage() {
   });
 
   const orderedExercises = useMemo(() => query.data?.exercises ?? [], [query.data]);
-  const exerciseIdsInSession = useMemo(() => new Set(orderedExercises.map((exerciseLog) => exerciseLog.exerciseId)), [orderedExercises]);
-  const addableExercises = useMemo(
-    () => (exercisesQuery.data ?? []).filter((exercise) => !exerciseIdsInSession.has(exercise.id)),
-    [exerciseIdsInSession, exercisesQuery.data],
-  );
-
   const totalSetsLogged = useMemo(
     () =>
       orderedExercises.reduce(
@@ -870,39 +867,20 @@ export function WorkoutSessionPage() {
         </Actions>
       </Modal>
 
-      <Modal
-        open={addExerciseOpen}
-        onClose={() => setAddExerciseOpen(false)}
-        title="Add exercise"
-        description="Insert another exercise mid-session without losing any logged sets."
-      >
-        <SelectExerciseRow>
-          <Select
-            label="Exercise"
-            value={newExerciseId}
-            onChange={(event) => setNewExerciseId(event.target.value)}
-            options={[
-              { value: '', label: addableExercises.length ? 'Select exercise' : 'No more exercises available' },
-              ...addableExercises.map((exercise) => ({
-                value: exercise.id,
-                label: exercise.isCustom ? `${exercise.name} (custom)` : exercise.name,
-              })),
-            ]}
-          />
-          <Actions>
-            <Button variant="secondary" onClick={() => setAddExerciseOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => newExerciseId && addExerciseMutation.mutate(newExerciseId)}
-              disabled={!newExerciseId || addExerciseMutation.isPending}
-              status={addExerciseMutation.isPending ? 'loading' : 'idle'}
-            >
-              Add exercise
-            </Button>
-          </Actions>
-        </SelectExerciseRow>
-      </Modal>
+      {addExerciseOpen ? (
+        <AddExercisePicker
+          exercises={exercisesQuery.data ?? []}
+          exercisesLoading={exercisesQuery.isLoading}
+          exercisesError={exercisesQuery.isError}
+          onRetryExercises={() => void exercisesQuery.refetch()}
+          onClose={() => setAddExerciseOpen(false)}
+          onCreateExercise={(name) => createExerciseMutation.mutateAsync(name)}
+          isCreatingExercise={createExerciseMutation.isPending}
+          onAddExercise={(exerciseId, prescription) => addExerciseMutation.mutateAsync({ exerciseId, prescription })}
+          isAddingExercise={addExerciseMutation.isPending}
+        />
+      ) : null}
+
     </Page>
   );
 }

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Modal, View, Text, Pressable, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
 import { X } from 'lucide-react-native';
 import { radius, spacing } from '@setframe/design-tokens';
-import type { Exercise, Prescription } from '@setframe/schemas';
+import { prescriptionSchema, type Exercise, type Prescription } from '@setframe/schemas';
 import { useTheme } from '../theme/ThemeProvider';
 import { typeScale } from '../theme/getTheme';
 import { Button } from './Button';
@@ -38,7 +38,7 @@ export interface AddExercisePickerProps {
   onClose: () => void;
   onCreateExercise: (name: string) => Promise<Exercise>;
   isCreatingExercise: boolean;
-  onAddExercise: (exerciseId: string, prescription: Prescription) => void;
+  onAddExercise: (exerciseId: string, prescription: Prescription) => void | Promise<unknown>;
   isAddingExercise: boolean;
 }
 
@@ -73,6 +73,63 @@ export function AddExercisePicker({
   const [createError, setCreateError] = useState<string | null>(null);
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
   const [prescriptionKind, setPrescriptionKind] = useState('sets_reps');
+  const [prescription, setPrescription] = useState<Prescription>(emptyPrescription('sets_reps'));
+  const [addError, setAddError] = useState<string | null>(null);
+
+  /* Every prescription field is `.positive()` in the schema, but clearing an
+     input yields `Number('') === 0`. Validate against the schema itself so
+     the button state can never drift from what the API will accept. */
+  const prescriptionValid = prescriptionSchema.safeParse(prescription).success;
+
+  const handlePrescriptionKindChange = (kind: string) => {
+    setPrescriptionKind(kind);
+    setPrescription(emptyPrescription(kind));
+    setAddError(null);
+  };
+
+  /* Numeric prescription config, matching the web picker field-for-field so
+     a program authored on one platform reads identically on the other. */
+  const numericField = (label: string, key: string, value: number) => (
+    <View key={key} style={{ flex: 1, minWidth: 120 }}>
+      <Input
+        label={label}
+        value={String(value)}
+        numeric
+        onChangeText={(next) =>
+          setPrescription((prev) => ({ ...prev, [key]: Number(next) || 0 }) as Prescription)
+        }
+        testID={`prescription-${key}`}
+      />
+    </View>
+  );
+
+  const prescriptionFields = () => {
+    switch (prescription.kind) {
+      case 'sets_reps':
+      case 'per_side':
+      case 'bodyweight_reps':
+        return [numericField('Sets', 'sets', prescription.sets), numericField('Reps', 'repsMin', prescription.repsMin)];
+      case 'timed':
+        return [
+          numericField('Sets', 'sets', prescription.sets),
+          numericField('Seconds', 'durationSeconds', prescription.durationSeconds),
+        ];
+      case 'duration':
+        return [numericField('Minutes', 'durationMinutes', prescription.durationMinutes)];
+      case 'distanceDuration':
+        return [
+          numericField('Distance (mi)', 'distanceMiles', prescription.distanceMiles),
+          numericField('Minutes', 'durationMinutes', prescription.durationMinutes),
+        ];
+      case 'distance':
+        return [
+          numericField('Sets', 'sets', prescription.sets),
+          numericField('Distance', 'distanceValue', prescription.distanceValue),
+        ];
+      default:
+        return [];
+    }
+  };
 
   const filtered = useMemo(
     () => exercises.filter((exercise) => exercise.name.toLowerCase().includes(query.trim().toLowerCase())),
@@ -86,6 +143,8 @@ export function AddExercisePicker({
     setCreateError(null);
     setSelectedExercise(null);
     setPrescriptionKind('sets_reps');
+    setPrescription(emptyPrescription('sets_reps'));
+    setAddError(null);
   }
 
   function handleClose() {
@@ -96,6 +155,8 @@ export function AddExercisePicker({
   function chooseExercise(exercise: Exercise) {
     setSelectedExercise(exercise);
     setPrescriptionKind('sets_reps');
+    setPrescription(emptyPrescription('sets_reps'));
+    setAddError(null);
     setStep('configure');
   }
 
@@ -209,16 +270,35 @@ export function AddExercisePicker({
 
           {step === 'configure' && selectedExercise ? (
             <View style={styles.body}>
-              <Select label="Prescription" value={prescriptionKind} options={prescriptionOptions} onChange={setPrescriptionKind} />
+              <Select
+                label="Prescription"
+                value={prescriptionKind}
+                options={prescriptionOptions}
+                onChange={handlePrescriptionKindChange}
+              />
+              <View style={styles.prescriptionGrid}>{prescriptionFields()}</View>
+              {!prescriptionValid ? (
+                <Text style={[styles.error, { color: theme.status.error }]}>
+                  Every value must be greater than zero.
+                </Text>
+              ) : null}
+              {addError ? <Text style={[styles.error, { color: theme.status.error }]}>{addError}</Text> : null}
               <View style={styles.footerRow}>
                 <Button label="Back" variant="secondary" onPress={() => setStep('search')} />
                 <Button
                   label="Add to workout"
-                  disabled={isAddingExercise}
+                  disabled={isAddingExercise || !prescriptionValid}
                   loading={isAddingExercise}
-                  onPress={() => {
-                    onAddExercise(selectedExercise.id, emptyPrescription(prescriptionKind));
-                    handleClose();
+                  onPress={async () => {
+                    // Close only once the add has landed, so a rejected
+                    // request can never look like a success.
+                    try {
+                      setAddError(null);
+                      await onAddExercise(selectedExercise.id, prescription);
+                      handleClose();
+                    } catch {
+                      setAddError("Couldn't add that exercise. Try again.");
+                    }
                   }}
                 />
               </View>
@@ -231,6 +311,14 @@ export function AddExercisePicker({
 }
 
 const styles = StyleSheet.create({
+  error: {
+    fontSize: typeScale.caption.fontSize,
+  },
+  prescriptionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing[8],
+  },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',

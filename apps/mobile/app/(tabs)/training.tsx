@@ -22,7 +22,7 @@ import { Card } from '../../src/components/Card';
 import { Button } from '../../src/components/Button';
 import { SetRowEditable } from '../../src/components/SetRow';
 import { IconButton } from '../../src/components/IconButton';
-import { Select } from '../../src/components/Select';
+import { AddExercisePicker } from '../../src/components/AddExercisePicker';
 import { useApiClient } from '../../src/lib/api-client';
 import {
   countsTowardVolume,
@@ -192,7 +192,6 @@ export default function TrainingScreen() {
   const routeSessionId = Array.isArray(rawSessionId) ? rawSessionId[0] : rawSessionId;
   const [elapsedLabel, setElapsedLabel] = useState('—');
   const [showAddExercise, setShowAddExercise] = useState(false);
-  const [selectedExerciseId, setSelectedExerciseId] = useState('');
   const [drafts, setDrafts] = useState<Record<string, SetDraft>>({});
   const [createdSessionId, setCreatedSessionId] = useState<string | undefined>();
 
@@ -332,13 +331,20 @@ export default function TrainingScreen() {
     onSuccess: refreshSession,
   });
 
+  /* The session carries its own prescription snapshot, because an exercise
+     added mid-session has no day-type row to inherit one from. */
   const addExerciseMutation = useMutation({
-    mutationFn: (exerciseId: string) => api.post(`/workout-sessions/${resolvedSessionId}/exercises`, { exerciseId }),
+    mutationFn: ({ exerciseId, prescription }: { exerciseId: string; prescription: Prescription }) =>
+      api.post(`/workout-sessions/${resolvedSessionId}/exercises`, { exerciseId, prescription }),
     onSuccess: async () => {
       setShowAddExercise(false);
-      setSelectedExerciseId('');
       await refreshSession();
     },
+  });
+
+  const createExerciseMutation = useMutation({
+    mutationFn: (name: string) => api.post<Exercise>('/exercises', { name }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['exercises'] }),
   });
 
   const finishMutation = useMutation({
@@ -361,11 +367,6 @@ export default function TrainingScreen() {
       ),
     [historyQueries, sessionQuery.data],
   );
-
-  const addableExercises = useMemo(() => {
-    const usedExerciseIds = new Set((sessionQuery.data?.exercises ?? []).map((exerciseLog) => exerciseLog.exerciseId));
-    return (exercisesQuery.data ?? []).filter((exercise) => !usedExerciseIds.has(exercise.id));
-  }, [exercisesQuery.data, sessionQuery.data]);
 
   // Timed, distance and bodyweight work carries no weight, so including it
   // would contribute nothing while making the total look authoritative.
@@ -552,31 +553,42 @@ export default function TrainingScreen() {
         );
       })}
 
+      {/* Story 08: one self-contained flow — search the canonical catalog,
+          create a custom exercise, configure it, add it, all without leaving
+          the session. */}
       <Card>
         <Text style={[styles.sectionLabel, { color: theme.text.primary }]}>Add exercise</Text>
-        <Select
-          value={selectedExerciseId}
-          onChange={setSelectedExerciseId}
-          options={[
-            { value: '', label: addableExercises.length ? 'Select exercise' : 'No more exercises available' },
-            ...addableExercises.map((exercise) => ({ value: exercise.id, label: exercise.name })),
-          ]}
-        />
+        <Text style={[styles.helperNote, { color: theme.text.secondary }]}>
+          Search the catalog or create something new without leaving this workout.
+        </Text>
         <View style={styles.addSetRow}>
-          <IconButton icon={Plus} accessibilityLabel="Toggle add exercise" onPress={() => setShowAddExercise((value) => !value)} />
-          <Text style={{ color: theme.action.primary }} onPress={() => setShowAddExercise((value) => !value)}>
+          <IconButton
+            icon={Plus}
+            accessibilityLabel="Add exercise to this workout"
+            onPress={() => sessionQuery.data.status !== 'completed' && setShowAddExercise(true)}
+          />
+          <Text
+            style={{ color: theme.action.primary }}
+            accessibilityRole="button"
+            onPress={() => sessionQuery.data.status !== 'completed' && setShowAddExercise(true)}
+          >
             Add exercise
           </Text>
         </View>
-        {showAddExercise ? (
-          <Button
-            label="Confirm add exercise"
-            disabled={!selectedExerciseId}
-            loading={addExerciseMutation.isPending}
-            onPress={() => addExerciseMutation.mutate(selectedExerciseId)}
-          />
-        ) : null}
       </Card>
+
+      <AddExercisePicker
+        open={showAddExercise}
+        exercises={exercisesQuery.data ?? []}
+        exercisesLoading={exercisesQuery.isLoading}
+        exercisesError={exercisesQuery.isError}
+        onRetryExercises={() => void exercisesQuery.refetch()}
+        onClose={() => setShowAddExercise(false)}
+        onCreateExercise={(name) => createExerciseMutation.mutateAsync(name)}
+        isCreatingExercise={createExerciseMutation.isPending}
+        onAddExercise={(exerciseId, prescription) => addExerciseMutation.mutateAsync({ exerciseId, prescription })}
+        isAddingExercise={addExerciseMutation.isPending}
+      />
     </ScrollView>
   );
 }
