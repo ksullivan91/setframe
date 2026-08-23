@@ -68,6 +68,16 @@ export interface LineChartOptions {
    * amplify floating-point dust into a dramatic-looking line.
    */
   minimumSpan?: number;
+  /**
+   * Forces the y-domain instead of deriving it from `series`. Required when
+   * two series are drawn on the same axes: an overlay (say an EWMA) always
+   * has a narrower spread than the raw data it smooths, so letting each
+   * derive its own domain would stretch the overlay and draw the same value
+   * at two different heights.
+   */
+  domain?: { min: number; max: number };
+  /** Forces the x (date) axis, for the same reason as `domain`. */
+  dayBounds?: { first: number; last: number };
 }
 
 export interface LineChart<Meta = unknown> {
@@ -78,6 +88,8 @@ export interface LineChart<Meta = unknown> {
   areaPath: string;
   ticks: AxisTick[];
   domain: { min: number; max: number };
+  /** Day-number extent of the x-axis, for pinning an overlay to it. */
+  dayBounds: { first: number; last: number };
   plot: { x: number; y: number; width: number; height: number };
 }
 
@@ -136,7 +148,8 @@ export function buildLineChart<Meta>(
       path: '',
       areaPath: '',
       ticks: [],
-      domain: { min: 0, max: 1 },
+      domain: options.domain ?? { min: 0, max: 1 },
+      dayBounds: options.dayBounds ?? { first: 0, last: 0 },
       plot,
     };
   }
@@ -151,16 +164,17 @@ export function buildLineChart<Meta>(
     high = centre + minimumSpan / 2;
   }
 
-  const scale = niceScale(low, high, tickCount);
-  const domainMin = zeroBased ? 0 : scale.min;
-  const domainMax = scale.max > domainMin ? scale.max : domainMin + (scale.step || 1);
+  const scale = niceScale(options.domain?.min ?? low, options.domain?.max ?? high, tickCount);
+  const domainMin = options.domain ? options.domain.min : zeroBased ? 0 : scale.min;
+  const rawDomainMax = options.domain ? options.domain.max : scale.max;
+  const domainMax = rawDomainMax > domainMin ? rawDomainMax : domainMin + (scale.step || 1);
   const span = domainMax - domainMin;
 
   // The x-axis is a real date axis, so a fortnight's gap between two
   // check-ins is drawn as a fortnight rather than as one even step.
   const days = present.map((point) => toDayNumber(point.localDate));
-  const firstDay = Math.min(...days);
-  const lastDay = Math.max(...days);
+  const firstDay = options.dayBounds?.first ?? Math.min(...days);
+  const lastDay = options.dayBounds?.last ?? Math.max(...days);
   const dayRange = lastDay - firstDay;
 
   const points: PlottedPoint<Meta>[] = present.map((point) => {
@@ -194,7 +208,15 @@ export function buildLineChart<Meta>(
     });
   }
 
-  return { points, path, areaPath, ticks, domain: { min: domainMin, max: domainMax }, plot };
+  return {
+    points,
+    path,
+    areaPath,
+    ticks,
+    domain: { min: domainMin, max: domainMax },
+    dayBounds: { first: firstDay, last: lastDay },
+    plot,
+  };
 }
 
 export interface ColumnChartOptions {

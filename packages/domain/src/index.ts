@@ -11,3 +11,4 @@ export * from './progress-metrics';
 export * from './weight-trend';
 export * from './training-trends';
 export * from './chart-geometry';
+export * from './progress-format';

@@ -213,3 +213,57 @@ describe('ranges', () => {
     }
   });
 });
+
+describe('shared domains for overlaid series', () => {
+  const layout = { width: 320, height: 160, padding: { top: 10, right: 10, bottom: 22, left: 40 } };
+
+  it('draws the same value at the same height in both series', () => {
+    const raw = [
+      { localDate: '2025-07-01', value: 170 },
+      { localDate: '2025-07-02', value: 165 },
+      { localDate: '2025-07-03', value: 175 },
+    ];
+    const trend = [
+      { localDate: '2025-07-01', value: 170 },
+      { localDate: '2025-07-02', value: 169.5 },
+      { localDate: '2025-07-03', value: 170.2 },
+    ];
+    const domainChart = buildLineChart([...raw, ...trend], { layout });
+    const shared = { domain: domainChart.domain, dayBounds: domainChart.dayBounds };
+    const rawChart = buildLineChart(raw, { layout, ...shared });
+    const trendChart = buildLineChart(trend, { layout, ...shared });
+
+    expect(rawChart.domain).toEqual(trendChart.domain);
+    // 170 appears in both series; it must land on one y.
+    expect(rawChart.points[0]!.y).toBeCloseTo(trendChart.points[0]!.y, 6);
+  });
+
+  it('pins both series to the same date axis when their spans differ', () => {
+    const raw = [
+      { localDate: '2025-07-01', value: 10 },
+      { localDate: '2025-07-31', value: 20 },
+    ];
+    const short = [
+      { localDate: '2025-07-10', value: 12 },
+      { localDate: '2025-07-20', value: 16 },
+    ];
+    const domainChart = buildLineChart([...raw, ...short], { layout });
+    const shared = { domain: domainChart.domain, dayBounds: domainChart.dayBounds };
+    const shortChart = buildLineChart(short, { layout, ...shared });
+
+    // Without shared bounds the short series would span the full plot width.
+    expect(shortChart.points[0]!.x).toBeGreaterThan(shortChart.plot.x);
+    expect(shortChart.points.at(-1)!.x).toBeLessThan(shortChart.plot.x + shortChart.plot.width);
+  });
+
+  it('reports day bounds so an overlay can adopt them', () => {
+    const chart = buildLineChart(
+      [
+        { localDate: '2025-07-01', value: 1 },
+        { localDate: '2025-07-08', value: 2 },
+      ],
+      { layout },
+    );
+    expect(chart.dayBounds.last - chart.dayBounds.first).toBe(7);
+  });
+});

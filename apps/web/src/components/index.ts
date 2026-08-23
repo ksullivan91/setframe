@@ -16,3 +16,5 @@ export * from './Skeleton';
 export * from './ProgressRing';
 export * from './WeekScheduleEditor';
 export * from './ExerciseEditModal';
+export * from './Charts';
+export * from './MetricInfo';
