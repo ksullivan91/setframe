@@ -9,7 +9,7 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
-- `11-automated-visual-and-e2e-testing.md` — deferred by request. Filed so the
+- `WAIT-automated-visual-and-e2e-testing.md` — deferred by request. Filed so the
   gap is tracked, deliberately not started.
 
 ## Shipped
