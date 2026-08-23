@@ -115,14 +115,23 @@ describe('workout session routes', () => {
     vi.clearAllMocks();
   });
 
-  it('creates a set with provided setType and weight PR flag', async () => {
+  /**
+   * PR flags are derived, not incremental: every mutation re-resolves the
+   * whole exercise log against all-time history. These mocks therefore feed
+   * the recompute two selects — the history baseline, then the log's sets.
+   */
+  it('creates a set and resolves it as a weight PR against all-time history', async () => {
+    const insertedRow = { ...setRow, isPrWeight: false, isPrReps: false };
     mockSelect
       .mockReturnValueOnce(selectChain([userRow]))
       .mockReturnValueOnce(selectChain([{ log: logRow, session: sessionRow }]))
       .mockReturnValueOnce(selectChain([]))
       .mockReturnValueOnce(selectChain([]))
-      .mockReturnValueOnce(selectChain([{ loadValue: '205', reps: 5 }, { loadValue: '215', reps: 3 }]));
-    mockInsert.mockReturnValueOnce(insertChain([{ ...setRow, isPrWeight: true, isPrReps: false }]));
+      // Recompute: history, then every persisted set for this exercise.
+      .mockReturnValueOnce(selectChain([{ loadValue: '205', reps: 5, setType: 'working' }, { loadValue: '215', reps: 3, setType: 'top' }]))
+      .mockReturnValueOnce(selectChain([{ set: insertedRow, logSortOrder: 0 }]));
+    mockInsert.mockReturnValueOnce(insertChain([insertedRow]));
+    mockUpdate.mockReturnValue(updateChain([]));
 
     const app = buildApp();
     const response = await app.inject({
@@ -133,17 +142,23 @@ describe('workout session routes', () => {
     });
 
     expect(response.statusCode).toBe(201);
+    // 225 beats the 215 all-time best. It is not a rep PR: 225 has never been
+    // lifted before, so there is no rep count at that load to beat.
     expect(response.json()).toMatchObject({ setType: 'top', isPrWeight: true, isPrReps: false, weightValue: 225, reps: 5 });
     await app.close();
   });
 
   it('does not flag weight or reps PR for warmup sets', async () => {
+    const warmupRow = { ...setRow, setType: 'warmup', isPrWeight: false, isPrReps: false, notes: null, loadValue: '225' };
     mockSelect
       .mockReturnValueOnce(selectChain([userRow]))
       .mockReturnValueOnce(selectChain([{ log: logRow, session: sessionRow }]))
       .mockReturnValueOnce(selectChain([]))
-      .mockReturnValueOnce(selectChain([]));
-    mockInsert.mockReturnValueOnce(insertChain([{ ...setRow, setType: 'warmup', isPrWeight: false, isPrReps: false, notes: null, loadValue: '225' }]));
+      .mockReturnValueOnce(selectChain([]))
+      .mockReturnValueOnce(selectChain([{ loadValue: '205', reps: 5, setType: 'working' }]))
+      .mockReturnValueOnce(selectChain([{ set: warmupRow, logSortOrder: 0 }]));
+    mockInsert.mockReturnValueOnce(insertChain([warmupRow]));
+    mockUpdate.mockReturnValue(updateChain([]));
 
     const app = buildApp();
     const response = await app.inject({
@@ -158,12 +173,41 @@ describe('workout session routes', () => {
     await app.close();
   });
 
+  it('awards no PR at all when the exercise has no prior history', async () => {
+    // The bug this guards: an empty baseline used to compare against zero, so
+    // the very first set of a brand new exercise always looked like a record.
+    const insertedRow = { ...setRow, loadValue: '1', reps: 1, isPrWeight: false, isPrReps: false };
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([{ log: logRow, session: sessionRow }]))
+      .mockReturnValueOnce(selectChain([]))
+      .mockReturnValueOnce(selectChain([]))
+      .mockReturnValueOnce(selectChain([]))
+      .mockReturnValueOnce(selectChain([{ set: insertedRow, logSortOrder: 0 }]));
+    mockInsert.mockReturnValueOnce(insertChain([insertedRow]));
+    mockUpdate.mockReturnValue(updateChain([]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: `/v1/workout-exercise-logs/${logRow.id}/sets`,
+      headers: authHeader,
+      payload: { clientId: setRow.clientId, setType: 'top', weightValue: 1, weightUnit: 'lb', reps: 1 },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({ isPrWeight: false, isPrReps: false });
+    await app.close();
+  });
+
   it('recomputes rep PR on set update', async () => {
+    const updatedRow = { ...setRow, reps: 5, isPrWeight: false, isPrReps: false };
     mockSelect
       .mockReturnValueOnce(selectChain([userRow]))
       .mockReturnValueOnce(selectChain([{ set: setRow, session: sessionRow, log: logRow }]))
-      .mockReturnValueOnce(selectChain([{ loadValue: '225', reps: 4 }, { loadValue: '235', reps: 3 }]))
-    mockUpdate.mockReturnValueOnce(updateChain([{ ...setRow, reps: 5, isPrWeight: false, isPrReps: true }]));
+      .mockReturnValueOnce(selectChain([{ loadValue: '225', reps: 4, setType: 'top' }, { loadValue: '235', reps: 3, setType: 'top' }]))
+      .mockReturnValueOnce(selectChain([{ set: updatedRow, logSortOrder: 0 }]));
+    mockUpdate.mockReturnValue(updateChain([updatedRow]));
 
     const app = buildApp();
     const response = await app.inject({
@@ -174,16 +218,20 @@ describe('workout session routes', () => {
     });
 
     expect(response.statusCode).toBe(200);
+    // 5 reps at 225 beats the 4 previously done at that exact load; 235 is
+    // heavier but only ever went for 3.
     expect(response.json()).toMatchObject({ isPrWeight: false, isPrReps: true, reps: 5, setType: 'top' });
     await app.close();
   });
 
   it('does not flag rep PR when history already matches or beats it', async () => {
+    const updatedRow = { ...setRow, setType: 'backoff', reps: 5, isPrWeight: false, isPrReps: false, notes: null };
     mockSelect
       .mockReturnValueOnce(selectChain([userRow]))
       .mockReturnValueOnce(selectChain([{ set: setRow, session: sessionRow, log: logRow }]))
-      .mockReturnValueOnce(selectChain([{ loadValue: '225', reps: 5 }, { loadValue: '235', reps: 6 }]))
-    mockUpdate.mockReturnValueOnce(updateChain([{ ...setRow, setType: 'backoff', reps: 5, isPrWeight: false, isPrReps: false, notes: null }]));
+      .mockReturnValueOnce(selectChain([{ loadValue: '225', reps: 5, setType: 'top' }, { loadValue: '235', reps: 6, setType: 'top' }]))
+      .mockReturnValueOnce(selectChain([{ set: updatedRow, logSortOrder: 0 }]));
+    mockUpdate.mockReturnValue(updateChain([updatedRow]));
 
     const app = buildApp();
     const response = await app.inject({

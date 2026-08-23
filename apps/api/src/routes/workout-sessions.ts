@@ -12,7 +12,7 @@ import {
   workoutSetSchema,
   type Prescription,
 } from '@setframe/schemas';
-import { detectRepPR, detectWeightPR, type HistoricalSet } from '@setframe/domain';
+import { resolveSessionPRs, toPrBaseline, type HistoricalSet } from '@setframe/domain';
 import {
   dayType,
   dayTypeExercise,
@@ -26,7 +26,6 @@ import { getDb } from '../lib/db.js';
 import { requireAuth } from '../plugins/auth.js';
 import { badRequest, forbidden, notFound } from '../lib/errors.js';
 
-const prEligibleSetTypes: ReadonlySet<LoggedSetType> = new Set(['working', 'top', 'backoff']);
 type LoggedSetType = 'warmup' | 'working' | 'top' | 'backoff' | 'drop' | 'failure';
 
 function toSessionResponse(row: typeof workoutSession.$inferSelect) {
@@ -213,11 +212,19 @@ async function getOwnedSet(db: ReturnType<typeof getDb>, setId: string, userId: 
   return row;
 }
 
+/**
+ * All-time PR baseline for one exercise: every qualifying set from the user's
+ * previously completed sessions.
+ *
+ * `excludeSessionId` keeps a session out of its own baseline. Without it,
+ * editing a set after the session was completed would compare that set
+ * against itself and never register a record.
+ */
 async function getHistoricalSets(
   db: ReturnType<typeof getDb>,
   userId: string,
   exerciseId: string,
-  excludeSetId?: string,
+  excludeSessionId?: string,
 ): Promise<HistoricalSet[]> {
   const conditions = [
     eq(workoutSession.userId, userId),
@@ -225,20 +232,26 @@ async function getHistoricalSets(
     eq(workoutExerciseLog.exerciseId, exerciseId),
     isNotNull(workoutSet.loadValue),
     isNotNull(workoutSet.reps),
+    // Sets pre-populated from a program template carry a planned load but
+    // were never performed, so they must not enter the baseline.
+    eq(workoutSet.completed, true),
   ];
-  if (excludeSetId) conditions.push(ne(workoutSet.id, excludeSetId));
+  if (excludeSessionId) conditions.push(ne(workoutSession.id, excludeSessionId));
 
   const rows = await db
-    .select({ loadValue: workoutSet.loadValue, reps: workoutSet.reps })
+    .select({ loadValue: workoutSet.loadValue, reps: workoutSet.reps, setType: workoutSet.setType })
     .from(workoutSet)
     .innerJoin(workoutExerciseLog, eq(workoutExerciseLog.id, workoutSet.exerciseLogId))
     .innerJoin(workoutSession, eq(workoutSession.id, workoutExerciseLog.sessionId))
     .where(and(...conditions));
 
-  return rows.map((row) => ({
-    weightValue: row.loadValue != null ? Number(row.loadValue) : null,
-    reps: row.reps,
-  }));
+  return toPrBaseline(
+    rows.map((row) => ({
+      setType: row.setType,
+      weightValue: row.loadValue != null ? Number(row.loadValue) : null,
+      reps: row.reps,
+    })),
+  );
 }
 
 async function getPreviousCompletedSessionForExercises(
@@ -298,25 +311,77 @@ async function getPreviousCompletedSessionForExercises(
   return result;
 }
 
-async function detectPrFlags(params: {
+/**
+ * Recomputes PR flags for every set of one exercise log and persists any that
+ * changed.
+ *
+ * PR state is derived, never incremental: a set is only a record relative to
+ * the sets logged before it, so creating, editing, deleting or reordering any
+ * set can promote or demote any other. Resolving the whole log from scratch
+ * is the only way the badges stay consistent, and it means the persisted
+ * flags always match what `resolveSessionPRs` renders in the apps.
+ *
+ * The read and the writes are not serialized — neon-http has no interactive
+ * transactions — so two concurrent mutations on the same exercise could race
+ * and leave one stale flag. It self-heals on the next mutation, and both
+ * clients await a session refetch between saves, so the window is small.
+ */
+async function recalculateLogPrFlags(params: {
   db: ReturnType<typeof getDb>;
   userId: string;
   exerciseId: string;
-  setType: LoggedSetType;
-  weightValue: number | null;
-  reps: number | null;
-  excludeSetId?: string;
+  sessionId: string;
 }) {
-  if (!prEligibleSetTypes.has(params.setType)) {
-    return { isPrWeight: false, isPrReps: false };
-  }
+  const { db, exerciseId, sessionId } = params;
 
-  const history = await getHistoricalSets(params.db, params.userId, params.exerciseId, params.excludeSetId);
-  const candidate = { weightValue: params.weightValue, reps: params.reps };
-  return {
-    isPrWeight: detectWeightPR(candidate, history),
-    isPrReps: detectRepPR(candidate, history),
-  };
+  // Scope the candidates to the exercise, not the log: an exercise can be
+  // added to a session twice, and those logs share one record progression.
+  // `getHistoricalSets` excludes the whole session, so anything in-session
+  // has to come from here or it would drop out of its own baseline.
+  const [history, rows] = await Promise.all([
+    getHistoricalSets(db, params.userId, exerciseId, sessionId),
+    db
+      .select({ set: workoutSet, logSortOrder: workoutExerciseLog.sortOrder })
+      .from(workoutSet)
+      .innerJoin(workoutExerciseLog, eq(workoutExerciseLog.id, workoutSet.exerciseLogId))
+      .where(and(eq(workoutExerciseLog.sessionId, sessionId), eq(workoutExerciseLog.exerciseId, exerciseId))),
+  ]);
+
+  // `sortOrder` is not reassigned on delete, so duplicates are possible. The
+  // fold is order-sensitive, so break ties deterministically — otherwise the
+  // same log could resolve to different badges on successive recomputes.
+  const ordered = [...rows].sort(
+    (a, b) =>
+      a.logSortOrder - b.logSortOrder ||
+      a.set.sortOrder - b.set.sortOrder ||
+      a.set.createdAt.getTime() - b.set.createdAt.getTime() ||
+      a.set.id.localeCompare(b.set.id),
+  );
+
+  const flags = resolveSessionPRs({
+    history,
+    sets: ordered.map(({ set }) => ({
+      id: set.id,
+      setType: set.setType,
+      completed: set.completed,
+      weightValue: set.loadValue != null ? Number(set.loadValue) : null,
+      reps: set.reps,
+    })),
+  });
+
+  await Promise.all(
+    ordered
+      .map(({ set }) => ({ set, next: flags.get(set.id)! }))
+      .filter(({ set, next }) => set.isPrWeight !== next.isPrWeight || set.isPrReps !== next.isPrReps)
+      .map(({ set, next }) =>
+        db
+          .update(workoutSet)
+          .set({ isPrWeight: next.isPrWeight, isPrReps: next.isPrReps })
+          .where(eq(workoutSet.id, set.id)),
+      ),
+  );
+
+  return flags;
 }
 
 export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
@@ -690,14 +755,6 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
         .select()
         .from(workoutSet)
         .where(eq(workoutSet.exerciseLogId, request.params.exerciseLogId));
-      const prFlags = await detectPrFlags({
-        db,
-        userId: request.userId!,
-        exerciseId: log.exerciseId,
-        setType: request.body.setType,
-        weightValue: request.body.weightValue ?? null,
-        reps: request.body.reps ?? null,
-      });
       const rows = await db
         .insert(workoutSet)
         .values({
@@ -713,13 +770,20 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
           distanceUnit: request.body.distanceUnit ?? null,
           rpe: request.body.rpe?.toString() ?? null,
           completed: true,
-          isPrWeight: prFlags.isPrWeight,
-          isPrReps: prFlags.isPrReps,
+          isPrWeight: false,
+          isPrReps: false,
           notes: null,
         })
         .returning();
+
+      const flags = await recalculateLogPrFlags({
+        db,
+        userId: request.userId!,
+        exerciseId: log.exerciseId,
+        sessionId: log.sessionId,
+      });
       reply.status(201);
-      return toSetResponse(rows[0]!);
+      return toSetResponse({ ...rows[0]!, ...(flags.get(rows[0]!.id) ?? {}) });
     },
   );
 
@@ -737,17 +801,6 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
       const db = getDb();
       const ownedSet = await getOwnedSet(db, request.params.setId, request.userId!);
       const nextSetType = (request.body.setType ?? ownedSet.set.setType) as LoggedSetType;
-      const nextWeightValue = request.body.weightValue ?? (ownedSet.set.loadValue != null ? Number(ownedSet.set.loadValue) : null);
-      const nextReps = request.body.reps ?? ownedSet.set.reps;
-      const prFlags = await detectPrFlags({
-        db,
-        userId: request.userId!,
-        exerciseId: ownedSet.log.exerciseId,
-        setType: nextSetType,
-        weightValue: nextWeightValue,
-        reps: nextReps,
-        excludeSetId: request.params.setId,
-      });
       const rows = await db
         .update(workoutSet)
         .set({
@@ -759,13 +812,23 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
           distanceValue: request.body.distanceValue?.toString() ?? ownedSet.set.distanceValue,
           distanceUnit: request.body.distanceUnit ?? ownedSet.set.distanceUnit,
           rpe: request.body.rpe?.toString() ?? ownedSet.set.rpe,
-          isPrWeight: prFlags.isPrWeight,
-          isPrReps: prFlags.isPrReps,
+          // Saving a set is the act of logging it, so an edit marks it
+          // performed unless the client says otherwise. Without this, sets
+          // seeded from a program would stay `completed: false` forever and
+          // never become PR-eligible.
+          completed: request.body.completed ?? true,
           updatedAt: new Date(),
         })
         .where(eq(workoutSet.id, request.params.setId))
         .returning();
-      return toSetResponse(rows[0]!);
+
+      const flags = await recalculateLogPrFlags({
+        db,
+        userId: request.userId!,
+        exerciseId: ownedSet.log.exerciseId,
+        sessionId: ownedSet.log.sessionId,
+      });
+      return toSetResponse({ ...rows[0]!, ...(flags.get(request.params.setId) ?? {}) });
     },
   );
 
@@ -777,8 +840,15 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
     },
     async (request, reply) => {
       const db = getDb();
-      await getOwnedSet(db, request.params.setId, request.userId!);
+      const ownedSet = await getOwnedSet(db, request.params.setId, request.userId!);
       await db.delete(workoutSet).where(eq(workoutSet.id, request.params.setId));
+      // Removing a set can hand a record back to an earlier one.
+      await recalculateLogPrFlags({
+        db,
+        userId: request.userId!,
+        exerciseId: ownedSet.log.exerciseId,
+        sessionId: ownedSet.log.sessionId,
+      });
       reply.status(204);
       return null;
     },
@@ -796,7 +866,7 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
     },
     async (request) => {
       const db = getDb();
-      await getOwnedExerciseLog(db, request.params.exerciseLogId, request.userId!);
+      const log = await getOwnedExerciseLog(db, request.params.exerciseLogId, request.userId!);
       await Promise.all(
         request.body.setIdsInOrder.map((setId, index) =>
           db
@@ -805,6 +875,13 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
             .where(and(eq(workoutSet.id, setId), eq(workoutSet.exerciseLogId, request.params.exerciseLogId))),
         ),
       );
+      // PRs are order-dependent, so a reorder can move a badge to another set.
+      await recalculateLogPrFlags({
+        db,
+        userId: request.userId!,
+        exerciseId: log.exerciseId,
+        sessionId: log.sessionId,
+      });
       return { ok: true as const };
     },
   );

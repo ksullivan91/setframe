@@ -109,6 +109,10 @@ function renderSession(
     if (path === '/exercises') return Promise.resolve(exercises);
     return Promise.resolve(null);
   };
+  return renderPage();
+}
+
+function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <MemoryRouter initialEntries={['/workout/session-1']}>
@@ -320,5 +324,69 @@ describe('WorkoutSessionPage mid-session add exercise', () => {
     await user.click(await screen.findByRole('button', { name: /add exercise/i }));
 
     expect(await screen.findByText('No exercises available yet.')).toBeInTheDocument();
+  });
+});
+
+/**
+ * Story 10 — in a real session an opening 85 x 6, a heavier 105 x 6 and a
+ * deliberate 1 lb x 1 probe all lit up both badges at once. The page used to
+ * OR the server's flags with its own guess computed from the previous session
+ * alone, so a client-side false positive could never be cleared.
+ */
+describe('WorkoutSessionPage PR badges', () => {
+  function renderSets(sets: { weightValue: number; reps: number; isPrWeight: boolean; isPrReps: boolean }[]) {
+    const session = buildSession({ kind: 'sets_reps', sets: 3, repsMin: 5 }) as unknown as {
+      exercises: { sets: unknown[]; previousSession: unknown }[];
+    };
+    session.exercises[0]!.previousSession = {
+      sessionId: 'session-0',
+      localDate: '2026-08-20',
+      completedAt: '2026-08-20T16:00:00.000Z',
+      sets: [{ weightValue: 80, reps: 5, durationSeconds: null, distanceValue: null, distanceUnit: null, rpe: null }],
+    };
+    session.exercises[0]!.sets = sets.map((set, index) => ({
+      id: `set-${index + 1}`,
+      exerciseLogId: 'log-1',
+      clientId: `2222222${index}-1111-4111-8111-111111111111`,
+      sortOrder: index,
+      setType: 'working',
+      weightUnit: 'lb',
+      durationSeconds: null,
+      distanceValue: null,
+      distanceUnit: null,
+      rpe: null,
+      createdAt: '2026-08-22T15:00:00.000Z',
+      updatedAt: '2026-08-22T15:00:00.000Z',
+      ...set,
+    }));
+
+    mockGet = (path: string) => {
+      if (path.startsWith('/workout-sessions/')) return Promise.resolve(session);
+      if (path === '/exercises') return Promise.resolve([]);
+      return Promise.resolve(null);
+    };
+    return renderPage();
+  }
+
+  it('shows one Weight PR badge, on the set the server flagged', async () => {
+    renderSets([
+      { weightValue: 85, reps: 6, isPrWeight: false, isPrReps: false },
+      { weightValue: 105, reps: 6, isPrWeight: true, isPrReps: false },
+      { weightValue: 1, reps: 1, isPrWeight: false, isPrReps: false },
+    ]);
+
+    expect(await screen.findAllByText('Weight PR')).toHaveLength(1);
+    expect(screen.queryByText('Rep PR')).not.toBeInTheDocument();
+  });
+
+  it('renders no badges when the server flagged none', async () => {
+    renderSets([
+      { weightValue: 85, reps: 6, isPrWeight: false, isPrReps: false },
+      { weightValue: 105, reps: 6, isPrWeight: false, isPrReps: false },
+    ]);
+
+    await screen.findAllByLabelText('Weight');
+    expect(screen.queryByText('Weight PR')).not.toBeInTheDocument();
+    expect(screen.queryByText('Rep PR')).not.toBeInTheDocument();
   });
 });

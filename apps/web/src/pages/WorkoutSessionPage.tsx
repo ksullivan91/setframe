@@ -11,7 +11,7 @@ import type {
   WorkoutSet,
   WorkoutSetPreviousPerformance,
 } from '@setframe/schemas';
-import { calculateVolume, detectRepPR, detectWeightPR, estimateOneRepMax } from '@setframe/domain';
+import { calculateVolume, estimateOneRepMax } from '@setframe/domain';
 import { radius, spacing } from '@setframe/design-tokens';
 import { AsyncStatusIndicator, Button, Card, IconButton, Input, Modal, PRBadge, Select, Skeleton, SkeletonStack, useAsyncStatus, useToast } from '../components';
 import { AddExercisePicker } from '../components/AddExercisePicker';
@@ -412,10 +412,6 @@ function draftToValues(draft: DraftValues, definition: PrescriptionDefinition) {
   };
 }
 
-function isStrengthLikeSet(set: WorkoutSet | WorkoutSetPreviousPerformance) {
-  return set.weightValue != null || set.reps != null;
-}
-
 export function WorkoutSessionPage() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
@@ -684,14 +680,6 @@ export function WorkoutSessionPage() {
                   const fieldErrors = validateSessionSet(exerciseLog.prescription, draftValues);
                   const plannedValue = getPlannedValue(set, index, exerciseLog);
                   const previousValue = getPreviousSet(exerciseLog.previousSession?.sets[index], exerciseLog);
-                  const candidate = {
-                    weightValue: parseOptionalNumber(draft.weightValue) ?? null,
-                    reps: parseOptionalNumber(draft.reps) ?? null,
-                  };
-                  const priorStrengthHistory = (exerciseLog.previousSession?.sets ?? []).filter(isStrengthLikeSet);
-                  const optimisticWeightPr = detectWeightPR(candidate, priorStrengthHistory);
-                  const optimisticRepPr = detectRepPR(candidate, priorStrengthHistory);
-
                   return (
                     <SetCard key={set.id}>
                       <SetCardHeader>
@@ -702,8 +690,14 @@ export function WorkoutSessionPage() {
                         <Chips>
                           {plannedValue ? <CuePill>Planned: {plannedValue}</CuePill> : null}
                           {previousValue ? <CuePill>Prev: {previousValue}</CuePill> : null}
-                          {set.isPrWeight || optimisticWeightPr ? <PRBadge label="Weight PR" /> : null}
-                          {set.isPrReps || optimisticRepPr ? <PRBadge label="Rep PR" /> : null}
+                          {/* PR flags come straight from the server, which
+                              resolves them against all-time history for the
+                              whole exercise log after every save. The client
+                              only ever saw the previous session, so guessing
+                              here produced badges that contradicted the
+                              persisted state. */}
+                          {set.isPrWeight ? <PRBadge label="Weight PR" /> : null}
+                          {set.isPrReps ? <PRBadge label="Rep PR" /> : null}
                         </Chips>
                       </SetCardHeader>
 

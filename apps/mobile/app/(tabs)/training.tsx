@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, GripVertical } from 'lucide-react-native';
-import { calculateVolume, detectRepPR, detectWeightPR, estimateOneRepMax } from '@setframe/domain';
+import { calculateVolume, estimateOneRepMax } from '@setframe/domain';
 import type {
   Exercise,
   Prescription,
@@ -158,6 +158,7 @@ function buildSetPatch(set: WorkoutSet, draft: SetDraft, visible: SessionField[]
     patch.distanceUnit = distanceValue != null ? draft.distanceUnit : undefined;
   }
   if (visible.includes('rpe')) patch.rpe = parseNumber(draft.values.rpe ?? '');
+  patch.completed = draft.completed;
   return patch;
 }
 
@@ -250,14 +251,6 @@ export default function TrainingScreen() {
   const exercisesQuery = useQuery({
     queryKey: ['mobile-exercises'],
     queryFn: () => api.get<Exercise[]>('/exercises'),
-  });
-
-  const historyQueries = useQueries({
-    queries: (sessionQuery.data?.exercises ?? []).map((exerciseLog) => ({
-      queryKey: ['mobile-exercise-history', exerciseLog.exerciseId],
-      queryFn: () => api.get<ExerciseHistoryResponse>(`/exercises/${exerciseLog.exerciseId}/history`),
-      enabled: Boolean(sessionQuery.data),
-    })),
   });
 
   useEffect(() => {
@@ -354,19 +347,6 @@ export default function TrainingScreen() {
       router.replace({ pathname: '/session-summary', params: { sessionId: resolvedSessionId! } });
     },
   });
-
-  const historyByExerciseId = useMemo(
-    () =>
-      new Map(
-        (sessionQuery.data?.exercises ?? []).map((exerciseLog, index) => [
-          exerciseLog.exerciseId,
-          historyQueries[index]?.data?.items
-            ?.filter((item) => item.sessionId !== sessionQuery.data?.id)
-            .map((item) => ({ weightValue: item.weightValue, reps: item.reps })) ?? [],
-        ]),
-      ),
-    [historyQueries, sessionQuery.data],
-  );
 
   // Timed, distance and bodyweight work carries no weight, so including it
   // would contribute nothing while making the total look authoritative.
@@ -490,12 +470,11 @@ export default function TrainingScreen() {
             const visibleFields = resolveSessionFields(exerciseLog.prescription, { ...set, ...draftValues });
             const fieldErrors = validateSessionSet(exerciseLog.prescription, draftValues);
             const previous = getPreviousLabels(exerciseLog.previousSession?.sets[index], definition);
-            const history = historyByExerciseId.get(exerciseLog.exerciseId) ?? [];
-            const candidate = { weightValue: draftValues.weightValue, reps: draftValues.reps };
-            const isPr =
-              definition.countsTowardVolume &&
-              draft.completed &&
-              (detectWeightPR(candidate, history) || detectRepPR(candidate, history));
+            // PR flags come straight from the server, which resolves them
+            // against all-time history for the whole exercise log after every
+            // save. Guessing on the client used a different, narrower baseline
+            // and produced badges that contradicted the persisted state.
+            const isPr = set.isPrWeight || set.isPrReps;
             const planned = summarizePrescription(exerciseLog.prescription).replace(/^Planned:\s*/, '');
 
             return (
@@ -524,7 +503,7 @@ export default function TrainingScreen() {
                   completed={draft.completed}
                   onToggleCompleted={(completed) => setDrafts((prev) => ({ ...prev, [set.id]: { ...draft, completed } }))}
                   previous={previous}
-                  isPr={isPr || set.isPrWeight || set.isPrReps}
+                  isPr={isPr}
                   onDuplicate={() => addSetMutation.mutate({ exerciseLogId: exerciseLog.id, sourceSet: set })}
                   onRemove={() =>
                     Alert.alert('Remove set', `Remove Set ${index + 1}?`, [

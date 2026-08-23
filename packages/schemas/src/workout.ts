@@ -114,6 +114,12 @@ export const createWorkoutSetSchema = z.object({
   distanceValue: z.number().optional(),
   distanceUnit: z.enum(['m', 'km', 'mi']).optional(),
   rpe: z.number().min(0).max(10).optional(),
+  /**
+   * Whether the set was actually performed. Sets pre-populated from a program
+   * are stored as `false` until the user logs them; PR detection ignores those
+   * so a planned load never counts as a lift.
+   */
+  completed: z.boolean().optional(),
 });
 export type CreateWorkoutSetInput = z.infer<typeof createWorkoutSetSchema>;
 
