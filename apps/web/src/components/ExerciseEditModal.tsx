@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import styled from 'styled-components';
 import { spacing, radius } from '@setframe/design-tokens';
 import type { Prescription } from '@setframe/schemas';
+import { parseOptionalNumber, formatOptionalNumber as numberFieldValue } from '@setframe/domain';
 import { Button, Input, Modal as SharedModal, Select } from './index';
 import { prescriptionOptions } from '../lib/prescription';
 
@@ -78,22 +79,24 @@ export function ExerciseEditModal({
           <PrescriptionGrid>
             <Input
               label="Sets"
-              value={String(draft.prescription.sets)}
+              placeholder="No target"
+              value={numberFieldValue(draft.prescription.sets)}
               onChange={(e) =>
                 setDraft((prev) => ({
                   ...prev,
-                  prescription: { ...prev.prescription, sets: Number(e.target.value) || 0 } as Prescription,
+                  prescription: { ...prev.prescription, sets: parseOptionalNumber(e.target.value) } as Prescription,
                 }))
               }
               inputMode="numeric"
             />
             <Input
               label="Reps"
-              value={String(draft.prescription.repsMin)}
+              placeholder="No target"
+              value={numberFieldValue(draft.prescription.repsMin)}
               onChange={(e) =>
                 setDraft((prev) => ({
                   ...prev,
-                  prescription: { ...prev.prescription, repsMin: Number(e.target.value) || 0 } as Prescription,
+                  prescription: { ...prev.prescription, repsMin: parseOptionalNumber(e.target.value) } as Prescription,
                 }))
               }
               inputMode="numeric"
@@ -105,11 +108,12 @@ export function ExerciseEditModal({
         {draft.prescription.kind === 'duration' && (
           <Input
             label="Minutes"
-            value={String(draft.prescription.durationMinutes)}
+            placeholder="No target"
+            value={numberFieldValue(draft.prescription.durationMinutes)}
             onChange={(e) =>
               setDraft((prev) => ({
                 ...prev,
-                prescription: { ...prev.prescription, durationMinutes: Number(e.target.value) || 0 } as Prescription,
+                prescription: { ...prev.prescription, durationMinutes: parseOptionalNumber(e.target.value) } as Prescription,
               }))
             }
             inputMode="numeric"
@@ -120,22 +124,24 @@ export function ExerciseEditModal({
           <PrescriptionGrid>
             <Input
               label="Distance"
-              value={String(draft.prescription.distanceMiles)}
+              placeholder="No target"
+              value={numberFieldValue(draft.prescription.distanceMiles)}
               onChange={(e) =>
                 setDraft((prev) => ({
                   ...prev,
-                  prescription: { ...prev.prescription, distanceMiles: Number(e.target.value) || 0 } as Prescription,
+                  prescription: { ...prev.prescription, distanceMiles: parseOptionalNumber(e.target.value) } as Prescription,
                 }))
               }
               inputMode="decimal"
             />
             <Input
               label="Duration"
-              value={String(draft.prescription.durationMinutes)}
+              placeholder="No target"
+              value={numberFieldValue(draft.prescription.durationMinutes)}
               onChange={(e) =>
                 setDraft((prev) => ({
                   ...prev,
-                  prescription: { ...prev.prescription, durationMinutes: Number(e.target.value) || 0 } as Prescription,
+                  prescription: { ...prev.prescription, durationMinutes: parseOptionalNumber(e.target.value) } as Prescription,
                 }))
               }
               inputMode="numeric"
@@ -147,22 +153,24 @@ export function ExerciseEditModal({
           <PrescriptionGrid>
             <Input
               label="Sets"
-              value={String(draft.prescription.sets)}
+              placeholder="No target"
+              value={numberFieldValue(draft.prescription.sets)}
               onChange={(e) =>
                 setDraft((prev) => ({
                   ...prev,
-                  prescription: { ...prev.prescription, sets: Number(e.target.value) || 0 } as Prescription,
+                  prescription: { ...prev.prescription, sets: parseOptionalNumber(e.target.value) } as Prescription,
                 }))
               }
               inputMode="numeric"
             />
             <Input
               label="Seconds"
-              value={String(draft.prescription.durationSeconds)}
+              placeholder="No target"
+              value={numberFieldValue(draft.prescription.durationSeconds)}
               onChange={(e) =>
                 setDraft((prev) => ({
                   ...prev,
-                  prescription: { ...prev.prescription, durationSeconds: Number(e.target.value) || 0 } as Prescription,
+                  prescription: { ...prev.prescription, durationSeconds: parseOptionalNumber(e.target.value) } as Prescription,
                 }))
               }
               inputMode="numeric"
@@ -174,22 +182,24 @@ export function ExerciseEditModal({
           <PrescriptionGrid>
             <Input
               label="Sets"
-              value={String(draft.prescription.sets)}
+              placeholder="No target"
+              value={numberFieldValue(draft.prescription.sets)}
               onChange={(e) =>
                 setDraft((prev) => ({
                   ...prev,
-                  prescription: { ...prev.prescription, sets: Number(e.target.value) || 0 } as Prescription,
+                  prescription: { ...prev.prescription, sets: parseOptionalNumber(e.target.value) } as Prescription,
                 }))
               }
               inputMode="numeric"
             />
             <Input
               label="Distance"
-              value={String(draft.prescription.distanceValue)}
+              placeholder="No target"
+              value={numberFieldValue(draft.prescription.distanceValue)}
               onChange={(e) =>
                 setDraft((prev) => ({
                   ...prev,
-                  prescription: { ...prev.prescription, distanceValue: Number(e.target.value) || 0 } as Prescription,
+                  prescription: { ...prev.prescription, distanceValue: parseOptionalNumber(e.target.value) } as Prescription,
                 }))
               }
               inputMode="decimal"

@@ -1,28 +1,60 @@
 import type { Prescription } from '@setframe/schemas';
 import { getPrescriptionDefinition, type SessionSetValues } from './prescription-fields';
 
+const NO_TARGET = 'No target set';
+
 /**
  * Human-readable summary of a planned exercise prescription (e.g. "3 × 8").
  * Lives in the domain package so the Today preview, the workout logger, the
  * program editors and both platforms describe a plan identically.
+ *
+ * Every numeric target is optional (Story 19 — "open prescription"): a
+ * prescription can exist with `kind` chosen and nothing else. Never
+ * fabricate a `0 × 0`-style value for an absent field — fall back to
+ * "No target set" when nothing is planned yet, or describe just the
+ * piece that *is* set when only part of the shape is filled in.
  */
 export function summarizePrescription(prescription: Prescription | null): string {
   if (!prescription) return 'Planned: —';
   switch (prescription.kind) {
     case 'sets_reps':
     case 'per_side':
-    case 'bodyweight_reps':
-      return `Planned: ${prescription.sets} × ${prescription.repsMin}${prescription.repsMax ? `–${prescription.repsMax}` : ''}`;
-    case 'top_set_backoff':
-      return `Planned: ${prescription.topSets} top + ${prescription.backoffSets} backoff`;
-    case 'timed':
-      return `Planned: ${prescription.sets} × ${prescription.durationSeconds}s`;
-    case 'distance':
-      return `Planned: ${prescription.sets} × ${prescription.distanceValue}${prescription.distanceUnit}`;
+    case 'bodyweight_reps': {
+      const { sets, repsMin, repsMax } = prescription;
+      if (sets == null && repsMin == null) return NO_TARGET;
+      const reps = repsMin != null ? `${repsMin}${repsMax ? `–${repsMax}` : ''}` : null;
+      if (sets != null && reps != null) return `Planned: ${sets} × ${reps}`;
+      return `Planned: ${sets != null ? `${sets} sets` : `${reps} reps`}`;
+    }
+    case 'top_set_backoff': {
+      const { topSets, backoffSets } = prescription;
+      if (topSets == null && backoffSets == null) return NO_TARGET;
+      const parts = [
+        topSets != null ? `${topSets} top` : null,
+        backoffSets != null ? `${backoffSets} backoff` : null,
+      ].filter((part): part is string => part != null);
+      return `Planned: ${parts.join(' + ')}`;
+    }
+    case 'timed': {
+      const { sets, durationSeconds } = prescription;
+      if (sets == null && durationSeconds == null) return NO_TARGET;
+      if (sets != null && durationSeconds != null) return `Planned: ${sets} × ${durationSeconds}s`;
+      return `Planned: ${sets != null ? `${sets} sets` : `${durationSeconds}s`}`;
+    }
+    case 'distance': {
+      const { sets, distanceValue, distanceUnit } = prescription;
+      if (sets == null && distanceValue == null) return NO_TARGET;
+      if (sets != null && distanceValue != null) return `Planned: ${sets} × ${distanceValue}${distanceUnit}`;
+      return `Planned: ${sets != null ? `${sets} sets` : `${distanceValue}${distanceUnit}`}`;
+    }
     case 'duration':
-      return `Planned: ${prescription.durationMinutes} min`;
-    case 'distanceDuration':
-      return `Planned: ${prescription.distanceMiles} mi / ${prescription.durationMinutes} min`;
+      return prescription.durationMinutes != null ? `Planned: ${prescription.durationMinutes} min` : NO_TARGET;
+    case 'distanceDuration': {
+      const { distanceMiles, durationMinutes } = prescription;
+      if (distanceMiles == null && durationMinutes == null) return NO_TARGET;
+      if (distanceMiles != null && durationMinutes != null) return `Planned: ${distanceMiles} mi / ${durationMinutes} min`;
+      return `Planned: ${distanceMiles != null ? `${distanceMiles} mi` : `${durationMinutes} min`}`;
+    }
   }
 }
 

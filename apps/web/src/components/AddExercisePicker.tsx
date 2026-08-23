@@ -3,9 +3,11 @@ import styled from 'styled-components';
 import { Plus } from 'lucide-react';
 import { spacing, radius } from '@setframe/design-tokens';
 import { prescriptionSchema, type Exercise, type Prescription } from '@setframe/schemas';
+import { parseOptionalNumber, formatOptionalNumber as numberFieldValue } from '@setframe/domain';
 import { Button, Input, Modal as SharedModal, Select } from './index';
 import { typeScale } from '../theme/typeScale';
 import { prescriptionOptions } from '../lib/prescription';
+
 
 const Column = styled.div`
   display: flex;
@@ -97,9 +99,11 @@ export function AddExercisePicker({
   const [prescription, setPrescription] = useState<Prescription>(emptyPrescription('sets_reps'));
   const [addError, setAddError] = useState<string | null>(null);
 
-  /* Every prescription field is `.positive()` in the schema, but clearing an
-     input yields `Number('') === 0`. Validate against the schema itself so
-     the button state can never drift from what the API will accept. */
+  /* Every prescription field is `.optional()` — clearing an input is a
+     valid "no target yet" state (Story 19), via `parseOptionalNumber`
+     rather than `Number('') === 0`. A value that *is* typed still has to
+     be `.positive()`. Validate against the schema itself so the button
+     state can never drift from what the API will accept. */
   const prescriptionValid = prescriptionSchema.safeParse(prescription).success;
 
   const filtered = useMemo(
@@ -172,14 +176,16 @@ export function AddExercisePicker({
               <Input
                 label="Sets"
                 inputMode="numeric"
-                value={String(prescription.sets)}
-                onChange={(e) => setPrescription((prev) => ({ ...prev, sets: Number(e.target.value) || 0 } as Prescription))}
+                placeholder="No target"
+                value={numberFieldValue(prescription.sets)}
+                onChange={(e) => setPrescription((prev) => ({ ...prev, sets: parseOptionalNumber(e.target.value) } as Prescription))}
               />
               <Input
                 label="Reps"
                 inputMode="numeric"
-                value={String(prescription.repsMin)}
-                onChange={(e) => setPrescription((prev) => ({ ...prev, repsMin: Number(e.target.value) || 0 } as Prescription))}
+                placeholder="No target"
+                value={numberFieldValue(prescription.repsMin)}
+                onChange={(e) => setPrescription((prev) => ({ ...prev, repsMin: parseOptionalNumber(e.target.value) } as Prescription))}
               />
             </PrescriptionGrid>
           )}
@@ -189,14 +195,16 @@ export function AddExercisePicker({
               <Input
                 label="Sets"
                 inputMode="numeric"
-                value={String(prescription.sets)}
-                onChange={(e) => setPrescription((prev) => ({ ...prev, sets: Number(e.target.value) || 0 } as Prescription))}
+                placeholder="No target"
+                value={numberFieldValue(prescription.sets)}
+                onChange={(e) => setPrescription((prev) => ({ ...prev, sets: parseOptionalNumber(e.target.value) } as Prescription))}
               />
               <Input
                 label="Seconds"
                 inputMode="numeric"
-                value={String(prescription.durationSeconds)}
-                onChange={(e) => setPrescription((prev) => ({ ...prev, durationSeconds: Number(e.target.value) || 0 } as Prescription))}
+                placeholder="No target"
+                value={numberFieldValue(prescription.durationSeconds)}
+                onChange={(e) => setPrescription((prev) => ({ ...prev, durationSeconds: parseOptionalNumber(e.target.value) } as Prescription))}
               />
             </PrescriptionGrid>
           )}
@@ -205,8 +213,9 @@ export function AddExercisePicker({
             <Input
               label="Minutes"
               inputMode="numeric"
-              value={String(prescription.durationMinutes)}
-              onChange={(e) => setPrescription((prev) => ({ ...prev, durationMinutes: Number(e.target.value) || 0 } as Prescription))}
+              placeholder="No target"
+              value={numberFieldValue(prescription.durationMinutes)}
+              onChange={(e) => setPrescription((prev) => ({ ...prev, durationMinutes: parseOptionalNumber(e.target.value) } as Prescription))}
             />
           )}
 
@@ -215,14 +224,16 @@ export function AddExercisePicker({
               <Input
                 label="Distance (mi)"
                 inputMode="decimal"
-                value={String(prescription.distanceMiles)}
-                onChange={(e) => setPrescription((prev) => ({ ...prev, distanceMiles: Number(e.target.value) || 0 } as Prescription))}
+                placeholder="No target"
+                value={numberFieldValue(prescription.distanceMiles)}
+                onChange={(e) => setPrescription((prev) => ({ ...prev, distanceMiles: parseOptionalNumber(e.target.value) } as Prescription))}
               />
               <Input
                 label="Minutes"
                 inputMode="numeric"
-                value={String(prescription.durationMinutes)}
-                onChange={(e) => setPrescription((prev) => ({ ...prev, durationMinutes: Number(e.target.value) || 0 } as Prescription))}
+                placeholder="No target"
+                value={numberFieldValue(prescription.durationMinutes)}
+                onChange={(e) => setPrescription((prev) => ({ ...prev, durationMinutes: parseOptionalNumber(e.target.value) } as Prescription))}
               />
             </PrescriptionGrid>
           )}
@@ -232,20 +243,22 @@ export function AddExercisePicker({
               <Input
                 label="Sets"
                 inputMode="numeric"
-                value={String(prescription.sets)}
-                onChange={(e) => setPrescription((prev) => ({ ...prev, sets: Number(e.target.value) || 0 } as Prescription))}
+                placeholder="No target"
+                value={numberFieldValue(prescription.sets)}
+                onChange={(e) => setPrescription((prev) => ({ ...prev, sets: parseOptionalNumber(e.target.value) } as Prescription))}
               />
               <Input
                 label="Distance"
                 inputMode="decimal"
-                value={String(prescription.distanceValue)}
-                onChange={(e) => setPrescription((prev) => ({ ...prev, distanceValue: Number(e.target.value) || 0 } as Prescription))}
+                placeholder="No target"
+                value={numberFieldValue(prescription.distanceValue)}
+                onChange={(e) => setPrescription((prev) => ({ ...prev, distanceValue: parseOptionalNumber(e.target.value) } as Prescription))}
               />
             </PrescriptionGrid>
           )}
 
           {!prescriptionValid ? (
-            <Small role="alert">Every value must be greater than zero.</Small>
+            <Small role="alert">Values must be greater than zero when provided.</Small>
           ) : null}
           {addError ? <Small role="alert">{addError}</Small> : null}
           <Row style={{ justifyContent: 'flex-end' }}>

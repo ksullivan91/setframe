@@ -112,17 +112,23 @@ rather than being embedded under a specific program version.
 
 ### 3.1 Prescription shape
 
+Every numeric target is optional as of `Backlog/completed/19-optional-workout-prescription-inputs.md`
+("open prescription" — exercise selection and prescription are separate
+decisions; `kind` alone, with no target values, is valid). Absence is
+`undefined`, never a `0` sentinel. `distanceUnit` stays required: it's a
+representation choice (miles vs. km), not a blank target.
+
 ```ts
 type Prescription =
-  | { kind: 'sets_reps'; sets: number; repsMin: number; repsMax?: number }
-  | { kind: 'top_set_backoff'; topSets: number; topRepsMin: number; topRepsMax: number;
-      backoffSets: number; backoffRepsMin: number; backoffRepsMax: number }
-  | { kind: 'per_side'; sets: number; repsMin: number; repsMax?: number }
-  | { kind: 'timed'; sets: number; durationSeconds: number }
-  | { kind: 'distance'; sets: number; distanceValue: number; distanceUnit: 'm' | 'km' | 'mi' }
-  | { kind: 'duration'; durationMinutes: number; notes?: string }
-  | { kind: 'distanceDuration'; distanceMiles: number; durationMinutes: number; notes?: string }
-  | { kind: 'bodyweight_reps'; sets: number; repsMin: number; repsMax?: number };
+  | { kind: 'sets_reps'; sets?: number; repsMin?: number; repsMax?: number }
+  | { kind: 'top_set_backoff'; topSets?: number; topRepsMin?: number; topRepsMax?: number;
+      backoffSets?: number; backoffRepsMin?: number; backoffRepsMax?: number }
+  | { kind: 'per_side'; sets?: number; repsMin?: number; repsMax?: number }
+  | { kind: 'timed'; sets?: number; durationSeconds?: number }
+  | { kind: 'distance'; sets?: number; distanceValue?: number; distanceUnit: 'm' | 'km' | 'mi' }
+  | { kind: 'duration'; durationMinutes?: number; notes?: string }
+  | { kind: 'distanceDuration'; distanceMiles?: number; durationMinutes?: number; notes?: string }
+  | { kind: 'bodyweight_reps'; sets?: number; repsMin?: number; repsMax?: number };
 ```
 
 ## 4. Workout execution

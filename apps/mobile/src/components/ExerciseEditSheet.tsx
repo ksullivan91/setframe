@@ -3,6 +3,7 @@ import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { X } from 'lucide-react-native';
 import { spacing } from '@setframe/design-tokens';
 import type { Prescription } from '@setframe/schemas';
+import { parseOptionalNumber, formatOptionalNumber } from '@setframe/domain';
 import { useTheme } from '../theme/ThemeProvider';
 import { typeScale } from '../theme/getTheme';
 import { Button } from './Button';
@@ -37,16 +38,17 @@ export function ExerciseEditSheet({ state, onClose, onSave, onRemove, isSaving =
 
   useEffect(() => setDraft(state), [state]);
 
-  const setPrescription = (patch: Record<string, number>) =>
+  const setPrescription = (patch: Record<string, number | undefined>) =>
     setDraft((prev) => ({ ...prev, prescription: { ...prev.prescription, ...patch } as Prescription }));
 
-  const numberField = (label: string, value: number, key: string) => (
+  const numberField = (label: string, value: number | undefined, key: string) => (
     <Input
       label={label}
-      value={String(value)}
+      placeholder="No target"
+      value={formatOptionalNumber(value)}
       keyboardType="numeric"
       numeric
-      onChangeText={(next) => setPrescription({ [key]: Number(next) || 0 })}
+      onChangeText={(next) => setPrescription({ [key]: parseOptionalNumber(next) })}
     />
   );
 

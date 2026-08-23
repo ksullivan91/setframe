@@ -19,6 +19,7 @@ import { AddExercisePicker, emptyPrescription } from '../components/AddExerciseP
 import { typeScale } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';
 import { useApiClient } from '../lib/api-client';
+import { summarizePrescription, parseOptionalNumber } from '../lib/prescription';
 
 interface DayTypeDetail extends DayType {
   exercises: DayTypeExercise[];
@@ -228,30 +229,9 @@ function newDraftPlannedSet(): CreatePlannedSetInput {
   return { setType: 'working', reps: 8 };
 }
 
-function parseOptionalNumber(raw: string): number | undefined {
-  if (raw.trim() === '') return undefined;
-  const n = Number(raw);
-  return Number.isNaN(n) ? undefined : n;
-}
-
-function summarizePrescription(p: Prescription) {
-  switch (p.kind) {
-    case 'sets_reps':
-    case 'per_side':
-    case 'bodyweight_reps':
-      return `${p.sets} × ${p.repsMin}${p.repsMax ? `–${p.repsMax}` : ''}`;
-    case 'top_set_backoff':
-      return 'Top + backoff';
-    case 'timed':
-      return `${p.sets} × ${p.durationSeconds}s`;
-    case 'distance':
-      return `${p.sets} × ${p.distanceValue}${p.distanceUnit}`;
-    case 'duration':
-      return `${p.durationMinutes} min`;
-    case 'distanceDuration':
-      return `${p.distanceMiles} mi / ${p.durationMinutes} min`;
-  }
-}
+// parseOptionalNumber and summarizePrescription are imported from
+// ../lib/prescription (Story 19) — these used to be local, divergent
+// copies that never learned about optional/absent target values.
 
 function moveItem(items: string[], from: number, to: number) {
   const next = [...items];

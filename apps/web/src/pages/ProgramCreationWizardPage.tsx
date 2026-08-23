@@ -10,6 +10,7 @@ import { AddExercisePicker } from '../components/AddExercisePicker';
 import { ExerciseEditModal, type EditState } from '../components/ExerciseEditModal';
 import { restoreExerciseOrder } from '@setframe/domain';
 import { useApiClient } from '../lib/api-client';
+import { summarizePrescription } from '../lib/prescription';
 import { mq } from '../theme/breakpoints';
 import { typeScale } from '../theme/typeScale';
 
@@ -225,24 +226,9 @@ const SummaryList = styled.div`
 `;
 
 
-function summarizePrescription(prescription: Prescription) {
-  switch (prescription.kind) {
-    case 'sets_reps':
-    case 'bodyweight_reps':
-    case 'per_side':
-      return `${prescription.sets} × ${prescription.repsMin}${prescription.repsMax ? `–${prescription.repsMax}` : ''}`;
-    case 'timed':
-      return `${prescription.sets} × ${prescription.durationSeconds}s`;
-    case 'duration':
-      return `${prescription.durationMinutes} min`;
-    case 'distanceDuration':
-      return `${prescription.distanceMiles} mi / ${prescription.durationMinutes} min`;
-    case 'distance':
-      return `${prescription.sets} × ${prescription.distanceValue} ${prescription.distanceUnit}`;
-    case 'top_set_backoff':
-      return 'Top + backoff';
-  }
-}
+// summarizePrescription is imported from ../lib/prescription (Story 19) —
+// this used to be a local, divergent copy that never learned about
+// optional/absent target values.
 
 function nextTempId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;

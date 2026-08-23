@@ -288,16 +288,39 @@ describe('WorkoutSessionPage mid-session add exercise', () => {
     );
   });
 
-  // Clearing a numeric prescription field yields `Number('') === 0`, which
-  // every branch of `prescriptionSchema` rejects as non-positive. Blocking
-  // the button keeps the client from firing a request the API will 400.
-  it('blocks the add when a prescription value is cleared to zero', async () => {
+  // Story 19: planned values are optional. Clearing a field used to be
+  // treated as `Number('') === 0`, which every branch of
+  // `prescriptionSchema` rejected as non-positive — that's exactly the
+  // fake-zero-sentinel bug the story fixes. Clearing a field now means
+  // "no target for this yet," not an invalid zero.
+  it('allows adding with a prescription value cleared to no target', async () => {
     const user = userEvent.setup();
     renderSession({ kind: 'sets_reps', sets: 3, repsMin: 8 }, {}, catalog);
 
     await user.click(await screen.findByRole('button', { name: /add exercise/i }));
     await user.click(await screen.findByText('Barbell Back Squat'));
     await user.clear(await screen.findByLabelText('Sets'));
+
+    expect(screen.getByRole('button', { name: /add to workout/i })).toBeEnabled();
+    expect(screen.queryByText(/greater than zero/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /add to workout/i }));
+    await waitFor(() => expect(mockPost).toHaveBeenCalled());
+    const [, body] = mockPost.mock.calls.find(([path]) => typeof path === 'string' && path.includes('/exercises'))!;
+    expect((body as { prescription: { sets?: number } }).prescription.sets).toBeUndefined();
+  });
+
+  // A value the user actually typed, not just cleared, must still be valid —
+  // an explicit "0" is a real non-positive number, unlike an absent field.
+  it('blocks the add when a prescription value is explicitly zero', async () => {
+    const user = userEvent.setup();
+    renderSession({ kind: 'sets_reps', sets: 3, repsMin: 8 }, {}, catalog);
+
+    await user.click(await screen.findByRole('button', { name: /add exercise/i }));
+    await user.click(await screen.findByText('Barbell Back Squat'));
+    const setsInput = await screen.findByLabelText('Sets');
+    await user.clear(setsInput);
+    await user.type(setsInput, '0');
 
     expect(screen.getByRole('button', { name: /add to workout/i })).toBeDisabled();
     expect(screen.getByText(/greater than zero/i)).toBeInTheDocument();

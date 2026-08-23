@@ -3,6 +3,7 @@ import { View, Text, Pressable, FlatList, StyleSheet, ActivityIndicator } from '
 import { X } from 'lucide-react-native';
 import { radius, spacing } from '@setframe/design-tokens';
 import { prescriptionSchema, type Exercise, type Prescription } from '@setframe/schemas';
+import { parseOptionalNumber, formatOptionalNumber } from '@setframe/domain';
 import { useTheme } from '../theme/ThemeProvider';
 import { typeScale } from '../theme/getTheme';
 import { Button } from './Button';
@@ -20,9 +21,12 @@ export function emptyPrescription(kind: string): Prescription {
     case 'duration':
       return { kind: 'duration', durationMinutes: 30 };
     case 'distanceDuration':
-      return { kind: 'distanceDuration', distanceMiles: 3, durationMinutes: 30 };
+      // Matches web's emptyPrescription (apps/web/src/components/AddExercisePicker.tsx)
+      // — these had drifted (3mi vs 5mi, 1mi vs 5mi) so a program authored on
+      // one platform's default didn't read the same on the other (Story 19).
+      return { kind: 'distanceDuration', distanceMiles: 5, durationMinutes: 30 };
     case 'distance':
-      return { kind: 'distance', sets: 1, distanceValue: 1, distanceUnit: 'mi' };
+      return { kind: 'distance', sets: 1, distanceValue: 5, distanceUnit: 'mi' };
     case 'bodyweight_reps':
       return { kind: 'bodyweight_reps', sets: 3, repsMin: 8 };
     default:
@@ -77,9 +81,11 @@ export function AddExercisePicker({
   const [prescription, setPrescription] = useState<Prescription>(emptyPrescription('sets_reps'));
   const [addError, setAddError] = useState<string | null>(null);
 
-  /* Every prescription field is `.positive()` in the schema, but clearing an
-     input yields `Number('') === 0`. Validate against the schema itself so
-     the button state can never drift from what the API will accept. */
+  /* Every prescription field is `.optional()` — clearing an input is a
+     valid "no target yet" state (Story 19), via `parseOptionalNumber`
+     rather than `Number('') === 0`. A value that *is* typed still has to
+     be `.positive()`. Validate against the schema itself so the button
+     state can never drift from what the API will accept. */
   const prescriptionValid = prescriptionSchema.safeParse(prescription).success;
 
   const handlePrescriptionKindChange = (kind: string) => {
@@ -90,14 +96,15 @@ export function AddExercisePicker({
 
   /* Numeric prescription config, matching the web picker field-for-field so
      a program authored on one platform reads identically on the other. */
-  const numericField = (label: string, key: string, value: number) => (
+  const numericField = (label: string, key: string, value: number | undefined) => (
     <View key={key} style={{ flex: 1, minWidth: 120 }}>
       <Input
         label={label}
-        value={String(value)}
+        placeholder="No target"
+        value={formatOptionalNumber(value)}
         numeric
         onChangeText={(next) =>
-          setPrescription((prev) => ({ ...prev, [key]: Number(next) || 0 }) as Prescription)
+          setPrescription((prev) => ({ ...prev, [key]: parseOptionalNumber(next) }) as Prescription)
         }
         testID={`prescription-${key}`}
       />
@@ -279,7 +286,7 @@ export function AddExercisePicker({
             <View style={styles.prescriptionGrid}>{prescriptionFields()}</View>
             {!prescriptionValid ? (
               <Text style={[styles.error, { color: theme.status.error }]}>
-                Every value must be greater than zero.
+                Values must be greater than zero when provided.
               </Text>
             ) : null}
             {addError ? <Text style={[styles.error, { color: theme.status.error }]}>{addError}</Text> : null}

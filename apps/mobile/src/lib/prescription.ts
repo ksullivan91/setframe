@@ -16,5 +16,7 @@ export {
   prescriptionDefinitions,
   prescriptionOptions,
   selectablePrescriptionKinds,
+  parseOptionalNumber,
+  formatOptionalNumber,
 } from '@setframe/domain';
 export type { PrescriptionDefinition, PrescriptionKind, SessionField, SessionFieldErrors } from '@setframe/domain';

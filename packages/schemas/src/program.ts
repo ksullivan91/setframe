@@ -3,55 +3,75 @@ import { z } from 'zod';
 /**
  * Prescription discriminated union — see docs/data-model.md §3.1.
  * Must not force weight+reps onto every exercise (e.g. timed/distance).
+ *
+ * Every numeric target is `.optional()` (Story 19): exercise selection and
+ * prescription are separate decisions, and a user who knows *what* they're
+ * doing but not yet *how much* must be able to save that — `kind` alone,
+ * with no target values, is a valid "open prescription." Missing values
+ * are absence (`undefined`), never a `0` sentinel — `packages/domain`'s
+ * `summarizePrescription` and the UI layers must render that as "no
+ * target set," not as a fake zero. `distanceUnit` stays required: it's a
+ * representation choice (miles vs. km), not a blank target, and every UI
+ * caller already defaults it.
+ *
+ * Deliberately no cross-field `.refine()` (e.g. rejecting `repsMax` set
+ * with `repsMin` absent, or `top_set_backoff` with only half its fields
+ * filled in): every current UI writes these fields as a single group per
+ * kind, never independently, so an orphaned partial combination isn't
+ * reachable today. `summarizePrescription`/`expandPrescriptionToSetDrafts`
+ * already degrade an orphaned field gracefully (render/expand only what's
+ * present) rather than crash, so this is a soft gap, not a correctness
+ * bug — worth a `.refine()` if a future editing surface ever writes these
+ * fields one at a time.
  */
 export const prescriptionSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('sets_reps'),
-    sets: z.number().int().positive(),
-    repsMin: z.number().int().positive(),
+    sets: z.number().int().positive().optional(),
+    repsMin: z.number().int().positive().optional(),
     repsMax: z.number().int().positive().optional(),
   }),
   z.object({
     kind: z.literal('top_set_backoff'),
-    topSets: z.number().int().positive(),
-    topRepsMin: z.number().int().positive(),
-    topRepsMax: z.number().int().positive(),
-    backoffSets: z.number().int().positive(),
-    backoffRepsMin: z.number().int().positive(),
-    backoffRepsMax: z.number().int().positive(),
+    topSets: z.number().int().positive().optional(),
+    topRepsMin: z.number().int().positive().optional(),
+    topRepsMax: z.number().int().positive().optional(),
+    backoffSets: z.number().int().positive().optional(),
+    backoffRepsMin: z.number().int().positive().optional(),
+    backoffRepsMax: z.number().int().positive().optional(),
   }),
   z.object({
     kind: z.literal('per_side'),
-    sets: z.number().int().positive(),
-    repsMin: z.number().int().positive(),
+    sets: z.number().int().positive().optional(),
+    repsMin: z.number().int().positive().optional(),
     repsMax: z.number().int().positive().optional(),
   }),
   z.object({
     kind: z.literal('timed'),
-    sets: z.number().int().positive(),
-    durationSeconds: z.number().int().positive(),
+    sets: z.number().int().positive().optional(),
+    durationSeconds: z.number().int().positive().optional(),
   }),
   z.object({
     kind: z.literal('distance'),
-    sets: z.number().int().positive(),
-    distanceValue: z.number().positive(),
+    sets: z.number().int().positive().optional(),
+    distanceValue: z.number().positive().optional(),
     distanceUnit: z.enum(['m', 'km', 'mi']),
   }),
   z.object({
     kind: z.literal('duration'),
-    durationMinutes: z.number().int().positive(),
+    durationMinutes: z.number().int().positive().optional(),
     notes: z.string().optional(),
   }),
   z.object({
     kind: z.literal('distanceDuration'),
-    distanceMiles: z.number().positive(),
-    durationMinutes: z.number().int().positive(),
+    distanceMiles: z.number().positive().optional(),
+    durationMinutes: z.number().int().positive().optional(),
     notes: z.string().optional(),
   }),
   z.object({
     kind: z.literal('bodyweight_reps'),
-    sets: z.number().int().positive(),
-    repsMin: z.number().int().positive(),
+    sets: z.number().int().positive().optional(),
+    repsMin: z.number().int().positive().optional(),
     repsMax: z.number().int().positive().optional(),
   }),
 ]);

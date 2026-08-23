@@ -86,8 +86,22 @@ function toSetResponse(row: typeof workoutSet.$inferSelect) {
  * blank (that's what the user logs), but set type / target reps / target
  * duration / target distance are filled in from the plan so the user is
  * editing a pre-built structure rather than starting from a blank screen.
+ *
+ * Every planned value is optional (Story 19 — "open prescription", no
+ * target set yet). An absent `sets`/`topSets`/`backoffSets` count means
+ * `Array.from({ length: 0 }, ...)` — the correct behavior falls out
+ * naturally, since there's no target count to expand: zero pre-filled
+ * sets, same as any other ad-hoc exercise the user adds sets to by hand.
+ * `duration`/`distanceDuration` have no "how many" field, so the
+ * equivalent is skipping the single draft row entirely rather than
+ * computing `undefined * 60` into a stored `NaN` — that's why those two
+ * cases use an explicit `if (... == null) return [];` guard instead of
+ * the `?? 0`-into-`Array.from` idiom the other five cases share. A new
+ * kind added to this switch needs one or the other, deliberately: `?? 0`
+ * only produces the right "skip it" behavior for a field that's an
+ * `Array.from` *length*, not for one multiplied into a stored value.
  */
-function expandPrescriptionToSetDrafts(prescription: Prescription): Array<{
+export function expandPrescriptionToSetDrafts(prescription: Prescription): Array<{
   setType: LoggedSetType;
   reps: number | null;
   durationSeconds: number | null;
@@ -98,47 +112,48 @@ function expandPrescriptionToSetDrafts(prescription: Prescription): Array<{
     case 'sets_reps':
     case 'per_side':
     case 'bodyweight_reps':
-      return Array.from({ length: prescription.sets }, () => ({
+      return Array.from({ length: prescription.sets ?? 0 }, () => ({
         setType: 'working' as LoggedSetType,
-        reps: prescription.repsMin,
+        reps: prescription.repsMin ?? null,
         durationSeconds: null,
         distanceValue: null,
         distanceUnit: null,
       }));
     case 'top_set_backoff':
       return [
-        ...Array.from({ length: prescription.topSets }, () => ({
+        ...Array.from({ length: prescription.topSets ?? 0 }, () => ({
           setType: 'top' as LoggedSetType,
-          reps: prescription.topRepsMin,
+          reps: prescription.topRepsMin ?? null,
           durationSeconds: null,
           distanceValue: null,
           distanceUnit: null,
         })),
-        ...Array.from({ length: prescription.backoffSets }, () => ({
+        ...Array.from({ length: prescription.backoffSets ?? 0 }, () => ({
           setType: 'backoff' as LoggedSetType,
-          reps: prescription.backoffRepsMin,
+          reps: prescription.backoffRepsMin ?? null,
           durationSeconds: null,
           distanceValue: null,
           distanceUnit: null,
         })),
       ];
     case 'timed':
-      return Array.from({ length: prescription.sets }, () => ({
+      return Array.from({ length: prescription.sets ?? 0 }, () => ({
         setType: 'working' as LoggedSetType,
         reps: null,
-        durationSeconds: prescription.durationSeconds,
+        durationSeconds: prescription.durationSeconds ?? null,
         distanceValue: null,
         distanceUnit: null,
       }));
     case 'distance':
-      return Array.from({ length: prescription.sets }, () => ({
+      return Array.from({ length: prescription.sets ?? 0 }, () => ({
         setType: 'working' as LoggedSetType,
         reps: null,
         durationSeconds: null,
-        distanceValue: prescription.distanceValue,
+        distanceValue: prescription.distanceValue ?? null,
         distanceUnit: prescription.distanceUnit,
       }));
     case 'duration':
+      if (prescription.durationMinutes == null) return [];
       return [
         {
           setType: 'working' as LoggedSetType,
@@ -149,12 +164,13 @@ function expandPrescriptionToSetDrafts(prescription: Prescription): Array<{
         },
       ];
     case 'distanceDuration':
+      if (prescription.durationMinutes == null && prescription.distanceMiles == null) return [];
       return [
         {
           setType: 'working' as LoggedSetType,
           reps: null,
-          durationSeconds: prescription.durationMinutes * 60,
-          distanceValue: prescription.distanceMiles,
+          durationSeconds: prescription.durationMinutes != null ? prescription.durationMinutes * 60 : null,
+          distanceValue: prescription.distanceMiles ?? null,
           distanceUnit: 'mi',
         },
       ];

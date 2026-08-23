@@ -3,6 +3,29 @@ import type { Prescription } from '@setframe/schemas';
 export type PrescriptionKind = Prescription['kind'];
 
 /**
+ * Parses a numeric input's raw string into `number | undefined`, treating
+ * an empty string as absence rather than `Number('') === 0` (Story 19) —
+ * every prescription-editing surface (Guided Setup, the full editor's
+ * per-set overrides, exercise edit sheets) must share this so a cleared
+ * field can never round-trip as a fake `0` target.
+ */
+export function parseOptionalNumber(raw: string): number | undefined {
+  if (raw.trim() === '') return undefined;
+  const n = Number(raw);
+  return Number.isNaN(n) ? undefined : n;
+}
+
+/**
+ * The render-side counterpart to `parseOptionalNumber`: an absent planned
+ * value becomes `''`, never the literal string `"undefined"`. Every
+ * prescription-editing surface should share this rather than re-writing
+ * `value == null ? '' : String(value)` inline.
+ */
+export function formatOptionalNumber(value: number | undefined | null): string {
+  return value == null ? '' : String(value);
+}
+
+/**
  * The inputs a workout-session set card can render. These map 1:1 onto the
  * generic `workout_sets` row, which carries every column as nullable — see
  * `workoutSetSchema` in `@setframe/schemas`. Nothing here implies a schema
