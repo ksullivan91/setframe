@@ -276,7 +276,12 @@ export function AddExercisePicker({
     <SharedModal open onClose={onClose} title="Add exercise" maxWidth={480}>
       <Column>
         <Input label="Search exercises" placeholder="Barbell Back Squat…" value={query} onChange={(e) => setQuery(e.target.value)} autoFocus disabled={exercisesLoading} />
-        <Column style={{ maxHeight: 320, overflowY: 'auto', gap: spacing[4] }}>
+        {/* `overscrollBehavior: contain` stops this nested scroll region
+            from chaining into the dialog card's own scroll (or the locked
+            background) once it hits its own boundary — the standard fix
+            for iOS Safari's nested-scroll-chaining bug (Story 20), without
+            having to flatten this into a single scroll container. */}
+        <Column style={{ maxHeight: 320, overflowY: 'auto', overscrollBehavior: 'contain', gap: spacing[4] }}>
           {exercisesLoading ? (
             <Small>Loading exercise catalog…</Small>
           ) : exercisesError ? (

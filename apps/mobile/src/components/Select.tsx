@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { View, Text, Pressable, Modal, FlatList, StyleSheet } from 'react-native';
+import { View, Text, Pressable, FlatList, StyleSheet } from 'react-native';
 import { ChevronDown, Check } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { radius, spacing } from '@setframe/design-tokens';
 import { typeScale } from '../theme/getTheme';
+import { Sheet } from './Sheet';
 
 export interface SelectOption<T extends string> {
   label: string;
@@ -43,30 +44,34 @@ export function Select<T extends string>({ label, value, options, onChange, test
         </Text>
         <ChevronDown size={18} color={theme.text.secondary} />
       </Pressable>
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
-          <View style={[styles.sheet, { backgroundColor: theme.surface.raised }]}>
-            <FlatList
-              data={options}
-              keyExtractor={(item) => item.value}
-              renderItem={({ item }) => (
-                <Pressable
-                  onPress={() => {
-                    onChange(item.value);
-                    setOpen(false);
-                  }}
-                  style={styles.option}
-                >
-                  <Text style={{ color: theme.text.primary, fontSize: typeScale.body.fontSize }}>
-                    {item.label}
-                  </Text>
-                  {item.value === value ? <Check size={18} color={theme.action.primary} /> : null}
-                </Pressable>
-              )}
-            />
-          </View>
-        </Pressable>
-      </Modal>
+      <Sheet
+        visible={open}
+        onRequestClose={() => setOpen(false)}
+        dismissOnBackdropPress
+        maxHeightPercent={60}
+        bordered={false}
+        gap={0}
+        padding={{ top: spacing[8], bottom: spacing[8], left: 0, right: 0 }}
+      >
+        <FlatList
+          data={options}
+          keyExtractor={(item) => item.value}
+          renderItem={({ item }) => (
+            <Pressable
+              onPress={() => {
+                onChange(item.value);
+                setOpen(false);
+              }}
+              style={styles.option}
+            >
+              <Text style={{ color: theme.text.primary, fontSize: typeScale.body.fontSize }}>
+                {item.label}
+              </Text>
+              {item.value === value ? <Check size={18} color={theme.action.primary} /> : null}
+            </Pressable>
+          )}
+        />
+      </Sheet>
     </View>
   );
 }
@@ -87,17 +92,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.small,
     paddingVertical: spacing[12],
     paddingHorizontal: spacing[12],
-  },
-  backdrop: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  sheet: {
-    borderTopLeftRadius: radius.large,
-    borderTopRightRadius: radius.large,
-    maxHeight: '60%',
-    paddingVertical: spacing[8],
   },
   option: {
     flexDirection: 'row',

@@ -5,6 +5,7 @@ import { X } from 'lucide-react';
 import { spacing } from '@setframe/design-tokens';
 import { Card } from './Card';
 import { IconButton } from './IconButton';
+import { useScrollLock } from '../lib/useScrollLock';
 
 export interface ModalProps {
   /** Whether the modal is currently shown. Nothing renders when false. */
@@ -46,8 +47,13 @@ const Backdrop = styled.div`
 
 const DialogCard = styled(Card)<{ $maxWidth: number }>`
   width: min(${(p) => p.$maxWidth}px, 100%);
+  /* vh first as a fallback for browsers without dvh support; dvh (where
+     supported) tracks the real visible viewport, so the sheet resizes
+     with the iOS keyboard/chrome instead of being cropped by them. */
   max-height: 90vh;
+  max-height: 90dvh;
   overflow: auto;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   gap: ${spacing[16]}px;
@@ -55,8 +61,11 @@ const DialogCard = styled(Card)<{ $maxWidth: number }>`
   @media (max-width: ${MOBILE_SHEET_BREAKPOINT}px) {
     width: 100%;
     max-height: 85vh;
+    max-height: 85dvh;
     border-radius: 16px 16px 0 0;
     padding-bottom: max(${spacing[16]}px, env(safe-area-inset-bottom));
+    padding-left: max(0px, env(safe-area-inset-left));
+    padding-right: max(0px, env(safe-area-inset-right));
   }
 `;
 
@@ -111,6 +120,8 @@ export function Modal({ open, onClose, title, description, children, maxWidth = 
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
+
+  useScrollLock(open);
 
   useEffect(() => {
     if (!open) return;

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, View, Text, Alert, Modal, Pressable, StyleSheet } from 'react-native';
+import { ActivityIndicator, ScrollView, View, Text, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MoreVertical } from 'lucide-react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -8,6 +8,7 @@ import { Card } from '../src/components/Card';
 import { IconButton } from '../src/components/IconButton';
 import { Toast } from '../src/components/Toast';
 import { ExerciseEditSheet, type ExerciseEditState } from '../src/components/ExerciseEditSheet';
+import { Sheet } from '../src/components/Sheet';
 import { Button } from '../src/components/Button';
 import { Input } from '../src/components/Input';
 import { Select, type SelectOption } from '../src/components/Select';
@@ -17,7 +18,6 @@ import { useApiClient } from '../src/lib/api-client';
 import { restoreExerciseOrder } from '@setframe/domain';
 import { summarizePrescription } from '../src/lib/prescription';
 import { useTheme } from '../src/theme/ThemeProvider';
-import { radius } from '@setframe/design-tokens';
 import { spacing, typeScale } from '../src/theme/getTheme';
 
 interface DayTypeDetail extends DayType {
@@ -478,38 +478,40 @@ export default function ProgramWizardScreen() {
       </Card>
     </ScrollView>
     {actionsFor ? (
-      <Modal visible animationType="fade" transparent onRequestClose={() => setActionsFor(null)}>
-        <Pressable style={sheetStyles.backdrop} onPress={() => setActionsFor(null)}>
-          <Pressable style={[sheetStyles.sheet, { backgroundColor: theme.surface.raised, borderColor: theme.border.default }]}>
-            <Text style={[sheetStyles.sheetTitle, { color: theme.text.primary }]} numberOfLines={1}>
-              {exerciseName(actionsFor)}
-            </Text>
-            <Button
-              label="Edit"
-              variant="secondary"
-              onPress={() => {
-                setEditState({
-                  dayTypeId: actionsFor.dayTypeId,
-                  exerciseId: actionsFor.id,
-                  exerciseName: exerciseName(actionsFor),
-                  prescription: actionsFor.prescription,
-                  notes: actionsFor.notes ?? '',
-                });
-                setActionsFor(null);
-              }}
-            />
-            <Button
-              label="Remove"
-              variant="secondary"
-              onPress={() => {
-                removeExercise.mutate(actionsFor);
-                setActionsFor(null);
-              }}
-            />
-            <Button label="Cancel" variant="secondary" onPress={() => setActionsFor(null)} />
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <Sheet
+        visible
+        onRequestClose={() => setActionsFor(null)}
+        dismissOnBackdropPress
+        maxHeightPercent={50}
+        gap={spacing[8]}
+      >
+        <Text style={[sheetStyles.sheetTitle, { color: theme.text.primary }]} numberOfLines={1}>
+          {exerciseName(actionsFor)}
+        </Text>
+        <Button
+          label="Edit"
+          variant="secondary"
+          onPress={() => {
+            setEditState({
+              dayTypeId: actionsFor.dayTypeId,
+              exerciseId: actionsFor.id,
+              exerciseName: exerciseName(actionsFor),
+              prescription: actionsFor.prescription,
+              notes: actionsFor.notes ?? '',
+            });
+            setActionsFor(null);
+          }}
+        />
+        <Button
+          label="Remove"
+          variant="secondary"
+          onPress={() => {
+            removeExercise.mutate(actionsFor);
+            setActionsFor(null);
+          }}
+        />
+        <Button label="Cancel" variant="secondary" onPress={() => setActionsFor(null)} />
+      </Sheet>
     ) : null}
 
     {editState ? (
@@ -594,13 +596,5 @@ const styles = StyleSheet.create({
 });
 
 const sheetStyles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  sheet: {
-    borderTopLeftRadius: radius.large,
-    borderTopRightRadius: radius.large,
-    borderWidth: 1,
-    padding: spacing[16],
-    gap: spacing[8],
-  },
   sheetTitle: { fontSize: typeScale.sectionTitle.fontSize, fontWeight: '600', marginBottom: spacing[4] },
 });

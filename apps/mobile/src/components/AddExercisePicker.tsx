@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Modal, View, Text, Pressable, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
 import { X } from 'lucide-react-native';
 import { radius, spacing } from '@setframe/design-tokens';
 import { prescriptionSchema, type Exercise, type Prescription } from '@setframe/schemas';
@@ -8,6 +8,7 @@ import { typeScale } from '../theme/getTheme';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Select, type SelectOption } from './Select';
+import { Sheet } from './Sheet';
 import { prescriptionOptions } from '../lib/prescription';
 
 
@@ -163,150 +164,148 @@ export function AddExercisePicker({
   const title = step === 'create' ? 'Create custom exercise' : step === 'configure' ? (selectedExercise?.name ?? 'Configure') : 'Add exercise';
 
   return (
-    <Modal visible={open} animationType="slide" transparent onRequestClose={handleClose}>
-      <View style={styles.backdrop}>
-        <View style={[styles.sheet, { backgroundColor: theme.surface.raised, borderColor: theme.border.default }]}>
-          <View style={styles.header}>
-            <Text style={[styles.title, { color: theme.text.primary }]} numberOfLines={1}>
-              {title}
-            </Text>
-            <Pressable
-              onPress={handleClose}
-              accessibilityRole="button"
-              accessibilityLabel="Close"
-              hitSlop={8}
-              style={styles.closeButton}
-            >
-              <X size={20} color={theme.text.secondary} />
-            </Pressable>
-          </View>
-
-          {step === 'search' ? (
-            <View style={styles.body}>
-              <Input label="Search exercises" value={query} onChangeText={setQuery} placeholder="Barbell Back Squat…" />
-              {exercisesLoading ? (
-                <View style={styles.stateRow}>
-                  <ActivityIndicator color={theme.action.primary} />
-                  <Text style={{ color: theme.text.secondary }}>Loading exercise catalog…</Text>
-                </View>
-              ) : exercisesError ? (
-                <View style={styles.stateRow}>
-                  <Text style={{ color: theme.text.secondary }}>Couldn&apos;t load exercises.</Text>
-                  <Button label="Retry" variant="secondary" onPress={onRetryExercises} />
-                </View>
-              ) : (
-                <FlatList
-                  data={filtered}
-                  keyExtractor={(item) => item.id}
-                  style={styles.list}
-                  keyboardShouldPersistTaps="handled"
-                  ListEmptyComponent={
-                    <Text style={{ color: theme.text.secondary }}>
-                      {exercises.length === 0 ? 'No exercises available yet.' : `No exercises match “${query}”.`}
-                    </Text>
-                  }
-                  renderItem={({ item }) => (
-                    <Pressable
-                      onPress={() => chooseExercise(item)}
-                      accessibilityRole="button"
-                      style={[styles.listItem, { borderColor: theme.border.subtle, backgroundColor: theme.surface.canvas }]}
-                    >
-                      <Text style={{ color: theme.text.primary, fontWeight: '600' }}>
-                        {item.isCustom ? `${item.name} (custom)` : item.name}
-                      </Text>
-                    </Pressable>
-                  )}
-                />
-              )}
-              <View style={styles.footerRow}>
-                <Text style={{ color: theme.text.secondary }}>Can&apos;t find it?</Text>
-                <Button
-                  label="Create custom exercise"
-                  variant="secondary"
-                  onPress={() => {
-                    setCustomName(query.trim());
-                    setCreateError(null);
-                    setStep('create');
-                  }}
-                  disabled={exercisesLoading}
-                />
-              </View>
-            </View>
-          ) : null}
-
-          {step === 'create' ? (
-            <View style={styles.body}>
-              <Input
-                label="Exercise name"
-                value={customName}
-                onChangeText={(next) => {
-                  setCustomName(next);
-                  setCreateError(null);
-                }}
-                placeholder="Cable face pull"
-                errorMessage={createError ?? undefined}
-              />
-              <View style={styles.footerRow}>
-                <Button label="Cancel" variant="secondary" onPress={() => setStep('search')} />
-                <Button
-                  label="Create & add"
-                  disabled={!customName.trim() || isCreatingExercise}
-                  loading={isCreatingExercise}
-                  onPress={async () => {
-                    try {
-                      setCreateError(null);
-                      const created = await onCreateExercise(customName.trim());
-                      chooseExercise(created);
-                    } catch {
-                      // Preserve the user's typed name so they can retry
-                      // without re-entering it (Story 01 acceptance criteria).
-                      setCreateError("Couldn't create that exercise. Try again.");
-                    }
-                  }}
-                />
-              </View>
-            </View>
-          ) : null}
-
-          {step === 'configure' && selectedExercise ? (
-            <View style={styles.body}>
-              <Select
-                label="Prescription"
-                value={prescriptionKind}
-                options={prescriptionOptions}
-                onChange={handlePrescriptionKindChange}
-              />
-              <View style={styles.prescriptionGrid}>{prescriptionFields()}</View>
-              {!prescriptionValid ? (
-                <Text style={[styles.error, { color: theme.status.error }]}>
-                  Every value must be greater than zero.
-                </Text>
-              ) : null}
-              {addError ? <Text style={[styles.error, { color: theme.status.error }]}>{addError}</Text> : null}
-              <View style={styles.footerRow}>
-                <Button label="Back" variant="secondary" onPress={() => setStep('search')} />
-                <Button
-                  label="Add to workout"
-                  disabled={isAddingExercise || !prescriptionValid}
-                  loading={isAddingExercise}
-                  onPress={async () => {
-                    // Close only once the add has landed, so a rejected
-                    // request can never look like a success.
-                    try {
-                      setAddError(null);
-                      await onAddExercise(selectedExercise.id, prescription);
-                      handleClose();
-                    } catch {
-                      setAddError("Couldn't add that exercise. Try again.");
-                    }
-                  }}
-                />
-              </View>
-            </View>
-          ) : null}
+    <Sheet visible={open} onRequestClose={handleClose}>
+      <>
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: theme.text.primary }]} numberOfLines={1}>
+            {title}
+          </Text>
+          <Pressable
+            onPress={handleClose}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+            hitSlop={8}
+            style={styles.closeButton}
+          >
+            <X size={20} color={theme.text.secondary} />
+          </Pressable>
         </View>
-      </View>
-    </Modal>
+
+        {step === 'search' ? (
+          <View style={styles.body}>
+            <Input label="Search exercises" value={query} onChangeText={setQuery} placeholder="Barbell Back Squat…" />
+            {exercisesLoading ? (
+              <View style={styles.stateRow}>
+                <ActivityIndicator color={theme.action.primary} />
+                <Text style={{ color: theme.text.secondary }}>Loading exercise catalog…</Text>
+              </View>
+            ) : exercisesError ? (
+              <View style={styles.stateRow}>
+                <Text style={{ color: theme.text.secondary }}>Couldn&apos;t load exercises.</Text>
+                <Button label="Retry" variant="secondary" onPress={onRetryExercises} />
+              </View>
+            ) : (
+              <FlatList
+                data={filtered}
+                keyExtractor={(item) => item.id}
+                style={styles.list}
+                keyboardShouldPersistTaps="handled"
+                ListEmptyComponent={
+                  <Text style={{ color: theme.text.secondary }}>
+                    {exercises.length === 0 ? 'No exercises available yet.' : `No exercises match “${query}”.`}
+                  </Text>
+                }
+                renderItem={({ item }) => (
+                  <Pressable
+                    onPress={() => chooseExercise(item)}
+                    accessibilityRole="button"
+                    style={[styles.listItem, { borderColor: theme.border.subtle, backgroundColor: theme.surface.canvas }]}
+                  >
+                    <Text style={{ color: theme.text.primary, fontWeight: '600' }}>
+                      {item.isCustom ? `${item.name} (custom)` : item.name}
+                    </Text>
+                  </Pressable>
+                )}
+              />
+            )}
+            <View style={styles.footerRow}>
+              <Text style={{ color: theme.text.secondary }}>Can&apos;t find it?</Text>
+              <Button
+                label="Create custom exercise"
+                variant="secondary"
+                onPress={() => {
+                  setCustomName(query.trim());
+                  setCreateError(null);
+                  setStep('create');
+                }}
+                disabled={exercisesLoading}
+              />
+            </View>
+          </View>
+        ) : null}
+
+        {step === 'create' ? (
+          <View style={styles.body}>
+            <Input
+              label="Exercise name"
+              value={customName}
+              onChangeText={(next) => {
+                setCustomName(next);
+                setCreateError(null);
+              }}
+              placeholder="Cable face pull"
+              errorMessage={createError ?? undefined}
+            />
+            <View style={styles.footerRow}>
+              <Button label="Cancel" variant="secondary" onPress={() => setStep('search')} />
+              <Button
+                label="Create & add"
+                disabled={!customName.trim() || isCreatingExercise}
+                loading={isCreatingExercise}
+                onPress={async () => {
+                  try {
+                    setCreateError(null);
+                    const created = await onCreateExercise(customName.trim());
+                    chooseExercise(created);
+                  } catch {
+                    // Preserve the user's typed name so they can retry
+                    // without re-entering it (Story 01 acceptance criteria).
+                    setCreateError("Couldn't create that exercise. Try again.");
+                  }
+                }}
+              />
+            </View>
+          </View>
+        ) : null}
+
+        {step === 'configure' && selectedExercise ? (
+          <View style={styles.body}>
+            <Select
+              label="Prescription"
+              value={prescriptionKind}
+              options={prescriptionOptions}
+              onChange={handlePrescriptionKindChange}
+            />
+            <View style={styles.prescriptionGrid}>{prescriptionFields()}</View>
+            {!prescriptionValid ? (
+              <Text style={[styles.error, { color: theme.status.error }]}>
+                Every value must be greater than zero.
+              </Text>
+            ) : null}
+            {addError ? <Text style={[styles.error, { color: theme.status.error }]}>{addError}</Text> : null}
+            <View style={styles.footerRow}>
+              <Button label="Back" variant="secondary" onPress={() => setStep('search')} />
+              <Button
+                label="Add to workout"
+                disabled={isAddingExercise || !prescriptionValid}
+                loading={isAddingExercise}
+                onPress={async () => {
+                  // Close only once the add has landed, so a rejected
+                  // request can never look like a success.
+                  try {
+                    setAddError(null);
+                    await onAddExercise(selectedExercise.id, prescription);
+                    handleClose();
+                  } catch {
+                    setAddError("Couldn't add that exercise. Try again.");
+                  }
+                }}
+              />
+            </View>
+          </View>
+        ) : null}
+      </>
+    </Sheet>
   );
 }
 
@@ -318,19 +317,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing[8],
-  },
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    borderTopLeftRadius: radius.large,
-    borderTopRightRadius: radius.large,
-    borderWidth: 1,
-    maxHeight: '85%',
-    padding: spacing[16],
-    gap: spacing[12],
   },
   header: {
     flexDirection: 'row',

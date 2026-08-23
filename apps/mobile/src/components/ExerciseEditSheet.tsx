@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Modal, View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { X } from 'lucide-react-native';
-import { radius, spacing } from '@setframe/design-tokens';
+import { spacing } from '@setframe/design-tokens';
 import type { Prescription } from '@setframe/schemas';
 import { useTheme } from '../theme/ThemeProvider';
 import { typeScale } from '../theme/getTheme';
 import { Button } from './Button';
 import { Input } from './Input';
+import { Sheet } from './Sheet';
 
 export interface ExerciseEditState {
   dayTypeId: string;
@@ -52,86 +53,75 @@ export function ExerciseEditSheet({ state, onClose, onSave, onRemove, isSaving =
   const { prescription } = draft;
 
   return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <View style={[styles.sheet, { backgroundColor: theme.surface.raised, borderColor: theme.border.default }]}>
-          <View style={styles.header}>
-            <Text style={[styles.title, { color: theme.text.primary }]} numberOfLines={1}>
-              {draft.exerciseName}
-            </Text>
-            <Pressable
-              onPress={onClose}
-              accessibilityRole="button"
-              accessibilityLabel="Close"
-              hitSlop={8}
-              style={styles.closeButton}
-            >
-              <X size={20} color={theme.text.secondary} />
-            </Pressable>
-          </View>
+    <Sheet visible onRequestClose={onClose}>
+      <>
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: theme.text.primary }]} numberOfLines={1}>
+            {draft.exerciseName}
+          </Text>
+          <Pressable
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+            hitSlop={8}
+            style={styles.closeButton}
+          >
+            <X size={20} color={theme.text.secondary} />
+          </Pressable>
+        </View>
 
-          <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-            {prescription.kind === 'sets_reps' || prescription.kind === 'per_side' || prescription.kind === 'bodyweight_reps' ? (
-              <>
-                {numberField('Sets', prescription.sets, 'sets')}
-                {numberField('Reps', prescription.repsMin, 'repsMin')}
-              </>
-            ) : null}
+        <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+          {prescription.kind === 'sets_reps' || prescription.kind === 'per_side' || prescription.kind === 'bodyweight_reps' ? (
+            <>
+              {numberField('Sets', prescription.sets, 'sets')}
+              {numberField('Reps', prescription.repsMin, 'repsMin')}
+            </>
+          ) : null}
 
-            {prescription.kind === 'timed' ? (
-              <>
-                {numberField('Sets', prescription.sets, 'sets')}
-                {numberField('Seconds', prescription.durationSeconds, 'durationSeconds')}
-              </>
-            ) : null}
+          {prescription.kind === 'timed' ? (
+            <>
+              {numberField('Sets', prescription.sets, 'sets')}
+              {numberField('Seconds', prescription.durationSeconds, 'durationSeconds')}
+            </>
+          ) : null}
 
-            {prescription.kind === 'duration' ? numberField('Minutes', prescription.durationMinutes, 'durationMinutes') : null}
+          {prescription.kind === 'duration' ? numberField('Minutes', prescription.durationMinutes, 'durationMinutes') : null}
 
-            {prescription.kind === 'distanceDuration' ? (
-              <>
-                {numberField('Distance (mi)', prescription.distanceMiles, 'distanceMiles')}
-                {numberField('Minutes', prescription.durationMinutes, 'durationMinutes')}
-              </>
-            ) : null}
+          {prescription.kind === 'distanceDuration' ? (
+            <>
+              {numberField('Distance (mi)', prescription.distanceMiles, 'distanceMiles')}
+              {numberField('Minutes', prescription.durationMinutes, 'durationMinutes')}
+            </>
+          ) : null}
 
-            {prescription.kind === 'distance' ? (
-              <>
-                {numberField('Sets', prescription.sets, 'sets')}
-                {numberField('Distance', prescription.distanceValue, 'distanceValue')}
-              </>
-            ) : null}
+          {prescription.kind === 'distance' ? (
+            <>
+              {numberField('Sets', prescription.sets, 'sets')}
+              {numberField('Distance', prescription.distanceValue, 'distanceValue')}
+            </>
+          ) : null}
 
-            <Input
-              label="Notes"
-              value={draft.notes}
-              onChangeText={(next) => setDraft((prev) => ({ ...prev, notes: next }))}
-              placeholder="Optional cue"
-            />
-          </ScrollView>
+          <Input
+            label="Notes"
+            value={draft.notes}
+            onChangeText={(next) => setDraft((prev) => ({ ...prev, notes: next }))}
+            placeholder="Optional cue"
+          />
+        </ScrollView>
 
-          <View style={styles.footer}>
-            <Button label="Remove" variant="destructive" onPress={onRemove} />
-            <View style={styles.footerRight}>
-              <Button label="Cancel" variant="secondary" onPress={onClose} />
-              <Button label="Save" onPress={() => onSave(draft)} disabled={isSaving} loading={isSaving} />
-            </View>
+        <View style={styles.footer}>
+          <Button label="Remove" variant="destructive" onPress={onRemove} />
+          <View style={styles.footerRight}>
+            <Button label="Cancel" variant="secondary" onPress={onClose} />
+            <Button label="Save" onPress={() => onSave(draft)} disabled={isSaving} loading={isSaving} />
           </View>
         </View>
-      </View>
-    </Modal>
+      </>
+    </Sheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  sheet: {
-    borderTopLeftRadius: radius.large,
-    borderTopRightRadius: radius.large,
-    borderWidth: 1,
-    maxHeight: '85%',
-    padding: spacing[16],
-    gap: spacing[12],
-  },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing[12] },
   title: { flex: 1, fontSize: typeScale.sectionTitle.fontSize, fontWeight: '600' },
   closeButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
