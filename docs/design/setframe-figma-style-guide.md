@@ -202,12 +202,17 @@ content.
 
 ### 10. Sign In + Program Editor — completing the named §13 screen list
 
-- **`Screen/Web/SignIn`** (node `17:2`) — this does **not** redesign
-  Clerk's own `<SignIn/>` component (per §11.5, Clerk owns the actual
-  auth UI/logic); it documents the page chrome around Clerk's mount
-  point: centered card, Setframe wordmark + tagline, minimal surrounding
-  layout. Field/button styling is illustrative of Clerk's appearance-API
-  theming target, not custom-built production form fields.
+- **`Screen/Web/SignIn`** (node `17:2`) — **not implemented; superseded.**
+  This frame documented page chrome around Clerk's mount point (centered
+  card, Setframe wordmark + tagline) plus `appearance`-API theming of
+  Clerk's fields and buttons. Both were built and then reverted: our card
+  nested inside Clerk's own, and the token overrides fought Clerk's
+  internal layout, so the result looked worse than the untouched
+  component. Web sign-in/sign-up now render Clerk's stock `<SignIn/>` /
+  `<SignUp/>` with no `appearance` prop and no surrounding chrome, and
+  sign-in methods are configured in the Clerk dashboard. Revisit only
+  after moving off Clerk's development instance — development mode forces
+  a "Secured by Clerk" badge that is not stylable regardless.
 - **`Screen/Web/ProgramEditor`** (node `18:12`) — the last named MVP
   screen from §13 ("Create program, weekly/day sequence, workouts,
   exercises, reorder, prescriptions, progression rule, activation. Web
