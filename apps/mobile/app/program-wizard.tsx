@@ -71,6 +71,7 @@ export default function ProgramWizardScreen() {
   const [mode, setMode] = useState<'perpetual' | 'block'>('perpetual');
   const [programId, setProgramId] = useState<string | null>(null);
   const [workoutName, setWorkoutName] = useState('');
+  const [workoutNameError, setWorkoutNameError] = useState<string | null>(null);
   const [workouts, setWorkouts] = useState<WizardWorkoutDraft[]>([]);
   const [selectedWorkoutTempId, setSelectedWorkoutTempId] = useState<string | null>(null);
   const [addExerciseOpen, setAddExerciseOpen] = useState(false);
@@ -78,6 +79,17 @@ export default function ProgramWizardScreen() {
   const [editState, setEditState] = useState<ExerciseEditState | null>(null);
   const [undoState, setUndoState] = useState<{ target: DayTypeExercise; originalIndex: number } | null>(null);
   const [scheduleByDay, setScheduleByDay] = useState<Record<number, string | null>>({});
+  const [workoutActionsFor, setWorkoutActionsFor] = useState<WizardWorkoutDraft | null>(null);
+  const [renamingWorkout, setRenamingWorkout] = useState<WizardWorkoutDraft | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const [pendingWorkoutRemoval, setPendingWorkoutRemoval] = useState<{ workout: WizardWorkoutDraft; exerciseCount: number } | null>(
+    null,
+  );
+  const [workoutUndoState, setWorkoutUndoState] = useState<{
+    name: string;
+    exercises: DayTypeExercise[];
+    position: number;
+  } | null>(null);
 
   const {
     data: exercises = [],
@@ -152,6 +164,86 @@ export default function ProgramWizardScreen() {
     },
     onError: () => Alert.alert('Could not create workout', 'Please try again.'),
   });
+
+  const renameDayType = useMutation({
+    mutationFn: ({ dayTypeId, name }: { dayTypeId: string; name: string }) => api.patch<DayType>(`/day-types/${dayTypeId}`, { name }),
+    onSuccess: (updated, vars) => {
+      setWorkouts((current) => current.map((w) => (w.dayTypeId === vars.dayTypeId ? { ...w, name: updated.name } : w)));
+      setRenamingWorkout(null);
+    },
+    onError: () => Alert.alert('Could not rename workout', 'Please try again.'),
+  });
+
+  /**
+   * Known gap, shared with `removeExercise`/`undoRemoveExercise` below:
+   * undo restores each exercise from its `prescription` only. Per-set
+   * overrides in `dayTypeExercisePlannedSet` aren't in the
+   * `GET /day-types/:id` response at all, so there's nothing to restore
+   * them from without new backend surface — narrow in practice, since
+   * planned-set overrides are a full-editor-only feature.
+   */
+  const removeWorkout = useMutation({
+    mutationFn: async (workout: WizardWorkoutDraft) => {
+      const detail = await api.get<DayTypeDetail>(`/day-types/${workout.dayTypeId}`).catch(() => null);
+      const position = workouts.findIndex((w) => w.tempId === workout.tempId);
+      await api.del(`/day-types/${workout.dayTypeId}`);
+      return { workout, exercises: detail?.exercises ?? [], position };
+    },
+    onSuccess: async ({ workout, exercises, position }) => {
+      setWorkouts((current) => current.filter((w) => w.tempId !== workout.tempId));
+      setSelectedWorkoutTempId((current) => (current === workout.tempId ? null : current));
+      // The API cascade-deletes this workout's programScheduleSlot rows —
+      // without this, a day already assigned to the removed workout keeps
+      // a ghost assignment the schedule step can't clear.
+      await queryClient.invalidateQueries({ queryKey: ['schedule-slots', programId] });
+      setWorkoutUndoState({ name: workout.name, exercises, position });
+    },
+    onError: () => Alert.alert('Could not remove workout', 'Please try again.'),
+  });
+
+  const undoRemoveWorkout = useMutation({
+    mutationFn: async ({ name, exercises, position }: { name: string; exercises: DayTypeExercise[]; position: number }) => {
+      const created = await api.post<DayType>('/day-types', { name });
+      for (const exercise of exercises.slice().sort((a, b) => a.sortOrder - b.sortOrder)) {
+        await api.post(`/day-types/${created.id}/exercises`, {
+          exerciseId: exercise.exerciseId,
+          prescription: exercise.prescription,
+          notes: exercise.notes ?? undefined,
+        });
+      }
+      return { created, position };
+    },
+    onSuccess: ({ created, position }) => {
+      const nextWorkout = { tempId: nextTempId('workout'), dayTypeId: created.id, name: created.name };
+      setWorkouts((current) => {
+        const next = current.slice();
+        next.splice(Math.min(position, next.length), 0, nextWorkout);
+        return next;
+      });
+    },
+    onError: () => Alert.alert('Could not restore the workout', 'Please try again.'),
+  });
+
+  function handleAddWorkout() {
+    const trimmed = workoutName.trim();
+    if (!trimmed) return;
+    if (workouts.some((w) => w.name.toLowerCase() === trimmed.toLowerCase())) {
+      setWorkoutNameError(`A workout named "${trimmed}" already exists.`);
+      return;
+    }
+    setWorkoutNameError(null);
+    createDayType.mutate({ name: trimmed });
+  }
+
+  async function requestRemoveWorkout(workout: WizardWorkoutDraft) {
+    const detail = await api.get<DayTypeDetail>(`/day-types/${workout.dayTypeId}`).catch(() => null);
+    const exerciseCount = detail?.exercises.length ?? 0;
+    if (exerciseCount > 0) {
+      setPendingWorkoutRemoval({ workout, exerciseCount });
+    } else {
+      removeWorkout.mutate(workout);
+    }
+  }
 
   const createExercise = useMutation({
     mutationFn: (body: { name: string }) => api.post<Exercise>('/exercises', body),
@@ -321,24 +413,50 @@ export default function ProgramWizardScreen() {
             <Text style={{ color: theme.text.secondary }}>
               Workouts are reusable training days inside your program — like Upper A, Lower B, or Recovery. You'll add exercises inside each workout in the next step.
             </Text>
-            <Input label="Workout name" value={workoutName} onChangeText={setWorkoutName} placeholder="Upper A" />
-            <Button
-              label="Add workout"
-              variant="secondary"
-              onPress={() => workoutName.trim() && createDayType.mutate({ name: workoutName.trim() })}
-              disabled={!workoutName.trim()}
-              loading={createDayType.isPending}
+            <Input
+              label="Workout name"
+              value={workoutName}
+              onChangeText={(next) => {
+                setWorkoutName(next);
+                if (workoutNameError) setWorkoutNameError(null);
+              }}
+              placeholder="Upper A"
+              errorMessage={workoutNameError ?? undefined}
             />
+            <Button label="Add workout" variant="secondary" onPress={handleAddWorkout} disabled={!workoutName.trim()} loading={createDayType.isPending} />
+            {workoutUndoState ? (
+              <Toast
+                variant="success"
+                message="Workout removed."
+                actionLabel="Undo"
+                onAction={() => {
+                  if (undoRemoveWorkout.isPending) return;
+                  const restore = workoutUndoState;
+                  setWorkoutUndoState(null);
+                  undoRemoveWorkout.mutate(restore);
+                }}
+                onDismiss={() => setWorkoutUndoState(null)}
+              />
+            ) : null}
             {workouts.length === 0 ? (
               <Text style={{ color: theme.text.secondary }}>No workouts yet. Add at least one to continue.</Text>
             ) : (
               workouts.map((workout) => (
-                <Button
-                  key={workout.tempId}
-                  label={workout.name}
-                  variant={selectedWorkoutTempId === workout.tempId ? 'primary' : 'secondary'}
-                  onPress={() => setSelectedWorkoutTempId(workout.tempId)}
-                />
+                <View key={workout.tempId} style={styles.workoutRow}>
+                  <View style={{ flex: 1 }}>
+                    <Button
+                      label={workout.name}
+                      variant={selectedWorkoutTempId === workout.tempId ? 'primary' : 'secondary'}
+                      onPress={() => setSelectedWorkoutTempId(workout.tempId)}
+                    />
+                  </View>
+                  <IconButton
+                    icon={MoreVertical}
+                    variant="subtle"
+                    accessibilityLabel={`Actions for ${workout.name}`}
+                    onPress={() => setWorkoutActionsFor(workout)}
+                  />
+                </View>
               ))
             )}
           </View>
@@ -526,6 +644,75 @@ export default function ProgramWizardScreen() {
       </Sheet>
     ) : null}
 
+    {workoutActionsFor ? (
+      <Sheet
+        visible
+        onRequestClose={() => setWorkoutActionsFor(null)}
+        dismissOnBackdropPress
+        maxHeightPercent={50}
+        gap={spacing[8]}
+      >
+        <Text style={[sheetStyles.sheetTitle, { color: theme.text.primary }]} numberOfLines={1}>
+          {workoutActionsFor.name}
+        </Text>
+        <Button
+          label="Rename"
+          variant="secondary"
+          onPress={() => {
+            setRenameDraft(workoutActionsFor.name);
+            setRenamingWorkout(workoutActionsFor);
+            setWorkoutActionsFor(null);
+          }}
+        />
+        <Button
+          label="Remove"
+          variant="destructive"
+          onPress={() => {
+            void requestRemoveWorkout(workoutActionsFor);
+            setWorkoutActionsFor(null);
+          }}
+        />
+        <Button label="Cancel" variant="secondary" onPress={() => setWorkoutActionsFor(null)} />
+      </Sheet>
+    ) : null}
+
+    {renamingWorkout ? (
+      <Sheet visible onRequestClose={() => setRenamingWorkout(null)} maxHeightPercent={50} gap={spacing[8]}>
+        <Text style={[sheetStyles.sheetTitle, { color: theme.text.primary }]}>Rename workout</Text>
+        <Input label="Workout name" value={renameDraft} onChangeText={setRenameDraft} />
+        <Button
+          label="Save"
+          disabled={!renameDraft.trim() || renameDayType.isPending}
+          loading={renameDayType.isPending}
+          onPress={() => renameDayType.mutate({ dayTypeId: renamingWorkout.dayTypeId, name: renameDraft.trim() })}
+        />
+        <Button label="Cancel" variant="secondary" onPress={() => setRenamingWorkout(null)} />
+      </Sheet>
+    ) : null}
+
+    {pendingWorkoutRemoval ? (
+      <Sheet visible onRequestClose={() => setPendingWorkoutRemoval(null)} maxHeightPercent={50} gap={spacing[8]}>
+        <Text style={[sheetStyles.sheetTitle, { color: theme.text.primary }]}>
+          Remove {pendingWorkoutRemoval.workout.name}?
+        </Text>
+        <Text style={{ color: theme.text.secondary }}>
+          This workout has {pendingWorkoutRemoval.exerciseCount} exercise
+          {pendingWorkoutRemoval.exerciseCount === 1 ? '' : 's'} — removing it removes those workout-specific entries
+          too. You can undo right after.
+        </Text>
+        <Button
+          label="Remove workout"
+          variant="destructive"
+          loading={removeWorkout.isPending}
+          onPress={() => {
+            removeWorkout.mutate(pendingWorkoutRemoval.workout);
+            setPendingWorkoutRemoval(null);
+          }}
+        />
+        <Button label="Cancel" variant="secondary" onPress={() => setPendingWorkoutRemoval(null)} />
+      </Sheet>
+    ) : null}
+
     {editState ? (
       <ExerciseEditSheet
         state={editState}
@@ -605,6 +792,11 @@ const styles = StyleSheet.create({
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    gap: spacing[8],
+  },
+  workoutRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing[8],
   },
   footer: {

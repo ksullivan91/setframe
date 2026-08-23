@@ -47,6 +47,15 @@ function updateChain(rows: unknown[]) {
   return { set: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue(rows) }) }) };
 }
 
+/** `set().where()` with no `.returning()` — e.g. nulling out a backlink column. */
+function updateNoReturningChain() {
+  return { set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) }) };
+}
+
+function deleteChain() {
+  return { where: vi.fn().mockResolvedValue([]) };
+}
+
 const ownerUser = {
   id: 'user-1',
   clerkUserId: 'clerk-user-1',
@@ -129,6 +138,65 @@ describe('day type routes', () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ ok: true });
     expect(mockUpdate).toHaveBeenCalledTimes(2);
+    await app.close();
+  });
+
+  /**
+   * Removing a workout mid-Guided-Setup (Story 18) exercises the delete
+   * path for the first time — previously a bare `db.delete(dayType)` with
+   * no child cleanup, which would throw a raw foreign-key-violation error
+   * for any workout that already had exercises, a schedule assignment, or
+   * (via the soft `templateId` backlink) a workout session.
+   */
+  it('deletes a day type with exercises, clearing every referencing row first', async () => {
+    mockSelect
+      .mockReturnValueOnce(selectChain([ownerUser])) // auth
+      .mockReturnValueOnce(selectChain([dayTypeRow])) // getOwnedDayType
+      .mockReturnValueOnce(selectChain([{ id: exerciseRow.id }])); // exercise ids under this day type
+    mockDelete
+      .mockReturnValueOnce(deleteChain()) // plannedSet
+      .mockReturnValueOnce(deleteChain()) // dayTypeExercise
+      .mockReturnValueOnce(deleteChain()) // programScheduleSlot
+      .mockReturnValueOnce(deleteChain()) // scheduleOverride
+      .mockReturnValueOnce(deleteChain()); // dayType itself
+    mockUpdate.mockReturnValueOnce(updateNoReturningChain()); // workoutSession.templateId -> null
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'DELETE',
+      url: `/v1/day-types/${dayTypeRow.id}`,
+      headers: authHeader,
+    });
+
+    expect(response.statusCode).toBe(204);
+    expect(mockDelete).toHaveBeenCalledTimes(5);
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    await app.close();
+  });
+
+  it('deletes a day type with no exercises, skipping the planned-set cleanup', async () => {
+    mockSelect
+      .mockReturnValueOnce(selectChain([ownerUser]))
+      .mockReturnValueOnce(selectChain([dayTypeRow]))
+      .mockReturnValueOnce(selectChain([])); // no exercises
+    mockDelete
+      .mockReturnValueOnce(deleteChain()) // dayTypeExercise (no-op, but still issued)
+      .mockReturnValueOnce(deleteChain()) // programScheduleSlot
+      .mockReturnValueOnce(deleteChain()) // scheduleOverride
+      .mockReturnValueOnce(deleteChain()); // dayType itself
+    mockUpdate.mockReturnValueOnce(updateNoReturningChain());
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'DELETE',
+      url: `/v1/day-types/${dayTypeRow.id}`,
+      headers: authHeader,
+    });
+
+    expect(response.statusCode).toBe(204);
+    // One fewer delete than the exercises-present case above: the planned-
+    // set cleanup is skipped entirely when there are no exercises.
+    expect(mockDelete).toHaveBeenCalledTimes(4);
     await app.close();
   });
 });

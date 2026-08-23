@@ -1,5 +1,5 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   dayType,
@@ -9,6 +9,7 @@ import {
   programVersion,
   scheduleOverride,
   trainingProgram,
+  workoutSession,
 } from '@setframe/database';
 import {
   createPlannedSetSchema,
@@ -395,6 +396,32 @@ export const dayTypeRoutes: FastifyPluginAsyncZod = async (fastify) => {
     async (request, reply) => {
       const db = getDb();
       await getOwnedDayType(db, request.params.dayTypeId, request.userId!);
+
+      // No ON DELETE CASCADE on any of these FKs — clear every referencing
+      // row first, mirroring the exercise-delete route below. Workout
+      // sessions are historical fact (ADR 0005) and must never be deleted
+      // or have their snapshotted fields touched just because the plan
+      // that spawned them changed; only the soft `templateId` backlink is
+      // nulled out so an old session keeps rendering from its own snapshot
+      // instead of blocking this delete with a foreign-key violation.
+      const exercises = await db
+        .select({ id: dayTypeExercise.id })
+        .from(dayTypeExercise)
+        .where(eq(dayTypeExercise.dayTypeId, request.params.dayTypeId));
+      const exerciseIds = exercises.map((row) => row.id);
+      if (exerciseIds.length > 0) {
+        await db
+          .delete(dayTypeExercisePlannedSet)
+          .where(inArray(dayTypeExercisePlannedSet.dayTypeExerciseId, exerciseIds));
+      }
+      await db.delete(dayTypeExercise).where(eq(dayTypeExercise.dayTypeId, request.params.dayTypeId));
+      await db.delete(programScheduleSlot).where(eq(programScheduleSlot.dayTypeId, request.params.dayTypeId));
+      await db.delete(scheduleOverride).where(eq(scheduleOverride.dayTypeId, request.params.dayTypeId));
+      await db
+        .update(workoutSession)
+        .set({ templateId: null })
+        .where(eq(workoutSession.templateId, request.params.dayTypeId));
+
       await db.delete(dayType).where(eq(dayType.id, request.params.dayTypeId));
       reply.status(204);
       return null;
