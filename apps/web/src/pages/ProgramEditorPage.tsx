@@ -13,7 +13,7 @@ import type {
   ProgramScheduleSlot,
   TrainingProgram,
 } from '@setframe/schemas';
-import { Button, Card, IconButton, Input, Menu, Modal as SharedModal, Select, Tabs, WeekScheduleEditor, useToast } from '../components';
+import { Button, Card, FadeIn, IconButton, Input, Menu, Modal as SharedModal, Select, Skeleton, SkeletonStack, Tabs, WeekScheduleEditor, useToast } from '../components';
 import { ExerciseEditModal, type EditState } from '../components/ExerciseEditModal';
 import { AddExercisePicker, emptyPrescription } from '../components/AddExercisePicker';
 import { typeScale } from '../theme/typeScale';
@@ -447,6 +447,51 @@ function WorkoutCreateForm({
   );
 }
 
+/**
+ * Mirrors the real Training layout — header, tabs, workout library and the
+ * detail pane — so the page keeps its shape while loading and the content
+ * lands in place instead of shifting everything down.
+ */
+function TrainingSkeleton() {
+  return (
+    <Column aria-busy="true" aria-live="polite" data-testid="training-skeleton">
+      <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>
+        Loading your training program…
+      </span>
+      <Row style={{ justifyContent: 'space-between' }}>
+        <SkeletonStack $gap={8} style={{ flex: 1 }}>
+          <Skeleton $width="180px" $height={30} />
+          <Skeleton $width="60%" $height={14} />
+        </SkeletonStack>
+      </Row>
+
+      <Skeleton $height={40} $width="220px" />
+
+      <Layout>
+        <Column>
+          <LibraryCard>
+            <Skeleton $width="90px" $height={16} />
+            <Skeleton $height={56} />
+            <Skeleton $height={56} />
+            <Skeleton $height={56} />
+          </LibraryCard>
+        </Column>
+        <Column>
+          <StackCard>
+            <SkeletonStack $gap={8}>
+              <Skeleton $width="45%" $height={22} />
+              <Skeleton $width="30%" $height={14} />
+            </SkeletonStack>
+            <Skeleton $height={64} />
+            <Skeleton $height={64} />
+            <Skeleton $height={64} />
+          </StackCard>
+        </Column>
+      </Layout>
+    </Column>
+  );
+}
+
 export function ProgramEditorPage() {
   const api = useApiClient();
   const toast = useToast();
@@ -459,8 +504,14 @@ export function ProgramEditorPage() {
   const [addExerciseOpen, setAddExerciseOpen] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
 
-  const { data: programs } = useQuery({ queryKey: ['programs'], queryFn: () => api.get<TrainingProgram[]>('/programs') });
-  const { data: dayTypes = [] } = useQuery({ queryKey: ['day-types'], queryFn: () => api.get<DayType[]>('/day-types') });
+  const { data: programs, isLoading: programsLoading } = useQuery({
+    queryKey: ['programs'],
+    queryFn: () => api.get<TrainingProgram[]>('/programs'),
+  });
+  const { data: dayTypes = [], isLoading: dayTypesLoading } = useQuery({
+    queryKey: ['day-types'],
+    queryFn: () => api.get<DayType[]>('/day-types'),
+  });
   const {
     data: exercises = [],
     isLoading: exercisesLoading,
@@ -603,7 +654,19 @@ export function ProgramEditorPage() {
     reorderExercises.mutate(moveItem(sortedExercises.map((item) => item.id), index, nextIndex));
   };
 
+  /* `dayTypes` defaults to an empty array while it loads, which used to
+     render the "No workouts yet" empty state and the guided-setup banner to
+     users who already have a program — a wrong answer, shown confidently,
+     that then snapped to the real list. Hold the content-shaped skeleton
+     until both queries that decide those branches have resolved. */
+  if (programsLoading || dayTypesLoading) {
+    return <TrainingSkeleton />;
+  }
+
   return (
+    // Fades the real content in over the skeleton it replaces, so the swap
+    // reads as a transition rather than a pop.
+    <FadeIn>
     <Column>
       <Row style={{ justifyContent: 'space-between' }}>
         <div>
@@ -812,5 +875,6 @@ export function ProgramEditorPage() {
         />
       ) : null}
     </Column>
+    </FadeIn>
   );
 }

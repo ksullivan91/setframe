@@ -36,3 +36,30 @@ export const SkeletonStack = styled.div<{ $gap?: number }>`
   flex-direction: column;
   gap: ${(p) => p.$gap ?? 8}px;
 `;
+
+const fadeIn = keyframes`
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+`;
+
+/**
+ * FadeIn — wraps content that has just replaced a Skeleton, so the swap
+ * reads as a transition instead of a pop. The rise is deliberately tiny
+ * (4px): loaded content should settle, not slide in.
+ *
+ * Respects `prefers-reduced-motion` by rendering statically.
+ */
+export const FadeIn = styled.div<{ $delay?: number }>`
+  animation: ${fadeIn} 0.24s ease-out both;
+  animation-delay: ${(p) => p.$delay ?? 0}ms;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+`;

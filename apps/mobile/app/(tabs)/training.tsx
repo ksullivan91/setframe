@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, GripVertical } from 'lucide-react-native';
@@ -23,6 +23,7 @@ import { Button } from '../../src/components/Button';
 import { SetRowEditable } from '../../src/components/SetRow';
 import { IconButton } from '../../src/components/IconButton';
 import { AddExercisePicker } from '../../src/components/AddExercisePicker';
+import { FadeIn, Skeleton, SkeletonStack } from '../../src/components/Skeleton';
 import { useApiClient } from '../../src/lib/api-client';
 import {
   countsTowardVolume,
@@ -373,11 +374,7 @@ export default function TrainingScreen() {
   const isError = todayQuery.isError || resumeSessionMutation.isError || sessionQuery.isError || exercisesQuery.isError;
 
   if (isLoading) {
-    return (
-      <View style={[styles.centered, { backgroundColor: theme.surface.canvas }]}> 
-        <ActivityIndicator color={theme.action.primary} />
-      </View>
-    );
+    return <SessionSkeleton />;
   }
 
   if (isError || !sessionQuery.data) {
@@ -400,6 +397,9 @@ export default function TrainingScreen() {
   }
 
   return (
+    // Fades the session in over the skeleton it replaces, so the swap reads
+    // as a transition rather than a pop.
+    <FadeIn>
     <ScrollView style={{ backgroundColor: theme.surface.canvas }} contentContainerStyle={styles.content}>
       <View style={styles.headerRow}>
         <View style={styles.headerMeta}>
@@ -568,6 +568,61 @@ export default function TrainingScreen() {
         onAddExercise={(exerciseId, prescription) => addExerciseMutation.mutateAsync({ exerciseId, prescription })}
         isAddingExercise={addExerciseMutation.isPending}
       />
+    </ScrollView>
+    </FadeIn>
+  );
+}
+
+/**
+ * Mirrors the real session layout — header, summary stats card and exercise
+ * blocks — so the screen keeps its shape while loading. It previously showed
+ * a bare spinner on an empty canvas, which meant the whole page blanked and
+ * then snapped to full content.
+ */
+function SessionSkeleton() {
+  const theme = useTheme();
+  return (
+    <ScrollView
+      style={{ backgroundColor: theme.surface.canvas }}
+      contentContainerStyle={styles.content}
+      /* Every skeleton bar is removed from the accessibility tree, so
+         without `accessible` this container is not exposed as an element on
+         iOS and VoiceOver would announce nothing at all here. */
+      accessible
+      accessibilityRole="progressbar"
+      accessibilityLabel="Loading workout session"
+      accessibilityState={{ busy: true }}
+      testID="session-skeleton"
+    >
+      <View style={styles.headerRow}>
+        <SkeletonStack gap={spacing[8]} style={{ flex: 1 }}>
+          <Skeleton height={26} width="60%" />
+          <Skeleton height={14} width="35%" />
+        </SkeletonStack>
+        <Skeleton height={40} width={92} />
+      </View>
+
+      <Card>
+        <View style={styles.summaryRow}>
+          {[0, 1, 2].map((index) => (
+            <SkeletonStack key={index} gap={spacing[8]} style={styles.stat}>
+              <Skeleton height={28} width="70%" />
+              <Skeleton height={12} width="50%" />
+            </SkeletonStack>
+          ))}
+        </View>
+      </Card>
+
+      {[0, 1].map((index) => (
+        <Card key={index}>
+          <View style={styles.exerciseHeader}>
+            <Skeleton height={20} width="55%" />
+            <Skeleton height={36} width={84} />
+          </View>
+          <Skeleton height={56} />
+          <Skeleton height={56} />
+        </Card>
+      ))}
     </ScrollView>
   );
 }
