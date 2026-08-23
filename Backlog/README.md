@@ -9,6 +9,9 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
+- `17-schedule-rest-days-in-training.md` — extends the shipped rest day
+  feature so rest can be planned ahead or corrected after the fact from the
+  Training schedule table, instead of only being declared on the day itself.
 - `WAIT-automated-visual-and-e2e-testing.md` — deferred by request. Filed so the
   gap is tracked, deliberately not started.
 - `WAIT-figma-accentsubtle-token-fix.md` — deferred by request. Fixes
