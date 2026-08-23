@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+**Read `docs/handoff.md` alongside this file.** This file describes what
+the system *is*; `docs/handoff.md` describes how to work on it safely —
+the manual deploy procedure (nothing deploys on push), the hand-written
+migration workflow, the research-backed product invariants that tests
+enforce, and the testing traps that have already cost real bugs.
+
 ## What this is
 
 Setframe is a multi-user fitness training + Apple Health sync platform: a
@@ -46,8 +52,10 @@ Other per-workspace commands:
 ```bash
 apps/api:      npm run dev --workspace=@setframe/api    # tsx watch, needs .env (DATABASE_URL, CLERK_*)
 apps/web:      npm run dev:mock --workspace=@setframe/web  # Vite + MSW mocks, no live API needed
-packages/database: npm run db:generate --workspace=@setframe/database  # drizzle-kit generate, after schema edits
-                    npm run db:migrate --workspace=@setframe/database   # requires real DATABASE_URL
+packages/database: npm run db:migrate --workspace=@setframe/database   # requires real DATABASE_URL
+                    # NOTE: db:generate is currently unusable — drizzle-kit reads the
+                    # hand-written migrations as drift and hangs on an interactive
+                    # prompt. Write migration SQL by hand; see docs/handoff.md §2.
 ```
 
 Git hooks (Copilot-based pre-commit review) are opt-in per clone:
@@ -191,10 +199,11 @@ Clerk `SignedIn`/`SignedOut` gate). Mobile routing is file-based
 Drizzle ORM schema lives in `packages/database/src/schema/*.ts` (one file
 per domain area, barrel-exported from `schema/index.ts`), targeting Neon
 Postgres via `@neondatabase/serverless`'s HTTP driver (no persistent pool —
-`createDb()` is cheap to call and doesn't eagerly connect). Migrations are
-generated with `db:generate` into `packages/database/drizzle/` and must be
-committed; `db:migrate` requires a real `DATABASE_URL` and should not be
-run against a placeholder. All primary keys are UUIDs; every user-owned
+`createDb()` is cheap to call and doesn't eagerly connect). Migrations live in
+`packages/database/drizzle/` and must be committed. They are **hand-written**
+(`db:generate` is broken — see `docs/handoff.md` §2) and are **not applied
+by any deploy step**, so a migration must be applied and verified against
+the live database manually, before the API that needs it ships. All primary keys are UUIDs; every user-owned
 table has a `user_id` FK that every query must scope by.
 
 ## Conventions
@@ -208,8 +217,9 @@ table has a `user_id` FK that every query must scope by.
   modeling decision that would warrant one; add a new one for decisions of
   similar weight (auth provider, hosting, a non-obvious schema separation,
   a scope boundary like ADR 0007).
-- `backlog/` — open work items live at the folder root; shipped ones move
-  to `backlog/completed/`. Each batch of stories has an accompanying
+- `Backlog/` (capital B, as tracked by git — macOS's case-insensitive
+  filesystem hides this, and `git mv backlog/...` will fail) — open work
+  items live at the folder root; shipped ones move to `Backlog/completed/`. Each batch of stories has an accompanying
   `README-{range}-{review-name}.md` describing the review it came from.
 
 ## Interaction preferences (from `.github/copilot-instructions.md`)
