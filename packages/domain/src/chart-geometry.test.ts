@@ -146,6 +146,17 @@ describe('column chart', () => {
     expect(chart.columns[1]!.height).toBe(0);
   });
 
+  it('reports a slot width that tiles the plot, for full-width hit targets', () => {
+    const chart = buildColumnChart(
+      points([['2025-08-04', 3], ['2025-08-11', 1], ['2025-08-18', 2]]),
+      { layout },
+    );
+    expect(chart.slotWidth).toBeCloseTo(chart.plot.width / 3, 5);
+    // The bar is narrower than its slot, so a bar-width hit target would leave
+    // dead gaps a slot-width target does not.
+    expect(chart.columns[0]!.width).toBeLessThan(chart.slotWidth);
+  });
+
   it('is always zero-based so the height ratio is truthful', () => {
     const chart = buildColumnChart(points([['2025-08-04', 4], ['2025-08-11', 2]]), { layout });
     expect(chart.domain.min).toBe(0);

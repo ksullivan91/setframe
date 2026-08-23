@@ -13,3 +13,5 @@ export * from './ConsistencyStreakGrid';
 export * from './SyncStatusPill';
 export * from './WeekScheduleEditor';
 export * from './Skeleton';
+export * from './Charts';
+export * from './MetricInfo';

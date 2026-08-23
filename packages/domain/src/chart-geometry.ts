@@ -243,6 +243,8 @@ export interface ColumnChart<Meta = unknown> {
   columns: PlottedColumn<Meta>[];
   ticks: AxisTick[];
   domain: { min: number; max: number };
+  /** Width of one period's slot (bar plus surrounding gap), for hit targets. */
+  slotWidth: number;
   plot: { x: number; y: number; width: number; height: number };
 }
 
@@ -292,7 +294,7 @@ export function buildColumnChart<Meta>(
     });
   }
 
-  return { columns, ticks, domain: { min: 0, max: domainMax }, plot };
+  return { columns, ticks, domain: { min: 0, max: domainMax }, slotWidth: slot, plot };
 }
 
 export type ChartRange = '1W' | '1M' | '3M' | '6M' | '1Y' | 'ALL';

@@ -384,9 +384,9 @@ export function ColumnChart({
                   data-testid={isCurrent ? 'chart-column-current' : 'chart-column'}
                 />
                 <rect
-                  x={column.x - 2}
+                  x={chart.plot.x + chart.slotWidth * index}
                   y={chart.plot.y}
-                  width={column.width + 4}
+                  width={chart.slotWidth}
                   height={chart.plot.height}
                   fill="transparent"
                   tabIndex={0}
