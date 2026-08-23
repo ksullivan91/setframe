@@ -9,10 +9,6 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
-- `setframe-guided-setup-stories/` — story 19, converting novice-user beta
-  feedback about the Guided Setup wizard into a scoped story (optional
-  prescription values). See its own `README.md` for the review context.
-  (Stories 17, 18, and 20 already shipped — see `completed/`.)
 - `21-schedule-rest-days-in-training.md` — extends the shipped rest day
   feature so rest can be planned ahead or corrected after the fact from the
   Training schedule table, instead of only being declared on the day itself.
@@ -29,3 +25,4 @@ alongside their stories, named `README-{range}-{review}.md`.
 - `completed/README-01-07-gym-ux-review.md` — stories 01–07.
 - `completed/README-08-10-active-workout-ux-review.md` — stories 08–10.
 - `completed/README-11-16-progress-experience-review.md` — stories 11–16.
+- `completed/README-17-20-guided-setup-beta-test-review.md` — stories 17–20.
