@@ -80,49 +80,123 @@ export const progressConsistencyWeekSchema = z.object({
 });
 export type ProgressConsistencyWeek = z.infer<typeof progressConsistencyWeekSchema>;
 
-export const progressOverviewCardSchema = z.object({
+/**
+ * Progress overview.
+ *
+ * The previous shape was a list of `cards` each carrying `trend: number[]`,
+ * which the clients rendered as full-width bars scaled to the series max.
+ * That made a single observation always render as a 100% bar and two similar
+ * observations render as two indistinguishable full bars — the visual said
+ * nothing. Everything below is an explicit series with units, dates and an
+ * insufficient-data state instead, so a chart can only be drawn when there is
+ * something real to draw.
+ */
+
+export const progressMetricValueSchema = z.object({
   key: z.string(),
-  label: z.string(),
-  value: z.string(),
-  detail: z.string().nullable(),
-  trend: z.array(z.number().nonnegative()),
-  status: z.enum(['neutral', 'positive', 'informational']),
+  /** `null` means "applicable, but not enough data" — never render 0 for it. */
+  value: z.number().nullable(),
+  loadUnit: z.enum(['lb', 'kg']).optional(),
+  distanceUnit: z.enum(['m', 'km', 'mi']).optional(),
 });
-export type ProgressOverviewCard = z.infer<typeof progressOverviewCardSchema>;
+export type ProgressMetricValue = z.infer<typeof progressMetricValueSchema>;
 
-export const bodyWeightPointSchema = z.object({
+export const progressExercisePointSchema = z.object({
+  sessionId: z.string().uuid(),
   localDate: z.string().date(),
-  weightValue: z.number().positive(),
-  weightUnit: z.enum(['lb', 'kg']),
+  sessionName: z.string(),
+  /** Only the metrics valid for this exercise's prescription are present. */
+  metrics: z.array(progressMetricValueSchema),
+  isWeightPr: z.boolean(),
+  isRepPr: z.boolean(),
 });
-export type BodyWeightPoint = z.infer<typeof bodyWeightPointSchema>;
+export type ProgressExercisePoint = z.infer<typeof progressExercisePointSchema>;
 
-export const consistencySummarySchema = z.object({
+export const progressExerciseSchema = z.object({
+  exerciseId: z.string().uuid(),
+  exerciseName: z.string(),
+  prescriptionKind: z.string(),
+  /** Ordered; the first is the headline metric for this exercise. */
+  metricKeys: z.array(z.string()),
+  points: z.array(progressExercisePointSchema),
+  sessionCount: z.number().int().nonnegative(),
+});
+export type ProgressExercise = z.infer<typeof progressExerciseSchema>;
+
+export const progressTrainingWeekSchema = z.object({
+  weekStart: z.string().date(),
+  completedCount: z.number().int().nonnegative(),
+  /** `null` when the plan is unknown, rather than mirroring completedCount. */
+  plannedCount: z.number().int().nonnegative().nullable(),
+  completionRatio: z.number().nullable(),
+  /** `null` for a week of non-load training, so 0 never implies a bad week. */
+  volume: z.number().nullable(),
+  isCurrent: z.boolean(),
+});
+export type ProgressTrainingWeek = z.infer<typeof progressTrainingWeekSchema>;
+
+export const progressTrainingSchema = z.object({
+  /** Contiguous window; untrained weeks are present with a zero count. */
+  weeks: z.array(progressTrainingWeekSchema),
+  weeksTrained: z.number().int().nonnegative(),
+  windowWeeks: z.number().int().positive(),
   currentStreakWeeks: z.number().int().nonnegative(),
   longestStreakWeeks: z.number().int().nonnegative(),
   totalCompleted: z.number().int().nonnegative(),
-  totalPlanned: z.number().int().nonnegative(),
+  averageSessionsPerWeek: z.number().nonnegative(),
+  volumeUnit: z.enum(['lb', 'kg']),
 });
-export type ConsistencySummary = z.infer<typeof consistencySummarySchema>;
+export type ProgressTraining = z.infer<typeof progressTrainingSchema>;
+
+export const bodyWeightPointSchema = z.object({
+  localDate: z.string().date(),
+  /** The value the user logged, normalised to the response unit. */
+  raw: z.number().positive(),
+  /** Exponentially-weighted trend. Do not draw unless sufficiency is ready. */
+  trend: z.number().positive(),
+  rollingAverage: z.number().positive().nullable(),
+});
+export type BodyWeightPoint = z.infer<typeof bodyWeightPointSchema>;
+
+export const bodyWeightWeekSchema = z.object({
+  weekStart: z.string().date(),
+  average: z.number().positive(),
+  low: z.number().positive(),
+  high: z.number().positive(),
+  checkInCount: z.number().int().positive(),
+});
+export type BodyWeightWeek = z.infer<typeof bodyWeightWeekSchema>;
+
+/**
+ * Body weight. Deliberately carries no day-over-day delta: overnight change
+ * is dominated by water and gut content, so "-1.8 lb today" is noise dressed
+ * as a result. Change is only ever expressed as `ratePerWeek` over a trailing
+ * window, and `direction` is unvalenced because a user who is intentionally
+ * bulking is succeeding when the number rises.
+ * See docs/research/body-weight-display-psychology.md.
+ */
+export const progressBodyWeightSchema = z.object({
+  unit: z.enum(['lb', 'kg']),
+  sufficiency: z.enum(['none', 'establishing', 'ready']),
+  checkInCount: z.number().int().nonnegative(),
+  /** 7-day rolling average — the number to lead with. */
+  currentAverage: z.number().positive().nullable(),
+  latestCheckIn: z
+    .object({ localDate: z.string().date(), weightValue: z.number().positive() })
+    .nullable(),
+  ratePerWeek: z.number().nullable(),
+  direction: z.enum(['rising', 'falling', 'steady']).nullable(),
+  windowWeeks: z.number().int().positive(),
+  points: z.array(bodyWeightPointSchema),
+  weeks: z.array(bodyWeightWeekSchema),
+});
+export type ProgressBodyWeight = z.infer<typeof progressBodyWeightSchema>;
 
 export const progressOverviewResponseSchema = z.object({
-  cards: z.array(progressOverviewCardSchema),
-  consistency: z.object({
-    weeks: z.array(progressConsistencyWeekSchema),
-    summary: consistencySummarySchema,
-  }),
-  bodyWeight: z.object({
-    points: z.array(bodyWeightPointSchema),
-    trendLabel: z.string().nullable(),
-  }),
-  featuredExercise: z
-    .object({
-      exerciseId: z.string().uuid(),
-      exerciseName: z.string(),
-      trendLabel: z.string().nullable(),
-      points: z.array(exerciseProgressPointSchema),
-    })
-    .nullable(),
+  training: progressTrainingSchema,
+  bodyWeight: progressBodyWeightSchema,
+  /** Every exercise with history in the window, most-trained first. */
+  exercises: z.array(progressExerciseSchema),
   recentSessions: z.array(
     z.object({
       sessionId: z.string().uuid(),
@@ -131,7 +205,8 @@ export const progressOverviewResponseSchema = z.object({
       sessionName: z.string(),
       exerciseCount: z.number().int().nonnegative(),
       setCount: z.number().int().nonnegative(),
-      volume: z.number().nonnegative(),
+      /** `null` for a session with no load-bearing work. */
+      volume: z.number().nullable(),
       prCount: z.number().int().nonnegative(),
     }),
   ),

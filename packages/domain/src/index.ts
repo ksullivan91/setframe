@@ -9,3 +9,5 @@ export * from './session-pr';
 export * from './units';
 export * from './progress-metrics';
 export * from './weight-trend';
+export * from './training-trends';
+export * from './chart-geometry';

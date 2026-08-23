@@ -1,17 +1,26 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
-import { and, desc, eq, gte } from 'drizzle-orm';
+import { and, eq, gte } from 'drizzle-orm';
 import { z } from 'zod';
 import { progressConsistencyWeekSchema, progressOverviewResponseSchema } from '@setframe/schemas';
-import { calculateVolume, estimateOneRepMax, summarizeConsistency } from '@setframe/domain';
+import type { Prescription } from '@setframe/schemas';
+import {
+  computeWeightTrend,
+  getPrescriptionDefinition,
+  getProgressMetricKeys,
+  summarizeConsistency,
+  summarizeExerciseSets,
+  summarizeTrainingTrends,
+  isoWeekStart as weekStartOf,
+  type DistanceUnit,
+  type LoadUnit,
+  type ProgressSet,
+} from '@setframe/domain';
 import { dailyManualEntry, workoutExerciseLog, workoutSession, workoutSet } from '@setframe/database';
 import { getDb } from '../lib/db.js';
 import { requireAuth } from '../plugins/auth.js';
 
 function isoWeekStart(date: Date): string {
-  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-  const day = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() - day + 1);
-  return d.toISOString().slice(0, 10);
+  return weekStartOf(date.toISOString().slice(0, 10));
 }
 
 /**
@@ -30,15 +39,33 @@ function sinceLocalDateFor(weeksBack: number, localDate?: string): string {
   return base.toISOString().slice(0, 10);
 }
 
+function todayLocalDate(localDate?: string): string {
+  return localDate ?? new Date().toISOString().slice(0, 10);
+}
+
+function toNumber(value: string | number | null): number | null {
+  if (value == null) return null;
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 /**
- * GET /v1/progress/consistency — backs the Progress screen's "Consistency
- * (last N weeks)" widget (docs/api.md "Progress", data-model.md §8
- * decision 4). Computed on read from workout_session rows; uses
- * summarizeConsistency from packages/domain for the shaping/ratio logic.
+ * GET /v1/progress/overview — backs the Progress screen.
  *
- * TODO(phase-4): derive `plannedCount` from the active program_version's
- * workout_template count per week (currently 0 — completed-only until
- * program-activation querying lands).
+ * Every number returned here is either a real series with dates and units,
+ * or an explicit "not enough data" state. Two rules are load-bearing:
+ *
+ * 1. Metrics are computed from the exercise's own prescription snapshot via
+ *    `summarizeExerciseSets`, so a cycling activity simply has no 1RM key
+ *    rather than a 0. An applicable metric with no data is `null`.
+ * 2. Weekly volume only counts prescriptions where weight x reps means
+ *    something (`countsTowardVolume`). A week of cardio reports `null`
+ *    volume, not 0, so it does not read as a failed week.
+ *
+ * TODO(phase-4): derive `plannedCount` per week from the active
+ * program_version's workout_template count. Until then planned counts are
+ * omitted and the completion ratio is reported as `null` rather than being
+ * faked by mirroring the completed count.
  */
 export const progressRoutes: FastifyPluginAsyncZod = async (fastify) => {
   fastify.get(
@@ -47,7 +74,7 @@ export const progressRoutes: FastifyPluginAsyncZod = async (fastify) => {
       preHandler: requireAuth,
       schema: {
         querystring: z.object({
-          weeks: z.coerce.number().int().positive().max(52).default(8),
+          weeks: z.coerce.number().int().positive().max(52).default(12),
           localDate: z.string().date().optional(),
         }),
         response: { 200: progressOverviewResponseSchema },
@@ -55,68 +82,29 @@ export const progressRoutes: FastifyPluginAsyncZod = async (fastify) => {
     },
     async (request) => {
       const db = getDb();
-      const weeksBack = request.query.weeks;
-      const sinceLocalDate = sinceLocalDateFor(weeksBack, request.query.localDate);
+      const windowWeeks = request.query.weeks;
+      const endLocalDate = todayLocalDate(request.query.localDate);
+      const sinceLocalDate = sinceLocalDateFor(windowWeeks, request.query.localDate);
 
-      const sessions = await db
-        .select()
-        .from(workoutSession)
-        .where(
-          and(
-            eq(workoutSession.userId, request.userId!),
-            eq(workoutSession.status, 'completed'),
-            gte(workoutSession.localDate, sinceLocalDate),
-          ),
-        )
-        .orderBy(workoutSession.localDate, workoutSession.completedAt);
-
-      const completedByWeek = new Map<string, number>();
-      for (const session of sessions) {
-        const week = isoWeekStart(new Date(session.localDate));
-        completedByWeek.set(week, (completedByWeek.get(week) ?? 0) + 1);
-      }
-
-      const rawWeeks = Array.from(completedByWeek.entries()).map(([weekStart, completedCount]) => ({
-        weekStart,
-        plannedCount: completedCount,
-        completedCount,
-      }));
-      const weeks = summarizeConsistency(rawWeeks).map((week) => ({
-        weekStart: week.weekStart,
-        plannedCount: week.plannedCount,
-        completedCount: week.completedCount,
-        completionRatio: week.completionRatio,
-      }));
-
-      const totalCompleted = weeks.reduce((sum, week) => sum + week.completedCount, 0);
-      const totalPlanned = weeks.reduce((sum, week) => sum + week.plannedCount, 0);
-      let currentStreakWeeks = 0;
-      let longestStreakWeeks = 0;
-      let runningStreak = 0;
-      for (const week of weeks) {
-        if (week.completedCount > 0) {
-          runningStreak += 1;
-          longestStreakWeeks = Math.max(longestStreakWeeks, runningStreak);
-        } else {
-          runningStreak = 0;
-        }
-      }
-      for (let index = weeks.length - 1; index >= 0; index -= 1) {
-        if (weeks[index]!.completedCount > 0) currentStreakWeeks += 1;
-        else break;
-      }
-
-      const sessionRows = await db
+      const setRows = await db
         .select({
           sessionId: workoutSession.id,
           localDate: workoutSession.localDate,
           completedAt: workoutSession.completedAt,
           sessionName: workoutSession.sessionNameSnapshot,
+          logId: workoutExerciseLog.id,
           exerciseId: workoutExerciseLog.exerciseId,
           exerciseName: workoutExerciseLog.exerciseNameSnapshot,
+          prescription: workoutExerciseLog.prescriptionSnapshot,
           setId: workoutSet.id,
+          setType: workoutSet.setType,
+          completed: workoutSet.completed,
           loadValue: workoutSet.loadValue,
+          loadUnit: workoutSet.loadUnit,
           reps: workoutSet.reps,
+          durationSeconds: workoutSet.durationSeconds,
+          distanceValue: workoutSet.distanceValue,
+          distanceUnit: workoutSet.distanceUnit,
           isPrWeight: workoutSet.isPrWeight,
           isPrReps: workoutSet.isPrReps,
         })
@@ -132,97 +120,135 @@ export const progressRoutes: FastifyPluginAsyncZod = async (fastify) => {
         )
         .orderBy(workoutSession.localDate, workoutSession.completedAt, workoutSet.sortOrder);
 
-      const weeklyVolumeMap = new Map<string, number>();
-      const exerciseSessions = new Map<string, Array<{
-        sessionId: string;
-        localDate: string;
-        sessionName: string;
-        topWeight: number | null;
-        topReps: number | null;
-        estimatedOneRepMax: number | null;
-        volume: number;
-        isWeightPr: boolean;
-        isRepPr: boolean;
-      }>>();
-      const recentSessionMap = new Map<string, {
-        sessionId: string; localDate: string; completedAt: string | null; sessionName: string; exerciseIds: Set<string>; setCount: number; volume: number; prCount: number;
-      }>();
+      type Row = (typeof setRows)[number];
 
-      for (const row of sessionRows) {
-        const week = isoWeekStart(new Date(row.localDate));
-        const setVolume = row.loadValue != null && row.reps != null ? Number(row.loadValue) * row.reps : 0;
-        weeklyVolumeMap.set(week, (weeklyVolumeMap.get(week) ?? 0) + setVolume);
+      const toProgressSet = (row: Row): ProgressSet => ({
+        setType: row.setType,
+        completed: row.completed,
+        loadValue: toNumber(row.loadValue),
+        loadUnit: (row.loadUnit as LoadUnit | null) ?? null,
+        reps: row.reps,
+        durationSeconds: row.durationSeconds,
+        distanceValue: toNumber(row.distanceValue),
+        distanceUnit: (row.distanceUnit as DistanceUnit | null) ?? null,
+      });
 
-        const recent = recentSessionMap.get(row.sessionId) ?? {
+      // Sessions first, so the training window is built from sessions that
+      // exist rather than from sessions that happen to contain sets.
+      const sessionMeta = new Map<
+        string,
+        {
+          sessionId: string;
+          localDate: string;
+          completedAt: string | null;
+          sessionName: string;
+          exerciseIds: Set<string>;
+          setCount: number;
+          volume: number | null;
+          prCount: number;
+        }
+      >();
+
+      // Keyed by `${exerciseId}:${sessionId}` so an exercise logged twice in
+      // one session is summarised once, not split into two points.
+      const exerciseSessionRows = new Map<string, Row[]>();
+
+      for (const row of setRows) {
+        const meta = sessionMeta.get(row.sessionId) ?? {
           sessionId: row.sessionId,
           localDate: row.localDate,
           completedAt: row.completedAt ? row.completedAt.toISOString() : null,
           sessionName: row.sessionName,
           exerciseIds: new Set<string>(),
           setCount: 0,
-          volume: 0,
+          volume: null,
           prCount: 0,
         };
-        recent.exerciseIds.add(row.exerciseId);
-        recent.setCount += 1;
-        recent.volume += setVolume;
-        if (row.isPrWeight || row.isPrReps) recent.prCount += 1;
-        recentSessionMap.set(row.sessionId, recent);
-      }
+        meta.exerciseIds.add(row.exerciseId);
+        meta.setCount += 1;
+        if (row.isPrWeight || row.isPrReps) meta.prCount += 1;
 
-      const groupedByExerciseSession = new Map<string, typeof sessionRows>();
-      for (const row of sessionRows) {
+        // Volume is only meaningful where the prescription says load x reps
+        // is a real quantity; cardio and bodyweight work contribute nothing
+        // rather than contributing a zero.
+        const definition = getPrescriptionDefinition(row.prescription as Prescription | null);
+        if (definition.countsTowardVolume && row.completed) {
+          const load = toNumber(row.loadValue);
+          if (load != null && row.reps != null) {
+            meta.volume = (meta.volume ?? 0) + load * row.reps;
+          }
+        }
+        sessionMeta.set(row.sessionId, meta);
+
         const key = `${row.exerciseId}:${row.sessionId}`;
-        const list = groupedByExerciseSession.get(key) ?? [];
-        list.push(row);
-        groupedByExerciseSession.set(key, list);
-      }
-      for (const rows of groupedByExerciseSession.values()) {
-        const sorted = [...rows];
-        const topStrengthSet = sorted.reduce<(typeof sorted)[number] | null>((best, row) => {
-          if (row.loadValue == null || row.reps == null) return best;
-          const estimate = estimateOneRepMax(Number(row.loadValue), row.reps);
-          if (!best) return row;
-          const bestEstimate = estimateOneRepMax(Number(best.loadValue!), best.reps!);
-          return estimate > bestEstimate ? row : best;
-        }, null);
-        const point = {
-          sessionId: sorted[0]!.sessionId,
-          localDate: sorted[0]!.localDate,
-          sessionName: sorted[0]!.sessionName,
-          topWeight: topStrengthSet?.loadValue != null ? Number(topStrengthSet.loadValue) : null,
-          topReps: topStrengthSet?.reps ?? null,
-          estimatedOneRepMax:
-            topStrengthSet?.loadValue != null && topStrengthSet.reps != null
-              ? Math.round(estimateOneRepMax(Number(topStrengthSet.loadValue), topStrengthSet.reps))
-              : null,
-          volume: calculateVolume(sorted.map((row) => ({
-            weightValue: row.loadValue != null ? Number(row.loadValue) : null,
-            reps: row.reps,
-          }))),
-          isWeightPr: sorted.some((row) => row.isPrWeight),
-          isRepPr: sorted.some((row) => row.isPrReps),
-        };
-        const list = exerciseSessions.get(sorted[0]!.exerciseId) ?? [];
-        list.push(point);
-        exerciseSessions.set(sorted[0]!.exerciseId, list);
+        exerciseSessionRows.set(key, [...(exerciseSessionRows.get(key) ?? []), row]);
       }
 
-      const featuredExerciseEntry = [...exerciseSessions.entries()].sort((a, b) => b[1].length - a[1].length)[0] ?? null;
-      const featuredExercise = featuredExerciseEntry
-        ? (() => {
-            const exerciseId = featuredExerciseEntry[0];
-            const points = featuredExerciseEntry[1].sort((a, b) => a.localDate.localeCompare(b.localDate));
-            const name = sessionRows.find((row) => row.exerciseId === exerciseId)?.exerciseName ?? 'Exercise';
-            if (points.length < 2) {
-              return { exerciseId, exerciseName: name, trendLabel: null, points: points.slice(-8) };
-            }
-            const first = points[0]!.estimatedOneRepMax;
-            const last = points[points.length - 1]!.estimatedOneRepMax;
-            const trendLabel = first != null && last != null ? `${last >= first ? '+' : ''}${last - first} lb over ${points.length} sessions` : null;
-            return { exerciseId, exerciseName: name, trendLabel, points: points.slice(-8) };
-          })()
-        : null;
+      const sessions = [...sessionMeta.values()];
+
+      const trends = summarizeTrainingTrends(
+        sessions.map((session) => ({ localDate: session.localDate, volume: session.volume })),
+        endLocalDate,
+        windowWeeks,
+      );
+
+      const exerciseMap = new Map<
+        string,
+        {
+          exerciseId: string;
+          exerciseName: string;
+          prescriptionKind: string;
+          metricKeys: string[];
+          points: {
+            sessionId: string;
+            localDate: string;
+            sessionName: string;
+            metrics: {
+              key: string;
+              value: number | null;
+              loadUnit?: LoadUnit;
+              distanceUnit?: DistanceUnit;
+            }[];
+            isWeightPr: boolean;
+            isRepPr: boolean;
+          }[];
+        }
+      >();
+
+      for (const rows of exerciseSessionRows.values()) {
+        const first = rows[0]!;
+        const prescription = first.prescription as Prescription | null;
+        const definition = getPrescriptionDefinition(prescription);
+        const metrics = summarizeExerciseSets(rows.map(toProgressSet), prescription);
+
+        const entry = exerciseMap.get(first.exerciseId) ?? {
+          exerciseId: first.exerciseId,
+          // Snapshots can drift if an exercise is renamed; the most recent
+          // session wins because rows arrive in date order.
+          exerciseName: first.exerciseName,
+          prescriptionKind: definition.kind,
+          metricKeys: [...getProgressMetricKeys(prescription)],
+          points: [],
+        };
+        entry.exerciseName = first.exerciseName;
+        entry.points.push({
+          sessionId: first.sessionId,
+          localDate: first.localDate,
+          sessionName: first.sessionName,
+          metrics,
+          isWeightPr: rows.some((row) => row.isPrWeight),
+          isRepPr: rows.some((row) => row.isPrReps),
+        });
+        exerciseMap.set(first.exerciseId, entry);
+      }
+
+      const exercises = [...exerciseMap.values()]
+        .map((entry) => ({
+          ...entry,
+          points: entry.points.sort((a, b) => a.localDate.localeCompare(b.localDate)),
+          sessionCount: entry.points.length,
+        }))
+        .sort((a, b) => b.sessionCount - a.sessionCount || a.exerciseName.localeCompare(b.exerciseName));
 
       const bodyWeightRows = await db
         .select({
@@ -239,96 +265,51 @@ export const progressRoutes: FastifyPluginAsyncZod = async (fastify) => {
         )
         .orderBy(dailyManualEntry.localDate);
 
-      const bodyWeightPoints = bodyWeightRows
-        .filter((row) => row.weightValue != null && row.weightUnit != null)
-        .map((row) => ({
-          localDate: row.localDate,
-          weightValue: Number(row.weightValue),
-          weightUnit: row.weightUnit!,
-        }));
-      const bodyWeightTrendLabel =
-        bodyWeightPoints.length >= 2
-          ? `${bodyWeightPoints.at(-1)!.weightValue >= bodyWeightPoints[0]!.weightValue ? '+' : ''}${(
-              bodyWeightPoints.at(-1)!.weightValue - bodyWeightPoints[0]!.weightValue
-            ).toFixed(1)} ${bodyWeightPoints.at(-1)!.weightUnit} over ${bodyWeightPoints.length} check-ins`
-          : null;
+      const weightTrend = computeWeightTrend(
+        bodyWeightRows.flatMap((row) => {
+          const value = toNumber(row.weightValue);
+          if (value == null || value <= 0 || row.weightUnit == null) return [];
+          return [{ localDate: row.localDate, weightValue: value, weightUnit: row.weightUnit as LoadUnit }];
+        }),
+      );
 
-      const weeklyVolume = weeks.map((week) => weeklyVolumeMap.get(week.weekStart) ?? 0);
-      const averageWeeklySessions = weeks.length ? totalCompleted / weeks.length : 0;
-      const latestWeek = weeks.at(-1)?.completedCount ?? 0;
-      const previousWeek = weeks.at(-2)?.completedCount ?? 0;
-      const cards: {
-        key: string;
-        label: string;
-        value: string;
-        detail: string | null;
-        trend: number[];
-        status: 'neutral' | 'positive' | 'informational';
-      }[] = [
-        {
-          key: 'weekly-sessions',
-          label: 'Sessions this week',
-          value: String(latestWeek),
-          detail: weeks.length > 1 ? `${latestWeek - previousWeek >= 0 ? '+' : ''}${latestWeek - previousWeek} vs last week` : null,
-          trend: weeks.map((week) => week.completedCount),
-          status: latestWeek >= previousWeek ? 'positive' : 'neutral' as const,
-        },
-        {
-          key: 'consistency-streak',
-          label: 'Current streak',
-          value: `${currentStreakWeeks} week${currentStreakWeeks === 1 ? '' : 's'}`,
-          detail: longestStreakWeeks ? `Longest streak: ${longestStreakWeeks} weeks` : null,
-          trend: weeks.map((week) => week.completedCount > 0 ? 1 : 0),
-          status: currentStreakWeeks > 0 ? 'positive' : 'informational' as const,
-        },
-        {
-          key: 'weekly-volume',
-          label: 'Weekly volume',
-          value: `${(weeklyVolume.at(-1) ?? 0).toLocaleString()} lb`,
-          detail: weeklyVolume.some((value) => value > 0) ? `${Math.round(weeklyVolume.reduce((sum, value) => sum + value, 0) / Math.max(weeklyVolume.length, 1)).toLocaleString()} lb avg` : null,
-          trend: weeklyVolume,
-          status: 'informational' as const,
-        },
-        {
-          key: 'body-weight',
-          label: 'Body weight',
-          value: bodyWeightPoints.at(-1) ? `${bodyWeightPoints.at(-1)!.weightValue.toFixed(1)} ${bodyWeightPoints.at(-1)!.weightUnit}` : 'No check-ins',
-          detail: bodyWeightTrendLabel,
-          trend: bodyWeightPoints.slice(-8).map((point) => point.weightValue),
-          status: 'neutral' as const,
-        },
-        {
-          key: 'strength-trend',
-          label: featuredExercise ? `${featuredExercise.exerciseName} est. 1RM` : 'Strength trend',
-          value:
-            featuredExercise?.points.at(-1)?.estimatedOneRepMax != null
-              ? `${featuredExercise.points.at(-1)!.estimatedOneRepMax} lb`
-              : 'Need more strength sets',
-          detail: featuredExercise?.trendLabel ?? null,
-          trend: featuredExercise?.points.map((point) => point.estimatedOneRepMax ?? 0) ?? [],
-          status: featuredExercise?.trendLabel ? 'positive' as const : 'informational' as const,
-        },
-      ];
+      // Volume is reported in pounds because that is the unit load is stored
+      // and displayed in across the app today; per-set unit normalisation
+      // happens inside summarizeExerciseSets for the per-exercise metrics.
+      const volumeUnit: LoadUnit = 'lb';
 
       return {
-        cards,
-        consistency: {
-          weeks,
-          summary: {
-            currentStreakWeeks,
-            longestStreakWeeks,
-            totalCompleted,
-            totalPlanned,
-          },
+        training: {
+          weeks: trends.weeks,
+          weeksTrained: trends.weeksTrained,
+          windowWeeks: trends.windowWeeks,
+          currentStreakWeeks: trends.currentStreakWeeks,
+          longestStreakWeeks: trends.longestStreakWeeks,
+          totalCompleted: trends.totalCompleted,
+          averageSessionsPerWeek: trends.averageSessionsPerWeek,
+          volumeUnit,
         },
         bodyWeight: {
-          points: bodyWeightPoints,
-          trendLabel: bodyWeightTrendLabel,
+          unit: weightTrend.unit,
+          sufficiency: weightTrend.sufficiency,
+          checkInCount: weightTrend.checkInCount,
+          currentAverage: weightTrend.currentAverage,
+          latestCheckIn: weightTrend.latestCheckIn
+            ? {
+                localDate: weightTrend.latestCheckIn.localDate,
+                weightValue: weightTrend.latestCheckIn.weightValue,
+              }
+            : null,
+          ratePerWeek: weightTrend.ratePerWeek,
+          direction: weightTrend.direction,
+          windowWeeks: weightTrend.windowWeeks,
+          points: weightTrend.points,
+          weeks: weightTrend.weeks,
         },
-        featuredExercise,
-        recentSessions: [...recentSessionMap.values()]
+        exercises,
+        recentSessions: sessions
           .sort((a, b) => (b.completedAt ?? b.localDate).localeCompare(a.completedAt ?? a.localDate))
-          .slice(0, 4)
+          .slice(0, 5)
           .map((session) => ({
             sessionId: session.sessionId,
             localDate: session.localDate,
