@@ -19,6 +19,7 @@ import { restoreExerciseOrder } from '@setframe/domain';
 import { summarizePrescription } from '../src/lib/prescription';
 import { useTheme } from '../src/theme/ThemeProvider';
 import { spacing, typeScale } from '../src/theme/getTheme';
+import { radius } from '@setframe/design-tokens';
 
 interface DayTypeDetail extends DayType {
   exercises: DayTypeExercise[];
@@ -38,9 +39,9 @@ const modeOptions: SelectOption<'perpetual' | 'block'>[] = [
 ];
 
 const steps = [
-  { key: 'program', title: 'Program', description: 'Name it and choose how it repeats.' },
-  { key: 'workouts', title: 'Workouts', description: 'Create your first workout templates.' },
-  { key: 'exercises', title: 'Exercises', description: 'Add the main exercises for each workout.' },
+  { key: 'program', title: 'Program', description: 'Your overall training plan over time.' },
+  { key: 'workouts', title: 'Workouts', description: 'Reusable training days inside your program.' },
+  { key: 'exercises', title: 'Exercises', description: 'What you perform inside the selected workout.' },
   { key: 'schedule', title: 'Schedule', description: 'Assign workouts to your week.' },
 ];
 
@@ -289,6 +290,17 @@ export default function ProgramWizardScreen() {
         <Text style={[styles.stepIndicator, { color: theme.action.primary }]}>
           Step {currentStep + 1} of {steps.length} · {steps[currentStep]!.title}
         </Text>
+        <Text style={{ color: theme.text.secondary, fontSize: typeScale.caption.fontSize }}>
+          {steps[currentStep]!.description}
+        </Text>
+        <Text
+          style={[
+            styles.hierarchyHint,
+            { color: theme.text.secondary, backgroundColor: theme.surface.sunken },
+          ]}
+        >
+          {'4-Day Strength Plan\n└─ Upper A\n   ├─ Squat\n   └─ Bench Press'}
+        </Text>
       </View>
 
       <Card>
@@ -296,7 +308,7 @@ export default function ProgramWizardScreen() {
           <View style={styles.stack}>
             <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>1. Start with the program</Text>
             <Text style={{ color: theme.text.secondary }}>
-              Name the program and choose whether it repeats every week or runs as a simple block.
+              Your overall training plan over time — e.g. "4-Day Strength Plan." Choose whether it repeats every week or runs as a simple block.
             </Text>
             <Input label="Program name" value={programName} onChangeText={setProgramName} placeholder="Fall strength block" />
             <Select label="Program mode" value={mode} onChange={setMode} options={modeOptions} />
@@ -307,7 +319,7 @@ export default function ProgramWizardScreen() {
           <View style={styles.stack}>
             <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>2. Create your first workouts</Text>
             <Text style={{ color: theme.text.secondary }}>
-              Think of these as reusable workout templates like Upper A, Lower B, Walk, or Mobility.
+              Workouts are reusable training days inside your program — like Upper A, Lower B, or Recovery. You'll add exercises inside each workout in the next step.
             </Text>
             <Input label="Workout name" value={workoutName} onChangeText={setWorkoutName} placeholder="Upper A" />
             <Button
@@ -336,7 +348,7 @@ export default function ProgramWizardScreen() {
           <View style={styles.stack}>
             <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>3. Add exercises</Text>
             <Text style={{ color: theme.text.secondary }}>
-              Pick one workout at a time and add its core exercises with a simple prescription.
+              Exercises are what you actually perform inside the selected workout — like Squat, RDL, or Bench Press. Pick one workout at a time and add its core exercises with a simple prescription.
             </Text>
             {workouts.length === 0 ? (
               <Text style={{ color: theme.text.secondary }}>Create a workout first.</Text>
@@ -573,6 +585,13 @@ const styles = StyleSheet.create({
     fontSize: typeScale.caption.fontSize,
     fontWeight: '600',
     marginTop: spacing[8],
+  },
+  hierarchyHint: {
+    fontSize: typeScale.caption.fontSize,
+    lineHeight: typeScale.caption.fontSize * 1.5,
+    borderRadius: radius.small,
+    padding: spacing[8],
+    marginTop: spacing[4],
   },
   sectionTitle: {
     fontSize: typeScale.sectionTitle.fontSize,

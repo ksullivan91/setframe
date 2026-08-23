@@ -46,4 +46,18 @@ describe('useScrollLock', () => {
     expect(document.body.style.position).toBe('');
     expect(window.scrollTo).toHaveBeenCalledWith(0, 240);
   });
+
+  it('keeps the page locked while a second lock is still active (two modals open at once)', () => {
+    const first = renderHook(() => useScrollLock(true));
+    const second = renderHook(() => useScrollLock(true));
+
+    first.unmount();
+    // The first modal closing must not unlock the page — the second is
+    // still open. This is the exact bug a non-reference-counted lock has.
+    expect(document.body.style.position).toBe('fixed');
+
+    second.unmount();
+    expect(document.body.style.position).toBe('');
+    expect(window.scrollTo).toHaveBeenCalledWith(0, 240);
+  });
 });

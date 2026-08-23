@@ -30,9 +30,9 @@ const modeOptions = [
   { value: 'block', label: 'Fixed block/cycle' },
 ];
 const steps = [
-  { key: 'program', title: 'Program', description: 'Name it and choose how it repeats.' },
-  { key: 'workouts', title: 'Workouts', description: 'Create your first workout templates.' },
-  { key: 'exercises', title: 'Exercises', description: 'Add the main exercises for each workout.' },
+  { key: 'program', title: 'Program', description: 'Your overall training plan over time.' },
+  { key: 'workouts', title: 'Workouts', description: "Reusable training days inside your program." },
+  { key: 'exercises', title: 'Exercises', description: 'What you perform inside the selected workout.' },
   { key: 'schedule', title: 'Schedule', description: 'Assign workouts to your week.' },
 ];
 
@@ -61,6 +61,25 @@ const Title = styled.h1`
 const Subtitle = styled.p`
   margin: 0;
   color: ${(p) => p.theme.text.secondary};
+`;
+
+/**
+ * A single, persistent example of containment (Program → Workout →
+ * Exercise) — Story 17. Novice beta users conflated "workout" with
+ * "today's exercise"; this shows the nesting once, compactly, rather than
+ * repeating an explanation at every step.
+ */
+const HierarchyHint = styled.pre`
+  margin: 0;
+  padding: ${spacing[8]}px ${spacing[12]}px;
+  border-radius: ${radius.small}px;
+  background: ${(p) => p.theme.surface.sunken};
+  color: ${(p) => p.theme.text.secondary};
+  font-family: inherit;
+  font-size: ${typeScale.caption.fontSize}px;
+  line-height: 1.5;
+  white-space: pre;
+  overflow-x: auto;
 `;
 
 const Grid = styled.div`
@@ -451,6 +470,7 @@ export function ProgramCreationWizardPage() {
         <Eyebrow>{existingProgramCount === 0 ? 'New here?' : 'Create another program'}</Eyebrow>
         <Title>Guided program setup</Title>
         <Subtitle>Build the basics in four focused steps, then jump into the full editor anytime for advanced tweaks.</Subtitle>
+        <HierarchyHint>{'4-Day Strength Plan\n└─ Upper A\n   ├─ Squat\n   └─ Bench Press'}</HierarchyHint>
       </Header>
 
       <Stepper steps={steps} currentStep={currentStep} />
@@ -460,7 +480,7 @@ export function ProgramCreationWizardPage() {
           {currentStep === 0 ? (
             <>
               <SectionTitle>1. Start with the program</SectionTitle>
-              <SectionBody>Name the program and choose whether it repeats every week or runs as a simple block.</SectionBody>
+              <SectionBody>Your overall training plan over time — e.g. "4-Day Strength Plan." Choose whether it repeats every week or runs as a simple block.</SectionBody>
               <Input label="Program name" value={programName} onChange={(e) => setProgramName(e.target.value)} placeholder="Fall strength block" />
               <Select label="Program mode" value={mode} onChange={(e) => setMode(e.target.value as 'perpetual' | 'block')} options={modeOptions} />
             </>
@@ -469,7 +489,9 @@ export function ProgramCreationWizardPage() {
           {currentStep === 1 ? (
             <>
               <SectionTitle>2. Create your first workouts</SectionTitle>
-              <SectionBody>Think of these as reusable workout templates like Upper A, Lower B, Walk, or Mobility.</SectionBody>
+              <SectionBody>
+                Workouts are reusable training days inside your program — like Upper A, Lower B, or Recovery. You'll add exercises inside each workout in the next step.
+              </SectionBody>
               <Row style={{ alignItems: 'flex-end' }}>
                 <div style={{ flex: 1 }}>
                   <Input label="Workout name" value={workoutName} onChange={(e) => setWorkoutName(e.target.value)} placeholder="Upper A" />
@@ -495,7 +517,9 @@ export function ProgramCreationWizardPage() {
           {currentStep === 2 ? (
             <>
               <SectionTitle>3. Add exercises</SectionTitle>
-              <SectionBody>Pick one workout at a time and add its core exercises with a simple prescription.</SectionBody>
+              <SectionBody>
+                Exercises are what you actually perform inside the selected workout — like Squat, RDL, or Bench Press. Pick one workout at a time and add its core exercises with a simple prescription.
+              </SectionBody>
               {workouts.length === 0 ? (
                 <EmptyState>Create a workout first.</EmptyState>
               ) : (
