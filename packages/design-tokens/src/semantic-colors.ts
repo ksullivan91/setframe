@@ -38,6 +38,27 @@ export const lightTheme = {
     caution: colorRamps.status.caution,
     info: colorRamps.status.info,
   },
+  /**
+   * Data-visualisation palette. Raw observations use the accent purple and
+   * the smoothed trend uses the success green, so the two brand colours
+   * carry a real meaning rather than being decoration: purple is what you
+   * logged, green is the signal underneath it.
+   */
+  chart: {
+    raw: colorRamps.accent[400],
+    trend: colorRamps.status.success,
+    band: `${colorRamps.accent[500]}24`,
+    emphasis: colorRamps.accent[600],
+    empty: colorRamps.neutral[200],
+    gridline: colorRamps.neutral[200],
+    axis: colorRamps.neutral[500],
+    series: [
+      colorRamps.accent[500],
+      colorRamps.status.success,
+      colorRamps.status.info,
+      colorRamps.status.caution,
+    ],
+  },
 } as const;
 
 export const darkTheme = {
@@ -69,9 +90,45 @@ export const darkTheme = {
     caution: colorRamps.status.caution,
     info: colorRamps.status.info,
   },
+  chart: {
+    raw: colorRamps.accent[300],
+    trend: colorRamps.status.success,
+    band: `${colorRamps.accent[400]}2E`,
+    emphasis: colorRamps.accent[400],
+    empty: colorRamps.neutral[800],
+    gridline: colorRamps.neutral[800],
+    axis: colorRamps.neutral[400],
+    series: [
+      colorRamps.accent[400],
+      colorRamps.status.success,
+      colorRamps.status.info,
+      colorRamps.status.caution,
+    ],
+  },
 } as const;
 
 export type ThemeMode = 'light' | 'dark';
+
+export interface ChartTokens {
+  /** Raw, unsmoothed observations — the numbers the user actually logged. */
+  raw: string;
+  /** Smoothed/trend overlay drawn on top of `raw`. */
+  trend: string;
+  /** Translucent area fill beneath a line or under a trend band. */
+  band: string;
+  /** Fill for the currently selected or current-period mark. */
+  emphasis: string;
+  /** Fill for a period with no data, so gaps read as real absences. */
+  empty: string;
+  gridline: string;
+  axis: string;
+  /**
+   * Ordered categorical palette for multi-series charts. Deliberately leads
+   * with the two brand anchors (accent purple, success green) before
+   * borrowing the informational blue and caution amber.
+   */
+  series: readonly string[];
+}
 
 export interface SemanticTheme {
   text: { primary: string; secondary: string; inverse: string; disabled: string };
@@ -85,6 +142,7 @@ export interface SemanticTheme {
     destructive: string;
   };
   status: { success: string; error: string; caution: string; info: string };
+  chart: ChartTokens;
 }
 
 export const themes: Record<ThemeMode, SemanticTheme> = {

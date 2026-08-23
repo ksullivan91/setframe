@@ -6,3 +6,6 @@ export * from './exercise-ordering';
 export * from './prescription-fields';
 export * from './prescription-summary';
 export * from './session-pr';
+export * from './units';
+export * from './progress-metrics';
+export * from './weight-trend';
