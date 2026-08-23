@@ -1,4 +1,4 @@
-# Story 17 — Schedule Rest Days from the Training Schedule Table
+# Story 21 — Schedule Rest Days from the Training Schedule Table
 
 ## User Story
 
