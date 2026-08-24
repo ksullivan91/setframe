@@ -9,10 +9,6 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
-- `setframe-completed-workout-edit-story/` — story 23, letting a user
-  correct a logged set after a workout is already completed, with derived
-  metrics (volume, e1RM, PRs) recalculating. (Numbered 23, not the
-  original 21 — see its own README.)
 - `WAIT-automated-visual-and-e2e-testing.md` — deferred by request. Filed so the
   gap is tracked, deliberately not started.
 - `WAIT-figma-accentsubtle-token-fix.md` — deferred by request. Fixes
@@ -29,3 +25,7 @@ alongside their stories, named `README-{range}-{review}.md`.
 - `completed/21-schedule-rest-days-in-training.md` — schedule rest days
   from Training, not just Today.
 - `completed/README-22-mobile-unit-label-review.md` — story 22.
+- `completed/README-23-completed-workout-edit-review.md` — story 23,
+  correcting a logged set after a workout is already completed, with
+  derived metrics (volume, e1RM, PRs) recalculating. (Numbered 23, not the
+  original 21 — see its own README.)
