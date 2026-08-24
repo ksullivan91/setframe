@@ -9,6 +9,13 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
+- `setframe-today-action-hierarchy-story/` — story 27, clarifying Today's
+  workout action hierarchy (Start workout as the one primary CTA, Preview/
+  Change grouped as supporting actions, Rest Day separated into its own
+  explained section rather than a fifth competing button).
+- `setframe-program-management-stories/` — stories 24–26, adding program
+  management/active-program selection and scoping workouts/schedule to the
+  selected program.
 - `WAIT-automated-visual-and-e2e-testing.md` — deferred by request. Filed so the
   gap is tracked, deliberately not started.
 - `WAIT-figma-accentsubtle-token-fix.md` — deferred by request. Fixes
@@ -29,3 +36,6 @@ alongside their stories, named `README-{range}-{review}.md`.
   correcting a logged set after a workout is already completed, with
   derived metrics (volume, e1RM, PRs) recalculating. (Numbered 23, not the
   original 21 — see its own README.)
+- `completed/README-28-mobile-input-zoom-review.md` — story 28, preventing
+  iOS Safari's persistent post-blur zoom on form inputs. (Numbered 28, not
+  the original 23 — see its own README.)
