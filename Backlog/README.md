@@ -9,9 +9,8 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
-- `setframe-todays-workout-session-updates/` — stories 34–35, session-only
-  exercise removal and an investigative fix for horizontal overflow on the
-  active workout page.
+- `setframe-todays-workout-session-updates/` — story 34, session-only
+  exercise removal (story 35 shipped).
 - `setframe-workout-session-sticky-actions/` — story 36, keeping Add
   Exercise/Finish Workout reachable during long workouts.
 - `setframe-workout-quick-entry-accordion-stories/` — stories 37–39, a
@@ -64,3 +63,7 @@ alongside their stories, named `README-{range}-{review}.md`.
   shipped.
 - `completed/README-29-add-exercise-modal-spacing-review.md` — story 29,
   restoring mobile horizontal padding in the shared modal/sheet primitive.
+- `completed/35-investigate-active-workout-horizontal-overflow.md` — story
+  35, root-caused to `<input>`'s intrinsic minimum content width overriding
+  `flex: 1` inside the SetGrid at narrow viewports, plus defensive width
+  caps on the toast stack.
