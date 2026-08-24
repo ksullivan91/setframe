@@ -9,6 +9,18 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
+- `setframe-todays-workout-session-updates/` — stories 34–35, session-only
+  exercise removal and an investigative fix for horizontal overflow on the
+  active workout page.
+- `setframe-workout-session-sticky-actions/` — story 36, keeping Add
+  Exercise/Finish Workout reachable during long workouts.
+- `setframe-workout-quick-entry-accordion-stories/` — stories 37–39, a
+  collapsible single-active-exercise accordion with cascading quick-entry
+  values and derived completion state.
+- `setframe-progress-graph-enhancements/` — stories 30–33, viewport-safe
+  Progress tooltips, real time-range controls with consistent week
+  boundaries, a reusable chart-detail interaction pattern, and a Body
+  Weight redesign built on both.
 - `WAIT-automated-visual-and-e2e-testing.md` — deferred by request. Filed so the
   gap is tracked, deliberately not started.
 - `WAIT-figma-accentsubtle-token-fix.md` — deferred by request. Fixes
@@ -50,3 +62,5 @@ alongside their stories, named `README-{range}-{review}.md`.
   the selected program's own workouts and never leaks UI state across a
   program switch — the multi-program management pack is now fully
   shipped.
+- `completed/README-29-add-exercise-modal-spacing-review.md` — story 29,
+  restoring mobile horizontal padding in the shared modal/sheet primitive.
