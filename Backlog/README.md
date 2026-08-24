@@ -9,8 +9,8 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
-- `setframe-program-management-stories/` — stories 24–26, adding program
-  management/active-program selection and scoping workouts/schedule to the
+- `setframe-program-management-stories/` — stories 25–26 (24 shipped
+  separately, see Shipped below), scoping workouts and schedule to the
   selected program.
 - `WAIT-automated-visual-and-e2e-testing.md` — deferred by request. Filed so the
   gap is tracked, deliberately not started.
@@ -38,3 +38,7 @@ alongside their stories, named `README-{range}-{review}.md`.
 - `completed/README-27-today-action-hierarchy-review.md` — story 27,
   restructuring Today's workout actions into primary/supporting/rest
   tiers and explaining what Rest Day actually does.
+- `completed/24-programs-tab-and-active-program.md` — story 24 (from the
+  `setframe-program-management-stories/` pack), a Programs tab with
+  explicit active-program selection. Stories 25–26 from the same pack
+  remain open — see their own README.
