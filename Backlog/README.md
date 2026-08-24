@@ -9,8 +9,6 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
-- `setframe-program-management-stories/` — story 26 (24–25 shipped
-  separately, see Shipped below), making scheduling program-aware.
 - `WAIT-automated-visual-and-e2e-testing.md` — deferred by request. Filed so the
   gap is tracked, deliberately not started.
 - `WAIT-figma-accentsubtle-token-fix.md` — deferred by request. Fixes
@@ -43,4 +41,12 @@ alongside their stories, named `README-{range}-{review}.md`.
 - `completed/25-program-scoped-workouts.md` — story 25, an explicit
   program-to-workout membership model (`program_day_type`) so the
   Workouts tab and every downstream picker only offer the selected
-  program's own workouts. Story 26 from the same pack remains open.
+  program's own workouts.
+- `completed/README-24-26-multi-program-management-review.md` — the
+  original pack README for stories 24–26, archived once all three
+  shipped (their own story files are the individual entries above/below).
+- `completed/26-program-aware-schedule.md` — story 26, verifying (and
+  closing two gaps found along the way) that Schedule only ever offers
+  the selected program's own workouts and never leaks UI state across a
+  program switch — the multi-program management pack is now fully
+  shipped.
