@@ -6,7 +6,14 @@ import { typeScale } from '../theme/typeScale';
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label: string;
-  /** Optional unit suffix, e.g. "lb" for numeric weight fields (style guide §6). */
+  /**
+   * Optional unit, e.g. "lb" for numeric weight fields (style guide §6).
+   * Folded into the visible label ("Weight (lb)") rather than rendered as
+   * an in-field suffix — at narrow widths inside a two-column form, an
+   * adornment sharing the bordered input box with the value can be pushed
+   * outside the field entirely (Story 22). The input itself only ever
+   * holds the editable number.
+   */
   unit?: string;
   /** Optional explanatory text shown via an info-icon tooltip next to the label. */
   labelHint?: string;
@@ -111,11 +118,6 @@ const StyledInput = styled.input`
   }
 `;
 
-const Unit = styled.span`
-  color: ${(p) => p.theme.text.secondary};
-  font-size: ${typeScale.compactBody.fontSize}px;
-`;
-
 const ErrorText = styled.span`
   font-size: ${typeScale.helper.fontSize}px;
   color: ${(p) => p.theme.status.error};
@@ -132,7 +134,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   return (
     <Wrapper>
       <LabelRow>
-        <Label htmlFor={inputId}>{label}</Label>
+        <Label htmlFor={inputId}>{unit ? `${label} (${unit})` : label}</Label>
         {labelHint ? (
           <HintWrapper>
             <HintButton type="button" aria-describedby={hintId} aria-label={`What is ${label}?`}>
@@ -146,7 +148,6 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       </LabelRow>
       <FieldRow>
         <StyledInput ref={ref} id={inputId} {...props} />
-        {unit ? <Unit>{unit}</Unit> : null}
       </FieldRow>
       {error ? <ErrorText role="alert">{error}</ErrorText> : null}
     </Wrapper>

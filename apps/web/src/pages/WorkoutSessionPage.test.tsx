@@ -139,7 +139,7 @@ describe('WorkoutSessionPage prescription-aware fields', () => {
   it('shows only strength fields for a sets + reps exercise', async () => {
     renderSession({ kind: 'sets_reps', sets: 3, repsMin: 8, repsMax: 10 });
 
-    expect(await screen.findByLabelText('Weight')).toBeInTheDocument();
+    expect(await screen.findByLabelText(/^Weight/)).toBeInTheDocument();
     expect(screen.getByLabelText('Reps')).toBeInTheDocument();
     expect(screen.getByLabelText('RPE')).toBeInTheDocument();
     expect(screen.queryByLabelText(/Duration/)).not.toBeInTheDocument();
@@ -153,7 +153,7 @@ describe('WorkoutSessionPage prescription-aware fields', () => {
     expect(await screen.findByLabelText('Distance')).toBeInTheDocument();
     expect(screen.getByLabelText('Distance unit')).toBeInTheDocument();
     expect(screen.getByLabelText('Duration (min)')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Weight')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Weight/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Reps')).not.toBeInTheDocument();
     // A single continuous effort has no set type.
     expect(screen.queryByLabelText('Type')).not.toBeInTheDocument();
@@ -163,7 +163,7 @@ describe('WorkoutSessionPage prescription-aware fields', () => {
     renderSession({ kind: 'bodyweight_reps', sets: 4, repsMin: 8 });
 
     expect(await screen.findByLabelText('Reps')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Weight')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Weight/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Duration/)).not.toBeInTheDocument();
   });
 
@@ -171,7 +171,7 @@ describe('WorkoutSessionPage prescription-aware fields', () => {
     renderSession({ kind: 'timed', sets: 3, durationSeconds: 45 });
 
     expect(await screen.findByLabelText('Duration (sec)')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Weight')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Weight/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Reps')).not.toBeInTheDocument();
   });
 
@@ -187,7 +187,7 @@ describe('WorkoutSessionPage prescription-aware fields', () => {
       reps: 5,
     } as SetOverrides);
 
-    const weight = await screen.findByLabelText('Weight');
+    const weight = await screen.findByLabelText(/^Weight/);
     expect(weight).toHaveValue('45');
     expect(screen.getByLabelText('Reps')).toHaveValue('5');
   });
@@ -201,7 +201,7 @@ describe('WorkoutSessionPage prescription-aware fields', () => {
   it('falls back to a permissive field set when an exercise has no prescription', async () => {
     renderSession(null);
 
-    expect(await screen.findByLabelText('Weight')).toBeInTheDocument();
+    expect(await screen.findByLabelText(/^Weight/)).toBeInTheDocument();
     expect(screen.getByLabelText('Reps')).toBeInTheDocument();
     expect(screen.getByLabelText('Duration (sec)')).toBeInTheDocument();
     expect(screen.getByLabelText('Distance')).toBeInTheDocument();
@@ -249,7 +249,7 @@ describe('WorkoutSessionPage mid-session add exercise', () => {
     );
 
     // The set logged before the add is untouched.
-    expect(screen.getByLabelText('Weight')).toHaveValue('135');
+    expect(screen.getByLabelText(/^Weight/)).toHaveValue('135');
     expect(screen.getByLabelText('Reps')).toHaveValue('5');
   });
 
@@ -408,7 +408,7 @@ describe('WorkoutSessionPage PR badges', () => {
       { weightValue: 105, reps: 6, isPrWeight: false, isPrReps: false },
     ]);
 
-    await screen.findAllByLabelText('Weight');
+    await screen.findAllByLabelText(/^Weight/);
     expect(screen.queryByText('Weight PR')).not.toBeInTheDocument();
     expect(screen.queryByText('Rep PR')).not.toBeInTheDocument();
   });

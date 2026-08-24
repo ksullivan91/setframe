@@ -114,6 +114,16 @@ export function SetRowEditable({
     <View key={field} style={{ flex: 1 }}>
       <Input
         label={inlineFields.includes(field) ? undefined : getSessionFieldLabel(field, definition)}
+        // Inline weight/reps skip the visible label to stay compact
+        // (Story 22 explicitly doesn't redesign this row), but still need
+        // a real accessible name rather than just "lb" or nothing.
+        accessibilityLabel={
+          inlineFields.includes(field)
+            ? field === 'weight' && weightUnit
+              ? `${getSessionFieldLabel(field, definition)}, ${weightUnit}`
+              : getSessionFieldLabel(field, definition)
+            : undefined
+        }
         value={values[field] ?? ''}
         onChangeText={(value) => onChangeField(field, value)}
         numeric

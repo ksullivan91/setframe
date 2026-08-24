@@ -9,7 +9,22 @@ export interface InputProps {
   value: string;
   onChangeText: (value: string) => void;
   placeholder?: string;
+  /**
+   * Optional unit, e.g. "lb" for numeric weight fields. When `label` is
+   * also given, folded into the visible label ("Weight (lb)") rather than
+   * rendered as an in-field suffix — at narrow widths, an adornment
+   * sharing the bordered input box with the value can be pushed outside
+   * the field entirely (Story 22). When there's no visible label (the
+   * compact inline weight/reps in `SetRow` — deliberately unlabeled to
+   * stay scannable, not something this story redesigns), the unit still
+   * renders inline as before, but pass `accessibilityLabel` explicitly in
+   * that case so screen readers still get a real field name.
+   */
   unit?: string;
+  /** Overrides the computed accessible name — needed when `label` is
+   * omitted for a compact/unlabeled layout, so screen readers still get
+   * a real field name instead of just the unit or nothing. */
+  accessibilityLabel?: string;
   keyboardType?: KeyboardTypeOptions;
   secureTextEntry?: boolean;
   errorMessage?: string;
@@ -29,6 +44,7 @@ export function Input({
   onChangeText,
   placeholder,
   unit,
+  accessibilityLabel,
   keyboardType,
   secureTextEntry,
   errorMessage,
@@ -37,11 +53,14 @@ export function Input({
 }: InputProps) {
   const theme = useTheme();
   const [focused, setFocused] = useState(false);
+  const visibleLabel = label && unit ? `${label} (${unit})` : label;
+  const computedAccessibilityLabel =
+    accessibilityLabel ?? visibleLabel ?? (unit ? `Value, ${unit}` : undefined);
 
   return (
     <View style={styles.container}>
-      {label ? (
-        <Text style={[styles.label, { color: theme.text.secondary }]}>{label}</Text>
+      {visibleLabel ? (
+        <Text style={[styles.label, { color: theme.text.secondary }]}>{visibleLabel}</Text>
       ) : null}
       <View
         style={[
@@ -58,6 +77,7 @@ export function Input({
       >
         <TextInput
           testID={testID}
+          accessibilityLabel={computedAccessibilityLabel}
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
@@ -74,7 +94,9 @@ export function Input({
             },
           ]}
         />
-        {unit ? (
+        {/* Label already carries the unit once a label exists; this inline
+            suffix only remains for the label-less compact case. */}
+        {unit && !label ? (
           <Text style={[styles.unit, { color: theme.text.secondary }]}>{unit}</Text>
         ) : null}
       </View>
