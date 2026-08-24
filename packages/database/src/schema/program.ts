@@ -140,6 +140,34 @@ export const dayTypeExercisePlannedSet = pgTable(
   ],
 );
 
+// Story 25 — explicit program-to-workout membership. `day_type` is a
+// reusable, globally-scoped-per-user entity (no `program_id` column of its
+// own); before this table, "belongs to program X" could only be inferred
+// from `program_schedule_slot`, which meant a workout added to a program
+// but not yet scheduled anywhere had no way to persist that membership at
+// all. Sets the association explicitly and independent of scheduling.
+export const programDayType = pgTable(
+  'program_day_type',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    trainingProgramId: uuid('training_program_id')
+      .notNull()
+      .references(() => trainingProgram.id),
+    dayTypeId: uuid('day_type_id')
+      .notNull()
+      .references(() => dayType.id),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('program_day_type_training_program_id_day_type_id_key').on(
+      table.trainingProgramId,
+      table.dayTypeId,
+    ),
+    index('program_day_type_day_type_id_idx').on(table.dayTypeId),
+  ],
+);
+
 export const programScheduleSlot = pgTable(
   'program_schedule_slot',
   {

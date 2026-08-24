@@ -590,13 +590,24 @@ export function ProgramEditorPage() {
   );
   const [addExerciseOpen, setAddExerciseOpen] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [addExistingOpen, setAddExistingOpen] = useState(false);
   const [renamingProgramId, setRenamingProgramId] = useState<string | null>(null);
 
   const { data: programs, isLoading: programsLoading } = useQuery({
     queryKey: ['programs'],
     queryFn: () => api.get<TrainingProgram[]>('/programs'),
   });
+  // Story 25 — scoped to the selected program (membership, not plain
+  // ownership): a global "every workout this user has ever made" list
+  // made program boundaries meaningless once more than one program exists.
   const { data: dayTypes = [], isLoading: dayTypesLoading } = useQuery({
+    queryKey: ['program-day-types', selectedProgramId],
+    queryFn: () => api.get<DayType[]>(`/programs/${selectedProgramId}/day-types`),
+    enabled: !!selectedProgramId,
+  });
+  // Only fetched for the "add an existing workout" picker below — never
+  // rendered as a list on its own.
+  const { data: allDayTypes = [] } = useQuery({
     queryKey: ['day-types'],
     queryFn: () => api.get<DayType[]>('/day-types'),
   });
@@ -662,6 +673,13 @@ export function ProgramEditorPage() {
     if (!stillExists) setSelectedProgramId(activeProgram?.id ?? programs[0]?.id ?? null);
   }, [programs, selectedProgramId, activeProgram]);
 
+  // Story 26 — a workout selected while viewing Program A's Workouts/
+  // Schedule must not stay selected once the user switches to Program B;
+  // it may not even exist there.
+  useEffect(() => {
+    setSelectedDayTypeId(null);
+  }, [selectedProgramId]);
+
   useEffect(() => {
     if (dayTypes.length && !selectedDayTypeId) setSelectedDayTypeId(dayTypes[0]!.id);
   }, [dayTypes, selectedDayTypeId]);
@@ -680,17 +698,41 @@ export function ProgramEditorPage() {
 
   const invalidateTraining = () => {
     queryClient.invalidateQueries({ queryKey: ['day-types'] });
+    queryClient.invalidateQueries({ queryKey: ['program-day-types', selectedProgramId] });
     queryClient.invalidateQueries({ queryKey: ['day-type', selectedDayTypeId] });
     queryClient.invalidateQueries({ queryKey: ['schedule-slots', selectedProgramId] });
   };
 
   const createDayType = useMutation({
-    mutationFn: (body: { name: string }) => api.post<DayType>('/day-types', body),
+    mutationFn: (body: { name: string }) => api.post<DayType>('/day-types', { ...body, programId: selectedProgramId }),
     onSuccess: (row) => {
       invalidateTraining();
       setSelectedDayTypeId(row.id);
       setShowCreateForm(false);
     },
+  });
+
+  const addExistingToProgram = useMutation({
+    mutationFn: (dayTypeId: string) => api.post<DayType>(`/programs/${selectedProgramId}/day-types`, { dayTypeId }),
+    onSuccess: (row) => {
+      invalidateTraining();
+      setSelectedDayTypeId(row.id);
+      setAddExistingOpen(false);
+    },
+    onError: () => toast.show({ variant: 'error', message: 'Could not add that workout to the program.' }),
+  });
+
+  // Membership only (Story 25) — the workout, its exercises, and its
+  // presence in any other program are untouched. Distinct from the
+  // permanent `deleteDayType` below.
+  const removeFromProgram = useMutation({
+    mutationFn: (dayTypeId: string) => api.del<void>(`/programs/${selectedProgramId}/day-types/${dayTypeId}`),
+    onSuccess: () => {
+      invalidateTraining();
+      setSelectedDayTypeId(null);
+      toast.show({ variant: 'success', message: 'Removed from this program.' });
+    },
+    onError: () => toast.show({ variant: 'error', message: 'Could not remove that workout from the program.' }),
   });
 
   const deleteDayType = useMutation({
@@ -774,6 +816,13 @@ export function ProgramEditorPage() {
     [selectedDayType?.exercises],
   );
 
+  // Workouts the user already has, not yet part of this program — the
+  // pool "Add existing workout" picks from (Story 25).
+  const addableDayTypes = useMemo(() => {
+    const memberIds = new Set(dayTypes.map((d) => d.id));
+    return allDayTypes.filter((d) => !memberIds.has(d.id));
+  }, [allDayTypes, dayTypes]);
+
   const reorderByDelta = (index: number, delta: number) => {
     const nextIndex = index + delta;
     if (nextIndex < 0 || nextIndex >= sortedExercises.length) return;
@@ -784,8 +833,13 @@ export function ProgramEditorPage() {
      render the "No workouts yet" empty state and the guided-setup banner to
      users who already have a program — a wrong answer, shown confidently,
      that then snapped to the real list. Hold the content-shaped skeleton
-     until both queries that decide those branches have resolved. */
-  if (programsLoading || dayTypesLoading) {
+     until both queries that decide those branches have resolved.
+     `dayTypes` (Story 25) is enabled only once `selectedProgramId` exists,
+     so there's a one-tick window between programs resolving and the
+     default-selection effect running where it would otherwise report
+     "not loading" with stale/empty data — treat that window as loading too. */
+  const stillResolvingSelectedProgram = Boolean(programs && programs.length > 0 && !selectedProgramId);
+  if (programsLoading || stillResolvingSelectedProgram || dayTypesLoading) {
     return <TrainingSkeleton />;
   }
 
@@ -916,6 +970,11 @@ export function ProgramEditorPage() {
                     existingNames={dayTypes.map((d) => d.name)}
                     autoFocus
                   />
+                  {addableDayTypes.length > 0 ? (
+                    <Button variant="secondary" onClick={() => setAddExistingOpen(true)}>
+                      Add an existing workout
+                    </Button>
+                  ) : null}
                 </>
               ) : (
                 <>
@@ -934,9 +993,16 @@ export function ProgramEditorPage() {
                       autoFocus
                     />
                   ) : (
-                    <Button variant="secondary" onClick={() => setShowCreateForm(true)}>
-                      <Plus size={16} />New workout
-                    </Button>
+                    <CreateWorkoutActions>
+                      <Button variant="secondary" onClick={() => setShowCreateForm(true)}>
+                        <Plus size={16} />New workout
+                      </Button>
+                      {addableDayTypes.length > 0 ? (
+                        <Button variant="tertiary" onClick={() => setAddExistingOpen(true)}>
+                          Add existing
+                        </Button>
+                      ) : null}
+                    </CreateWorkoutActions>
                   )}
                 </>
               )}
@@ -954,7 +1020,21 @@ export function ProgramEditorPage() {
                       {selectedDayType.estimatedDurationMinutes ? ` · approximately ${selectedDayType.estimatedDurationMinutes} min` : ''}
                     </Small>
                   </div>
-                  <Button variant="destructive" onClick={() => deleteDayType.mutate(selectedDayType.id)}>Delete</Button>
+                  <Menu
+                    label={`Actions for ${selectedDayType.name}`}
+                    items={[
+                      {
+                        label: 'Remove from this program',
+                        destructive: true,
+                        onClick: () => removeFromProgram.mutate(selectedDayType.id),
+                      },
+                      {
+                        label: 'Delete permanently',
+                        destructive: true,
+                        onClick: () => deleteDayType.mutate(selectedDayType.id),
+                      },
+                    ]}
+                  />
                 </Row>
 
                 {sortedExercises.length === 0 ? (
@@ -1017,6 +1097,10 @@ export function ProgramEditorPage() {
             {programContextLabel}
             {!selectedProgramId ? (
               <Small>Set up your training program to see it here.</Small>
+            ) : dayTypes.length === 0 ? (
+              // Story 26 — Schedule only ever offers this program's own
+              // workouts; with none yet, there's nothing to build with.
+              <Small>Add a workout to this program before building its schedule.</Small>
             ) : (
               <>
                 <Select label="Mode" value={mode} onChange={(e) => { const next = e.target.value as 'perpetual' | 'block'; patchProgram.mutate({ cycleLengthWeeks: next === 'block' ? 1 : null }); }} options={modeOptions} />
@@ -1083,6 +1167,29 @@ export function ProgramEditorPage() {
           isAddingExercise={addExercise.isPending}
           onAddExercise={(exerciseId, prescription) => addExercise.mutate({ exerciseId, prescription })}
         />
+      ) : null}
+
+      {addExistingOpen ? (
+        <SharedModal open onClose={() => setAddExistingOpen(false)} title="Add an existing workout">
+          <Column>
+            {addableDayTypes.length === 0 ? (
+              <Small>Every workout you have is already part of this program.</Small>
+            ) : (
+              addableDayTypes.map((dayType) => (
+                <Row key={dayType.id} style={{ justifyContent: 'space-between' }}>
+                  <strong>{dayType.name}</strong>
+                  <Button
+                    variant="secondary"
+                    disabled={addExistingToProgram.isPending}
+                    onClick={() => addExistingToProgram.mutate(dayType.id)}
+                  >
+                    Add
+                  </Button>
+                </Row>
+              ))
+            )}
+          </Column>
+        </SharedModal>
       ) : null}
     </Column>
     </FadeIn>

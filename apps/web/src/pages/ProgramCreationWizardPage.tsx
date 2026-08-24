@@ -314,7 +314,10 @@ export function ProgramCreationWizardPage() {
   });
 
   const createDayType = useMutation({
-    mutationFn: (body: { name: string }) => api.post<DayType>('/day-types', body),
+    // Story 25 — a workout created mid-Guided-Setup is associated with the
+    // program being built immediately, not left an orphan only the
+    // global workout list can see.
+    mutationFn: (body: { name: string }) => api.post<DayType>('/day-types', { ...body, programId }),
     onSuccess: async (created) => {
       await queryClient.invalidateQueries({ queryKey: ['day-types'] });
       const nextWorkout = { tempId: nextTempId('workout'), dayTypeId: created.id, name: created.name };
@@ -377,7 +380,7 @@ export function ProgramCreationWizardPage() {
 
   const undoRemoveWorkout = useMutation({
     mutationFn: async ({ name, exercises, position }: { name: string; exercises: DayTypeExercise[]; position: number }) => {
-      const created = await api.post<DayType>('/day-types', { name });
+      const created = await api.post<DayType>('/day-types', { name, programId });
       for (const exercise of exercises.slice().sort((a, b) => a.sortOrder - b.sortOrder)) {
         await api.post(`/day-types/${created.id}/exercises`, {
           exerciseId: exercise.exerciseId,

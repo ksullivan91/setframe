@@ -1,10 +1,11 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, max } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   dayType,
   dayTypeExercise,
   dayTypeExercisePlannedSet,
+  programDayType,
   programScheduleSlot,
   programVersion,
   scheduleOverride,
@@ -108,7 +109,14 @@ const createDayTypeSchema = z.object({
   name: z.string().min(1),
   description: z.string().nullable().optional(),
   estimatedDurationMinutes: z.number().int().positive().nullable().optional(),
+  // Story 25 — when creating a workout from within a program's context
+  // (Guided Setup, or the Workouts tab's "New workout"), associate it with
+  // that program immediately rather than leaving it an orphan only the
+  // global list can see.
+  programId: z.string().uuid().optional(),
 });
+
+const addExistingDayTypeToProgramSchema = z.object({ dayTypeId: z.string().uuid() });
 
 const addDayTypeExerciseSchema = z.object({
   exerciseId: z.string().uuid(),
@@ -227,6 +235,39 @@ async function resequenceDayTypeExercises(db: ReturnType<typeof getDb>, dayTypeI
   );
 }
 
+async function getOwnedProgram(db: ReturnType<typeof getDb>, programId: string, userId: string) {
+  const rows = await db
+    .select()
+    .from(trainingProgram)
+    .where(and(eq(trainingProgram.id, programId), eq(trainingProgram.userId, userId)))
+    .limit(1);
+  const row = rows[0];
+  if (!row) throw notFound('Program not found');
+  return row;
+}
+
+/**
+ * Verifies a workout is both owned by the user and an explicit member of
+ * this program (Story 25) — plain ownership alone is what let Schedule
+ * offer a workout from a program it doesn't belong to.
+ */
+async function getOwnedProgramDayType(
+  db: ReturnType<typeof getDb>,
+  programId: string,
+  dayTypeId: string,
+  userId: string,
+) {
+  await getOwnedProgram(db, programId, userId);
+  const row = await getOwnedDayType(db, dayTypeId, userId);
+  const membership = await db
+    .select({ id: programDayType.id })
+    .from(programDayType)
+    .where(and(eq(programDayType.trainingProgramId, programId), eq(programDayType.dayTypeId, dayTypeId)))
+    .limit(1);
+  if (!membership[0]) throw notFound('Workout is not part of this program');
+  return row;
+}
+
 async function getOwnedCurrentVersion(db: ReturnType<typeof getDb>, programId: string, userId: string) {
   const programs = await db
     .select()
@@ -330,6 +371,7 @@ export const dayTypeRoutes: FastifyPluginAsyncZod = async (fastify) => {
     },
     async (request, reply) => {
       const db = getDb();
+      if (request.body.programId) await getOwnedProgram(db, request.body.programId, request.userId!);
       const rows = await db
         .insert(dayType)
         .values({
@@ -339,8 +381,12 @@ export const dayTypeRoutes: FastifyPluginAsyncZod = async (fastify) => {
           estimatedDurationMinutes: request.body.estimatedDurationMinutes ?? null,
         })
         .returning();
+      const created = rows[0]!;
+      if (request.body.programId) {
+        await db.insert(programDayType).values({ trainingProgramId: request.body.programId, dayTypeId: created.id });
+      }
       reply.status(201);
-      return toDayTypeResponse(rows[0]!);
+      return toDayTypeResponse(created);
     },
   );
 
@@ -417,6 +463,11 @@ export const dayTypeRoutes: FastifyPluginAsyncZod = async (fastify) => {
       await db.delete(dayTypeExercise).where(eq(dayTypeExercise.dayTypeId, request.params.dayTypeId));
       await db.delete(programScheduleSlot).where(eq(programScheduleSlot.dayTypeId, request.params.dayTypeId));
       await db.delete(scheduleOverride).where(eq(scheduleOverride.dayTypeId, request.params.dayTypeId));
+      // Story 25 — program_day_type has no ON DELETE CASCADE either;
+      // most existing workouts now have a membership row (the migration
+      // backfilled it), so skipping this made a permanent delete 500 on
+      // any workout that belongs to a program.
+      await db.delete(programDayType).where(eq(programDayType.dayTypeId, request.params.dayTypeId));
       await db
         .update(workoutSession)
         .set({ templateId: null })
@@ -705,6 +756,106 @@ export const dayTypeRoutes: FastifyPluginAsyncZod = async (fastify) => {
     },
   );
 
+  // --- Story 25: program-to-workout membership -----------------------
+
+  fastify.get(
+    '/v1/programs/:programId/day-types',
+    {
+      preHandler: requireAuth,
+      schema: { params: programParamsSchema, response: { 200: z.array(dayTypeSchema) } },
+    },
+    async (request) => {
+      const db = getDb();
+      await getOwnedProgram(db, request.params.programId, request.userId!);
+      const rows = await db
+        .select({ dayType })
+        .from(programDayType)
+        .innerJoin(dayType, eq(dayType.id, programDayType.dayTypeId))
+        .where(eq(programDayType.trainingProgramId, request.params.programId))
+        .orderBy(programDayType.sortOrder, programDayType.createdAt);
+      return rows.map((row) => toDayTypeResponse(row.dayType));
+    },
+  );
+
+  fastify.post(
+    '/v1/programs/:programId/day-types',
+    {
+      preHandler: requireAuth,
+      schema: { params: programParamsSchema, body: addExistingDayTypeToProgramSchema, response: { 201: dayTypeSchema } },
+    },
+    async (request, reply) => {
+      const db = getDb();
+      await getOwnedProgram(db, request.params.programId, request.userId!);
+      const owned = await getOwnedDayType(db, request.body.dayTypeId, request.userId!);
+
+      // Adding an already-member workout is a no-op, not an error — and
+      // `onConflictDoNothing` (rather than check-then-insert) keeps that
+      // true even under a concurrent duplicate request, which would
+      // otherwise race the unique constraint into an unhandled 500.
+      const [maxSortOrder] = await db
+        .select({ value: max(programDayType.sortOrder) })
+        .from(programDayType)
+        .where(eq(programDayType.trainingProgramId, request.params.programId));
+      await db
+        .insert(programDayType)
+        .values({
+          trainingProgramId: request.params.programId,
+          dayTypeId: request.body.dayTypeId,
+          sortOrder: (maxSortOrder?.value ?? -1) + 1,
+        })
+        .onConflictDoNothing();
+      reply.status(201);
+      return toDayTypeResponse(owned);
+    },
+  );
+
+  fastify.delete(
+    '/v1/programs/:programId/day-types/:dayTypeId',
+    {
+      preHandler: requireAuth,
+      schema: { params: programParamsSchema.extend({ dayTypeId: z.string().uuid() }), response: { 204: z.null() } },
+    },
+    async (request, reply) => {
+      const db = getDb();
+      await getOwnedProgram(db, request.params.programId, request.userId!);
+      await getOwnedDayType(db, request.params.dayTypeId, request.userId!);
+
+      // Removing a workout from a program is a membership change, not a
+      // deletion (Story 25) — the day_type itself, its exercises, and its
+      // presence in any OTHER program are untouched. Only resolve *this*
+      // program's own schedule references to it, mirroring the cleanup
+      // DELETE /v1/day-types/:dayTypeId does globally.
+      const versions = await db
+        .select({ id: programVersion.id })
+        .from(programVersion)
+        .where(eq(programVersion.trainingProgramId, request.params.programId));
+      const versionIds = versions.map((v) => v.id);
+      if (versionIds.length > 0) {
+        await db
+          .delete(programScheduleSlot)
+          .where(
+            and(
+              eq(programScheduleSlot.dayTypeId, request.params.dayTypeId),
+              inArray(programScheduleSlot.programVersionId, versionIds),
+            ),
+          );
+      }
+
+      await db
+        .delete(programDayType)
+        .where(
+          and(
+            eq(programDayType.trainingProgramId, request.params.programId),
+            eq(programDayType.dayTypeId, request.params.dayTypeId),
+          ),
+        );
+      reply.status(204);
+      return null;
+    },
+  );
+
+  // ---------------------------------------------------------------------
+
   fastify.get(
     '/v1/programs/:programId/schedule-slots',
     {
@@ -734,7 +885,10 @@ export const dayTypeRoutes: FastifyPluginAsyncZod = async (fastify) => {
     },
     async (request, reply) => {
       const db = getDb();
-      await getOwnedDayType(db, request.body.dayTypeId, request.userId!);
+      // Story 26: a schedule slot can only reference a workout that's
+      // actually part of *this* program — plain ownership let Schedule
+      // silently offer workouts from every other program too.
+      await getOwnedProgramDayType(db, request.params.programId, request.body.dayTypeId, request.userId!);
       const version = await getOwnedCurrentVersion(db, request.params.programId, request.userId!);
       const rows = await db
         .insert(programScheduleSlot)
@@ -764,7 +918,9 @@ export const dayTypeRoutes: FastifyPluginAsyncZod = async (fastify) => {
     async (request) => {
       const db = getDb();
       const version = await getOwnedCurrentVersion(db, request.params.programId, request.userId!);
-      if (request.body.dayTypeId) await getOwnedDayType(db, request.body.dayTypeId, request.userId!);
+      if (request.body.dayTypeId) {
+        await getOwnedProgramDayType(db, request.params.programId, request.body.dayTypeId, request.userId!);
+      }
       const rows = await db
         .update(programScheduleSlot)
         .set({ ...request.body })

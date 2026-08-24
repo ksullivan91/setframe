@@ -9,16 +9,22 @@ import { ToastProvider } from '../components/Toast';
 import { ProgramEditorPage } from './ProgramEditorPage';
 
 let resolveDayTypes: (value: unknown) => void = () => {};
+// Resolves once the scoped day-types query actually fires — it's gated on
+// `selectedProgramId`, which only lands after the `/programs` fetch
+// resolves and an effect runs, so awaiting this (instead of racing ahead
+// right after render) is what makes `resolveDayTypes` below reliable.
+let dayTypesRequested: Promise<void> = Promise.resolve();
 let mockGet: (path: string) => Promise<unknown> = () => new Promise(() => {});
 const mockPost = vi.fn((_path: string, body?: unknown) => Promise.resolve(body));
 const mockPatch = vi.fn((_path: string, body?: unknown) => Promise.resolve(body));
+const mockDel = vi.fn((_path: string) => Promise.resolve(undefined));
 
 vi.mock('../lib/api-client', () => ({
   useApiClient: () => ({
     get: (path: string) => mockGet(path),
     post: (path: string, body?: unknown) => mockPost(path, body),
     patch: (path: string, body?: unknown) => mockPatch(path, body),
-    del: vi.fn(),
+    del: (path: string) => mockDel(path),
   }),
 }));
 
@@ -54,10 +60,27 @@ const dayTypes = [
 ];
 
 function renderTraining(programs: unknown[] = [program]) {
+  let markRequested: () => void = () => {};
+  dayTypesRequested = new Promise((resolve) => {
+    markRequested = resolve;
+  });
   mockGet = (path: string) => {
     if (path === '/programs') return Promise.resolve(programs);
-    // Held open so the assertions run while the page is still loading.
-    if (path === '/day-types') return new Promise((resolve) => (resolveDayTypes = resolve));
+    // The scoped, per-program list is what actually renders the Workouts
+    // tab (Story 25) — held open so assertions can run mid-loading. The
+    // global `/day-types` list only feeds the "add existing workout"
+    // picker, so it resolves immediately.
+    if (path.startsWith('/programs/') && path.endsWith('/day-types')) {
+      const promise = new Promise((resolve) => (resolveDayTypes = resolve));
+      markRequested();
+      return promise;
+    }
+    if (path === '/day-types') return Promise.resolve([]);
+    if (path.startsWith('/day-types/')) {
+      const dayTypeId = path.slice('/day-types/'.length);
+      const match = dayTypes.find((d) => d.id === dayTypeId);
+      return Promise.resolve(match ? { ...match, exercises: [] } : null);
+    }
     return Promise.resolve([]);
   };
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -101,9 +124,10 @@ describe('ProgramEditorPage loading state', () => {
     renderTraining();
     await screen.findByTestId('training-skeleton');
 
+    await dayTypesRequested;
     resolveDayTypes(dayTypes);
 
-    expect(await screen.findByText('Upper A')).toBeInTheDocument();
+    expect((await screen.findAllByText('Upper A')).length).toBeGreaterThan(0);
     await waitFor(() => expect(screen.queryByTestId('training-skeleton')).not.toBeInTheDocument());
     expect(screen.queryByText(/No workouts yet/i)).not.toBeInTheDocument();
   });
@@ -124,8 +148,9 @@ describe('ProgramEditorPage Programs tab', () => {
   it('lists every program and marks the active one', async () => {
     const user = userEvent.setup();
     renderTraining([program, secondProgram]);
+    await dayTypesRequested;
     resolveDayTypes(dayTypes);
-    await screen.findByText('Upper A');
+    await screen.findAllByText('Upper A');
 
     await user.click(screen.getByRole('tab', { name: 'Programs' }));
     const panel = screen.getByRole('tabpanel', { name: 'Programs' });
@@ -142,8 +167,9 @@ describe('ProgramEditorPage Programs tab', () => {
   it('viewing a non-active program does not activate it', async () => {
     const user = userEvent.setup();
     renderTraining([program, secondProgram]);
+    await dayTypesRequested;
     resolveDayTypes(dayTypes);
-    await screen.findByText('Upper A');
+    await screen.findAllByText('Upper A');
 
     await user.click(screen.getByRole('tab', { name: 'Programs' }));
     await user.click(screen.getAllByRole('button', { name: 'View' })[0]!);
@@ -157,8 +183,9 @@ describe('ProgramEditorPage Programs tab', () => {
       path === '/programs/program-2/activate' ? Promise.resolve({ ...secondProgram, isActive: true }) : Promise.resolve(undefined),
     );
     renderTraining([program, secondProgram]);
+    await dayTypesRequested;
     resolveDayTypes(dayTypes);
-    await screen.findByText('Upper A');
+    await screen.findAllByText('Upper A');
 
     await user.click(screen.getByRole('tab', { name: 'Programs' }));
     await user.click(screen.getByRole('button', { name: 'Set as active' }));
@@ -169,8 +196,9 @@ describe('ProgramEditorPage Programs tab', () => {
 
   it('shows which program is being edited once more than one exists', async () => {
     renderTraining([program, secondProgram]);
+    await dayTypesRequested;
     resolveDayTypes(dayTypes);
-    await screen.findByText('Upper A');
+    await screen.findAllByText('Upper A');
 
     const workoutsPanel = screen.getByRole('tabpanel', { name: 'Workouts' });
     expect(within(workoutsPanel).getByText('Base', { selector: 'strong' })).toBeInTheDocument();
@@ -178,9 +206,64 @@ describe('ProgramEditorPage Programs tab', () => {
 
   it('does not show a program-context label with only one program', async () => {
     renderTraining([program]);
+    await dayTypesRequested;
     resolveDayTypes(dayTypes);
-    await screen.findByText('Upper A');
+    await screen.findAllByText('Upper A');
 
     expect(screen.queryByText(/^Editing/)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * Story 25 — the Workouts tab used to show every workout the user has
+ * ever created, globally, regardless of which program was selected.
+ */
+describe('ProgramEditorPage program-scoped workouts', () => {
+  afterEach(() => {
+    mockPost.mockClear();
+    mockPatch.mockClear();
+    mockDel.mockClear();
+  });
+
+  it('fetches the program-scoped workout list, not the global one', async () => {
+    renderTraining();
+    await dayTypesRequested;
+    resolveDayTypes(dayTypes);
+    await screen.findAllByText('Upper A');
+
+    // Asserted via the request path itself — resolveDayTypes only ever
+    // answers `/programs/:id/day-types`, so reaching "Upper A" at all
+    // already proves the scoped endpoint is what's driving the list.
+    expect(dayTypes.map((d) => d.name)).toContain('Upper A');
+  });
+
+  it('removes a workout from the program via the membership endpoint, not a global delete', async () => {
+    const user = userEvent.setup();
+    renderTraining();
+    await dayTypesRequested;
+    resolveDayTypes(dayTypes);
+    await screen.findAllByText('Upper A');
+
+    await user.click(await screen.findByRole('button', { name: /Actions for Upper A/ }));
+    await user.click(screen.getByRole('menuitem', { name: 'Remove from this program' }));
+
+    expect(mockDel).toHaveBeenCalledWith(`/programs/${program.id}/day-types/day-1`);
+  });
+
+  it('creates a new workout scoped to the selected program', async () => {
+    const user = userEvent.setup();
+    mockPost.mockImplementation((path: string, body?: unknown) =>
+      path === '/day-types' ? Promise.resolve({ id: 'day-2', name: (body as { name: string }).name }) : Promise.resolve(body),
+    );
+    renderTraining();
+    await dayTypesRequested;
+    resolveDayTypes(dayTypes);
+    await screen.findAllByText('Upper A');
+
+    await user.click(screen.getByRole('button', { name: /New workout/ }));
+    await user.type(screen.getByLabelText('Workout name'), 'Lower C');
+    await user.click(screen.getByRole('button', { name: 'Create workout' }));
+
+    expect(mockPost).toHaveBeenCalledWith('/day-types', { name: 'Lower C', programId: program.id });
   });
 });
