@@ -18,6 +18,16 @@ alongside their stories, named `README-{range}-{review}.md`.
   Progress tooltips, real time-range controls with consistent week
   boundaries, a reusable chart-detail interaction pattern, and a Body
   Weight redesign built on both.
+- `setframe-additional-activity-feature/` — stories 40–45, a new
+  `AdditionalActivity` domain model distinct from a scheduled workout
+  (walks, yoga, mobility, foam rolling — logged in seconds, never
+  inflating workout counts/streaks/adherence), a Today section for it, a
+  fast manual add flow, reusable quick-add shortcuts, Apple Health
+  detect-and-suggest discovery, and history/progress separation from
+  scheduled training. Recommended order per the pack's own README:
+  40 → 41 → 42 → 45 (foundation + usable MVP), then 43 (quick-add
+  shortcuts), then 44 (Apple Health discovery) once the entity/dedupe
+  behavior already exists.
 - `WAIT-automated-visual-and-e2e-testing.md` — deferred by request. Filed so the
   gap is tracked, deliberately not started.
 - `WAIT-figma-accentsubtle-token-fix.md` — deferred by request. Fixes
