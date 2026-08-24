@@ -25,6 +25,14 @@ const ToastStack = styled.div`
   position: fixed;
   bottom: ${spacing[24]}px;
   right: ${spacing[24]}px;
+  /* Story 35 — anchoring only from the right with a min-width and no cap
+     let a long enough message push the box's left edge off a narrow
+     mobile viewport (position: fixed elements still count toward document
+     scrollWidth even though they're visually clipped from view). An
+     explicit max-width — not just a matching left offset, which a flex
+     container with unconstrained content doesn't reliably respect for
+     auto-resolving position:fixed width — keeps it viewport-safe. */
+  max-width: calc(100vw - ${spacing[24]}px - ${spacing[16]}px);
   display: flex;
   flex-direction: column;
   gap: ${spacing[8]}px;
@@ -41,7 +49,8 @@ const ToastItem = styled.div<{ $variant: ToastVariant }>`
   color: ${(p) => p.theme.text.inverse};
   background: ${(p) => (p.$variant === 'error' ? p.theme.text.primary : p.theme.status.success)};
   font-size: ${typeScale.body.fontSize}px;
-  min-width: 240px;
+  min-width: min(240px, 100%);
+  max-width: 100%;
 `;
 
 const ActionButton = styled.button`

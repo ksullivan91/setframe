@@ -57,3 +57,22 @@ describe('Input mobile-safe font size', () => {
     expect(getComputedStyle(screen.getByLabelText('Weight')).fontSize).toBe('16px');
   });
 });
+
+/**
+ * Story 35 — the confirmed root cause of the active workout page's
+ * horizontal overflow: `<input>` is a replaced element with a
+ * browser-default intrinsic minimum content width, so `flex: 1` alone
+ * couldn't shrink it below that floor inside a narrow SetGrid column,
+ * forcing the whole grid — and the document — wider than the viewport.
+ * Verified live: a real Chromium session at a 320px viewport measured
+ * `document.documentElement.scrollWidth` dropping from 356px to exactly
+ * 320px once this was added. Unlike the media-query-scoped fixes in
+ * Stories 28/29, this is an unconditional declaration, so jsdom's
+ * computed style reliably reflects it.
+ */
+describe('Input shrinks inside a narrow flex/grid container', () => {
+  it('computes a min-width of 0, not the browser default', () => {
+    renderInput();
+    expect(getComputedStyle(screen.getByLabelText('Weight')).minWidth).toBe('0');
+  });
+});

@@ -107,6 +107,14 @@ const FieldRow = styled.div`
 
 const StyledInput = styled.input`
   flex: 1;
+  /* Story 35 — <input> is a replaced element with a browser-default
+     intrinsic minimum content width (historically ~170-190px); flex:1
+     alone doesn't override a flex item's default min-width:auto, so this
+     couldn't shrink below that floor inside a narrow SetGrid column,
+     forcing the whole grid (and document) wider than the viewport at
+     small mobile widths. Confirmed by measuring a real overflowing
+     instance at exactly that width in a 320px-viewport Chromium session. */
+  min-width: 0;
   border: none;
   outline: none;
   background: transparent;
