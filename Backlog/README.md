@@ -9,6 +9,13 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
+- `setframe-mobile-unit-label-story/` — story 22, moving unit labels (e.g.
+  "Weight (lb)") out of numeric inputs so the suffix can't overflow the
+  field at narrow mobile widths.
+- `setframe-completed-workout-edit-story/` — story 23, letting a user
+  correct a logged set after a workout is already completed, with derived
+  metrics (volume, e1RM, PRs) recalculating. (Numbered 23, not the
+  original 21 — see its own README.)
 - `WAIT-automated-visual-and-e2e-testing.md` — deferred by request. Filed so the
   gap is tracked, deliberately not started.
 - `WAIT-figma-accentsubtle-token-fix.md` — deferred by request. Fixes
