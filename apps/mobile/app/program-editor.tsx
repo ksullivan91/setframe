@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, View, Text, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight } from 'lucide-react-native';
 import type { DayType, DayTypeExercise, Exercise, ProgramScheduleSlot, TrainingProgram } from '@setframe/schemas';
 import { Card } from '../src/components/Card';
 import { Badge } from '../src/components/Badge';
 import { Button } from '../src/components/Button';
+import { Toast } from '../src/components/Toast';
 import { useApiClient } from '../src/lib/api-client';
 import { summarizePrescription } from '../src/lib/prescription';
 import { useTheme } from '../src/theme/ThemeProvider';
@@ -31,7 +32,10 @@ export default function ProgramEditorScreen() {
   const theme = useTheme();
   const router = useRouter();
   const api = useApiClient();
+  const queryClient = useQueryClient();
   const [selectedDayTypeId, setSelectedDayTypeId] = useState<string | null>(null);
+  const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ variant: 'success' | 'error'; message: string } | null>(null);
 
   const programsQuery = useQuery({
     queryKey: ['programs'],
@@ -41,11 +45,39 @@ export default function ProgramEditorScreen() {
     () => programsQuery.data?.find((program) => program.isActive) ?? programsQuery.data?.[0] ?? null,
     [programsQuery.data],
   );
+  // Distinct from `activeProgram`'s fallback-to-first behavior above (kept
+  // so there's always something to view/select) — this is specifically
+  // "does any program actually have isActive: true", so the switcher below
+  // can surface a single non-active program too, not just >1 programs.
+  const hasActiveProgram = programsQuery.data?.some((program) => program.isActive) ?? false;
+  const selectedProgram = useMemo(
+    () => programsQuery.data?.find((program) => program.id === selectedProgramId) ?? activeProgram,
+    [programsQuery.data, selectedProgramId, activeProgram],
+  );
+
+  // Same fix as web (Story 24): viewing a non-active program must never
+  // implicitly activate it. This only ever picks a *default* selection —
+  // once on load, or if the previous selection stopped existing — and
+  // never overwrites a manual selection.
+  useEffect(() => {
+    if (!programsQuery.data) return;
+    const stillExists = programsQuery.data.some((program) => program.id === selectedProgramId);
+    if (!stillExists) setSelectedProgramId(activeProgram?.id ?? programsQuery.data[0]?.id ?? null);
+  }, [programsQuery.data, selectedProgramId, activeProgram]);
+
+  const activateMutation = useMutation({
+    mutationFn: (programId: string) => api.post<TrainingProgram>(`/programs/${programId}/activate`),
+    onSuccess: (activated) => {
+      queryClient.invalidateQueries({ queryKey: ['programs'] });
+      setToast({ variant: 'success', message: `${activated.name} is now your active program.` });
+    },
+    onError: () => setToast({ variant: 'error', message: 'Could not switch your active program.' }),
+  });
 
   const scheduleSlotsQuery = useQuery({
-    queryKey: ['schedule-slots', activeProgram?.id],
-    queryFn: () => api.get<ProgramScheduleSlot[]>(`/programs/${activeProgram?.id}/schedule-slots`),
-    enabled: Boolean(activeProgram?.id),
+    queryKey: ['schedule-slots', selectedProgram?.id],
+    queryFn: () => api.get<ProgramScheduleSlot[]>(`/programs/${selectedProgram?.id}/schedule-slots`),
+    enabled: Boolean(selectedProgram?.id),
   });
 
   const dayTypesQuery = useQuery({
@@ -77,6 +109,13 @@ export default function ProgramEditorScreen() {
     (exercisesQuery.data ?? []).forEach((exercise) => map.set(exercise.id, exercise.name));
     return map;
   }, [exercisesQuery.data]);
+
+  // Switching the viewed program must not leave a day selected from the
+  // previous one's schedule (Story 26's "no leaking selection" rule
+  // applies here too, even though this screen is read-only).
+  useEffect(() => {
+    setSelectedDayTypeId(null);
+  }, [selectedProgram?.id]);
 
   useEffect(() => {
     if (!selectedDayTypeId && weekOneSlots.length > 0) {
@@ -123,9 +162,49 @@ export default function ProgramEditorScreen() {
   return (
     <ScrollView style={{ backgroundColor: theme.surface.canvas }} contentContainerStyle={styles.content}>
       <View style={styles.headerRow}>
-        <Text style={[styles.title, { color: theme.text.primary }]}>{activeProgram.name}</Text>
-        <Badge label={activeProgram.isActive ? 'Active' : 'Inactive'} tone={activeProgram.isActive ? 'success' : 'neutral'} />
+        <Text style={[styles.title, { color: theme.text.primary }]}>{selectedProgram?.name ?? activeProgram.name}</Text>
+        <Badge
+          label={selectedProgram?.isActive ? 'Active' : 'Inactive'}
+          tone={selectedProgram?.isActive ? 'success' : 'neutral'}
+        />
       </View>
+
+      {/* Story 24 — only shown once there's an actual choice to make; the
+          header above already makes the single-program case clear. */}
+      {programsQuery.data && (programsQuery.data.length > 1 || !hasActiveProgram) ? (
+        <Card>
+          <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Your programs</Text>
+          {programsQuery.data.map((program) => (
+            <View key={program.id} style={styles.programRow}>
+              <Pressable
+                onPress={() => setSelectedProgramId(program.id)}
+                accessibilityRole="button"
+                accessibilityLabel={`View ${program.name}`}
+                style={styles.programRowName}
+              >
+                <Text
+                  style={[
+                    styles.bodyText,
+                    { color: theme.text.primary, fontWeight: program.id === selectedProgram?.id ? '600' : '400' },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {program.name}
+                </Text>
+                {program.isActive ? <Badge label="Active" tone="success" /> : null}
+              </Pressable>
+              <Button
+                label={program.isActive ? 'Active' : 'Set active'}
+                variant="secondary"
+                fullWidth={false}
+                disabled={program.isActive}
+                loading={activateMutation.isPending && activateMutation.variables === program.id}
+                onPress={() => activateMutation.mutate(program.id)}
+              />
+            </View>
+          ))}
+        </Card>
+      ) : null}
 
       <Card>
         <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Weekly sequence</Text>
@@ -185,6 +264,8 @@ export default function ProgramEditorScreen() {
       <Text style={[styles.editNote, { color: theme.text.secondary }]}>
         Edit on web for reorder, prescriptions, schedule changes, and planning or correcting rest days.
       </Text>
+
+      {toast ? <Toast variant={toast.variant} message={toast.message} onDismiss={() => setToast(null)} /> : null}
     </ScrollView>
   );
 }
@@ -226,5 +307,22 @@ const styles = StyleSheet.create({
   editNote: {
     fontSize: typeScale.caption.fontSize,
     textAlign: 'center',
+  },
+  bodyText: {
+    fontSize: typeScale.compactBody.fontSize,
+  },
+  programRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing[8],
+    paddingVertical: spacing[8],
+  },
+  programRowName: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[8],
+    flex: 1,
+    minWidth: 0,
   },
 });

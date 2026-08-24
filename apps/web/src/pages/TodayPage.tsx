@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { spacing, radius } from '@setframe/design-tokens';
-import type { DayTypeExercise, Exercise, WorkoutSession, WorkoutSessionDetail } from '@setframe/schemas';
+import type { DayTypeExercise, Exercise, TrainingProgram, WorkoutSession, WorkoutSessionDetail } from '@setframe/schemas';
 import { typeScale, mobileSafeInputFontSize } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';
 import {
@@ -602,7 +602,7 @@ export function TodayPage() {
   const localDate = useLocalDate();
   const programsQuery = useQuery({
     queryKey: ['programs'],
-    queryFn: () => api.get<{ id: string }[]>('/programs'),
+    queryFn: () => api.get<Pick<TrainingProgram, 'id' | 'isActive'>[]>('/programs'),
   });
   const { data, isLoading, isError } = useQuery({
     queryKey: ['today', localDate],
@@ -623,8 +623,14 @@ export function TodayPage() {
   // Previously this hard-redirected new/wiped accounts straight to the
   // wizard, which meant Today was unreachable until a program existed.
   // Instead, show Today as usual with an inline prompt below.
+  //
+  // Story 24: this must catch "programs exist but none is active" too —
+  // e.g. after archiving the only active one — not just "zero programs",
+  // since that's what actually determines whether the dashboard can
+  // resolve a schedule at all.
   const hasNoProgram = Boolean(programsQuery.data && programsQuery.data.length === 0);
-  const showProgramSetupPrompt = hasNoProgram && !isError;
+  const hasNoActiveProgram = Boolean(programsQuery.data && !programsQuery.data.some((p) => p.isActive));
+  const showProgramSetupPrompt = hasNoActiveProgram && !isError;
 
   useEffect(() => {
     setWeight(manual?.morningWeightValue?.toString() ?? '');
@@ -793,7 +799,9 @@ export function TodayPage() {
             : "Today's workout";
   const workoutCardBody =
     todayWorkoutState === 'no-program'
-      ? "Create your first training program to automatically schedule workouts here."
+      ? hasNoProgram
+        ? 'Create your first training program to automatically schedule workouts here.'
+        : "You have programs, but none is set active. Choose one to drive Today's schedule."
       : todayWorkoutState === 'in-progress'
         ? `You already started this session${formatTime(activeSession?.startedAt) ? ` at ${formatTime(activeSession?.startedAt)}` : ''}. Pick up where you left off.`
         : todayWorkoutState === 'completed'
@@ -883,7 +891,11 @@ export function TodayPage() {
               ) : null}
               <InlineRow>
                 {todayWorkoutState === 'no-program' ? (
-                  <Button onClick={() => navigate('/training/new')}>Start guided setup</Button>
+                  hasNoProgram ? (
+                    <Button onClick={() => navigate('/training/new')}>Start guided setup</Button>
+                  ) : (
+                    <Button onClick={() => navigate('/training?tab=programs')}>Choose a program</Button>
+                  )
                 ) : null}
                 {todayWorkoutState === 'in-progress' ? (
                   <Button disabled={startWorkoutMutation.isPending} onClick={() => startWorkoutMutation.mutate()}>

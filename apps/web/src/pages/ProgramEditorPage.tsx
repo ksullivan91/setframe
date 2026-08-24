@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, ChevronDown, ChevronUp, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, ChevronUp, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { spacing, radius } from '@setframe/design-tokens';
 import type {
   CreatePlannedSetInput,
@@ -13,7 +14,7 @@ import type {
   ProgramScheduleSlot,
   TrainingProgram,
 } from '@setframe/schemas';
-import { Button, Card, FadeIn, IconButton, Input, Menu, Modal as SharedModal, Select, Skeleton, SkeletonStack, Tabs, WeekScheduleEditor, useToast } from '../components';
+import { Badge, Button, Card, FadeIn, IconButton, Input, Menu, Modal as SharedModal, Select, Skeleton, SkeletonStack, Tabs, WeekScheduleEditor, useToast } from '../components';
 import { ExerciseEditModal, type EditState } from '../components/ExerciseEditModal';
 import { AddExercisePicker, emptyPrescription } from '../components/AddExercisePicker';
 import { UpcomingDaysSchedule } from '../components/UpcomingDaysSchedule';
@@ -139,6 +140,68 @@ const StackCard = styled(Card)`
   display: flex;
   flex-direction: column;
   gap: ${spacing[12]}px;
+`;
+
+/** Story 24 — Programs tab. `$selected` = currently being viewed/edited
+ * here; independent of the program's own `isActive` (which drives Today).
+ * Conflating the two was the exact bug this story fixes: a program card
+ * tap must never activate anything on its own. */
+const ProgramList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${spacing[12]}px;
+`;
+
+const ProgramCard = styled(Card)<{ $selected: boolean }>`
+  display: flex;
+  flex-direction: column;
+  gap: ${spacing[8]}px;
+  border-color: ${(p) => (p.$selected ? p.theme.action.primary : p.theme.border.subtle)};
+  background: ${(p) => (p.$selected ? p.theme.action.accentSubtle : p.theme.surface.raised)};
+`;
+
+const ProgramCardHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: ${spacing[8]}px;
+`;
+
+const ProgramCardTitleRow = styled.button`
+  display: flex;
+  align-items: center;
+  gap: ${spacing[8]}px;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  flex: 1;
+  min-width: 0;
+`;
+
+const ProgramCardActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${spacing[8]}px;
+  flex-wrap: wrap;
+`;
+
+/** Only shown once a user has more than one program — the Programs tab
+ * already makes context clear for the common single-program case, so this
+ * avoids adding chrome nobody needs (per the story's own guidance). */
+const ContextLabel = styled.p`
+  margin: 0 0 ${spacing[4]}px;
+  font-size: ${typeScale.compactBody.fontSize}px;
+  color: ${(p) => p.theme.text.secondary};
+
+  strong {
+    color: ${(p) => p.theme.text.primary};
+    font-weight: 600;
+  }
 `;
 
 const LibraryItem = styled.button<{ $active: boolean }>`
@@ -428,6 +491,46 @@ function WorkoutCreateForm({
   );
 }
 
+/** Story 24 — inline program rename, matching the same pattern as workout
+ * creation above: no separate dialog for a single-field edit. */
+function ProgramRenameForm({
+  initialName,
+  isPending,
+  onCancel,
+  onSave,
+}: {
+  initialName: string;
+  isPending: boolean;
+  onCancel: () => void;
+  onSave: (name: string) => void;
+}) {
+  const [name, setName] = useState(initialName);
+  const trimmed = name.trim();
+
+  return (
+    <CreateWorkoutForm>
+      <Input
+        label="Program name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && trimmed) onSave(trimmed);
+          if (e.key === 'Escape') onCancel();
+        }}
+        autoFocus
+      />
+      <CreateWorkoutActions>
+        <Button onClick={() => trimmed && onSave(trimmed)} disabled={!trimmed || isPending} status={isPending ? 'loading' : 'idle'}>
+          Save
+        </Button>
+        <Button variant="tertiary" onClick={onCancel} type="button">
+          Cancel
+        </Button>
+      </CreateWorkoutActions>
+    </CreateWorkoutForm>
+  );
+}
+
 /**
  * Mirrors the real Training layout — header, tabs, workout library and the
  * detail pane — so the page keeps its shape while loading and the content
@@ -479,11 +582,15 @@ export function ProgramEditorPage() {
   const queryClient = useQueryClient();
   const [selectedDayTypeId, setSelectedDayTypeId] = useState<string | null>(null);
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
-  const [mode, setMode] = useState<'perpetual' | 'block'>('perpetual');
   const [editState, setEditState] = useState<EditState | null>(null);
-  const [activeTab, setActiveTab] = useState<'workouts' | 'schedule'>('workouts');
+  const [searchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<'programs' | 'workouts' | 'schedule'>(
+    requestedTab === 'programs' || requestedTab === 'schedule' ? requestedTab : 'workouts',
+  );
   const [addExerciseOpen, setAddExerciseOpen] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [renamingProgramId, setRenamingProgramId] = useState<string | null>(null);
 
   const { data: programs, isLoading: programsLoading } = useQuery({
     queryKey: ['programs'],
@@ -501,6 +608,22 @@ export function ProgramEditorPage() {
   } = useQuery({ queryKey: ['exercises'], queryFn: () => api.get<Exercise[]>('/exercises') });
 
   const activeProgram = useMemo(() => programs?.find((p) => p.isActive) ?? programs?.[0] ?? null, [programs]);
+  const selectedProgram = useMemo(
+    () => programs?.find((p) => p.id === selectedProgramId) ?? null,
+    [programs, selectedProgramId],
+  );
+  // Shared between the Workouts and Schedule tabpanels below — only shown
+  // once there's an actual choice to make.
+  const programContextLabel =
+    programs && programs.length > 1 && selectedProgram ? (
+      <ContextLabel>
+        Editing <strong>{selectedProgram.name}</strong>
+      </ContextLabel>
+    ) : null;
+  // Block mode vs. perpetual is a property of whichever program is
+  // *selected*, not a piece of local UI state — deriving it keeps it from
+  // going stale when the selection changes (Story 24).
+  const mode: 'perpetual' | 'block' = selectedProgram?.cycleLengthWeeks ? 'block' : 'perpetual';
 
   const createProgram = useMutation({
     mutationFn: (body: { name: string }) => api.post<TrainingProgram>('/programs', body),
@@ -510,16 +633,34 @@ export function ProgramEditorPage() {
     },
   });
 
-  const createProgramTriggered = useRef(false);
+  const activateProgram = useMutation({
+    mutationFn: (programId: string) => api.post<TrainingProgram>(`/programs/${programId}/activate`),
+    onSuccess: (activated) => {
+      queryClient.invalidateQueries({ queryKey: ['programs'] });
+      toast.show({ variant: 'success', message: `${activated.name} is now your active program.` });
+    },
+    onError: () => toast.show({ variant: 'error', message: 'Could not switch your active program.' }),
+  });
 
+  const renameProgram = useMutation({
+    mutationFn: ({ programId, name }: { programId: string; name: string }) =>
+      api.patch<TrainingProgram>(`/programs/${programId}`, { name }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['programs'] });
+      setRenamingProgramId(null);
+    },
+    onError: () => toast.show({ variant: 'error', message: 'Could not rename that program.' }),
+  });
+
+  // Selecting a program (to view/edit) must never implicitly activate it
+  // (Story 24) — this only ever picks a *default* selection once, on
+  // first load or if the previous selection stopped existing (e.g. it was
+  // archived elsewhere). A user's manual selection is never overwritten.
   useEffect(() => {
-    if (activeProgram && selectedProgramId !== activeProgram.id) {
-      setSelectedProgramId(activeProgram.id);
-      setMode(activeProgram.cycleLengthWeeks ? 'block' : 'perpetual');
-    } else if (programs && programs.length === 0 && !createProgramTriggered.current) {
-      createProgramTriggered.current = true;
-    }
-  }, [activeProgram, selectedProgramId, programs, createProgram]);
+    if (!programs) return;
+    const stillExists = programs.some((p) => p.id === selectedProgramId);
+    if (!stillExists) setSelectedProgramId(activeProgram?.id ?? programs[0]?.id ?? null);
+  }, [programs, selectedProgramId, activeProgram]);
 
   useEffect(() => {
     if (dayTypes.length && !selectedDayTypeId) setSelectedDayTypeId(dayTypes[0]!.id);
@@ -601,6 +742,10 @@ export function ProgramEditorPage() {
   const patchProgram = useMutation({
     mutationFn: (body: Partial<TrainingProgram>) => api.patch(`/programs/${selectedProgramId}`, body),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['programs'] }),
+    // `mode` is now derived straight from the program row (not local state),
+    // so a failed save has to be surfaced explicitly — otherwise it just
+    // silently reverts on the next render with no explanation.
+    onError: () => toast.show({ variant: 'error', message: 'Could not update the schedule mode.' }),
   });
 
   const upsertSlot = useMutation({
@@ -683,16 +828,83 @@ export function ProgramEditorPage() {
       <Tabs
         label="Training views"
         items={[
+          { key: 'programs', label: 'Programs' },
           { key: 'workouts', label: 'Workouts' },
           { key: 'schedule', label: 'Schedule' },
         ]}
         activeKey={activeTab}
-        onChange={(key) => setActiveTab(key as 'workouts' | 'schedule')}
+        onChange={(key) => setActiveTab(key as 'programs' | 'workouts' | 'schedule')}
       />
+
+      <div role="tabpanel" id="tabpanel-programs" aria-labelledby="tab-programs" hidden={activeTab !== 'programs'}>
+        <ScheduleLayout>
+          <StackCard>
+            <h2 style={{ margin: '0 0 4px 0' }}>Your programs</h2>
+            <Small style={{ margin: '0 0 8px 0' }}>
+              Select a program to view or edit it. Only one program is active at a time — that&apos;s the one
+              Today follows.
+            </Small>
+            <ProgramList>
+              {(programs ?? []).map((program) => (
+                <ProgramCard key={program.id} $selected={program.id === selectedProgramId}>
+                  {renamingProgramId === program.id ? (
+                    <ProgramRenameForm
+                      initialName={program.name}
+                      isPending={renameProgram.isPending}
+                      onCancel={() => setRenamingProgramId(null)}
+                      onSave={(name) => renameProgram.mutate({ programId: program.id, name })}
+                    />
+                  ) : (
+                    <ProgramCardHeader>
+                      <ProgramCardTitleRow
+                        onClick={() => setSelectedProgramId(program.id)}
+                        aria-pressed={program.id === selectedProgramId}
+                      >
+                        <strong>{program.name}</strong>
+                        {program.isActive ? <Badge tone="success">Active</Badge> : null}
+                      </ProgramCardTitleRow>
+                      <Menu
+                        label={`Actions for ${program.name}`}
+                        items={[{ label: 'Rename', onClick: () => setRenamingProgramId(program.id) }]}
+                      />
+                    </ProgramCardHeader>
+                  )}
+                  <ProgramCardActions>
+                    <Button
+                      variant="secondary"
+                      onClick={() => setSelectedProgramId(program.id)}
+                      disabled={program.id === selectedProgramId}
+                    >
+                      {program.id === selectedProgramId ? 'Viewing' : 'View'}
+                    </Button>
+                    <Button
+                      variant={program.isActive ? 'secondary' : 'primary'}
+                      disabled={program.isActive || activateProgram.isPending}
+                      onClick={() => activateProgram.mutate(program.id)}
+                    >
+                      {program.isActive ? (
+                        <>
+                          <Check size={16} aria-hidden="true" />
+                          Active
+                        </>
+                      ) : activateProgram.isPending && activateProgram.variables === program.id ? (
+                        'Setting active…'
+                      ) : (
+                        'Set as active'
+                      )}
+                    </Button>
+                  </ProgramCardActions>
+                </ProgramCard>
+              ))}
+            </ProgramList>
+          </StackCard>
+        </ScheduleLayout>
+      </div>
 
       <div role="tabpanel" id="tabpanel-workouts" aria-labelledby="tab-workouts" hidden={activeTab !== 'workouts'}>
         <Layout>
           <Column>
+            {programContextLabel}
             <LibraryCard>
               <strong>Workouts</strong>
               {dayTypes.length === 0 ? (
@@ -801,12 +1013,13 @@ export function ProgramEditorPage() {
       <div role="tabpanel" id="tabpanel-schedule" aria-labelledby="tab-schedule" hidden={activeTab !== 'schedule'}>
         <ScheduleLayout>
           <StackCard>
-            <h2 style={{ margin: '0 0 12px 0' }}>Program schedule</h2>
+            <h2 style={{ margin: '0 0 4px 0' }}>Program schedule</h2>
+            {programContextLabel}
             {!selectedProgramId ? (
               <Small>Set up your training program to see it here.</Small>
             ) : (
               <>
-                <Select label="Mode" value={mode} onChange={(e) => { const next = e.target.value as 'perpetual' | 'block'; setMode(next); patchProgram.mutate({ cycleLengthWeeks: next === 'block' ? 1 : null }); }} options={modeOptions} />
+                <Select label="Mode" value={mode} onChange={(e) => { const next = e.target.value as 'perpetual' | 'block'; patchProgram.mutate({ cycleLengthWeeks: next === 'block' ? 1 : null }); }} options={modeOptions} />
                 <WeekScheduleEditor
                   workouts={dayTypes.map((dayType) => ({ id: dayType.id, name: dayType.name }))}
                   assignmentsByDay={Object.fromEntries([...slotsByDay].map(([dayIndex, slot]) => [dayIndex, slot.dayTypeId]))}

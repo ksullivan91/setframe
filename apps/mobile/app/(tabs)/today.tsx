@@ -264,7 +264,7 @@ export default function TodayScreen() {
 
   const programsQuery = useQuery({
     queryKey: ['programs'],
-    queryFn: () => api.get<{ id: string }[]>('/programs'),
+    queryFn: () => api.get<{ id: string; isActive: boolean }[]>('/programs'),
   });
 
   const todayQuery = useQuery({
@@ -416,8 +416,12 @@ export default function TodayScreen() {
     );
   }
 
+  // Story 24: must also catch "programs exist but none is active" (e.g.
+  // after archiving the only active one), not just "zero programs" —
+  // mirrors the same fix on web's TodayPage.
   const hasNoProgram = Boolean(programsQuery.data && programsQuery.data.length === 0);
-  const showProgramSetupPrompt = hasNoProgram && !programsQuery.isLoading;
+  const hasNoActiveProgram = Boolean(programsQuery.data && !programsQuery.data.some((p) => p.isActive));
+  const showProgramSetupPrompt = hasNoActiveProgram && !programsQuery.isLoading;
   const activeSession = useMemo(
     () => todayQuery.data?.sessions.find((session) => session.status === 'in_progress') ?? null,
     [todayQuery.data?.sessions],
@@ -479,7 +483,9 @@ export default function TodayScreen() {
 
   const workoutBody =
     todayWorkoutState === 'no-program'
-      ? 'Create your first training program to automatically schedule workouts here.'
+      ? hasNoProgram
+        ? 'Create your first training program to automatically schedule workouts here.'
+        : "You have programs, but none is set active. Choose one to drive Today's schedule."
       : todayWorkoutState === 'in-progress'
         ? `You already started this session${formatTime(activeSession?.startedAt) ? ` at ${formatTime(activeSession?.startedAt)}` : ''}. Pick up where you left off.`
         : todayWorkoutState === 'completed'
@@ -601,7 +607,13 @@ export default function TodayScreen() {
               </View>
             ) : null}
             <View style={styles.ctaStack}>
-              {todayWorkoutState === 'no-program' ? <Button label="Start guided setup" onPress={() => router.push('/program-wizard')} /> : null}
+              {todayWorkoutState === 'no-program' ? (
+                hasNoProgram ? (
+                  <Button label="Start guided setup" onPress={() => router.push('/program-wizard')} />
+                ) : (
+                  <Button label="Choose a program" onPress={() => router.push('/program-editor')} />
+                )
+              ) : null}
               {todayWorkoutState === 'in-progress' ? <Button label="Resume workout" loading={startWorkoutMutation.isPending} onPress={() => startWorkoutMutation.mutate()} /> : null}
               {todayWorkoutState === 'completed' && completedSession ? (
                 <Button

@@ -86,6 +86,30 @@ describe('TodayPage completed-workout state', () => {
   });
 });
 
+/**
+ * Story 24 — the dashboard could previously only recognize "zero
+ * programs"; archiving the sole active program (or every program) while
+ * others still exist left Today silently unable to resolve a schedule
+ * with no explanation.
+ */
+describe('TodayPage no active program state', () => {
+  it('offers to choose a program (not guided setup) when programs exist but none is active', async () => {
+    mockGet = (path: string) => {
+      if (path.startsWith('/dashboard/today')) {
+        return Promise.resolve({ localDate: '2026-08-24', dayTypeId: null, dayLabel: null, weekLabel: null, sessions: [] });
+      }
+      if (path === '/programs') return Promise.resolve([{ id: 'program-1', isActive: false }]);
+      return Promise.resolve([]);
+    };
+
+    renderTodayPage();
+
+    expect(await screen.findByText(/none is set active/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose a program' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Start guided setup' })).not.toBeInTheDocument();
+  });
+});
+
 function todayPayload(overrides: Record<string, unknown> = {}) {
   return {
     localDate: '2026-08-24',

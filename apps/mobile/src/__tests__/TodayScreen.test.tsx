@@ -92,7 +92,7 @@ function todayPayload(overrides: Record<string, unknown> = {}) {
 function getFor(payload: Record<string, unknown>): (path: string) => Promise<unknown> {
   return (path: string) => {
     if (path.startsWith('/dashboard/today')) return Promise.resolve(payload);
-    if (path === '/programs') return Promise.resolve([{ id: 'program-1' }]);
+    if (path === '/programs') return Promise.resolve([{ id: 'program-1', isActive: true }]);
     return Promise.resolve([]);
   };
 }
