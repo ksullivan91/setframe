@@ -64,8 +64,12 @@ const DialogCard = styled(Card)<{ $maxWidth: number }>`
     max-height: 85dvh;
     border-radius: 16px 16px 0 0;
     padding-bottom: max(${spacing[16]}px, env(safe-area-inset-bottom));
-    padding-left: max(0px, env(safe-area-inset-left));
-    padding-right: max(0px, env(safe-area-inset-right));
+    /* Story 29 — this used to floor at 0px instead of Card's own base
+       inset, so a notched device's safe-area-inset-left/right (usually 0
+       in portrait) replaced the horizontal padding entirely instead of
+       extending it, leaving content edge-to-edge. */
+    padding-left: max(${spacing[16]}px, env(safe-area-inset-left));
+    padding-right: max(${spacing[16]}px, env(safe-area-inset-right));
   }
 `;
 
