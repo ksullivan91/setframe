@@ -164,3 +164,41 @@ describe('ProgramEditorScreen program switching', () => {
     expect(textNodesContaining(rendered, 'Recovery Block is now your active program.').length).toBeGreaterThan(0);
   });
 });
+
+/**
+ * Story 26 — mobile parity: switching the viewed program must update the
+ * weekly sequence to that program's own schedule, not the previous
+ * program's.
+ */
+describe('ProgramEditorScreen program-aware schedule', () => {
+  it('shows the selected program’s own weekly sequence, not the previous one’s', async () => {
+    const upperA = { id: 'day-1', userId: 'user-1', name: 'Upper A', description: null, estimatedDurationMinutes: null, createdAt: '', updatedAt: '' };
+    const lowerB = { id: 'day-2', userId: 'user-1', name: 'Lower B', description: null, estimatedDurationMinutes: null, createdAt: '', updatedAt: '' };
+    mockGet = (path: string) => {
+      if (path === '/programs') return Promise.resolve([baseProgram, recoveryProgram]);
+      if (path === '/programs/program-1/schedule-slots') {
+        return Promise.resolve([{ id: 'slot-1', programVersionId: 'v1', dayTypeId: 'day-1', weekNumber: null, dayIndex: 0, sortOrder: 0, createdAt: '' }]);
+      }
+      if (path === '/programs/program-2/schedule-slots') {
+        return Promise.resolve([{ id: 'slot-2', programVersionId: 'v2', dayTypeId: 'day-2', weekNumber: null, dayIndex: 1, sortOrder: 0, createdAt: '' }]);
+      }
+      if (path === '/day-types') return Promise.resolve([upperA, lowerB]);
+      if (path === '/day-types/day-1') return Promise.resolve({ ...upperA, exercises: [] });
+      if (path === '/day-types/day-2') return Promise.resolve({ ...lowerB, exercises: [] });
+      if (path === '/exercises') return Promise.resolve([]);
+      return Promise.resolve([]);
+    };
+    const rendered = await renderScreen();
+
+    expect(textNodesContaining(rendered, 'Upper A').length).toBeGreaterThan(0);
+    expect(textNodesContaining(rendered, 'Lower B').length).toBe(0);
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'View Recovery Block')[0]!.props.onPress();
+    });
+    await flush();
+
+    expect(textNodesContaining(rendered, 'Lower B').length).toBeGreaterThan(0);
+    expect(textNodesContaining(rendered, 'Upper A').length).toBe(0);
+  });
+});

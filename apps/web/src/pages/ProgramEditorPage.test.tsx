@@ -237,6 +237,20 @@ describe('ProgramEditorPage program-scoped workouts', () => {
     expect(dayTypes.map((d) => d.name)).toContain('Upper A');
   });
 
+  /**
+   * With zero programs, `selectedProgramId` is `null` — the workout-create
+   * form used to render anyway, and submitting it sent `programId: null`
+   * to an API schema that only accepts `string | undefined`, so every
+   * attempt 400ed with no way to recover short of using guided setup.
+   */
+  it('does not offer to create a workout with no program selected', async () => {
+    renderTraining([]);
+
+    expect(await screen.findByText(/Create a program first/)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Workout name')).not.toBeInTheDocument();
+    expect(mockPost).not.toHaveBeenCalled();
+  });
+
   it('removes a workout from the program via the membership endpoint, not a global delete', async () => {
     const user = userEvent.setup();
     renderTraining();
@@ -265,5 +279,98 @@ describe('ProgramEditorPage program-scoped workouts', () => {
     await user.click(screen.getByRole('button', { name: 'Create workout' }));
 
     expect(mockPost).toHaveBeenCalledWith('/day-types', { name: 'Lower C', programId: program.id });
+  });
+});
+
+/**
+ * Story 26 — largely a verification pass: Story 25's program-scoped
+ * workout list already flows straight into `WeekScheduleEditor`'s
+ * `workouts` prop, and the `selectedDayTypeId` reset effect already
+ * covers Schedule the same way it covers Workouts. These tests exercise
+ * the Schedule tab specifically, which the Story 24/25 tests above don't
+ * touch.
+ */
+describe('ProgramEditorPage program-aware schedule', () => {
+  const secondProgramDayType = { ...dayTypes[0], id: 'day-2', name: 'Lower B' };
+  const secondProgramSlot = {
+    id: 'slot-2',
+    programVersionId: 'version-2',
+    dayTypeId: 'day-2',
+    weekNumber: null,
+    dayIndex: 1,
+    sortOrder: 0,
+    createdAt: '2026-08-02T00:00:00.000Z',
+  };
+
+  function renderTwoProgramSchedule() {
+    mockGet = (path: string) => {
+      if (path === '/programs') return Promise.resolve([program, secondProgram]);
+      if (path === `/programs/${program.id}/day-types`) return Promise.resolve(dayTypes);
+      if (path === `/programs/${secondProgram.id}/day-types`) return Promise.resolve([secondProgramDayType]);
+      if (path === `/programs/${program.id}/schedule-slots`) return Promise.resolve([]);
+      if (path === `/programs/${secondProgram.id}/schedule-slots`) return Promise.resolve([secondProgramSlot]);
+      if (path === '/day-types') return Promise.resolve([]);
+      if (path.startsWith('/day-types/')) {
+        const dayTypeId = path.slice('/day-types/'.length);
+        const match = [...dayTypes, secondProgramDayType].find((d) => d.id === dayTypeId);
+        return Promise.resolve(match ? { ...match, exercises: [] } : null);
+      }
+      return Promise.resolve([]);
+    };
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <MemoryRouter initialEntries={['/training']}>
+        <QueryClientProvider client={queryClient}>
+          <ThemeProvider theme={getTheme('light')}>
+            <ToastProvider>
+              <ProgramEditorPage />
+            </ToastProvider>
+          </ThemeProvider>
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+  }
+
+  it('offers only the selected program’s workouts as schedule assignment options', async () => {
+    const user = userEvent.setup();
+    renderTwoProgramSchedule();
+    await screen.findAllByText('Upper A');
+
+    await user.click(screen.getByRole('tab', { name: 'Schedule' }));
+    const schedulePanel = screen.getByRole('tabpanel', { name: 'Schedule' });
+
+    expect(within(schedulePanel).getByTitle('Upper A')).toBeInTheDocument();
+    expect(within(schedulePanel).queryByTitle('Lower B')).not.toBeInTheDocument();
+  });
+
+  it('updates the schedule view when switching the selected program', async () => {
+    const user = userEvent.setup();
+    renderTwoProgramSchedule();
+    await screen.findAllByText('Upper A');
+
+    await user.click(screen.getByRole('tab', { name: 'Programs' }));
+    await user.click(within(screen.getByRole('tabpanel', { name: 'Programs' })).getByRole('button', { name: 'View' }));
+    await user.click(screen.getByRole('tab', { name: 'Schedule' }));
+    const schedulePanel = screen.getByRole('tabpanel', { name: 'Schedule' });
+
+    expect((await within(schedulePanel).findAllByTitle('Lower B')).length).toBeGreaterThan(0);
+    expect(within(schedulePanel).queryByTitle('Upper A')).not.toBeInTheDocument();
+  });
+
+  it('does not leak a selected workout from one program into another', async () => {
+    const user = userEvent.setup();
+    renderTwoProgramSchedule();
+    await screen.findAllByText('Upper A');
+
+    // Select Upper A (Program 1's only workout) in the Workouts tab.
+    await user.click(within(screen.getByRole('tabpanel', { name: 'Workouts' })).getByText('Upper A'));
+    await screen.findByRole('heading', { name: 'Upper A' });
+
+    await user.click(screen.getByRole('tab', { name: 'Programs' }));
+    await user.click(within(screen.getByRole('tabpanel', { name: 'Programs' })).getByRole('button', { name: 'View' }));
+
+    // Program 2 doesn't have Upper A at all — its detail pane must not
+    // still be showing the previous program's selected workout.
+    expect(screen.queryByRole('heading', { name: 'Upper A' })).not.toBeInTheDocument();
   });
 });

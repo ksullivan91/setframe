@@ -633,8 +633,13 @@ export function ProgramEditorPage() {
     ) : null;
   // Block mode vs. perpetual is a property of whichever program is
   // *selected*, not a piece of local UI state — deriving it keeps it from
-  // going stale when the selection changes (Story 24).
-  const mode: 'perpetual' | 'block' = selectedProgram?.cycleLengthWeeks ? 'block' : 'perpetual';
+  // going stale when the selection changes (Story 24). `optimisticMode`
+  // is a short-lived override so the Select responds instantly on
+  // change instead of visibly snapping back to the old value until the
+  // PATCH round-trip resolves; cleared once the mutation settles (a
+  // failure then correctly falls back to the real server value).
+  const [optimisticMode, setOptimisticMode] = useState<'perpetual' | 'block' | null>(null);
+  const mode: 'perpetual' | 'block' = optimisticMode ?? (selectedProgram?.cycleLengthWeeks ? 'block' : 'perpetual');
 
   const createProgram = useMutation({
     mutationFn: (body: { name: string }) => api.post<TrainingProgram>('/programs', body),
@@ -675,9 +680,12 @@ export function ProgramEditorPage() {
 
   // Story 26 — a workout selected while viewing Program A's Workouts/
   // Schedule must not stay selected once the user switches to Program B;
-  // it may not even exist there.
+  // it may not even exist there. Same reasoning for a pending Mode
+  // override: it belongs to whichever program was selected when it was
+  // set, not to whatever gets selected next.
   useEffect(() => {
     setSelectedDayTypeId(null);
+    setOptimisticMode(null);
   }, [selectedProgramId]);
 
   useEffect(() => {
@@ -704,7 +712,9 @@ export function ProgramEditorPage() {
   };
 
   const createDayType = useMutation({
-    mutationFn: (body: { name: string }) => api.post<DayType>('/day-types', { ...body, programId: selectedProgramId }),
+    // `programId` must be omitted, not sent as `null`, when there's no
+    // selected program — the API schema only accepts `string | undefined`.
+    mutationFn: (body: { name: string }) => api.post<DayType>('/day-types', { ...body, programId: selectedProgramId ?? undefined }),
     onSuccess: (row) => {
       invalidateTraining();
       setSelectedDayTypeId(row.id);
@@ -783,11 +793,17 @@ export function ProgramEditorPage() {
 
   const patchProgram = useMutation({
     mutationFn: (body: Partial<TrainingProgram>) => api.patch(`/programs/${selectedProgramId}`, body),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['programs'] }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['programs'] });
+      setOptimisticMode(null);
+    },
     // `mode` is now derived straight from the program row (not local state),
     // so a failed save has to be surfaced explicitly — otherwise it just
     // silently reverts on the next render with no explanation.
-    onError: () => toast.show({ variant: 'error', message: 'Could not update the schedule mode.' }),
+    onError: () => {
+      setOptimisticMode(null);
+      toast.show({ variant: 'error', message: 'Could not update the schedule mode.' });
+    },
   });
 
   const upsertSlot = useMutation({
@@ -961,7 +977,13 @@ export function ProgramEditorPage() {
             {programContextLabel}
             <LibraryCard>
               <strong>Workouts</strong>
-              {dayTypes.length === 0 ? (
+              {!selectedProgramId ? (
+                // No program exists/selected — creating a workout here has
+                // nothing to associate it with (the API requires a real
+                // programId, not null). Point at guided setup instead of
+                // rendering a form that can only fail.
+                <Small>Create a program first, then add workouts to it here.</Small>
+              ) : dayTypes.length === 0 ? (
                 <>
                   <Small>No workouts yet. Create reusable workouts like Lower C, Upper A, or Recovery.</Small>
                   <WorkoutCreateForm
@@ -1103,7 +1125,7 @@ export function ProgramEditorPage() {
               <Small>Add a workout to this program before building its schedule.</Small>
             ) : (
               <>
-                <Select label="Mode" value={mode} onChange={(e) => { const next = e.target.value as 'perpetual' | 'block'; patchProgram.mutate({ cycleLengthWeeks: next === 'block' ? 1 : null }); }} options={modeOptions} />
+                <Select label="Mode" value={mode} onChange={(e) => { const next = e.target.value as 'perpetual' | 'block'; setOptimisticMode(next); patchProgram.mutate({ cycleLengthWeeks: next === 'block' ? 1 : null }); }} options={modeOptions} />
                 <WeekScheduleEditor
                   workouts={dayTypes.map((dayType) => ({ id: dayType.id, name: dayType.name }))}
                   assignmentsByDay={Object.fromEntries([...slotsByDay].map(([dayIndex, slot]) => [dayIndex, slot.dayTypeId]))}
