@@ -801,8 +801,12 @@ export function WorkoutSessionPage() {
                             disabled={
                               !hasChanges(set, draft, visibleFields, definition) ||
                               Object.keys(fieldErrors).length > 0 ||
-                              saveSetMutation.isPending ||
-                              query.data.status === 'completed'
+                              saveSetMutation.isPending
+                              // Story 23: correcting a logged set's values is
+                              // allowed after completion — "completed" is not
+                              // "immutable." Add/duplicate/delete stay gated
+                              // below: this is a correction workflow, not a
+                              // reopen-and-restructure one.
                             }
                             onClick={() => {
                               const action = () =>

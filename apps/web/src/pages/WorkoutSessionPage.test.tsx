@@ -11,17 +11,19 @@ import { WorkoutSessionPage } from './WorkoutSessionPage';
 
 let mockGet: (path: string) => Promise<unknown> = () => new Promise(() => {});
 const mockPost = vi.fn();
+const mockPatch = vi.fn((_path: string, body?: unknown) => Promise.resolve(body));
 vi.mock('../lib/api-client', () => ({
   useApiClient: () => ({
     get: (path: string) => mockGet(path),
     post: (path: string, body?: unknown) => mockPost(path, body),
-    patch: vi.fn(),
+    patch: (path: string, body?: unknown) => mockPatch(path, body),
     del: vi.fn(),
   }),
 }));
 
 type SetOverrides = Partial<{
   weightValue: number | null;
+  weightUnit: 'lb' | 'kg' | null;
   reps: number | null;
   durationSeconds: number | null;
   distanceValue: number | null;
@@ -29,14 +31,14 @@ type SetOverrides = Partial<{
   rpe: number | null;
 }>;
 
-function buildSession(prescription: Prescription | null, setOverrides: SetOverrides = {}) {
+function buildSession(prescription: Prescription | null, setOverrides: SetOverrides = {}, status: 'in_progress' | 'completed' = 'in_progress') {
   return {
     id: 'session-1',
     userId: 'user-1',
     localDate: '2026-08-22',
-    status: 'in_progress',
+    status,
     startedAt: '2026-08-22T15:00:00.000Z',
-    completedAt: null,
+    completedAt: status === 'completed' ? '2026-08-22T16:00:00.000Z' : null,
     dayTypeId: 'day-1',
     notes: null,
     createdAt: '2026-08-22T15:00:00.000Z',
@@ -103,9 +105,10 @@ function renderSession(
   prescription: Prescription | null,
   setOverrides: SetOverrides = {},
   exercises: unknown[] = [],
+  status: 'in_progress' | 'completed' = 'in_progress',
 ) {
   mockGet = (path: string) => {
-    if (path.startsWith('/workout-sessions/')) return Promise.resolve(buildSession(prescription, setOverrides));
+    if (path.startsWith('/workout-sessions/')) return Promise.resolve(buildSession(prescription, setOverrides, status));
     if (path === '/exercises') return Promise.resolve(exercises);
     return Promise.resolve(null);
   };
@@ -205,6 +208,49 @@ describe('WorkoutSessionPage prescription-aware fields', () => {
     expect(screen.getByLabelText('Reps')).toBeInTheDocument();
     expect(screen.getByLabelText('Duration (sec)')).toBeInTheDocument();
     expect(screen.getByLabelText('Distance')).toBeInTheDocument();
+  });
+});
+
+/**
+ * Story 23 — a completed session's logged sets are now correctable
+ * (a typo like "55lb x 8" that should have been "155lb"), while
+ * restructuring the session (duplicate/delete a set) stays blocked.
+ */
+describe('WorkoutSessionPage completed session set editing', () => {
+  it('allows saving a corrected value on a completed session', async () => {
+    const user = userEvent.setup();
+    renderSession(
+      { kind: 'sets_reps', sets: 3, repsMin: 8, repsMax: 10 },
+      { weightValue: 55, weightUnit: 'lb', reps: 8 },
+      [],
+      'completed',
+    );
+
+    const weight = await screen.findByLabelText(/^Weight/);
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+
+    await user.clear(weight);
+    await user.type(weight, '155');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() =>
+      expect(mockPatch).toHaveBeenCalledWith('/workout-sets/set-1', expect.objectContaining({ weightValue: 155 })),
+    );
+  });
+
+  it('still blocks restructuring a completed session', async () => {
+    renderSession(
+      { kind: 'sets_reps', sets: 3, repsMin: 8, repsMax: 10 },
+      { weightValue: 55, weightUnit: 'lb', reps: 8 },
+      [],
+      'completed',
+    );
+
+    await screen.findByLabelText(/^Weight/);
+    expect(screen.getByRole('button', { name: 'Duplicate set 1' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Delete set 1' })).toBeDisabled();
   });
 });
 

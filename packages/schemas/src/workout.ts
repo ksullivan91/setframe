@@ -107,11 +107,16 @@ export type WorkoutSessionDetail = z.infer<typeof workoutSessionDetailSchema>;
 export const createWorkoutSetSchema = z.object({
   clientId: z.string().uuid(),
   setType: workoutLoggedSetTypeSchema.default('working'),
-  weightValue: z.number().optional(),
+  // Story 23: a floor matching the client's own validateSessionSet rule
+  // (packages/domain/src/prescription-fields.ts — rejects negative, allows
+  // 0). Previously unconstrained server-side, so a negative value the
+  // client already blocked could still reach the API directly (relevant
+  // now that a completed set's values are editable, not just a new one's).
+  weightValue: z.number().nonnegative().optional(),
   weightUnit: z.enum(['lb', 'kg']).optional(),
-  reps: z.number().int().optional(),
-  durationSeconds: z.number().int().optional(),
-  distanceValue: z.number().optional(),
+  reps: z.number().int().nonnegative().optional(),
+  durationSeconds: z.number().int().nonnegative().optional(),
+  distanceValue: z.number().nonnegative().optional(),
   distanceUnit: z.enum(['m', 'km', 'mi']).optional(),
   rpe: z.number().min(0).max(10).optional(),
   /**

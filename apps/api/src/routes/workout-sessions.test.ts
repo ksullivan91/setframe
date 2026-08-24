@@ -246,6 +246,29 @@ describe('workout session routes', () => {
     await app.close();
   });
 
+  /**
+   * Story 23 — closes a server/client validation-parity gap: the client's
+   * own `validateSessionSet` already rejected a negative value, but the API
+   * had no floor of its own, so a negative could still reach the DB via a
+   * direct request. Relevant now that a completed set's values are
+   * editable, not just a new one's.
+   */
+  it('rejects a negative weight correction with a validation error', async () => {
+    // Zod body validation runs before the auth preHandler, so no `userId`
+    // lookup ever happens for a request this malformed — no select mock
+    // needed (and queuing an unconsumed one would leak into the next test).
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/v1/workout-sets/${setRow.id}`,
+      headers: authHeader,
+      payload: { weightValue: -10 },
+    });
+
+    expect(response.statusCode).toBe(400);
+    await app.close();
+  });
+
   it('includes previous completed session sets on session detail', async () => {
     const completedSessionRow = {
       ...sessionRow,
