@@ -609,31 +609,6 @@ export default function TodayScreen() {
                   onPress={() => router.push({ pathname: '/session-summary', params: { sessionId: completedSession.id } })}
                 />
               ) : null}
-              {todayWorkoutState === 'scheduled' ? (
-                <>
-                  <Button label="Start workout" loading={startWorkoutMutation.isPending} onPress={() => startWorkoutMutation.mutate()} />
-                  <Button label="Preview program" variant="secondary" onPress={() => router.push('/program-editor')} />
-                  <Button
-                    label="Rest day"
-                    variant="success"
-                    testID="mark-rest-day"
-                    loading={markRestDayMutation.isPending}
-                    onPress={() => markRestDayMutation.mutate()}
-                  />
-                </>
-              ) : null}
-              {todayWorkoutState === 'unscheduled' ? (
-                <>
-                  <Button label="Choose workout" testID="choose-workout" onPress={() => router.push('/program-editor')} />
-                  <Button
-                    label="Mark as rest day"
-                    variant="success"
-                    testID="mark-rest-day"
-                    loading={markRestDayMutation.isPending}
-                    onPress={() => markRestDayMutation.mutate()}
-                  />
-                </>
-              ) : null}
               {todayWorkoutState === 'rested' ? (
                 <Button
                   label="Undo rest day"
@@ -644,6 +619,43 @@ export default function TodayScreen() {
                 />
               ) : null}
             </View>
+            {todayWorkoutState === 'scheduled' ? (
+              <View style={styles.ctaStack}>
+                <Button label="Start workout" loading={startWorkoutMutation.isPending} onPress={() => startWorkoutMutation.mutate()} />
+                <Button label="Preview program" variant="secondary" onPress={() => router.push('/program-editor')} />
+                <View style={[styles.restSection, { borderTopColor: theme.border.subtle }]}>
+                  <Text style={[styles.restSectionTitle, { color: theme.text.primary }]}>Need a day off?</Text>
+                  <Text style={[styles.restSectionBody, { color: theme.text.secondary }]}>
+                    Skips today&apos;s scheduled workout without changing your program or breaking your consistency.
+                  </Text>
+                  <Button
+                    label="Take a rest day"
+                    variant="success"
+                    testID="mark-rest-day"
+                    loading={markRestDayMutation.isPending}
+                    onPress={() => markRestDayMutation.mutate()}
+                  />
+                </View>
+              </View>
+            ) : null}
+            {todayWorkoutState === 'unscheduled' ? (
+              <View style={styles.ctaStack}>
+                <Button label="Choose workout" testID="choose-workout" onPress={() => router.push('/program-editor')} />
+                <View style={[styles.restSection, { borderTopColor: theme.border.subtle }]}>
+                  <Text style={[styles.restSectionTitle, { color: theme.text.primary }]}>Need a day off?</Text>
+                  <Text style={[styles.restSectionBody, { color: theme.text.secondary }]}>
+                    Marks today as a rest day without changing your program or breaking your consistency.
+                  </Text>
+                  <Button
+                    label="Take a rest day"
+                    variant="success"
+                    testID="mark-rest-day"
+                    loading={markRestDayMutation.isPending}
+                    onPress={() => markRestDayMutation.mutate()}
+                  />
+                </View>
+              </View>
+            ) : null}
           </>
         )}
       </Card>
@@ -882,6 +894,22 @@ const styles = StyleSheet.create({
   },
   ctaStack: {
     gap: spacing[8],
+  },
+  // Story 27 — Rest Day is a deliberate, explained recovery choice, not a
+  // second primary CTA next to Start Workout — visually separated below a
+  // divider rather than sharing the same button stack.
+  restSection: {
+    gap: spacing[8],
+    marginTop: spacing[4],
+    paddingTop: spacing[12],
+    borderTopWidth: 1,
+  },
+  restSectionTitle: {
+    fontSize: typeScale.compactBody.fontSize,
+    fontWeight: '600',
+  },
+  restSectionBody: {
+    fontSize: typeScale.caption.fontSize,
   },
   chip: {
     borderRadius: radius.full,

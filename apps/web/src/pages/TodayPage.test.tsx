@@ -109,7 +109,7 @@ describe('rest days', () => {
     renderTodayPage();
 
     expect(await screen.findByText('Choose workout')).toBeInTheDocument();
-    expect(screen.getByText('Mark as rest day')).toBeInTheDocument();
+    expect(screen.getByText('Take a rest day')).toBeInTheDocument();
   });
 
   it('offers a rest day on a day that has a workout scheduled', async () => {
@@ -123,7 +123,7 @@ describe('rest days', () => {
     renderTodayPage();
 
     expect(await screen.findByText('Start workout')).toBeInTheDocument();
-    expect(screen.getByText('Rest day')).toBeInTheDocument();
+    expect(screen.getByText('Take a rest day')).toBeInTheDocument();
   });
 
   // The completion state must not be the workout one: there is nothing to
@@ -174,6 +174,25 @@ describe('rest days', () => {
     renderTodayPage();
 
     expect(await screen.findByText(/will not count against your training/)).toBeInTheDocument();
+  });
+
+  /**
+   * Story 27 \u2014 Rest Day previously sat as a fifth equal-weight button
+   * beside Start/Preview/Change with no explanation of what it does.
+   */
+  it('explains what taking a rest day does before the user commits', async () => {
+    mockGet = (path: string) => {
+      if (path.startsWith('/dashboard/today')) return Promise.resolve(todayPayload({ dayTypeId: 'day-1', dayLabel: 'Push' }));
+      if (path === '/programs') return Promise.resolve([{ id: 'program-1', isActive: true }]);
+      return Promise.resolve([]);
+    };
+
+    renderTodayPage();
+
+    expect(await screen.findByText('Need a day off?')).toBeInTheDocument();
+    expect(
+      screen.getByText(/without changing your program or breaking your consistency/),
+    ).toBeInTheDocument();
   });
 
   it('counts the rest day toward the day\u2019s steps', async () => {

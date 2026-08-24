@@ -149,6 +149,20 @@ describe('TodayScreen rest days', () => {
     expect(hostsByTestId(rendered, 'mark-rest-day')).toHaveLength(1);
   });
 
+  /**
+   * Story 27 — Rest Day previously sat as a third equal-weight button
+   * beside Start/Preview with no explanation of what it does.
+   */
+  it('explains what taking a rest day does before the user commits', async () => {
+    mockGet = getFor(todayPayload({ dayTypeId: 'day-1', dayLabel: 'Push', weekLabel: 'Week 3' }));
+    const rendered = await renderScreen();
+
+    expect(textNodesContaining(rendered, 'Need a day off?').length).toBeGreaterThan(0);
+    expect(
+      textNodesContaining(rendered, 'without changing your program or breaking your consistency').length,
+    ).toBeGreaterThan(0);
+  });
+
   it('shows a rest completion state with no workout to review and no stats', async () => {
     mockGet = getFor(
       todayPayload({
@@ -224,7 +238,7 @@ describe('TodayScreen rest days', () => {
     const mark = hostsByTestId(rendered, 'mark-rest-day')[0] as ReactTestInstance;
     expect(mark.props.accessible).toBe(true);
     expect(mark.props.accessibilityRole).toBe('button');
-    expect(mark.props.accessibilityLabel).toBe('Mark as rest day');
+    expect(mark.props.accessibilityLabel).toBe('Take a rest day');
     const style = Object.assign({}, ...[mark.props.style].flat(2).filter(Boolean));
     expect(style.minHeight).toBe(44);
   });

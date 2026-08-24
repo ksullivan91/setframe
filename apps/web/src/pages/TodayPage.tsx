@@ -369,6 +369,37 @@ const InlineRow = styled.div`
   gap: ${spacing[8]}px;
   align-items: center;
 `;
+/** Story 27 — Start/Choose stays the one dominant CTA; buttons inside get
+ * full width so it reads as a single decisive action, not one item in a
+ * row that happens to be alone. */
+const PrimaryActionRow = styled(InlineRow)`
+  button {
+    width: 100%;
+  }
+`;
+/** Story 27 — Rest Day is a deliberate, explained recovery choice, not a
+ * second primary CTA next to Start Workout — visually separated below a
+ * divider rather than sharing the same button row. */
+const RestSection = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: ${spacing[4]}px;
+  margin-top: ${spacing[4]}px;
+  padding-top: ${spacing[12]}px;
+  border-top: 1px solid ${(p) => p.theme.border.subtle};
+`;
+const RestSectionTitle = styled.p`
+  margin: 0;
+  font-size: ${typeScale.compactBody.fontSize}px;
+  font-weight: 600;
+  color: ${(p) => p.theme.text.primary};
+`;
+const RestSectionBody = styled.p`
+  margin: 0 0 ${spacing[4]}px;
+  font-size: ${typeScale.caption.fontSize}px;
+  color: ${(p) => p.theme.text.secondary};
+`;
 const FieldRow = styled.div`
   display: grid;
   grid-template-columns: minmax(0, 220px) auto;
@@ -864,38 +895,6 @@ export function TodayPage() {
                     Review workout
                   </Button>
                 ) : null}
-                {todayWorkoutState === 'scheduled' ? (
-                  <>
-                    <Button disabled={startWorkoutMutation.isPending} onClick={() => startWorkoutMutation.mutate()}>
-                      Start workout
-                    </Button>
-                    <Button variant="secondary" onClick={() => setPreviewOpen(true)}>
-                      Preview
-                    </Button>
-                    <Button variant="secondary" onClick={() => setExceptionOpen(true)}>
-                      Change today&apos;s workout
-                    </Button>
-                    <Button
-                      variant="success"
-                      disabled={markRestDayMutation.isPending}
-                      onClick={() => markRestDayMutation.mutate()}
-                    >
-                      Rest day
-                    </Button>
-                  </>
-                ) : null}
-                {todayWorkoutState === 'unscheduled' ? (
-                  <>
-                    <Button onClick={() => setExceptionOpen(true)}>Choose workout</Button>
-                    <Button
-                      variant="success"
-                      disabled={markRestDayMutation.isPending}
-                      onClick={() => markRestDayMutation.mutate()}
-                    >
-                      Mark as rest day
-                    </Button>
-                  </>
-                ) : null}
                 {todayWorkoutState === 'rested' ? (
                   <Button
                     variant="secondary"
@@ -906,6 +905,56 @@ export function TodayPage() {
                   </Button>
                 ) : null}
               </InlineRow>
+              {todayWorkoutState === 'scheduled' ? (
+                <>
+                  <PrimaryActionRow>
+                    <Button disabled={startWorkoutMutation.isPending} onClick={() => startWorkoutMutation.mutate()}>
+                      Start workout
+                    </Button>
+                  </PrimaryActionRow>
+                  <InlineRow>
+                    <Button variant="secondary" onClick={() => setPreviewOpen(true)}>
+                      Preview
+                    </Button>
+                    <Button variant="secondary" onClick={() => setExceptionOpen(true)}>
+                      Change today&apos;s workout
+                    </Button>
+                  </InlineRow>
+                  <RestSection>
+                    <RestSectionTitle>Need a day off?</RestSectionTitle>
+                    <RestSectionBody>
+                      Skips today&apos;s scheduled workout without changing your program or breaking your consistency.
+                    </RestSectionBody>
+                    <Button
+                      variant="success"
+                      disabled={markRestDayMutation.isPending}
+                      onClick={() => markRestDayMutation.mutate()}
+                    >
+                      Take a rest day
+                    </Button>
+                  </RestSection>
+                </>
+              ) : null}
+              {todayWorkoutState === 'unscheduled' ? (
+                <>
+                  <PrimaryActionRow>
+                    <Button onClick={() => setExceptionOpen(true)}>Choose workout</Button>
+                  </PrimaryActionRow>
+                  <RestSection>
+                    <RestSectionTitle>Need a day off?</RestSectionTitle>
+                    <RestSectionBody>
+                      Marks today as a rest day without changing your program or breaking your consistency.
+                    </RestSectionBody>
+                    <Button
+                      variant="success"
+                      disabled={markRestDayMutation.isPending}
+                      onClick={() => markRestDayMutation.mutate()}
+                    >
+                      Take a rest day
+                    </Button>
+                  </RestSection>
+                </>
+              ) : null}
             </PrimaryWorkoutCard>
 
           ) : null}
