@@ -9,10 +9,6 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
-- `21-schedule-rest-days-in-training.md` — extends the shipped rest day
-  feature so rest can be planned ahead or corrected after the fact from the
-  Training schedule table, instead of only being declared on the day itself.
-  (Renumbered from 17 to make room for the guided-setup batch above.)
 - `WAIT-automated-visual-and-e2e-testing.md` — deferred by request. Filed so the
   gap is tracked, deliberately not started.
 - `WAIT-figma-accentsubtle-token-fix.md` — deferred by request. Fixes
@@ -26,3 +22,5 @@ alongside their stories, named `README-{range}-{review}.md`.
 - `completed/README-08-10-active-workout-ux-review.md` — stories 08–10.
 - `completed/README-11-16-progress-experience-review.md` — stories 11–16.
 - `completed/README-17-20-guided-setup-beta-test-review.md` — stories 17–20.
+- `completed/21-schedule-rest-days-in-training.md` — schedule rest days
+  from Training, not just Today.
