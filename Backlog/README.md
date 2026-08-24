@@ -9,9 +9,6 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
-- `setframe-mobile-unit-label-story/` — story 22, moving unit labels (e.g.
-  "Weight (lb)") out of numeric inputs so the suffix can't overflow the
-  field at narrow mobile widths.
 - `setframe-completed-workout-edit-story/` — story 23, letting a user
   correct a logged set after a workout is already completed, with derived
   metrics (volume, e1RM, PRs) recalculating. (Numbered 23, not the
@@ -31,3 +28,4 @@ alongside their stories, named `README-{range}-{review}.md`.
 - `completed/README-17-20-guided-setup-beta-test-review.md` — stories 17–20.
 - `completed/21-schedule-rest-days-in-training.md` — schedule rest days
   from Training, not just Today.
+- `completed/README-22-mobile-unit-label-review.md` — story 22.
