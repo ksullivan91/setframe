@@ -9,10 +9,6 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
-- `setframe-today-action-hierarchy-story/` — story 27, clarifying Today's
-  workout action hierarchy (Start workout as the one primary CTA, Preview/
-  Change grouped as supporting actions, Rest Day separated into its own
-  explained section rather than a fifth competing button).
 - `setframe-program-management-stories/` — stories 24–26, adding program
   management/active-program selection and scoping workouts/schedule to the
   selected program.
@@ -39,3 +35,6 @@ alongside their stories, named `README-{range}-{review}.md`.
 - `completed/README-28-mobile-input-zoom-review.md` — story 28, preventing
   iOS Safari's persistent post-blur zoom on form inputs. (Numbered 28, not
   the original 23 — see its own README.)
+- `completed/README-27-today-action-hierarchy-review.md` — story 27,
+  restructuring Today's workout actions into primary/supporting/rest
+  tiers and explaining what Rest Day actually does.
