@@ -2,7 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover lets env(safe-area-inset-*) resolve (Story 28) —
+         without it, Modal.tsx's/AppShell's safe-area padding is inert.
+         Deliberately no maximum-scale/user-scalable: pinch-to-zoom must
+         stay available. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Setframe</title>
   </head>
   <body>

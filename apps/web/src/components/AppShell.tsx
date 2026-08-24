@@ -38,6 +38,10 @@ const Sidebar = styled.nav`
   background: ${(p) => p.theme.surface.raised};
   border-top: 1px solid ${(p) => p.theme.border.subtle};
   padding: ${spacing[8]}px;
+  /* Story 28: viewport-fit=cover (index.html) makes env() resolve for the
+     first time — without this, the bar sits under the home-indicator area
+     on notched iPhones instead of just gaining an inert fallback. */
+  padding-bottom: max(${spacing[8]}px, env(safe-area-inset-bottom));
   /* Force this onto its own compositor layer so the background paints
      consistently while scrolling on mobile Safari/Chrome — without this,
      sticky elements can render a transparent gap (seeing content/buttons

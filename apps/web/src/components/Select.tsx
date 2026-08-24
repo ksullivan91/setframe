@@ -2,7 +2,8 @@ import { forwardRef, useId, type SelectHTMLAttributes } from 'react';
 import styled from 'styled-components';
 import { ChevronDown } from 'lucide-react';
 import { radius, spacing } from '@setframe/design-tokens';
-import { typeScale } from '../theme/typeScale';
+import { typeScale, mobileSafeInputFontSize } from '../theme/typeScale';
+import { mq } from '../theme/breakpoints';
 
 export interface SelectOption {
   value: string;
@@ -47,11 +48,16 @@ const StyledSelect = styled.select`
   border-radius: ${radius.small}px;
   background: ${(p) => p.theme.surface.raised};
   color: ${(p) => p.theme.text.primary};
-  font-size: ${typeScale.body.fontSize}px;
+  /* Story 28 — same iOS Safari auto-zoom threshold as Input.tsx. */
+  font-size: ${mobileSafeInputFontSize}px;
 
   &:focus-visible {
     outline: 2px solid ${(p) => p.theme.action.primary};
     outline-offset: 1px;
+  }
+
+  ${mq.tablet} {
+    font-size: ${typeScale.body.fontSize}px;
   }
 `;
 

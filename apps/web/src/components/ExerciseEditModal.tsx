@@ -5,6 +5,8 @@ import type { Prescription } from '@setframe/schemas';
 import { parseOptionalNumber, formatOptionalNumber as numberFieldValue } from '@setframe/domain';
 import { Button, Input, Modal as SharedModal, Select } from './index';
 import { prescriptionOptions } from '../lib/prescription';
+import { typeScale, mobileSafeInputFontSize } from '../theme/typeScale';
+import { mq } from '../theme/breakpoints';
 
 export interface EditState {
   dayTypeId: string;
@@ -30,6 +32,13 @@ const TextArea = styled.textarea`
   background: ${(p) => p.theme.surface.raised};
   color: ${(p) => p.theme.text.primary};
   resize: vertical;
+  /* Story 28 — this textarea had no font-size at all (browser default,
+     well under 16px) and so triggered iOS Safari's focus zoom. */
+  font-size: ${mobileSafeInputFontSize}px;
+
+  ${mq.tablet} {
+    font-size: ${typeScale.body.fontSize}px;
+  }
 `;
 
 const PrescriptionGrid = styled.div`

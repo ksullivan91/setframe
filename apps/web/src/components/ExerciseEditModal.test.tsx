@@ -66,4 +66,14 @@ describe('ExerciseEditModal', () => {
     renderModal({ advancedSlot: <div data-testid="advanced-slot">Planned sets</div> });
     expect(screen.getAllByTestId('advanced-slot')).toHaveLength(1);
   });
+
+  /**
+   * Story 28 — this textarea previously had no font-size at all (browser
+   * default, well under 16px), which triggers iOS Safari's auto-zoom on
+   * focus.
+   */
+  it('renders the notes textarea at least a 16px font size by default', () => {
+    renderModal();
+    expect(getComputedStyle(screen.getByPlaceholderText('Notes')).fontSize).toBe('16px');
+  });
 });

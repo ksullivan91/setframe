@@ -2,7 +2,8 @@ import { forwardRef, useId, type InputHTMLAttributes } from 'react';
 import styled from 'styled-components';
 import { Info } from 'lucide-react';
 import { radius, spacing } from '@setframe/design-tokens';
-import { typeScale } from '../theme/typeScale';
+import { typeScale, mobileSafeInputFontSize } from '../theme/typeScale';
+import { mq } from '../theme/breakpoints';
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label: string;
@@ -110,11 +111,18 @@ const StyledInput = styled.input`
   outline: none;
   background: transparent;
   height: 40px;
-  font-size: ${typeScale.body.fontSize}px;
+  /* Story 28: iOS Safari auto-zooms on focus below a 16px effective font
+     size. Below tablet width, override the (smaller) body-text token that
+     would otherwise trigger it; desktop keeps the original density. */
+  font-size: ${mobileSafeInputFontSize}px;
   color: ${(p) => p.theme.text.primary};
 
   &::placeholder {
     color: ${(p) => p.theme.text.disabled};
+  }
+
+  ${mq.tablet} {
+    font-size: ${typeScale.body.fontSize}px;
   }
 `;
 

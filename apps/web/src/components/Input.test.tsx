@@ -43,3 +43,17 @@ describe('Input unit label', () => {
     expect(screen.getByLabelText('Weight (lb)')).toHaveValue('185');
   });
 });
+
+/**
+ * Story 28 — a shared text/numeric input rendering below a 16px effective
+ * font size triggers iOS Safari's auto-zoom on focus, and the page stays
+ * visibly zoomed after blur. The mobile-first base rule must stay at 16px
+ * (the desktop-width override is real CSS but isn't reliably observable
+ * through jsdom's computed styles, so it's not asserted here).
+ */
+describe('Input mobile-safe font size', () => {
+  it('renders at least a 16px font size by default', () => {
+    renderInput();
+    expect(getComputedStyle(screen.getByLabelText('Weight')).fontSize).toBe('16px');
+  });
+});

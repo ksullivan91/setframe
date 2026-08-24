@@ -17,7 +17,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { spacing, radius } from '@setframe/design-tokens';
 import type { DayTypeExercise, Exercise, WorkoutSession, WorkoutSessionDetail } from '@setframe/schemas';
-import { typeScale } from '../theme/typeScale';
+import { typeScale, mobileSafeInputFontSize } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';
 import {
   AsyncStatusIndicator,
@@ -386,10 +386,17 @@ const NotesArea = styled.textarea`
   color: ${(p) => p.theme.text.primary};
   padding: ${spacing[12]}px;
   font: inherit;
+  /* Story 28 — iOS Safari auto-zoom threshold; the longhand after the
+     font: inherit shorthand above overrides only its size sub-value. */
+  font-size: ${mobileSafeInputFontSize}px;
 
   &:focus-visible {
     outline: 2px solid ${(p) => p.theme.action.primary};
     outline-offset: 2px;
+  }
+
+  ${mq.tablet} {
+    font-size: ${typeScale.body.fontSize}px;
   }
 `;
 const MoodRow = styled.div`
@@ -462,6 +469,13 @@ const TextArea = styled.textarea`
   background: ${(p) => p.theme.surface.raised};
   color: ${(p) => p.theme.text.primary};
   resize: vertical;
+  /* Story 28 — this textarea had no font-size at all (browser default,
+     well under 16px) and so triggered iOS Safari's focus zoom. */
+  font-size: ${mobileSafeInputFontSize}px;
+
+  ${mq.tablet} {
+    font-size: ${typeScale.body.fontSize}px;
+  }
 `;
 const StatusBlock = styled.div<{ $tone?: 'default' | 'warning' }>`
   display: flex;

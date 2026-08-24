@@ -27,3 +27,12 @@ export const typeScale: Record<KnownTypeScaleKey, TypeScaleToken> = rawTypeScale
   KnownTypeScaleKey,
   TypeScaleToken
 >;
+
+/**
+ * Story 28 — below this effective font size, iOS Safari auto-zooms a form
+ * control on focus and leaves the page visibly zoomed after blur. Every
+ * mobile-width text/numeric input, select, and textarea must render at
+ * least this size; each references this one constant rather than
+ * hardcoding 16 independently.
+ */
+export const mobileSafeInputFontSize = 16;
