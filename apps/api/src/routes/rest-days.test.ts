@@ -143,6 +143,46 @@ describe('POST /v1/rest-days', () => {
     expect(insert.values.mock.results[0]!.value.onConflictDoUpdate).toHaveBeenCalled();
   });
 
+  // Story 21 — rest can be planned ahead or corrected after the fact from
+  // the Training schedule page, not just declared for today. The route
+  // never checked "is this today" in the first place; these are
+  // regression guards against that restriction ever being added.
+  it('accepts a future date, for planning rest ahead', async () => {
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([]));
+    mockInsert.mockReturnValueOnce(insertChain([{ ...restRow, localDate: '2026-09-15' }]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/rest-days',
+      headers: authHeader,
+      payload: { localDate: '2026-09-15', timezone: 'America/Chicago' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ localDate: '2026-09-15' });
+  });
+
+  it('accepts a past date, for correcting a day the user forgot to mark', async () => {
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([]));
+    mockInsert.mockReturnValueOnce(insertChain([{ ...restRow, localDate: '2026-07-01' }]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/rest-days',
+      headers: authHeader,
+      payload: { localDate: '2026-07-01', timezone: 'America/Chicago' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ localDate: '2026-07-01' });
+  });
+
   it('rejects a malformed date', async () => {
     mockSelect.mockReturnValueOnce(selectChain([userRow]));
 

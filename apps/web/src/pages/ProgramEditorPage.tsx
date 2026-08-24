@@ -16,6 +16,7 @@ import type {
 import { Button, Card, FadeIn, IconButton, Input, Menu, Modal as SharedModal, Select, Skeleton, SkeletonStack, Tabs, WeekScheduleEditor, useToast } from '../components';
 import { ExerciseEditModal, type EditState } from '../components/ExerciseEditModal';
 import { AddExercisePicker, emptyPrescription } from '../components/AddExercisePicker';
+import { UpcomingDaysSchedule } from '../components/UpcomingDaysSchedule';
 import { typeScale } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';
 import { useApiClient } from '../lib/api-client';
@@ -828,6 +829,22 @@ export function ProgramEditorPage() {
               </>
             )}
           </StackCard>
+
+          {activeTab === 'schedule' ? (
+            <StackCard>
+              <h2 style={{ margin: '0 0 4px 0' }}>Rest &amp; corrections</h2>
+              <Small style={{ margin: '0 0 8px 0' }}>
+                Plan a rest day ahead, or correct a day you forgot to mark. Training always wins — a logged
+                workout supersedes a rest day.
+              </Small>
+              {/* Mounted only while this tab is active, not just CSS-hidden —
+                  it fans out into 14 parallel GET /dashboard/today calls
+                  (one per visible date), each several DB queries server-side;
+                  no reason to pay that on every page load regardless of tab
+                  (code-review follow-up). */}
+              <UpcomingDaysSchedule />
+            </StackCard>
+          ) : null}
         </ScheduleLayout>
       </div>
 

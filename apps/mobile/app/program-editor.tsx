@@ -183,7 +183,7 @@ export default function ProgramEditorScreen() {
       ) : null}
 
       <Text style={[styles.editNote, { color: theme.text.secondary }]}>
-        Edit on web for reorder, prescriptions, and schedule changes.
+        Edit on web for reorder, prescriptions, schedule changes, and planning or correcting rest days.
       </Text>
     </ScrollView>
   );
