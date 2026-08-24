@@ -9,9 +9,8 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
-- `setframe-program-management-stories/` — stories 25–26 (24 shipped
-  separately, see Shipped below), scoping workouts and schedule to the
-  selected program.
+- `setframe-program-management-stories/` — story 26 (24–25 shipped
+  separately, see Shipped below), making scheduling program-aware.
 - `WAIT-automated-visual-and-e2e-testing.md` — deferred by request. Filed so the
   gap is tracked, deliberately not started.
 - `WAIT-figma-accentsubtle-token-fix.md` — deferred by request. Fixes
@@ -40,5 +39,8 @@ alongside their stories, named `README-{range}-{review}.md`.
   tiers and explaining what Rest Day actually does.
 - `completed/24-programs-tab-and-active-program.md` — story 24 (from the
   `setframe-program-management-stories/` pack), a Programs tab with
-  explicit active-program selection. Stories 25–26 from the same pack
-  remain open — see their own README.
+  explicit active-program selection.
+- `completed/25-program-scoped-workouts.md` — story 25, an explicit
+  program-to-workout membership model (`program_day_type`) so the
+  Workouts tab and every downstream picker only offer the selected
+  program's own workouts. Story 26 from the same pack remains open.
