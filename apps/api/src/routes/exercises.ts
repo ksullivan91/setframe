@@ -199,6 +199,9 @@ export const exerciseRoutes: FastifyPluginAsyncZod = async (fastify) => {
             eq(workoutSession.userId, request.userId!),
             eq(workoutSession.status, 'completed'),
             eq(workoutExerciseLog.exerciseId, request.params.exerciseId),
+            // Story 34: an exercise removed from its session never happened,
+            // so it can't contribute to this exercise's history/PR trend.
+            eq(workoutExerciseLog.skipped, false),
           ),
         )
         .orderBy(desc(workoutSession.localDate), desc(workoutSession.completedAt), desc(workoutSet.sortOrder));
@@ -265,6 +268,9 @@ export const exerciseRoutes: FastifyPluginAsyncZod = async (fastify) => {
             eq(workoutSession.userId, request.userId!),
             eq(workoutSession.status, 'completed'),
             eq(workoutExerciseLog.exerciseId, request.params.exerciseId),
+            // Story 34: an exercise removed from its session never happened,
+            // so it can't contribute to this exercise's history/PR trend.
+            eq(workoutExerciseLog.skipped, false),
           ),
         )
         .orderBy(workoutSession.localDate, workoutSession.completedAt, workoutSet.sortOrder);

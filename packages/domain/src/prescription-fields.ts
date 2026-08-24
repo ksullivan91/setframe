@@ -311,3 +311,15 @@ export function countsTowardVolume(
 ): boolean {
   return getPrescriptionDefinition(prescription).countsTowardVolume;
 }
+
+/**
+ * An exercise removed from a session ("Remove from today's workout") is
+ * soft-deleted via `skipped` — its log and any logged sets stay in the
+ * database, but it must not appear in the active list, a completed
+ * session's review, or any total/count derived from either. Every screen
+ * that renders or sums a session's exercises should filter through this
+ * once, rather than re-writing the same `!skipped` predicate.
+ */
+export function visibleSessionExercises<T extends { skipped: boolean }>(exercises: readonly T[]): T[] {
+  return exercises.filter((exerciseLog) => !exerciseLog.skipped);
+}

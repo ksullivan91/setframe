@@ -247,6 +247,9 @@ async function getHistoricalSets(
     eq(workoutSession.userId, userId),
     eq(workoutSession.status, 'completed'),
     eq(workoutExerciseLog.exerciseId, exerciseId),
+    // Story 34: an exercise removed from a session (soft-deleted via
+    // `skipped`) never entered the record book, so it can't seed one.
+    eq(workoutExerciseLog.skipped, false),
     isNotNull(workoutSet.loadValue),
     isNotNull(workoutSet.reps),
     // Sets pre-populated from a program template carry a planned load but
@@ -289,6 +292,8 @@ async function getPreviousCompletedSessionForExercises(
         eq(workoutSession.status, 'completed'),
         inArray(workoutExerciseLog.exerciseId, exerciseIds),
         ne(workoutSession.id, sessionId),
+        // Story 34: a removed exercise's sets shouldn't resurface as "last time"
+        eq(workoutExerciseLog.skipped, false),
       ),
     )
     .orderBy(workoutSession.completedAt, workoutSession.updatedAt, workoutExerciseLog.sortOrder);
@@ -741,12 +746,40 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
     },
     async (request) => {
       const db = getDb();
-      await getOwnedExerciseLog(db, request.params.id, request.userId!);
+      const log = await getOwnedExerciseLog(db, request.params.id, request.userId!);
+
+      // Story 34: the UI only offers session-only removal/undo while a
+      // session is in progress — enforce that server-side too, so a
+      // completed session's exercise/set counts, volume and PR history
+      // can't be changed after the fact via a direct request.
+      if (request.body.skipped !== undefined) {
+        const session = await getOwnedSession(db, log.sessionId, request.userId!);
+        if (session.status === 'completed') {
+          throw badRequest('Cannot change exercise removal state on a completed session');
+        }
+      }
+
       const rows = await db
         .update(workoutExerciseLog)
         .set({ ...request.body, updatedAt: new Date() })
         .where(eq(workoutExerciseLog.id, request.params.id))
         .returning();
+
+      // Removing/restoring an exercise changes whether its sets count
+      // toward PR history (see the `skipped` filters added to
+      // getHistoricalSets/getPreviousCompletedSessionForExercises above),
+      // so its own badges need to be resolved fresh against that history —
+      // the same "recompute after any mutation" invariant every other
+      // set/log mutation in this file already follows.
+      if (request.body.skipped !== undefined) {
+        await recalculateLogPrFlags({
+          db,
+          userId: request.userId!,
+          exerciseId: rows[0]!.exerciseId,
+          sessionId: rows[0]!.sessionId,
+        });
+      }
+
       return toExerciseLogResponse(rows[0]!);
     },
   );

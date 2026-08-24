@@ -36,6 +36,7 @@ import type { AsyncStatus } from '../components/AsyncStatus';
 import type { ButtonStatus } from '../components/Button';
 import { useApiClient } from '../lib/api-client';
 import { countsTowardVolume, isSessionSetLogged, summarizePrescription } from '../lib/prescription';
+import { visibleSessionExercises } from '@setframe/domain';
 
 interface DashboardSessionSummary {
   id: string;
@@ -571,7 +572,7 @@ function patchDaily(api: ReturnType<typeof useApiClient>, localDate: string, bod
 }
 function sumCompletedSets(session?: WorkoutSessionDetail | null) {
   if (!session) return 0;
-  return session.exercises.reduce(
+  return visibleSessionExercises(session.exercises).reduce(
     (total, exercise) => total + exercise.sets.filter((set) => isSessionSetLogged(exercise.prescription, set)).length,
     0,
   );
@@ -580,7 +581,7 @@ function sumVolume(session?: WorkoutSessionDetail | null) {
   if (!session) return null;
   // Timed, distance and bodyweight work carries no weight, so it contributes
   // nothing to volume — including it only makes the total look authoritative.
-  const total = session.exercises.reduce(
+  const total = visibleSessionExercises(session.exercises).reduce(
     (sum, exercise) =>
       sum +
       (countsTowardVolume(exercise.prescription)
@@ -866,7 +867,7 @@ export function TodayPage() {
                     <CompletedMetaList>
                       <CompletedMetaTile>
                         <MetaLabel>Exercises</MetaLabel>
-                        <CompletedMetaValue>{postWorkoutReviewQuery.data.exercises.length}</CompletedMetaValue>
+                        <CompletedMetaValue>{visibleSessionExercises(postWorkoutReviewQuery.data.exercises).length}</CompletedMetaValue>
                       </CompletedMetaTile>
                       <CompletedMetaTile>
                         <MetaLabel>Sets logged</MetaLabel>

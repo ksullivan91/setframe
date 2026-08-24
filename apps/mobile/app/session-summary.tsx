@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Pencil, Trophy } from 'lucide-react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { calculateVolume, estimateOneRepMax } from '@setframe/domain';
+import { calculateVolume, estimateOneRepMax, visibleSessionExercises } from '@setframe/domain';
 import { countsTowardVolume } from '../src/lib/prescription';
 import type { WorkoutSessionDetail, WorkoutSet } from '@setframe/schemas';
 import { Card } from '../src/components/Card';
@@ -32,7 +32,7 @@ function formatDate(localDate: string) {
 }
 
 function findPrSet(session: WorkoutSessionDetail) {
-  for (const exerciseLog of session.exercises) {
+  for (const exerciseLog of visibleSessionExercises(session.exercises)) {
     const prSet = exerciseLog.sets.find((set) => set.isPrWeight || set.isPrReps);
     if (prSet) return { exerciseName: exerciseLog.exercise.name, set: prSet, previous: exerciseLog.previousSession?.sets.at(-1) };
   }
@@ -46,7 +46,7 @@ function formatSet(set: { weightValue: number | null; weightUnit?: string | null
 }
 
 function totalPrs(session: WorkoutSessionDetail) {
-  return session.exercises.reduce((count, exerciseLog) => count + exerciseLog.sets.filter((set) => set.isPrWeight || set.isPrReps).length, 0);
+  return visibleSessionExercises(session.exercises).reduce((count, exerciseLog) => count + exerciseLog.sets.filter((set) => set.isPrWeight || set.isPrReps).length, 0);
 }
 
 function bestEstimated1rm(sets: WorkoutSet[]) {
@@ -102,12 +102,15 @@ export default function SessionSummaryScreen() {
     onError: () => setToast({ variant: 'error', message: "Couldn't save that set. Try again." }),
   });
 
-  const allSets = useMemo(() => sessionQuery.data?.exercises.flatMap((exerciseLog) => exerciseLog.sets) ?? [], [sessionQuery.data]);
+  const allSets = useMemo(
+    () => visibleSessionExercises(sessionQuery.data?.exercises ?? []).flatMap((exerciseLog) => exerciseLog.sets),
+    [sessionQuery.data],
+  );
   // Only weighted strength work contributes volume; see Story 09.
   const volume = useMemo(
     () =>
       calculateVolume(
-        (sessionQuery.data?.exercises ?? [])
+        visibleSessionExercises(sessionQuery.data?.exercises ?? [])
           .filter((exerciseLog) => countsTowardVolume(exerciseLog.prescription))
           .flatMap((exerciseLog) => exerciseLog.sets),
       ),
@@ -161,7 +164,7 @@ export default function SessionSummaryScreen() {
         <SetRowReadOnly setLabel="Best est. 1RM" valueLabel={bestEstimated1rm(allSets)} />
       </Card>
 
-      {sessionQuery.data.exercises.map((exerciseLog) => (
+      {visibleSessionExercises(sessionQuery.data.exercises).map((exerciseLog) => (
         <Card key={exerciseLog.id}>
           <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>{exerciseLog.exercise.name}</Text>
           {exerciseLog.sets.map((set, index) => {

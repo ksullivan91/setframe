@@ -49,6 +49,7 @@ function buildSession(prescription: Prescription | null, setOverrides: SetOverri
         workoutSessionId: 'session-1',
         exerciseId: 'exercise-1',
         sortOrder: 0,
+        skipped: false,
         notes: null,
         createdAt: '2026-08-22T15:00:00.000Z',
         updatedAt: '2026-08-22T15:00:00.000Z',
@@ -457,5 +458,97 @@ describe('WorkoutSessionPage PR badges', () => {
     await screen.findAllByLabelText(/^Weight/);
     expect(screen.queryByText('Weight PR')).not.toBeInTheDocument();
     expect(screen.queryByText('Rep PR')).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * Story 34 — removing an exercise from today's session flips the existing
+ * `skipped` flag (a PATCH on the exercise log) rather than deleting
+ * anything, so the underlying sets and the template are never touched.
+ */
+describe('WorkoutSessionPage session-only exercise removal', () => {
+  function renderRemovable(sets: unknown[]) {
+    let session = buildSession({ kind: 'distanceDuration', distanceMiles: 5, durationMinutes: 30 }) as {
+      exercises: { id: string; skipped: boolean; sets: unknown[] }[];
+    };
+    session.exercises[0]!.sets = sets;
+    session.exercises[0]!.skipped = false;
+
+    mockPatch.mockImplementation((path: string, body?: unknown) => {
+      const match = /^\/workout-exercise-logs\/(.+)$/.exec(path);
+      if (match && body && typeof body === 'object' && 'skipped' in body) {
+        session = {
+          ...session,
+          exercises: session.exercises.map((exerciseLog) =>
+            exerciseLog.id === match[1] ? { ...exerciseLog, skipped: (body as { skipped: boolean }).skipped } : exerciseLog,
+          ),
+        };
+      }
+      return Promise.resolve(body);
+    });
+    mockGet = (path: string) => {
+      if (path.startsWith('/workout-sessions/')) return Promise.resolve(session);
+      if (path === '/exercises') return Promise.resolve([]);
+      return Promise.resolve(null);
+    };
+    return renderPage();
+  }
+
+  it('removes an exercise with no logged sets after a lightweight confirmation', async () => {
+    const user = userEvent.setup();
+    renderRemovable([]);
+
+    await user.click(await screen.findByRole('button', { name: 'Outdoor Cycle actions' }));
+    await user.click(await screen.findByText('Remove from today’s workout'));
+
+    expect(screen.getByText("Remove Outdoor Cycle from today's workout?")).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Remove exercise' }));
+
+    await waitFor(() => expect(mockPatch).toHaveBeenCalledWith('/workout-exercise-logs/log-1', { skipped: true }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Outdoor Cycle actions' })).not.toBeInTheDocument());
+    expect(await screen.findByText("Outdoor Cycle removed from today's workout.")).toBeInTheDocument();
+  });
+
+  it('warns about logged sets before removing, naming the count', async () => {
+    const user = userEvent.setup();
+    renderRemovable([
+      { id: 'set-1', exerciseLogId: 'log-1', clientId: 'c1', sortOrder: 0, setType: 'working', distanceValue: 5, distanceUnit: 'mi', durationSeconds: 1800, weightValue: null, weightUnit: null, reps: null, rpe: null, isPrWeight: false, isPrReps: false, createdAt: '2026-08-22T15:00:00.000Z', updatedAt: '2026-08-22T15:00:00.000Z' },
+      { id: 'set-2', exerciseLogId: 'log-1', clientId: 'c2', sortOrder: 1, setType: 'working', distanceValue: 5, distanceUnit: 'mi', durationSeconds: 1800, weightValue: null, weightUnit: null, reps: null, rpe: null, isPrWeight: false, isPrReps: false, createdAt: '2026-08-22T15:00:00.000Z', updatedAt: '2026-08-22T15:00:00.000Z' },
+    ]);
+
+    await user.click(await screen.findByRole('button', { name: 'Outdoor Cycle actions' }));
+    await user.click(await screen.findByText('Remove from today’s workout'));
+
+    expect(screen.getByText("Remove Outdoor Cycle and its 2 logged sets from today's workout?")).toBeInTheDocument();
+    expect(screen.getByText(/sets you've already logged stay on record/)).toBeInTheDocument();
+  });
+
+  it('restores a removed exercise on undo, without re-adding it', async () => {
+    const user = userEvent.setup();
+    renderRemovable([]);
+
+    await user.click(await screen.findByRole('button', { name: 'Outdoor Cycle actions' }));
+    await user.click(await screen.findByText('Remove from today’s workout'));
+    await user.click(screen.getByRole('button', { name: 'Remove exercise' }));
+    await waitFor(() => expect(mockPatch).toHaveBeenCalledWith('/workout-exercise-logs/log-1', { skipped: true }));
+
+    await user.click(await screen.findByText('Undo'));
+
+    await waitFor(() => expect(mockPatch).toHaveBeenCalledWith('/workout-exercise-logs/log-1', { skipped: false }));
+    expect(mockPost).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Outdoor Cycle actions' })).toBeInTheDocument());
+  });
+
+  it('disables the remove action once the session is completed', async () => {
+    const user = userEvent.setup();
+    mockGet = (path: string) => {
+      if (path.startsWith('/workout-sessions/')) return Promise.resolve(buildSession({ kind: 'distanceDuration', distanceMiles: 5, durationMinutes: 30 }, {}, 'completed'));
+      if (path === '/exercises') return Promise.resolve([]);
+      return Promise.resolve(null);
+    };
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Outdoor Cycle actions' }));
+    expect(await screen.findByText('Remove from today’s workout')).toHaveAttribute('disabled');
   });
 });

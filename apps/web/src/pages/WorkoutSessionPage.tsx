@@ -11,9 +11,9 @@ import type {
   WorkoutSet,
   WorkoutSetPreviousPerformance,
 } from '@setframe/schemas';
-import { calculateVolume, estimateOneRepMax } from '@setframe/domain';
+import { calculateVolume, estimateOneRepMax, visibleSessionExercises } from '@setframe/domain';
 import { radius, spacing } from '@setframe/design-tokens';
-import { AsyncStatusIndicator, Button, Card, IconButton, Input, Modal, PRBadge, Select, Skeleton, SkeletonStack, useAsyncStatus, useToast } from '../components';
+import { AsyncStatusIndicator, Button, Card, IconButton, Input, Menu, Modal, PRBadge, Select, Skeleton, SkeletonStack, useAsyncStatus, useToast } from '../components';
 import { AddExercisePicker } from '../components/AddExercisePicker';
 import { useApiClient } from '../lib/api-client';
 import {
@@ -47,6 +47,12 @@ interface RemovalCandidate {
   setId: string;
   exerciseLogId: string;
   label: string;
+}
+
+interface ExerciseRemovalCandidate {
+  exerciseLogId: string;
+  name: string;
+  loggedSetCount: number;
 }
 
 const Page = styled.div`
@@ -272,6 +278,17 @@ const AddSetButtonWrap = styled.div`
   }
 `;
 
+const ExerciseHeaderActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${spacing[8]}px;
+  width: 100%;
+
+  ${mq.tablet} {
+    width: auto;
+  }
+`;
+
 const EmptyText = styled.p`
   color: ${(p) => p.theme.text.secondary};
   margin: 0;
@@ -421,6 +438,7 @@ export function WorkoutSessionPage() {
   const [drafts, setDrafts] = useState<Record<string, DraftValues>>({});
   const [elapsedTick, setElapsedTick] = useState(0);
   const [pendingRemoval, setPendingRemoval] = useState<RemovalCandidate | null>(null);
+  const [pendingExerciseRemoval, setPendingExerciseRemoval] = useState<ExerciseRemovalCandidate | null>(null);
   const [addExerciseOpen, setAddExerciseOpen] = useState(false);
   const lastMutationRef = useRef<(() => Promise<unknown>) | null>(null);
   const inlineStatus = useAsyncStatus();
@@ -493,6 +511,39 @@ export function WorkoutSessionPage() {
     onError: () => toast.show({ variant: 'error', message: 'Could not remove set.' }),
   });
 
+  /* Story 34: removal is session-scoped, so it flips the existing `skipped`
+     flag on the exercise log rather than deleting it — the underlying rows
+     (and any sets already logged) are untouched, the workout template and
+     program are never involved, and undo is just flipping the flag back. */
+  const removeExerciseMutation = useMutation({
+    mutationFn: ({ exerciseLogId }: { exerciseLogId: string; name: string }) =>
+      api.patch(`/workout-exercise-logs/${exerciseLogId}`, { skipped: true }),
+    // Read the name from the mutation's own variables, not component state —
+    // a second removal confirmed while this one is still in flight would
+    // otherwise overwrite `pendingExerciseRemoval` before this callback runs,
+    // misattributing the toast to the wrong exercise.
+    onSuccess: async (_, { exerciseLogId, name }) => {
+      await refreshSession();
+      setPendingExerciseRemoval(null);
+      toast.show({
+        variant: 'success',
+        message: `${name} removed from today's workout.`,
+        actionLabel: 'Undo',
+        onAction: () => restoreExerciseMutation.mutate(exerciseLogId),
+      });
+    },
+    onError: () => toast.show({ variant: 'error', message: 'Could not remove exercise.' }),
+  });
+
+  const restoreExerciseMutation = useMutation({
+    mutationFn: (exerciseLogId: string) => api.patch(`/workout-exercise-logs/${exerciseLogId}`, { skipped: false }),
+    onSuccess: async () => {
+      await refreshSession();
+      toast.show({ variant: 'success', message: 'Exercise restored to today’s workout.' });
+    },
+    onError: () => toast.show({ variant: 'error', message: 'Could not undo.' }),
+  });
+
   /* Story 08: the session carries its own prescription snapshot because an
      exercise added mid-session has no day-type row to inherit one from. */
   const addExerciseMutation = useMutation({
@@ -521,7 +572,7 @@ export function WorkoutSessionPage() {
     onError: () => toast.show({ variant: 'error', message: 'Could not finish workout.' }),
   });
 
-  const orderedExercises = useMemo(() => query.data?.exercises ?? [], [query.data]);
+  const orderedExercises = useMemo(() => visibleSessionExercises(query.data?.exercises ?? []), [query.data]);
   const totalSetsLogged = useMemo(
     () =>
       orderedExercises.reduce(
@@ -632,6 +683,7 @@ export function WorkoutSessionPage() {
       <ExerciseList>
         {orderedExercises.map((exerciseLog) => {
           const definition = getPrescriptionDefinition(exerciseLog.prescription);
+          const loggedSetCount = exerciseLog.sets.filter((set) => isSessionSetLogged(exerciseLog.prescription, set)).length;
           return (
           <ExerciseCard key={exerciseLog.id}>
             <ExerciseHeader>
@@ -639,15 +691,29 @@ export function WorkoutSessionPage() {
                 <ExerciseTitle>{exerciseLog.exercise.name}</ExerciseTitle>
                 <SupportingText>{summarizePrescription(exerciseLog.prescription)}</SupportingText>
               </div>
-              <AddSetButtonWrap>
-                <Button
-                  variant="secondary"
-                  onClick={() => addSetMutation.mutate({ exerciseLogId: exerciseLog.id, sourceSet: exerciseLog.sets.at(-1) })}
-                  disabled={addSetMutation.isPending || query.data.status === 'completed'}
-                >
-                  <Plus size={16} /> Add set
-                </Button>
-              </AddSetButtonWrap>
+              <ExerciseHeaderActions>
+                <AddSetButtonWrap>
+                  <Button
+                    variant="secondary"
+                    onClick={() => addSetMutation.mutate({ exerciseLogId: exerciseLog.id, sourceSet: exerciseLog.sets.at(-1) })}
+                    disabled={addSetMutation.isPending || query.data.status === 'completed'}
+                  >
+                    <Plus size={16} /> Add set
+                  </Button>
+                </AddSetButtonWrap>
+                <Menu
+                  label={`${exerciseLog.exercise.name} actions`}
+                  items={[
+                    {
+                      label: 'Remove from today’s workout',
+                      destructive: true,
+                      disabled: query.data.status === 'completed',
+                      onClick: () =>
+                        setPendingExerciseRemoval({ exerciseLogId: exerciseLog.id, name: exerciseLog.exercise.name, loggedSetCount }),
+                    },
+                  ]}
+                />
+              </ExerciseHeaderActions>
             </ExerciseHeader>
 
             {exerciseLog.previousSession ? (
@@ -861,6 +927,39 @@ export function WorkoutSessionPage() {
             disabled={deleteSetMutation.isPending}
           >
             Remove set
+          </Button>
+        </Actions>
+      </Modal>
+
+      <Modal
+        open={pendingExerciseRemoval != null}
+        onClose={() => setPendingExerciseRemoval(null)}
+        title={
+          pendingExerciseRemoval && pendingExerciseRemoval.loggedSetCount > 0
+            ? `Remove ${pendingExerciseRemoval.name} and its ${pendingExerciseRemoval.loggedSetCount} logged set${pendingExerciseRemoval.loggedSetCount === 1 ? '' : 's'} from today's workout?`
+            : `Remove ${pendingExerciseRemoval?.name ?? 'this exercise'} from today's workout?`
+        }
+        description={
+          pendingExerciseRemoval && pendingExerciseRemoval.loggedSetCount > 0
+            ? `This only changes today's session — the sets you've already logged stay on record, and ${pendingExerciseRemoval.name} will stay in the workout template.`
+            : `This only changes today's session. ${pendingExerciseRemoval?.name ?? 'It'} will stay in the workout template.`
+        }
+      >
+        <Actions>
+          <Button variant="secondary" onClick={() => setPendingExerciseRemoval(null)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() =>
+              pendingExerciseRemoval &&
+              removeExerciseMutation.mutate({
+                exerciseLogId: pendingExerciseRemoval.exerciseLogId,
+                name: pendingExerciseRemoval.name,
+              })
+            }
+            disabled={removeExerciseMutation.isPending}
+          >
+            Remove exercise
           </Button>
         </Actions>
       </Modal>

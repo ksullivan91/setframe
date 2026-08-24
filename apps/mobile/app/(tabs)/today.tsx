@@ -33,6 +33,7 @@ import { SyncStatusPill, type SyncStatus } from '../../src/components/SyncStatus
 import { Checkbox } from '../../src/components/Checkbox';
 import { Toast } from '../../src/components/Toast';
 import { countsTowardVolume, isSessionSetLogged } from '../../src/lib/prescription';
+import { visibleSessionExercises } from '@setframe/domain';
 import { ApiError, useApiClient } from '../../src/lib/api-client';
 import { useLocalDate } from '../../src/lib/useLocalDate';
 import { healthKit, type DailyHealthMetrics } from '../../src/healthkit/HealthKitAdapter';
@@ -179,7 +180,7 @@ function parseOptionalInteger(value: string) {
 
 function sumCompletedSets(session?: WorkoutSessionDetail | null) {
   if (!session) return 0;
-  return session.exercises.reduce(
+  return visibleSessionExercises(session.exercises).reduce(
     (total, exercise) =>
       total +
       exercise.sets.filter((set) => isSessionSetLogged(exercise.prescription, set)).length,
@@ -191,7 +192,7 @@ function sumVolume(session?: WorkoutSessionDetail | null) {
   if (!session) return null;
   // Timed, distance and bodyweight work carries no weight, so it contributes
   // nothing to volume — including it only makes the total look authoritative.
-  const total = session.exercises.reduce(
+  const total = visibleSessionExercises(session.exercises).reduce(
     (sum, exercise) =>
       sum +
       (countsTowardVolume(exercise.prescription)
@@ -581,7 +582,7 @@ export default function TodayScreen() {
             {todayWorkoutState === 'completed' && completedSummaryQuery.data ? (
               <View style={styles.completedStatRow}>
                 {[
-                  { label: 'Exercises', value: String(completedSummaryQuery.data.exercises.length) },
+                  { label: 'Exercises', value: String(visibleSessionExercises(completedSummaryQuery.data.exercises).length) },
                   { label: 'Sets logged', value: String(completedSets) },
                   { label: 'Total volume', value: completedVolume ? String(completedVolume) : '—', unit: completedVolume ? 'lb' : undefined },
                 ].map((stat) => (

@@ -10,6 +10,7 @@ import {
   resolveSessionFields,
   summarizePrescription,
   validateSessionSet,
+  visibleSessionExercises,
   type PrescriptionKind,
 } from './index';
 
@@ -239,5 +240,31 @@ describe('getPrescriptionDefinition', () => {
   it('falls back for null and unrecognised kinds', () => {
     expect(getPrescriptionDefinition(null).label).toBe('Unplanned');
     expect(getPrescriptionDefinition('nope' as PrescriptionKind).label).toBe('Unplanned');
+  });
+});
+
+/**
+ * Story 34 — "remove from today's workout" soft-deletes an exercise log via
+ * `skipped` rather than deleting it, so every screen that lists or sums a
+ * session's exercises filters through this once instead of re-writing the
+ * same predicate per platform.
+ */
+describe('visibleSessionExercises', () => {
+  it('excludes skipped exercises and keeps the rest in order', () => {
+    const exercises = [
+      { id: 'a', skipped: false },
+      { id: 'b', skipped: true },
+      { id: 'c', skipped: false },
+    ];
+    expect(visibleSessionExercises(exercises).map((e) => e.id)).toEqual(['a', 'c']);
+  });
+
+  it('returns an empty array when every exercise was removed', () => {
+    expect(visibleSessionExercises([{ id: 'a', skipped: true }])).toEqual([]);
+  });
+
+  it('returns everything when nothing was removed', () => {
+    const exercises = [{ id: 'a', skipped: false }, { id: 'b', skipped: false }];
+    expect(visibleSessionExercises(exercises)).toEqual(exercises);
   });
 });

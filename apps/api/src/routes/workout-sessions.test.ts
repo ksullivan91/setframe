@@ -319,4 +319,109 @@ describe('workout session routes', () => {
     });
     await app.close();
   });
+
+  /**
+   * Story 34 — "remove from today's workout" is implemented as the
+   * pre-existing `skipped` flag, not a delete: it's a single update on
+   * `workout_exercise_log` and nothing else, so the session's sets, the
+   * day type it came from, and the parent program are all untouched by
+   * construction (this route never references any of those tables).
+   */
+  it('marks an exercise log skipped with a single scoped update, leaving everything else untouched', async () => {
+    const skippedRow = { ...logRow, skipped: true, updatedAt: new Date('2026-08-21T11:00:00Z') };
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([{ log: logRow, session: sessionRow }])) // getOwnedExerciseLog
+      .mockReturnValueOnce(selectChain([sessionRow])) // getOwnedSession (completed-session guard)
+      .mockReturnValueOnce(selectChain([])) // recalculateLogPrFlags: history baseline
+      .mockReturnValueOnce(selectChain([])); // recalculateLogPrFlags: this log's own sets
+    mockUpdate.mockReturnValueOnce(updateChain([skippedRow]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/v1/workout-exercise-logs/${logRow.id}`,
+      headers: authHeader,
+      payload: { skipped: true },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ id: logRow.id, skipped: true });
+    // No sets came back from the recalculate pass, so nothing needed a
+    // flag update — the only write is the log's own `skipped` column.
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    expect(mockInsert).not.toHaveBeenCalled();
+    expect(mockDelete).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it('undoes a removal by flipping skipped back off', async () => {
+    const restoredRow = { ...logRow, skipped: false };
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([{ log: { ...logRow, skipped: true }, session: sessionRow }]))
+      .mockReturnValueOnce(selectChain([sessionRow]))
+      .mockReturnValueOnce(selectChain([]))
+      .mockReturnValueOnce(selectChain([]));
+    mockUpdate.mockReturnValueOnce(updateChain([restoredRow]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/v1/workout-exercise-logs/${logRow.id}`,
+      headers: authHeader,
+      payload: { skipped: false },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ id: logRow.id, skipped: false });
+    await app.close();
+  });
+
+  /**
+   * Story 34 — the UI only offers removal/undo while a session is in
+   * progress; without a server-side check, a direct request could still
+   * change a finished session's exercise/set counts, volume and PR
+   * history after the fact.
+   */
+  it('rejects toggling skipped once the session is completed', async () => {
+    const completedSessionRow = { ...sessionRow, status: 'completed', completedAt: new Date('2026-08-21T11:00:00Z') };
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([{ log: logRow, session: completedSessionRow }]))
+      .mockReturnValueOnce(selectChain([completedSessionRow]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/v1/workout-exercise-logs/${logRow.id}`,
+      headers: authHeader,
+      payload: { skipped: true },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(mockUpdate).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it('allows a non-skipped edit (e.g. notes) on a completed session without the removal guard', async () => {
+    const completedSessionRow = { ...sessionRow, status: 'completed', completedAt: new Date('2026-08-21T11:00:00Z') };
+    const notedRow = { ...logRow, notes: 'Felt heavy today' };
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([{ log: logRow, session: completedSessionRow }]));
+    mockUpdate.mockReturnValueOnce(updateChain([notedRow]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/v1/workout-exercise-logs/${logRow.id}`,
+      headers: authHeader,
+      payload: { notes: 'Felt heavy today' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ notes: 'Felt heavy today' });
+    await app.close();
+  });
 });

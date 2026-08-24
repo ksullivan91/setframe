@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, GripVertical } from 'lucide-react-native';
-import { calculateVolume, estimateOneRepMax } from '@setframe/domain';
+import { Plus, GripVertical, MoreVertical } from 'lucide-react-native';
+import { calculateVolume, estimateOneRepMax, visibleSessionExercises } from '@setframe/domain';
 import type {
   Exercise,
   Prescription,
@@ -24,6 +24,7 @@ import { SetRowEditable } from '../../src/components/SetRow';
 import { IconButton } from '../../src/components/IconButton';
 import { AddExercisePicker } from '../../src/components/AddExercisePicker';
 import { FadeIn, Skeleton, SkeletonStack } from '../../src/components/Skeleton';
+import { Toast } from '../../src/components/Toast';
 import { useApiClient } from '../../src/lib/api-client';
 import {
   countsTowardVolume,
@@ -196,6 +197,12 @@ export default function TrainingScreen() {
   const [showAddExercise, setShowAddExercise] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, SetDraft>>({});
   const [createdSessionId, setCreatedSessionId] = useState<string | undefined>();
+  const [toast, setToast] = useState<{
+    variant: 'success' | 'error';
+    message: string;
+    actionLabel?: string;
+    onAction?: () => void;
+  } | null>(null);
 
   const todayQuery = useQuery({
     queryKey: ['dashboard-today-mobile-workout'],
@@ -341,6 +348,53 @@ export default function TrainingScreen() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['exercises'] }),
   });
 
+  /* Story 34: removal is session-scoped, so it flips the existing `skipped`
+     flag on the exercise log rather than deleting it — the underlying rows
+     (and any sets already logged) are untouched, the workout template and
+     program are never involved, and undo is just flipping the flag back. */
+  const removeExerciseMutation = useMutation({
+    mutationFn: ({ exerciseLogId }: { exerciseLogId: string; name: string }) =>
+      api.patch(`/workout-exercise-logs/${exerciseLogId}`, { skipped: true }),
+    onSuccess: async (_, { exerciseLogId, name }) => {
+      await refreshSession();
+      setToast({
+        variant: 'success',
+        message: `${name} removed from today's workout.`,
+        actionLabel: 'Undo',
+        onAction: () => restoreExerciseMutation.mutate(exerciseLogId),
+      });
+    },
+    onError: () => setToast({ variant: 'error', message: 'Could not remove exercise.' }),
+  });
+
+  const restoreExerciseMutation = useMutation({
+    mutationFn: (exerciseLogId: string) => api.patch(`/workout-exercise-logs/${exerciseLogId}`, { skipped: false }),
+    onSuccess: async () => {
+      await refreshSession();
+      setToast({ variant: 'success', message: "Exercise restored to today's workout." });
+    },
+    onError: () => setToast({ variant: 'error', message: 'Could not undo.' }),
+  });
+
+  function confirmRemoveExercise(exerciseLogId: string, name: string, loggedSetCount: number) {
+    Alert.alert(
+      loggedSetCount > 0
+        ? `Remove ${name} and its ${loggedSetCount} logged set${loggedSetCount === 1 ? '' : 's'} from today's workout?`
+        : `Remove ${name} from today's workout?`,
+      loggedSetCount > 0
+        ? `This only changes today's session — the sets you've already logged stay on record, and ${name} will stay in the workout template.`
+        : `This only changes today's session. ${name} will stay in the workout template.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => removeExerciseMutation.mutate({ exerciseLogId, name }),
+        },
+      ],
+    );
+  }
+
   const finishMutation = useMutation({
     mutationFn: () => api.post(`/workout-sessions/${resolvedSessionId}/complete`),
     onSuccess: async () => {
@@ -349,26 +403,31 @@ export default function TrainingScreen() {
     },
   });
 
+  const visibleExercises = useMemo(
+    () => visibleSessionExercises(sessionQuery.data?.exercises ?? []),
+    [sessionQuery.data],
+  );
+
   // Timed, distance and bodyweight work carries no weight, so including it
   // would contribute nothing while making the total look authoritative.
   const totalVolume = useMemo(
     () =>
       calculateVolume(
-        (sessionQuery.data?.exercises ?? [])
+        visibleExercises
           .filter((exerciseLog) => countsTowardVolume(exerciseLog.prescription))
           .flatMap((exerciseLog) => exerciseLog.sets),
       ),
-    [sessionQuery.data],
+    [visibleExercises],
   );
 
   const bestEstimated1rm = useMemo(() => {
-    const values = (sessionQuery.data?.exercises ?? [])
+    const values = visibleExercises
       .filter((exerciseLog) => countsTowardVolume(exerciseLog.prescription))
       .flatMap((exerciseLog) => exerciseLog.sets)
       .filter((set) => set.weightValue != null && set.reps != null)
       .map((set) => estimateOneRepMax(set.weightValue!, set.reps!));
     return values.length ? `${Math.round(Math.max(...values))} lb` : '—';
-  }, [sessionQuery.data]);
+  }, [visibleExercises]);
 
   const isLoading = todayQuery.isLoading || resumeSessionMutation.isPending || sessionQuery.isLoading || exercisesQuery.isLoading;
   const isError = todayQuery.isError || resumeSessionMutation.isError || sessionQuery.isError || exercisesQuery.isError;
@@ -420,7 +479,7 @@ export default function TrainingScreen() {
         <View style={styles.summaryRow}>
           <Stat
             label="Sets"
-            value={`${sessionQuery.data.exercises.reduce(
+            value={`${visibleExercises.reduce(
               (sum, exerciseLog) =>
                 sum + exerciseLog.sets.filter((set) => isSessionSetLogged(exerciseLog.prescription, set)).length,
               0,
@@ -431,8 +490,9 @@ export default function TrainingScreen() {
         </View>
       </Card>
 
-      {sessionQuery.data.exercises.map((exerciseLog) => {
+      {visibleExercises.map((exerciseLog) => {
         const definition = getPrescriptionDefinition(exerciseLog.prescription);
+        const loggedSetCount = exerciseLog.sets.filter((set) => isSessionSetLogged(exerciseLog.prescription, set)).length;
         return (
         <Card key={exerciseLog.id}>
           <View style={styles.exerciseHeader}>
@@ -440,13 +500,24 @@ export default function TrainingScreen() {
               <GripVertical size={18} color={theme.text.secondary} />
               <Text style={[styles.exerciseTitle, { color: theme.text.primary }]}>{exerciseLog.exercise.name}</Text>
             </View>
-            <Button
-              label="Add set"
-              variant="secondary"
-              fullWidth={false}
-              disabled={sessionQuery.data.status === 'completed' || addSetMutation.isPending}
-              onPress={() => addSetMutation.mutate({ exerciseLogId: exerciseLog.id, sourceSet: exerciseLog.sets.at(-1) })}
-            />
+            <View style={styles.exerciseHeaderActions}>
+              <Button
+                label="Add set"
+                variant="secondary"
+                fullWidth={false}
+                disabled={sessionQuery.data.status === 'completed' || addSetMutation.isPending}
+                onPress={() => addSetMutation.mutate({ exerciseLogId: exerciseLog.id, sourceSet: exerciseLog.sets.at(-1) })}
+              />
+              <IconButton
+                icon={MoreVertical}
+                variant="subtle"
+                accessibilityLabel={`${exerciseLog.exercise.name} actions`}
+                onPress={() =>
+                  sessionQuery.data.status !== 'completed' &&
+                  confirmRemoveExercise(exerciseLog.id, exerciseLog.exercise.name, loggedSetCount)
+                }
+              />
+            </View>
           </View>
 
           <Text style={[styles.prescription, { color: theme.text.secondary }]}>{summarizePrescription(exerciseLog.prescription)}</Text>
@@ -555,6 +626,16 @@ export default function TrainingScreen() {
           </Text>
         </View>
       </Card>
+
+      {toast ? (
+        <Toast
+          variant={toast.variant}
+          message={toast.message}
+          actionLabel={toast.actionLabel}
+          onAction={toast.onAction}
+          onDismiss={() => setToast(null)}
+        />
+      ) : null}
 
       <AddExercisePicker
         open={showAddExercise}
@@ -699,6 +780,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing[8],
     flex: 1,
+  },
+  exerciseHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[8],
   },
   exerciseTitle: {
     fontSize: typeScale.sectionTitle.fontSize,

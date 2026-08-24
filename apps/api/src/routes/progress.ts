@@ -122,6 +122,9 @@ export const progressRoutes: FastifyPluginAsyncZod = async (fastify) => {
             eq(workoutSession.userId, request.userId!),
             eq(workoutSession.status, 'completed'),
             gte(workoutSession.localDate, sinceLocalDate),
+            // Story 34: an exercise removed from its session never happened,
+            // so it can't contribute to a trend.
+            eq(workoutExerciseLog.skipped, false),
           ),
         )
         .orderBy(workoutSession.localDate, workoutSession.completedAt, workoutSet.sortOrder);
