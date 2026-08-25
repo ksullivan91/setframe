@@ -254,8 +254,14 @@ export default function ProgramEditorScreen() {
   const deleteDayType = useMutation({
     mutationFn: (dayTypeId: string) => api.del(`/day-types/${dayTypeId}`),
     onSuccess: async () => {
+      /* Both prefixes, deliberately. This route clears the workout's
+         schedule slots and program memberships across *every* program, not
+         just the selected one, so scoping the invalidation to the current
+         program would leave another program's cached schedule still
+         showing a workout that no longer exists. `removeFromProgram` below
+         is correctly scoped because that route only touches this program. */
       await queryClient.invalidateQueries({ queryKey: ['program-day-types'] });
-      await queryClient.invalidateQueries({ queryKey: ['schedule-slots', selectedProgram?.id] });
+      await queryClient.invalidateQueries({ queryKey: ['schedule-slots'] });
       setSelectedDayTypeId(null);
       setToast({ variant: 'success', message: 'Workout deleted.' });
     },
