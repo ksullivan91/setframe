@@ -7,6 +7,7 @@ import TrainingScreen from '../../app/(tabs)/training';
 import type { WorkoutSessionDetail } from '@setframe/schemas';
 
 const mockReplace = jest.fn();
+const mockPost = jest.fn((_path: string, body?: Record<string, unknown>) => Promise.resolve({ ...body }));
 let mockSessionPayload: WorkoutSessionDetail;
 const mockPatch = jest.fn((path: string, body?: Record<string, unknown>) => {
   // Mirrors the real PATCH handler closely enough for these tests: applying
@@ -48,7 +49,7 @@ jest.mock('../lib/api-client', () => {
         if (path === '/exercises') return Promise.resolve([]);
         return Promise.resolve([]);
       },
-      post: () => Promise.resolve({}),
+      post: (path: string, body?: Record<string, unknown>) => mockPost(path, body),
       patch: (path: string, body?: Record<string, unknown>) => mockPatch(path, body),
       del: () => Promise.resolve(undefined),
       delete: () => Promise.resolve(undefined),
@@ -85,6 +86,7 @@ function baseSet(overrides: Partial<WorkoutSessionDetail['exercises'][number]['s
 
 function baseSession(overrides: {
   sets?: WorkoutSessionDetail['exercises'][number]['sets'];
+  status?: WorkoutSessionDetail['status'];
 } = {}): WorkoutSessionDetail {
   return {
     id: 'session-1',
@@ -92,7 +94,7 @@ function baseSession(overrides: {
     templateId: null,
     localDate: '2026-08-20',
     timezone: 'America/Chicago',
-    status: 'in_progress',
+    status: overrides.status ?? 'in_progress',
     startedAt: '2026-08-20T12:00:00.000Z',
     completedAt: null,
     notes: null,
@@ -254,5 +256,72 @@ describe('TrainingScreen exercise removal', () => {
     await flush(40);
 
     expect(mockPatch).toHaveBeenCalledWith('/workout-exercise-logs/log-1', { skipped: false });
+  });
+});
+
+/** Story 36 — persistent Add exercise / Finish workout actions. */
+describe('TrainingScreen persistent session actions', () => {
+  it('shows Add exercise and Finish workout while the session is active', async () => {
+    mockSessionPayload = baseSession({ sets: [] });
+    const rendered = await renderScreen();
+
+    expect(pressablesByLabel(rendered, 'Add exercise')).toHaveLength(1);
+    expect(pressablesByLabel(rendered, 'Finish workout')).toHaveLength(1);
+  });
+
+  it('does not complete the session immediately — it confirms first', async () => {
+    mockSessionPayload = baseSession({ sets: [] });
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    const rendered = await renderScreen();
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Finish workout')[0]!.props.onPress();
+    });
+
+    expect(alertSpy).toHaveBeenCalledWith(
+      'Finish workout?',
+      expect.stringContaining('You logged 1 exercise and 0 sets.'),
+      expect.any(Array),
+    );
+    expect(mockPost).not.toHaveBeenCalled();
+  });
+
+  it('completes and navigates to the summary once confirmed', async () => {
+    mockSessionPayload = baseSession({ sets: [] });
+    jest.spyOn(Alert, 'alert').mockImplementation((_title, _msg, buttons) => {
+      buttons?.find((b) => b.text === 'Finish workout')?.onPress?.();
+    });
+    const rendered = await renderScreen();
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Finish workout')[0]!.props.onPress();
+    });
+    await flush(40);
+
+    expect(mockPost).toHaveBeenCalledWith('/workout-sessions/session-1/complete', undefined);
+    expect(mockReplace).toHaveBeenCalledWith({ pathname: '/session-summary', params: { sessionId: 'session-1' } });
+  });
+
+  it('keeps training and does not complete when the confirmation is cancelled', async () => {
+    mockSessionPayload = baseSession({ sets: [] });
+    jest.spyOn(Alert, 'alert').mockImplementation((_title, _msg, buttons) => {
+      buttons?.find((b) => b.text === 'Keep training')?.onPress?.();
+    });
+    const rendered = await renderScreen();
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Finish workout')[0]!.props.onPress();
+    });
+    await flush(40);
+
+    expect(mockPost).not.toHaveBeenCalled();
+  });
+
+  it('hides the persistent session actions once the workout is completed', async () => {
+    mockSessionPayload = baseSession({ sets: [], status: 'completed' });
+    const rendered = await renderScreen();
+
+    expect(pressablesByLabel(rendered, 'Add exercise')).toHaveLength(0);
+    expect(pressablesByLabel(rendered, 'Finish workout')).toHaveLength(0);
   });
 });

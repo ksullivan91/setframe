@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ThemeProvider } from 'styled-components';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -550,5 +550,62 @@ describe('WorkoutSessionPage session-only exercise removal', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Outdoor Cycle actions' }));
     expect(await screen.findByText('Remove from today’s workout')).toHaveAttribute('disabled');
+  });
+});
+
+/**
+ * Story 36 — Add exercise/Finish workout moved into a persistent action
+ * surface, and Finish workout became persistently reachable, so a stray
+ * tap must not end the session outright.
+ */
+describe('WorkoutSessionPage persistent session actions', () => {
+  beforeEach(() => {
+    mockPost.mockReset();
+  });
+
+  it('does not complete the session immediately — it opens a confirmation first', async () => {
+    const user = userEvent.setup();
+    renderSession({ kind: 'sets_reps', sets: 3, repsMin: 8 }, { weightValue: 135, reps: 5 } as SetOverrides);
+
+    await user.click(await screen.findByRole('button', { name: 'Finish workout' }));
+
+    expect(await screen.findByText('Finish workout?')).toBeInTheDocument();
+    expect(mockPost).not.toHaveBeenCalledWith('/workout-sessions/session-1/complete');
+  });
+
+  it('completes the session only once the confirmation is confirmed', async () => {
+    const user = userEvent.setup();
+    mockPost.mockResolvedValue({});
+    renderSession({ kind: 'sets_reps', sets: 3, repsMin: 8 }, { weightValue: 135, reps: 5 } as SetOverrides);
+
+    await user.click(await screen.findByRole('button', { name: 'Finish workout' }));
+    const dialog = await screen.findByRole('dialog');
+    // The dialog names what was actually logged (one exercise, one set).
+    expect(within(dialog).getByText(/You logged 1 exercise and 1 set\./)).toBeInTheDocument();
+    // The sticky bar's own trigger is disabled while the dialog is open, so
+    // this unambiguously targets the dialog's own "Finish workout" button —
+    // both share that label per the story's own suggested copy.
+    await user.click(within(dialog).getByRole('button', { name: 'Finish workout' }));
+
+    await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/workout-sessions/session-1/complete', undefined));
+  });
+
+  it('keeps training and does not complete when the confirmation is cancelled', async () => {
+    const user = userEvent.setup();
+    renderSession({ kind: 'sets_reps', sets: 3, repsMin: 8 }, { weightValue: 135, reps: 5 } as SetOverrides);
+
+    await user.click(await screen.findByRole('button', { name: 'Finish workout' }));
+    await user.click(await screen.findByRole('button', { name: 'Keep training' }));
+
+    expect(screen.queryByText('Finish workout?')).not.toBeInTheDocument();
+    expect(mockPost).not.toHaveBeenCalledWith('/workout-sessions/session-1/complete', undefined);
+  });
+
+  it('hides the persistent session actions once the workout is completed', async () => {
+    renderSession({ kind: 'sets_reps', sets: 3, repsMin: 8 }, { weightValue: 135, reps: 5 } as SetOverrides, [], 'completed');
+
+    await screen.findByText('Workout complete');
+    expect(screen.queryByRole('button', { name: 'Finish workout' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add exercise' })).not.toBeInTheDocument();
   });
 });
