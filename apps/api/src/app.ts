@@ -22,6 +22,7 @@ import { restDayRoutes } from './routes/rest-days.js';
 import { notificationPreferenceRoutes } from './routes/notification-preferences.js';
 import { appleHealthRoutes } from './routes/apple-health.js';
 import { additionalActivityRoutes } from './routes/additional-activities.js';
+import { additionalActivityPresetRoutes } from './routes/additional-activity-presets.js';
 
 function isAllowedOrigin(origin: string, allowedOrigins: string[]) {
   return allowedOrigins.some((allowedOrigin) => {
@@ -92,6 +93,7 @@ export function buildApp() {
   app.register(notificationPreferenceRoutes);
   app.register(appleHealthRoutes);
   app.register(additionalActivityRoutes);
+  app.register(additionalActivityPresetRoutes);
 
   return app;
 }

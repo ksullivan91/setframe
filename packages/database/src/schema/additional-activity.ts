@@ -58,3 +58,30 @@ export const additionalActivity = pgTable(
     index('additional_activity_user_id_local_date_idx').on(table.userId, table.localDate),
   ],
 );
+
+/**
+ * Story 43 — a user-saved shortcut for a frequently-repeated Additional
+ * Activity ("Post-meal walk · 15 min"). Stores *defaults* only, never a
+ * reference to a specific logged `additional_activity` row — tapping one
+ * prefills the add form for review, it never saves directly, and removing
+ * or editing a preset can never retroactively change any activity already
+ * logged from it.
+ */
+export const additionalActivityPreset = pgTable(
+  'additional_activity_preset',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id),
+    title: text('title').notNull(),
+    activityType: additionalActivityTypeEnum('activity_type').notNull(),
+    defaultDurationSeconds: integer('default_duration_seconds'),
+    defaultDistanceValue: numeric('default_distance_value'),
+    defaultDistanceUnit: distanceUnitEnum('default_distance_unit'),
+    defaultNotes: text('default_notes'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('additional_activity_preset_user_id_idx').on(table.userId)],
+);

@@ -3,8 +3,8 @@ import { View, Text, StyleSheet, Alert } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Pencil, Trash2 } from 'lucide-react-native';
 import { spacing, radius } from '@setframe/design-tokens';
-import type { AdditionalActivity, User } from '@setframe/schemas';
-import { getAdditionalActivityFields } from '@setframe/domain';
+import type { AdditionalActivity, AdditionalActivityPreset, User } from '@setframe/schemas';
+import { deriveRecentActivitySuggestions, getAdditionalActivityFields } from '@setframe/domain';
 import { useTheme } from '../theme/ThemeProvider';
 import { typeScale } from '../theme/getTheme';
 import { useApiClient } from '../lib/api-client';
@@ -29,6 +29,12 @@ function formatActivityDuration(seconds: number | null): string | null {
 function formatActivityTime(startedAt: string | null): string | null {
   if (!startedAt) return null;
   return new Date(startedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+
+function daysAgo(localDate: string, days: number): string {
+  const date = new Date(`${localDate}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() - days);
+  return date.toISOString().slice(0, 10);
 }
 
 function buildBody(localDate: string, draft: ActivityDraft) {
@@ -69,6 +75,7 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
   const [editTarget, setEditTarget] = useState<AdditionalActivity | null>(null);
   const [draft, setDraft] = useState<ActivityDraft>(emptyActivityDraft());
   const [toast, setToast] = useState<{ variant: 'success' | 'error'; message: string } | null>(null);
+  const [presetTitleDraft, setPresetTitleDraft] = useState('');
 
   const query = useQuery({
     queryKey: ['additional-activities', localDate],
@@ -81,11 +88,34 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
   const meQuery = useQuery({ queryKey: ['me'], queryFn: () => api.get<User>('/me') });
   const preferredDistanceUnit = meQuery.data?.preferredUnits === 'metric' ? 'km' : 'mi';
 
+  // Story 43 — recent suggestions only matter while adding something new,
+  // so this only fetches once the sheet is actually open, and never for an
+  // edit. A 30-day window is enough recency without pulling a user's whole
+  // history for a dedup pass that only keeps 3.
+  const recentsQuery = useQuery({
+    queryKey: ['additional-activities', 'recents', localDate],
+    queryFn: () =>
+      api.get<{ items: AdditionalActivity[] }>(
+        `/additional-activities?from=${daysAgo(localDate, 30)}&to=${localDate}`,
+      ),
+    enabled: sheetOpen && !editTarget,
+  });
+  // Only fetched while the sheet that would show them is actually open —
+  // otherwise every Today screen load would fetch shortcuts nobody asked for.
+  const presetsQuery = useQuery({
+    queryKey: ['additional-activity-presets'],
+    queryFn: () => api.get<{ items: AdditionalActivityPreset[] }>('/additional-activity-presets'),
+    enabled: sheetOpen && !editTarget,
+  });
+  const recentSuggestions = recentsQuery.data?.items ? deriveRecentActivitySuggestions(recentsQuery.data.items) : [];
+
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['additional-activities', localDate] });
+  const refreshPresets = () => queryClient.invalidateQueries({ queryKey: ['additional-activity-presets'] });
 
   function openAdd() {
     setEditTarget(null);
     setDraft(emptyActivityDraft(preferredDistanceUnit));
+    setPresetTitleDraft('');
     setSheetOpen(true);
   }
 
@@ -125,6 +155,46 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
     onSuccess: refresh,
     onError: () => setToast({ variant: 'error', message: 'Could not remove activity.' }),
   });
+
+  const savePresetMutation = useMutation({
+    mutationFn: () => {
+      const fields = new Set(getAdditionalActivityFields(draft.activityType));
+      return api.post('/additional-activity-presets', {
+        title: presetTitleDraft.trim(),
+        activityType: draft.activityType,
+        defaultDurationSeconds: fields.has('duration') && draft.durationMinutes ? Math.round(Number(draft.durationMinutes) * 60) : undefined,
+        defaultDistanceValue: fields.has('distance') && draft.distanceValue ? Number(draft.distanceValue) : undefined,
+        defaultDistanceUnit: fields.has('distance') && draft.distanceValue ? draft.distanceUnit : undefined,
+        defaultNotes: fields.has('notes') ? draft.notes || undefined : undefined,
+      });
+    },
+    onSuccess: async () => {
+      await refreshPresets();
+      setPresetTitleDraft('');
+      setToast({ variant: 'success', message: 'Quick activity saved.' });
+    },
+    onError: () => setToast({ variant: 'error', message: 'Could not save quick activity.' }),
+  });
+
+  const deletePresetMutation = useMutation({
+    mutationFn: (id: string) => api.del(`/additional-activity-presets/${id}`),
+    onSuccess: refreshPresets,
+    onError: () => setToast({ variant: 'error', message: 'Could not remove quick activity.' }),
+  });
+
+  // Story 43 — a tapped shortcut prefills the sheet for review, it never
+  // saves directly: the user still has to hit Save, and can change
+  // anything first.
+  function applySuggestion(suggestion: { activityType: ActivityDraft['activityType']; title: string | null; durationSeconds: number | null; distanceValue: number | null; distanceUnit: ActivityDraft['distanceUnit'] | null }) {
+    setDraft((prev) => ({
+      ...prev,
+      activityType: suggestion.activityType,
+      title: suggestion.title ?? '',
+      durationMinutes: suggestion.durationSeconds != null ? String(Math.round(suggestion.durationSeconds / 60)) : '',
+      distanceValue: suggestion.distanceValue != null ? String(suggestion.distanceValue) : '',
+      distanceUnit: suggestion.distanceUnit ?? prev.distanceUnit,
+    }));
+  }
 
   function confirmDelete(activity: AdditionalActivity) {
     Alert.alert(
@@ -197,6 +267,14 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
         onClose={() => setSheetOpen(false)}
         onSave={() => (editTarget ? updateMutation.mutate() : createMutation.mutate())}
         isSaving={createMutation.isPending || updateMutation.isPending}
+        presets={presetsQuery.data?.items ?? []}
+        recentSuggestions={recentSuggestions}
+        onApplySuggestion={applySuggestion}
+        onRemovePreset={(id) => deletePresetMutation.mutate(id)}
+        presetTitleDraft={presetTitleDraft}
+        onPresetTitleChange={setPresetTitleDraft}
+        onSavePreset={() => savePresetMutation.mutate()}
+        isSavingPreset={savePresetMutation.isPending}
       />
 
       {toast ? <Toast variant={toast.variant} message={toast.message} onDismiss={() => setToast(null)} /> : null}

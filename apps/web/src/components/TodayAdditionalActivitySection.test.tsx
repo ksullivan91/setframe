@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { ThemeProvider } from 'styled-components';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AdditionalActivity } from '@setframe/schemas';
+import type { AdditionalActivity, AdditionalActivityPreset } from '@setframe/schemas';
 import { getTheme } from '../theme/getTheme';
 import { ToastProvider } from './Toast';
 import { TodayAdditionalActivitySection } from './TodayAdditionalActivitySection';
@@ -243,5 +243,123 @@ describe('TodayAdditionalActivitySection activity-type-driven fields', () => {
     await waitFor(() => expect(mockPatch).toHaveBeenCalled());
     const [, body] = mockPatch.mock.calls[0]!;
     expect(body as object).not.toHaveProperty('title', null);
+  });
+});
+
+function preset(overrides: Partial<AdditionalActivityPreset> = {}): AdditionalActivityPreset {
+  return {
+    id: 'preset-1',
+    title: 'Post-meal walk',
+    activityType: 'walk',
+    defaultDurationSeconds: 900,
+    defaultDistanceValue: null,
+    defaultDistanceUnit: null,
+    defaultNotes: null,
+    createdAt: '2026-08-01T12:00:00.000Z',
+    updatedAt: '2026-08-01T12:00:00.000Z',
+    ...overrides,
+  };
+}
+
+/** Story 43 — reusable quick activity shortcuts (recent + saved presets). */
+describe('TodayAdditionalActivitySection quick activity shortcuts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('shows no Quick add row for a new user with no history and no saved shortcuts', async () => {
+    const user = userEvent.setup();
+    mockGet = () => Promise.resolve({ items: [] });
+    renderSection();
+
+    await user.click(await screen.findByRole('button', { name: 'Add activity' }));
+    expect(screen.queryByText('Quick add')).not.toBeInTheDocument();
+  });
+
+  it('shows a saved preset as a tappable shortcut and prefills the form without saving', async () => {
+    const user = userEvent.setup();
+    mockGet = (path: string) => {
+      if (path === '/additional-activity-presets') return Promise.resolve({ items: [preset()] });
+      return Promise.resolve({ items: [] });
+    };
+    renderSection();
+
+    await user.click(await screen.findByRole('button', { name: 'Add activity' }));
+    const chip = await screen.findByText('Post-meal walk');
+    await user.click(chip);
+
+    expect(screen.getByLabelText('Activity')).toHaveValue('walk');
+    expect(screen.getByLabelText('Duration (min)')).toHaveValue(15);
+    // Tapping a shortcut only prefills — it must not itself create anything.
+    expect(mockPost).not.toHaveBeenCalled();
+  });
+
+  // Regression: applying a preset used to always clear the activity name,
+  // which is a *required* field for "Other" — Save stayed disabled after
+  // the one-tap shortcut until the user retyped the name by hand.
+  it('carries the preset name into the required Activity name field for "Other"', async () => {
+    const user = userEvent.setup();
+    mockGet = (path: string) => {
+      if (path === '/additional-activity-presets') return Promise.resolve({ items: [preset({ activityType: 'other', title: 'Jump rope' })] });
+      return Promise.resolve({ items: [] });
+    };
+    renderSection();
+
+    await user.click(await screen.findByRole('button', { name: 'Add activity' }));
+    await user.click(await screen.findByText('Jump rope'));
+
+    expect(screen.getByLabelText('Activity name')).toHaveValue('Jump rope');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+  });
+
+  it('derives a recent suggestion from activity history, deduplicated', async () => {
+    const user = userEvent.setup();
+    mockGet = (path: string) => {
+      if (path === '/additional-activity-presets') return Promise.resolve({ items: [] });
+      return Promise.resolve({
+        items: [
+          walkActivity({ id: 'a1', durationSeconds: 600, createdAt: '2026-08-20T08:00:00.000Z' }),
+          walkActivity({ id: 'a2', durationSeconds: 600, createdAt: '2026-08-23T08:00:00.000Z' }),
+        ],
+      });
+    };
+    renderSection();
+
+    await user.click(await screen.findByRole('button', { name: 'Add activity' }));
+    expect(await screen.findAllByText(/Walk · 10 min/)).toHaveLength(1);
+  });
+
+  it('saves the current draft as a named quick activity shortcut', async () => {
+    const user = userEvent.setup();
+    mockGet = () => Promise.resolve({ items: [] });
+    renderSection();
+
+    await user.click(await screen.findByRole('button', { name: 'Add activity' }));
+    await user.type(screen.getByLabelText('Duration (min)'), '15');
+    await user.type(screen.getByLabelText('Save as quick activity'), 'Post-meal walk');
+    await user.click(screen.getByRole('button', { name: 'Save shortcut' }));
+
+    await waitFor(() =>
+      expect(mockPost).toHaveBeenCalledWith(
+        '/additional-activity-presets',
+        expect.objectContaining({ title: 'Post-meal walk', activityType: 'walk', defaultDurationSeconds: 900 }),
+      ),
+    );
+  });
+
+  it('removes a saved shortcut without opening/applying it', async () => {
+    const user = userEvent.setup();
+    mockGet = (path: string) => {
+      if (path === '/additional-activity-presets') return Promise.resolve({ items: [preset()] });
+      return Promise.resolve({ items: [] });
+    };
+    renderSection();
+
+    await user.click(await screen.findByRole('button', { name: 'Add activity' }));
+    await user.click(await screen.findByRole('button', { name: 'Remove Post-meal walk shortcut' }));
+
+    await waitFor(() => expect(mockDel).toHaveBeenCalledWith('/additional-activity-presets/preset-1'));
+    // Removing must not have prefilled the form as if the chip were tapped.
+    expect(screen.getByLabelText('Duration (min)')).toHaveValue(null);
   });
 });
