@@ -108,3 +108,35 @@ Checking *presence* is the valuable ninety percent. Validating that the
 installed version satisfies the declared range is a reasonable extension if
 it stays simple, but presence alone would have caught the Clerk case — do not
 let range-matching complexity sink the story.
+
+---
+
+## Addendum — a second finding the same check would surface
+
+Discovered 2026-08-25 while reading Metro's own output, which nothing
+routinely reads:
+
+```
+Clerk - DEPRECATION WARNING: @clerk/clerk-expo is deprecated.
+Please migrate to @clerk/expo.
+Migration guide: https://clerk.com/docs/guides/development/upgrading/upgrade-guides/core-3
+```
+
+`@clerk/clerk-expo@2.20.0` is the package the entire mobile auth stack is
+built on, and it prints this on every launch. Notably it is **not** marked
+`deprecated` in its own `package.json`, so `npm outdated` and `npm audit`
+both stay silent — the notice exists only as a runtime `console.warn`.
+
+Two things follow for this story's scope:
+
+1. A dependency-integrity check should cover **deprecation**, not only
+   missing peers. Because this one is invisible to registry metadata, that
+   likely means asserting the app boots without unexpected warnings rather
+   than inspecting `package.json` alone.
+2. The migration itself (`@clerk/clerk-expo` → `@clerk/expo`, Clerk Core 3)
+   is real work touching every auth surface on mobile, and deserves its own
+   story rather than being folded in here. It should be sequenced
+   deliberately: mobile auth was substantially reworked on 2026-08-25
+   (Google SSO, the `email_code` second factor, honest error reporting),
+   and that work should be allowed to settle and be device-verified before
+   the package underneath it is swapped.
