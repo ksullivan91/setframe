@@ -4,7 +4,10 @@ import styled from 'styled-components';
 import { useQuery } from '@tanstack/react-query';
 import { spacing } from '@setframe/design-tokens';
 import {
+  bucketLabel,
   buildProgressSeries,
+  describeBucketValue,
+  formatBucketPeriod,
   describeWeightRate,
   defaultRange,
   rangeOptions,
@@ -14,6 +17,7 @@ import {
   isProgressOverview,
   metricDefinition,
   metricLabel,
+  progressRangeLabel,
   weekEndDate,
   weekStartOf,
   type ProgressRange,
@@ -542,7 +546,17 @@ function BodyWeightSection({
             zeroBased={false}
             minimumSpan={4}
             formatValue={format}
-            label={`Body weight in ${bodyWeight.unit} over time`}
+            /* At 3M and longer a mark is a week's mean, not a morning's
+               weigh-in. Naming the bucket's span keeps the readout from
+               claiming a reading on a day that may never have been logged. */
+            formatPeriod={(localDate) => formatBucketPeriod(localDate, rawSeriesForRange.bucket)}
+            describePoint={(index) => {
+              const point = visibleRaw[index];
+              return point ? describeBucketValue(point, rawSeriesForRange.bucket, 'mean') : null;
+            }}
+            label={`Body weight in ${bodyWeight.unit} over time, ${bucketLabel(
+              rawSeriesForRange.bucket,
+            )}, ${progressRangeLabel(range).toLowerCase()}`}
             testId="body-weight-chart"
           />
         ) : null}

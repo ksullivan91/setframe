@@ -103,6 +103,20 @@ export interface LineChartProps {
   zeroBased?: boolean;
   minimumSpan?: number;
   formatValue: (value: number) => string;
+  /**
+   * How a mark's period is named. Defaults to the bare date, which is only
+   * correct when one mark is one day — a bucketed point is keyed by its
+   * bucket's *start*, so at a weekly bucket the bare date claims a reading
+   * on a morning that may never have been logged. Callers that bucket must
+   * pass a bucket-aware formatter (`formatBucketPeriod`).
+   */
+  formatPeriod?: (localDate: string) => string;
+  /**
+   * Optional context for a mark's value — e.g. "average of 5 check-ins".
+   * Rendered beside the readout and in the text equivalent, so a summary
+   * figure is never mistaken for a single measurement.
+   */
+  describePoint?: (index: number) => string | null;
   /** Accessible name for the chart. */
   label: string;
   onSelectPoint?: (point: { localDate: string; value: number; index: number }) => void;
@@ -122,6 +136,8 @@ export function LineChart({
   zeroBased = false,
   minimumSpan,
   formatValue,
+  formatPeriod = formatDate,
+  describePoint,
   label,
   onSelectPoint,
   pointsOnly = false,
@@ -261,7 +277,7 @@ export function LineChart({
                   fill="transparent"
                   tabIndex={0}
                   role="button"
-                  aria-label={`${formatDate(point.localDate)}: ${formatValue(point.value)}`}
+                  aria-label={[`${formatPeriod(point.localDate)}: ${formatValue(point.value)}`, describePoint?.(point.index)].filter(Boolean).join(", ")}
                   data-testid="chart-point"
                   /* Keyboard and assistive tech reach selection through these
                      circles; live pointer input belongs to the scrub surface
@@ -324,7 +340,10 @@ export function LineChart({
         {selectedPoint ? (
           <>
             <ReadoutValue>{formatValue(selectedPoint.value)}</ReadoutValue>
-            <span>{formatDate(selectedPoint.localDate)}</span>
+            <span>{formatPeriod(selectedPoint.localDate)}</span>
+            {describePoint?.(selectedPoint.index) ? (
+              <span data-testid="chart-point-context">{describePoint(selectedPoint.index)}</span>
+            ) : null}
           </>
         ) : (
           <span>Select a point to see its date and value.</span>
@@ -338,7 +357,7 @@ export function LineChart({
           <tbody>
             {plotted.map((point) => (
               <tr key={`row-${point.index}`}>
-                <th scope="row">{formatDate(point.localDate)}</th>
+                <th scope="row">{formatPeriod(point.localDate)}</th>
                 <td>{formatValue(point.value)}</td>
               </tr>
             ))}
