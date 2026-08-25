@@ -586,10 +586,6 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: spacing[8],
   },
-  editNote: {
-    fontSize: typeScale.caption.fontSize,
-    textAlign: 'center',
-  },
   bodyText: {
     fontSize: typeScale.compactBody.fontSize,
   },
