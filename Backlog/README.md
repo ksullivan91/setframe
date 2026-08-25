@@ -9,8 +9,6 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
-- `setframe-additional-activity-feature/` — story 43 remains (40–42, 45
-  shipped): reusable quick-add shortcuts for repeated activities.
 - `WAIT-automated-visual-and-e2e-testing.md` — deferred by request. Filed so the
   gap is tracked, deliberately not started.
 - `WAIT-figma-accentsubtle-token-fix.md` — deferred by request. Fixes
@@ -106,6 +104,13 @@ alongside their stories, named `README-{range}-{review}.md`.
   workout metrics — adherence, streaks, weeksTrained, sessions/week —
   never fold in Additional Activity, since `progress.ts` never queries it
   at all.
+- `completed/43-quick-activity-shortcuts.md` — story 43, saved presets
+  (new `additional_activity_preset` table) plus recency-deduped
+  suggestions, tap-to-prefill only — never auto-logs.
+- `completed/README-40-45-additional-activity-feature-review.md` — the
+  original pack README for stories 40–45, archived once 40, 41, 42, 43,
+  and 45 shipped (44 was deferred — see
+  `Backlog/WAIT-apple-health-activity-discovery.md`).
 - `completed/37-collapsible-exercise-quick-entry.md` — story 37,
   collapsible exercise sections with a quick-entry header that applies
   only the specific field(s) the user actually touched to every set
