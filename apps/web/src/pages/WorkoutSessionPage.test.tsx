@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ThemeProvider } from 'styled-components';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -607,5 +607,402 @@ describe('WorkoutSessionPage persistent session actions', () => {
     await screen.findByText('Workout complete');
     expect(screen.queryByRole('button', { name: 'Finish workout' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add exercise' })).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * Story 37 — a quick-entry header above each exercise's full set editor,
+ * for the common case where sets share a value. Explicit "Apply to all
+ * sets" rather than automatic cascade, so a manually-edited set is never
+ * silently overwritten (only ever by the user's own next click).
+ */
+describe('WorkoutSessionPage collapsible quick-entry', () => {
+  function renderMultiSet(sets: { weightValue: number; reps: number }[]) {
+    const session = buildSession({ kind: 'sets_reps', sets: 3, repsMin: 8 }) as unknown as {
+      exercises: { sets: unknown[] }[];
+    };
+    session.exercises[0]!.sets = sets.map((set, index) => ({
+      id: `set-${index + 1}`,
+      exerciseLogId: 'log-1',
+      clientId: `3333333${index}-1111-4111-8111-111111111111`,
+      sortOrder: index,
+      setType: 'working',
+      weightUnit: 'lb',
+      durationSeconds: null,
+      distanceValue: null,
+      distanceUnit: null,
+      rpe: null,
+      isPrWeight: false,
+      isPrReps: false,
+      createdAt: '2026-08-22T15:00:00.000Z',
+      updatedAt: '2026-08-22T15:00:00.000Z',
+      ...set,
+    }));
+
+    mockGet = (path: string) => {
+      if (path.startsWith('/workout-sessions/')) return Promise.resolve(session);
+      if (path === '/exercises') return Promise.resolve([]);
+      return Promise.resolve(null);
+    };
+    return renderPage();
+  }
+
+  it('pre-fills the quick-entry header from the first set, matching what session-start already templated', async () => {
+    renderMultiSet([
+      { weightValue: 135, reps: 8 },
+      { weightValue: 135, reps: 8 },
+    ]);
+
+    expect(await screen.findByLabelText('All sets: Reps')).toHaveValue('8');
+  });
+
+  it('applies the header value to every set only when Apply to all sets is explicitly clicked', async () => {
+    const user = userEvent.setup();
+    renderMultiSet([
+      { weightValue: 135, reps: 8 },
+      { weightValue: 135, reps: 8 },
+    ]);
+
+    const headerReps = await screen.findByLabelText('All sets: Reps');
+    await user.clear(headerReps);
+    await user.type(headerReps, '10');
+
+    // Not applied yet — each set's own field is untouched.
+    const perSetReps = screen.getAllByLabelText('Reps');
+    expect(perSetReps[0]).toHaveValue('8');
+    expect(perSetReps[1]).toHaveValue('8');
+
+    await user.click(screen.getByRole('button', { name: 'Apply to all sets' }));
+
+    expect(perSetReps[0]).toHaveValue('10');
+    expect(perSetReps[1]).toHaveValue('10');
+  });
+
+  it('leaves a manual per-set override alone unless Apply to all sets is clicked again', async () => {
+    const user = userEvent.setup();
+    // Set 2 differs from set 1 on weight too, not just reps — otherwise a
+    // bug that applied the *whole* header (instead of only the field the
+    // user actually touched) couldn't be caught: weight would already
+    // coincidentally match and look unchanged.
+    renderMultiSet([
+      { weightValue: 135, reps: 8 },
+      { weightValue: 95, reps: 8 },
+    ]);
+
+    await screen.findByLabelText('All sets: Reps');
+    const perSetReps = screen.getAllByLabelText('Reps');
+    await user.clear(perSetReps[1]!);
+    await user.type(perSetReps[1]!, '6');
+    expect(perSetReps[0]).toHaveValue('8');
+    expect(perSetReps[1]).toHaveValue('6');
+
+    // Editing the header itself, without clicking Apply, never touches any
+    // set — the cascade is only ever triggered by the explicit button.
+    const headerReps = screen.getByLabelText('All sets: Reps');
+    await user.clear(headerReps);
+    await user.type(headerReps, '10');
+    expect(perSetReps[1]).toHaveValue('6');
+
+    // Clicking Apply is the one action that does overwrite it — an
+    // explicit, deliberate re-application, not a silent one. Only the
+    // field actually edited in the header (reps) should move; set 2's own
+    // weight — never touched in the header — must survive.
+    await user.click(screen.getByRole('button', { name: 'Apply to all sets' }));
+    expect(perSetReps[1]).toHaveValue('10');
+    expect(screen.getAllByLabelText(/^Weight/)[1]).toHaveValue('95');
+  });
+
+  function renderMultiSetDistance(sets: { distanceValue: number; distanceUnit: 'm' | 'km' | 'mi'; durationSeconds: number }[]) {
+    const session = buildSession({ kind: 'distanceDuration', distanceMiles: 5, durationMinutes: 30 }) as unknown as {
+      exercises: { sets: unknown[] }[];
+    };
+    session.exercises[0]!.sets = sets.map((set, index) => ({
+      id: `set-${index + 1}`,
+      exerciseLogId: 'log-1',
+      clientId: `4444444${index}-1111-4111-8111-111111111111`,
+      sortOrder: index,
+      setType: 'working',
+      weightValue: null,
+      weightUnit: null,
+      reps: null,
+      rpe: null,
+      isPrWeight: false,
+      isPrReps: false,
+      createdAt: '2026-08-22T15:00:00.000Z',
+      updatedAt: '2026-08-22T15:00:00.000Z',
+      ...set,
+    }));
+
+    mockGet = (path: string) => {
+      if (path.startsWith('/workout-sessions/')) return Promise.resolve(session);
+      if (path === '/exercises') return Promise.resolve([]);
+      return Promise.resolve(null);
+    };
+    return renderPage();
+  }
+
+  it('changing only the distance unit does not drag the distance value along when applied', async () => {
+    const user = userEvent.setup();
+    renderMultiSetDistance([
+      { distanceValue: 5, distanceUnit: 'mi', durationSeconds: 1800 },
+      { distanceValue: 8, distanceUnit: 'mi', durationSeconds: 1800 },
+    ]);
+
+    // Only the unit dropdown is touched — the distance value input itself
+    // is never edited.
+    await user.selectOptions(await screen.findByLabelText('All sets: Distance unit'), 'km');
+    await user.click(screen.getByRole('button', { name: 'Apply to all sets' }));
+
+    // The unit applies to both sets...
+    expect(screen.getAllByLabelText('All sets: Distance unit')[0]).toHaveValue('km');
+    const perSetUnit = screen.getAllByLabelText('Distance unit');
+    expect(perSetUnit[0]).toHaveValue('km');
+    expect(perSetUnit[1]).toHaveValue('km');
+    // ...but each set's own distance value — never touched in the header
+    // — must survive untouched.
+    const perSetDistance = screen.getAllByLabelText('Distance');
+    expect(perSetDistance[0]).toHaveValue('5');
+    expect(perSetDistance[1]).toHaveValue('8');
+  });
+
+  it('clears the touched header fields after a successful Apply, so a later click cannot silently reapply a stale edit', async () => {
+    const user = userEvent.setup();
+    renderMultiSet([
+      { weightValue: 135, reps: 8 },
+      { weightValue: 95, reps: 6 },
+    ]);
+
+    const headerReps = await screen.findByLabelText('All sets: Reps');
+    await user.clear(headerReps);
+    await user.type(headerReps, '10');
+    await user.click(screen.getByRole('button', { name: 'Apply to all sets' }));
+    expect(screen.getAllByLabelText('Reps')[1]).toHaveValue('10');
+
+    // Set 2's reps are hand-edited back to something else after the apply...
+    const perSetReps = screen.getAllByLabelText('Reps');
+    await user.clear(perSetReps[1]!);
+    await user.type(perSetReps[1]!, '7');
+    expect(perSetReps[1]).toHaveValue('7');
+
+    // ...and now the user edits the header's *weight* only, then applies.
+    // The stale "reps" touch from earlier must not still be armed — set 2's
+    // hand-edited reps must survive this unrelated apply.
+    const headerWeight = screen.getByLabelText(/^All sets: Weight/);
+    await user.clear(headerWeight);
+    await user.type(headerWeight, '150');
+    await user.click(screen.getByRole('button', { name: 'Apply to all sets' }));
+
+    expect(screen.getAllByLabelText('Reps')[1]).toHaveValue('7');
+    expect(screen.getAllByLabelText(/^Weight/)[1]).toHaveValue('150');
+  });
+
+  it('collapses and re-expands an exercise, hiding and restoring its set editor', async () => {
+    const user = userEvent.setup();
+    renderMultiSet([{ weightValue: 135, reps: 8 }]);
+
+    expect(await screen.findByLabelText('Reps')).toBeInTheDocument();
+    // The quick-entry header stays visible either way.
+    expect(screen.getByLabelText('All sets: Reps')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Collapse Outdoor Cycle' }));
+    expect(screen.queryByLabelText('Reps')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('All sets: Reps')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Expand Outdoor Cycle' }));
+    expect(await screen.findByLabelText('Reps')).toBeInTheDocument();
+  });
+});
+
+/**
+ * Story 38 — exercise-level completion state, derived from every set's
+ * own required-field completeness (packages/domain's isExerciseComplete),
+ * never a UI flag toggled on accordion close.
+ */
+describe('WorkoutSessionPage exercise completion state', () => {
+  function renderMultiSetWithCompletion(sets: { weightValue: number | null; reps: number | null }[]) {
+    const session = buildSession({ kind: 'sets_reps', sets: 3, repsMin: 8 }) as unknown as {
+      exercises: { sets: unknown[] }[];
+    };
+    session.exercises[0]!.sets = sets.map((set, index) => ({
+      id: `set-${index + 1}`,
+      exerciseLogId: 'log-1',
+      clientId: `5555555${index}-1111-4111-8111-111111111111`,
+      sortOrder: index,
+      setType: 'working',
+      weightUnit: 'lb',
+      durationSeconds: null,
+      distanceValue: null,
+      distanceUnit: null,
+      rpe: null,
+      isPrWeight: false,
+      isPrReps: false,
+      createdAt: '2026-08-22T15:00:00.000Z',
+      updatedAt: '2026-08-22T15:00:00.000Z',
+      ...set,
+    }));
+
+    mockGet = (path: string) => {
+      if (path.startsWith('/workout-sessions/')) return Promise.resolve(session);
+      if (path === '/exercises') return Promise.resolve([]);
+      return Promise.resolve(null);
+    };
+    return renderPage();
+  }
+
+  it('shows Complete once every set has its required fields', async () => {
+    renderMultiSetWithCompletion([
+      { weightValue: 135, reps: 8 },
+      { weightValue: 145, reps: 8 },
+    ]);
+
+    expect(await screen.findByText('Complete')).toBeInTheDocument();
+    expect(screen.queryByText(/sets complete/)).not.toBeInTheDocument();
+  });
+
+  it('shows a running count while any set is still missing a required field', async () => {
+    renderMultiSetWithCompletion([
+      { weightValue: 135, reps: 8 },
+      { weightValue: null, reps: null },
+    ]);
+
+    expect(await screen.findByText('1 of 2 sets complete')).toBeInTheDocument();
+    expect(screen.queryByText('Complete')).not.toBeInTheDocument();
+  });
+
+  it('is not vacuously complete with zero sets', async () => {
+    renderMultiSetWithCompletion([]);
+
+    await screen.findByText('Outdoor Cycle');
+    expect(screen.queryByText('Complete')).not.toBeInTheDocument();
+    expect(screen.queryByText(/sets complete/)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * Story 39 — single-active-exercise accordion: at most one exercise
+ * expanded at a time, switching on an intentional interaction (tapping
+ * another exercise's header, focusing a field inside it, or choosing an
+ * action inside it) rather than on blur, which would be fragile given how
+ * often focus moves between controls in the same exercise.
+ */
+describe('WorkoutSessionPage single-active-exercise accordion', () => {
+  function renderTwoExercises() {
+    const session = {
+      id: 'session-1',
+      userId: 'user-1',
+      localDate: '2026-08-22',
+      status: 'in_progress' as const,
+      startedAt: '2026-08-22T15:00:00.000Z',
+      completedAt: null,
+      dayTypeId: 'day-1',
+      notes: null,
+      createdAt: '2026-08-22T15:00:00.000Z',
+      updatedAt: '2026-08-22T15:00:00.000Z',
+      exercises: ['log-1', 'log-2'].map((id, index) => ({
+        id,
+        workoutSessionId: 'session-1',
+        exerciseId: `exercise-${index + 1}`,
+        sortOrder: index,
+        skipped: false,
+        notes: null,
+        createdAt: '2026-08-22T15:00:00.000Z',
+        updatedAt: '2026-08-22T15:00:00.000Z',
+        exercise: {
+          id: `exercise-${index + 1}`,
+          name: index === 0 ? 'Bench Press' : 'Barbell Row',
+          isCustom: false,
+          ownerUserId: null,
+          archivedAt: null,
+          createdAt: '2026-08-22T15:00:00.000Z',
+          updatedAt: '2026-08-22T15:00:00.000Z',
+        },
+        prescription: { kind: 'sets_reps', sets: 3, repsMin: 8 },
+        previousSession: null,
+        sets: [
+          {
+            id: `set-${id}`,
+            exerciseLogId: id,
+            clientId: `${index}1111111-1111-4111-8111-111111111111`,
+            sortOrder: 0,
+            setType: 'working',
+            weightValue: null,
+            weightUnit: null,
+            reps: null,
+            durationSeconds: null,
+            distanceValue: null,
+            distanceUnit: null,
+            rpe: null,
+            isPrWeight: false,
+            isPrReps: false,
+            createdAt: '2026-08-22T15:00:00.000Z',
+            updatedAt: '2026-08-22T15:00:00.000Z',
+          },
+        ],
+      })),
+    };
+
+    mockGet = (path: string) => {
+      if (path.startsWith('/workout-sessions/')) return Promise.resolve(session);
+      if (path === '/exercises') return Promise.resolve([]);
+      return Promise.resolve(null);
+    };
+    return renderPage();
+  }
+
+  it('starts with only the first exercise expanded', async () => {
+    renderTwoExercises();
+
+    await screen.findByRole('button', { name: 'Collapse Bench Press' });
+    expect(screen.getByRole('button', { name: 'Expand Barbell Row' })).toBeInTheDocument();
+  });
+
+  it('tapping another exercise header switches which one is expanded', async () => {
+    const user = userEvent.setup();
+    renderTwoExercises();
+
+    await screen.findByRole('button', { name: 'Collapse Bench Press' });
+    await user.click(screen.getByRole('button', { name: 'Expand Barbell Row' }));
+
+    expect(await screen.findByRole('button', { name: 'Collapse Barbell Row' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Expand Bench Press' })).toBeInTheDocument();
+  });
+
+  it('expands via keyboard activation (focus with no preceding mousedown, then a synthesized click)', async () => {
+    renderTwoExercises();
+
+    await screen.findByRole('button', { name: 'Collapse Bench Press' });
+    const barbellRowChevron = screen.getByRole('button', { name: 'Expand Barbell Row' });
+    // A real Tab-to-focus has no mousedown before it, unlike userEvent's
+    // .click() (which always synthesizes one) — this is exactly the path
+    // a keyboard/screen-reader user takes, and Enter/Space then dispatch
+    // a click with nothing new before it either.
+    fireEvent.focus(barbellRowChevron);
+    fireEvent.click(barbellRowChevron);
+
+    expect(await screen.findByRole('button', { name: 'Collapse Barbell Row' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Expand Bench Press' })).toBeInTheDocument();
+  });
+
+  it('focusing a field inside a collapsed exercise activates it too', async () => {
+    const user = userEvent.setup();
+    renderTwoExercises();
+
+    await screen.findByRole('button', { name: 'Collapse Bench Press' });
+    // The quick-entry header stays visible even while collapsed (Story 37) —
+    // focusing it is exactly the "focus lands inside this exercise" trigger.
+    await user.click(screen.getAllByLabelText('All sets: Reps')[1]!);
+
+    expect(await screen.findByRole('button', { name: 'Collapse Barbell Row' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Expand Bench Press' })).toBeInTheDocument();
+  });
+
+  it('manually collapsing the active exercise leaves none expanded', async () => {
+    const user = userEvent.setup();
+    renderTwoExercises();
+
+    await user.click(await screen.findByRole('button', { name: 'Collapse Bench Press' }));
+
+    expect(screen.getByRole('button', { name: 'Expand Bench Press' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Expand Barbell Row' })).toBeInTheDocument();
   });
 });

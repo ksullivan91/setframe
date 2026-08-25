@@ -5,8 +5,10 @@ import {
   formatSessionSet,
   getPrescriptionDefinition,
   getSessionFieldLabel,
+  isExerciseComplete,
   isSessionSetLogged,
   prescriptionDefinitions,
+  quickEntryFields,
   resolveSessionFields,
   summarizePrescription,
   validateSessionSet,
@@ -266,5 +268,49 @@ describe('visibleSessionExercises', () => {
   it('returns everything when nothing was removed', () => {
     const exercises = [{ id: 'a', skipped: false }, { id: 'b', skipped: false }];
     expect(visibleSessionExercises(exercises)).toEqual(exercises);
+  });
+});
+
+/** Story 37 — the quick-entry header's field set. */
+describe('quickEntryFields', () => {
+  it('excludes setType but keeps every other visible field, in order', () => {
+    expect(quickEntryFields(getPrescriptionDefinition(samples.sets_reps))).toEqual(['weight', 'reps', 'rpe']);
+  });
+
+  it('is empty for a representation whose only field is setType', () => {
+    // No sample prescription is setType-only, but the contract should
+    // still hold for a definition shaped that way.
+    expect(quickEntryFields({ ...getPrescriptionDefinition(samples.sets_reps), fields: ['setType'] })).toEqual([]);
+  });
+
+  it('keeps duration, distance, and rpe for a distance + duration exercise', () => {
+    expect(quickEntryFields(getPrescriptionDefinition(samples.distanceDuration))).toEqual(['duration', 'distance', 'rpe']);
+  });
+});
+
+/**
+ * Story 38 — exercise-level completion, derived from every set's own
+ * completion (only required fields count, matching `isSessionSetLogged`).
+ */
+describe('isExerciseComplete', () => {
+  it('is incomplete with zero sets — not vacuously complete', () => {
+    expect(isExerciseComplete(samples.sets_reps, [])).toBe(false);
+  });
+
+  it('is complete only once every set has its required fields', () => {
+    expect(isExerciseComplete(samples.sets_reps, [{ weightValue: 135, reps: 5 }])).toBe(true);
+    expect(
+      isExerciseComplete(samples.sets_reps, [{ weightValue: 135, reps: 5 }, { weightValue: 145, reps: 5 }]),
+    ).toBe(true);
+  });
+
+  it('is incomplete while any single set is missing a required field', () => {
+    expect(
+      isExerciseComplete(samples.sets_reps, [{ weightValue: 135, reps: 5 }, { weightValue: 145 }]),
+    ).toBe(false);
+  });
+
+  it('does not require optional fields like RPE', () => {
+    expect(isExerciseComplete(samples.sets_reps, [{ weightValue: 135, reps: 5, rpe: undefined }])).toBe(true);
   });
 });

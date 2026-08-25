@@ -43,7 +43,7 @@ export function SetRowReadOnly({ setLabel, valueLabel, isPr }: SetRowReadOnlyPro
 /** Draft string values keyed by the shared `SessionField` identifiers. */
 export type SetRowValues = Partial<Record<SessionField, string>>;
 
-const distanceUnitOptions = [
+export const distanceUnitOptions = [
   { value: 'mi', label: 'mi' },
   { value: 'km', label: 'km' },
   { value: 'm', label: 'm' },

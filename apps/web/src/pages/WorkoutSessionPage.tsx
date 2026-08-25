@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { Copy, Plus, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Copy, Plus, Trash2 } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import type {
@@ -11,9 +11,9 @@ import type {
   WorkoutSet,
   WorkoutSetPreviousPerformance,
 } from '@setframe/schemas';
-import { calculateVolume, estimateOneRepMax, visibleSessionExercises } from '@setframe/domain';
+import { calculateVolume, estimateOneRepMax, isExerciseComplete, quickEntryFields, visibleSessionExercises } from '@setframe/domain';
 import { radius, spacing } from '@setframe/design-tokens';
-import { AsyncStatusIndicator, Button, Card, IconButton, Input, Menu, Modal, PRBadge, Select, Skeleton, SkeletonStack, useAsyncStatus, useToast } from '../components';
+import { AsyncStatusIndicator, Badge, Button, Card, IconButton, Input, Menu, Modal, PRBadge, Select, Skeleton, SkeletonStack, useAsyncStatus, useToast } from '../components';
 import { AddExercisePicker } from '../components/AddExercisePicker';
 import { useApiClient } from '../lib/api-client';
 import {
@@ -230,6 +230,14 @@ const ExerciseCard = styled(Card)`
   display: flex;
   flex-direction: column;
   gap: ${spacing[16]}px;
+  /* Story 39: scrollIntoView's target for a newly-active exercise stays
+     clear of the sticky session action bar (Story 36), which only
+     floats over content below tablet width. */
+  scroll-margin-bottom: calc(${BOTTOM_NAV_HEIGHT_PX}px + ${SESSION_ACTION_BAR_HEIGHT_PX}px);
+
+  ${mq.tablet} {
+    scroll-margin-bottom: ${spacing[16]}px;
+  }
 `;
 
 const ExerciseHeader = styled.div`
@@ -245,10 +253,34 @@ const ExerciseTitle = styled.h2`
   font-size: ${typeScale.sectionTitle.fontSize}px;
 `;
 
+const ExerciseTitleRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${spacing[8]}px;
+`;
+
 const SupportingText = styled.p`
   margin: 0;
   color: ${(p) => p.theme.text.secondary};
   font-size: ${typeScale.compactBody.fontSize}px;
+`;
+
+/**
+ * Story 37: the common-value entry point above the full set editor — set
+ * a value once here and apply it to every set instead of repeating it per
+ * row (see `QuickEntryFooter`'s "Apply to all sets"). Only the fields
+ * relevant to this exercise's representation render, same as `SetGrid`.
+ */
+const QuickEntryGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: ${spacing[8]}px;
+`;
+
+const QuickEntryFooter = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 `;
 
 const PreviousSessionCard = styled.div`
@@ -441,6 +473,28 @@ function getDraft(set: WorkoutSet, definition: PrescriptionDefinition): DraftVal
   };
 }
 
+/**
+ * Story 37: the quick-entry header's starting point. The first set already
+ * carries the template's prefill (session-start expands the prescription
+ * onto every set — weight left blank, everything else pre-populated), so
+ * reusing it here means the header never has to re-derive prescription
+ * defaults on its own and can't drift from what "Add set" already does.
+ * An exercise with no sets yet just starts blank.
+ */
+function getHeaderDraft(exerciseLog: WorkoutSessionExerciseDetail, definition: PrescriptionDefinition): DraftValues {
+  const firstSet = exerciseLog.sets[0];
+  return firstSet
+    ? getDraft(firstSet, definition)
+    : { setType: 'working', weightValue: '', reps: '', durationSeconds: '', distanceValue: '', distanceUnit: definition.units.distance, rpe: '' };
+}
+
+/** Copies one key from a source DraftValues onto a patch, preserving its
+ * type — a generic helper so `applyHeaderToAllSets` can iterate an
+ * arbitrary list of touched keys without an `any` cast. */
+function copyDraftKey<K extends keyof DraftValues>(target: Partial<DraftValues>, source: DraftValues, key: K) {
+  target[key] = source[key];
+}
+
 function getPlannedValue(set: WorkoutSet, index: number, exerciseLog: WorkoutSessionExerciseDetail) {
   const planned = exerciseLog.sets[index];
   if (!planned) return null;
@@ -518,6 +572,28 @@ export function WorkoutSessionPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [drafts, setDrafts] = useState<Record<string, DraftValues>>({});
+  // Story 37: a separate, exercise-level draft for the quick-entry header —
+  // distinct from any one set's own draft, since it's a value to apply, not
+  // a value that's itself logged.
+  const [headerDrafts, setHeaderDrafts] = useState<Record<string, DraftValues>>({});
+  // Story 37: which DraftValues keys the user has actually edited in the
+  // header since it was last reset — Apply to all sets must only ever
+  // patch these, not every quick-entry field, or changing just reps would
+  // silently blow away a sibling set's own distinct weight/duration/etc.
+  // Tracked at the key level (not the coarser SessionField level) so
+  // touching only the distance *unit* dropdown doesn't also drag the
+  // distance *value* along — they're one field, but two independent keys.
+  // Cleared after a successful Apply and whenever a set is added, so a
+  // stale earlier edit can never silently reapply on a later, unrelated
+  // click.
+  const [headerTouchedKeys, setHeaderTouchedKeys] = useState<Record<string, (keyof DraftValues)[]>>({});
+  // Story 39: single-active-exercise accordion — at most one exercise is
+  // expanded at a time. `null` means none are (every exercise manually
+  // collapsed, or nothing loaded yet); seeded to the first exercise once
+  // the session loads (see the effect below), not left "all expanded",
+  // since only one can be active from the very first render.
+  const [activeExerciseId, setActiveExerciseId] = useState<string | null>(null);
+  const exerciseCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [elapsedTick, setElapsedTick] = useState(0);
   const [pendingRemoval, setPendingRemoval] = useState<RemovalCandidate | null>(null);
   const [pendingExerciseRemoval, setPendingExerciseRemoval] = useState<ExerciseRemovalCandidate | null>(null);
@@ -565,8 +641,12 @@ export function WorkoutSessionPage() {
         distanceUnit: sourceSet?.distanceValue != null ? sourceSet.distanceUnit ?? 'mi' : undefined,
         rpe: sourceSet?.rpe ?? undefined,
       }),
-    onSuccess: async () => {
+    onSuccess: async (_, variables) => {
       await refreshSession();
+      // Story 37: a newly added set didn't exist when any header field was
+      // marked touched, so a stale touched key could otherwise reapply to
+      // it (and every other set) on the next unrelated Apply click.
+      setHeaderTouchedKeys((prev) => ({ ...prev, [variables.exerciseLogId]: [] }));
       toast.show({ variant: 'success', message: 'Set added.' });
     },
     onError: () => toast.show({ variant: 'error', message: 'Could not add set.' }),
@@ -657,6 +737,35 @@ export function WorkoutSessionPage() {
   });
 
   const orderedExercises = useMemo(() => visibleSessionExercises(query.data?.exercises ?? []), [query.data]);
+
+  // Story 39: seeds the accordion to the first exercise once the session
+  // has loaded — a bare `useState(null)` would otherwise start with none
+  // active, an odd first impression for a page whose whole prior history
+  // (through Story 37) opened every exercise by default. Fires exactly
+  // once (the ref, not `activeExerciseId == null`, gates it) so a later
+  // manual collapse to none — a real, supported state — is never fought
+  // by this effect re-seeding it back open.
+  const hasSeededActiveExercise = useRef(false);
+  useEffect(() => {
+    if (!hasSeededActiveExercise.current && orderedExercises.length > 0) {
+      hasSeededActiveExercise.current = true;
+      setActiveExerciseId(orderedExercises[0]!.id);
+    }
+  }, [orderedExercises]);
+
+  // Story 39: scrolls a newly-active exercise into view — but only for a
+  // genuine switch between two exercises, never the initial seed above
+  // (null → first) or a manual collapse (→ null), neither of which should
+  // jump the page. `scroll-margin-bottom` on `ExerciseCard` keeps this
+  // clear of the sticky session action bar from Story 36.
+  const previousActiveExerciseId = useRef<string | null>(null);
+  useEffect(() => {
+    if (activeExerciseId != null && previousActiveExerciseId.current != null && previousActiveExerciseId.current !== activeExerciseId) {
+      exerciseCardRefs.current[activeExerciseId]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    previousActiveExerciseId.current = activeExerciseId;
+  }, [activeExerciseId]);
+
   const totalSetsLogged = useMemo(
     () =>
       orderedExercises.reduce(
@@ -679,6 +788,66 @@ export function WorkoutSessionPage() {
       ),
     [orderedExercises],
   );
+
+  /**
+   * Story 39: fired by focusing anything inside this exercise's card (see
+   * `ExerciseCard`'s `onFocus` below) — always activates, never toggles,
+   * so focus already inside the active exercise can't accidentally
+   * collapse it.
+   */
+  function activateExercise(exerciseLogId: string) {
+    setActiveExerciseId((prev) => (prev === exerciseLogId ? prev : exerciseLogId));
+  }
+
+  /**
+   * Story 39: the chevron's own click handler — the one place a collapse
+   * can happen, so manual collapse of the currently active exercise stays
+   * available. Tapping any other exercise's header switches to it.
+   *
+   * Clicking (or Tab+Enter/Space-ing) a button focuses it first, which
+   * would otherwise reach the card's own `onFocus` before this handler
+   * runs and activate `exerciseLogId` a step early — making this always
+   * see "already active" and collapse on the very first interaction with
+   * a previously-inactive exercise (mouse *and* keyboard, since a
+   * keyboard click has no preceding mousedown to hook a workaround into
+   * either). The chevron's own `onFocus` stops that propagation instead,
+   * so this reads genuinely-live, not-yet-touched state.
+   */
+  function toggleActiveExercise(exerciseLogId: string) {
+    setActiveExerciseId((prev) => (prev === exerciseLogId ? null : exerciseLogId));
+  }
+
+  /**
+   * Story 37: applies the header's quick-entry values onto every set's own
+   * draft. Explicit and only ever fired by this button — the cascade never
+   * runs on its own, so a set the user already edited by hand is never
+   * silently overwritten; the user has to knowingly re-apply over it.
+   *
+   * Only the exact keys the user actually edited in the header are
+   * copied — not every key belonging to the same quick-entry field. That
+   * distinction matters for distance specifically: touching only the unit
+   * dropdown must not also drag the (untouched) distance value along.
+   */
+  function applyHeaderToAllSets(exerciseLog: WorkoutSessionExerciseDetail, definition: PrescriptionDefinition) {
+    const header = headerDrafts[exerciseLog.id] ?? getHeaderDraft(exerciseLog, definition);
+    const touchedKeys = headerTouchedKeys[exerciseLog.id] ?? [];
+    setDrafts((prev) => {
+      const next = { ...prev };
+      for (const set of exerciseLog.sets) {
+        const current = next[set.id] ?? getDraft(set, definition);
+        const patch: Partial<DraftValues> = {};
+        for (const key of touchedKeys) {
+          copyDraftKey(patch, header, key);
+        }
+        next[set.id] = { ...current, ...patch };
+      }
+      return next;
+    });
+    // Cleared so a later, unrelated Apply click can't silently reapply a
+    // stale edit — the next click only ever acts on what's touched after
+    // this point.
+    setHeaderTouchedKeys((prev) => ({ ...prev, [exerciseLog.id]: [] }));
+  }
 
   const bestEstimated1rm = useMemo(() => {
     const estimates = orderedExercises
@@ -781,18 +950,77 @@ export function WorkoutSessionPage() {
         {orderedExercises.map((exerciseLog) => {
           const definition = getPrescriptionDefinition(exerciseLog.prescription);
           const loggedSetCount = exerciseLog.sets.filter((set) => isSessionSetLogged(exerciseLog.prescription, set)).length;
+          const isComplete = isExerciseComplete(exerciseLog.prescription, exerciseLog.sets);
+          const isExpanded = activeExerciseId === exerciseLog.id;
+          const headerDraft = headerDrafts[exerciseLog.id] ?? getHeaderDraft(exerciseLog, definition);
+          // Touched keys are derived straight from the patch's own keys, so
+          // e.g. changing only the distance unit marks just `distanceUnit`
+          // touched, never `distanceValue` alongside it.
+          const updateHeader = (patch: Partial<DraftValues>) => {
+            setHeaderDrafts((prev) => ({ ...prev, [exerciseLog.id]: { ...headerDraft, ...patch } }));
+            setHeaderTouchedKeys((prev) => {
+              const existing = prev[exerciseLog.id] ?? [];
+              const patched = Object.keys(patch) as (keyof DraftValues)[];
+              return { ...prev, [exerciseLog.id]: [...new Set([...existing, ...patched])] };
+            });
+          };
           return (
-          <ExerciseCard key={exerciseLog.id}>
+          <ExerciseCard
+            key={exerciseLog.id}
+            ref={(node) => {
+              exerciseCardRefs.current[exerciseLog.id] = node;
+            }}
+            // Story 39: any focus landing inside this card — a quick-entry
+            // field, a per-set input, an action button — means the user is
+            // now working with this exercise, whether or not they touched
+            // the chevron first. A modal opened from within this card
+            // moves focus outside every card (it's rendered via a portal),
+            // so it never triggers this and can't unexpectedly collapse
+            // the exercise it was opened from.
+            onFocus={() => activateExercise(exerciseLog.id)}
+          >
             <ExerciseHeader>
-              <div>
-                <ExerciseTitle>{exerciseLog.exercise.name}</ExerciseTitle>
-                <SupportingText>{summarizePrescription(exerciseLog.prescription)}</SupportingText>
-              </div>
+              <ExerciseTitleRow>
+                <IconButton
+                  aria-label={isExpanded ? `Collapse ${exerciseLog.exercise.name}` : `Expand ${exerciseLog.exercise.name}`}
+                  // Stops this button's own focus (from a click, or a Tab
+                  // arriving via keyboard) from reaching the card's
+                  // `onFocus` and activating early — see
+                  // `toggleActiveExercise`'s comment for why that matters.
+                  onFocus={(event) => event.stopPropagation()}
+                  onClick={() => toggleActiveExercise(exerciseLog.id)}
+                >
+                  {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </IconButton>
+                <div>
+                  <ExerciseTitle>{exerciseLog.exercise.name}</ExerciseTitle>
+                  <SupportingText>{summarizePrescription(exerciseLog.prescription)}</SupportingText>
+                  {/* Story 38: completion is derived from every set's own
+                      required-field completeness (isExerciseComplete),
+                      never a UI flag toggled on collapse — text always
+                      accompanies the color so it isn't the only signal. */}
+                  {isComplete ? (
+                    <Badge tone="success">
+                      <Check size={14} aria-hidden="true" /> Complete
+                    </Badge>
+                  ) : exerciseLog.sets.length > 0 ? (
+                    <SupportingText>
+                      {loggedSetCount} of {exerciseLog.sets.length} sets complete
+                    </SupportingText>
+                  ) : null}
+                </div>
+              </ExerciseTitleRow>
               <ExerciseHeaderActions>
                 <AddSetButtonWrap>
                   <Button
                     variant="secondary"
-                    onClick={() => addSetMutation.mutate({ exerciseLogId: exerciseLog.id, sourceSet: exerciseLog.sets.at(-1) })}
+                    onClick={() => {
+                      // Story 39: an explicit call, not a reliance on
+                      // click-triggered focus — Safari doesn't always
+                      // focus a <button> on click, unlike Chrome/Firefox.
+                      activateExercise(exerciseLog.id);
+                      addSetMutation.mutate({ exerciseLogId: exerciseLog.id, sourceSet: exerciseLog.sets.at(-1) });
+                    }}
                     disabled={addSetMutation.isPending || query.data.status === 'completed'}
                   >
                     <Plus size={16} /> Add set
@@ -805,14 +1033,103 @@ export function WorkoutSessionPage() {
                       label: 'Remove from today’s workout',
                       destructive: true,
                       disabled: query.data.status === 'completed',
-                      onClick: () =>
-                        setPendingExerciseRemoval({ exerciseLogId: exerciseLog.id, name: exerciseLog.exercise.name, loggedSetCount }),
+                      onClick: () => {
+                        activateExercise(exerciseLog.id);
+                        setPendingExerciseRemoval({ exerciseLogId: exerciseLog.id, name: exerciseLog.exercise.name, loggedSetCount });
+                      },
                     },
                   ]}
                 />
               </ExerciseHeaderActions>
             </ExerciseHeader>
 
+            {/* Story 37: quick-entry — set a common value once here and
+                apply it to every set instead of repeating it per row.
+                Visible regardless of expand state, matching the collapsed
+                header's own content per the story's UX intent. */}
+            <QuickEntryGrid>
+              {quickEntryFields(definition).map((field) => {
+                // Distinct from the per-set field labels below (not just
+                // "Weight"/"Reps") — two identically-labeled inputs in the
+                // same section would be genuinely ambiguous for a
+                // screen-reader user navigating by label, not only in tests.
+                const label = `All sets: ${getSessionFieldLabel(field, definition)}`;
+                switch (field) {
+                  case 'weight':
+                    return (
+                      <Input
+                        key={field}
+                        label={label}
+                        value={headerDraft.weightValue}
+                        onChange={(event) => updateHeader({ weightValue: event.target.value })}
+                        inputMode="decimal"
+                        unit={exerciseLog.sets[0]?.weightUnit ?? 'lb'}
+                      />
+                    );
+                  case 'reps':
+                    return (
+                      <Input
+                        key={field}
+                        label={label}
+                        value={headerDraft.reps}
+                        onChange={(event) => updateHeader({ reps: event.target.value })}
+                        inputMode="numeric"
+                      />
+                    );
+                  case 'duration':
+                    return (
+                      <Input
+                        key={field}
+                        label={label}
+                        value={headerDraft.durationSeconds}
+                        onChange={(event) => updateHeader({ durationSeconds: event.target.value })}
+                        inputMode="decimal"
+                      />
+                    );
+                  case 'distance':
+                    return (
+                      <Fragment key={field}>
+                        <Input
+                          label={label}
+                          value={headerDraft.distanceValue}
+                          onChange={(event) => updateHeader({ distanceValue: event.target.value })}
+                          inputMode="decimal"
+                        />
+                        <Select
+                          label="All sets: Distance unit"
+                          value={headerDraft.distanceUnit}
+                          options={distanceUnitOptions}
+                          onChange={(event) => updateHeader({ distanceUnit: event.target.value as DraftValues['distanceUnit'] })}
+                        />
+                      </Fragment>
+                    );
+                  case 'rpe':
+                    return (
+                      <Input
+                        key={field}
+                        label={label}
+                        value={headerDraft.rpe}
+                        onChange={(event) => updateHeader({ rpe: event.target.value })}
+                        inputMode="decimal"
+                      />
+                    );
+                  default:
+                    return null;
+                }
+              })}
+            </QuickEntryGrid>
+            <QuickEntryFooter>
+              <Button
+                variant="secondary"
+                onClick={() => applyHeaderToAllSets(exerciseLog, definition)}
+                disabled={!exerciseLog.sets.length || query.data.status === 'completed'}
+              >
+                Apply to all sets
+              </Button>
+            </QuickEntryFooter>
+
+            {isExpanded ? (
+              <>
             {exerciseLog.previousSession ? (
               <PreviousSessionCard>
                 <SupportingText>
@@ -1003,6 +1320,8 @@ export function WorkoutSessionPage() {
             ) : (
               <EmptyText>No sets logged yet — add the first set to start recording actual performance.</EmptyText>
             )}
+              </>
+            ) : null}
           </ExerciseCard>
           );
         })}
