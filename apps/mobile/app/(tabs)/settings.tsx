@@ -9,6 +9,7 @@ import { Select } from '../../src/components/Select';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { spacing, typeScale } from '../../src/theme/getTheme';
 import { useApiClient } from '../../src/lib/api-client';
+import { useScreenTopPadding, useScreenBottomPadding } from '../../src/lib/useScreenInsets';
 
 type PreferredUnits = User['preferredUnits'];
 
@@ -119,17 +120,24 @@ export default function SettingsScreen() {
   });
 
   const syncStatus = useMemo(() => formatSyncStatus(syncState?.status), [syncState?.status]);
+  const topPadding = useScreenTopPadding();
+  const bottomPadding = useScreenBottomPadding();
 
   return (
-    <ScrollView style={{ backgroundColor: theme.surface.canvas }} contentContainerStyle={styles.content}>
-      <Card>
-        <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Account</Text>
-        <SettingsRow label="Email" value={user?.primaryEmailAddress?.emailAddress ?? '—'} />
-        <Button label="Manage account → Clerk" variant="secondary" onPress={() => openUserProfile()} />
-      </Card>
+    <ScrollView
+      style={{ backgroundColor: theme.surface.canvas }}
+      contentContainerStyle={[styles.content, { paddingTop: topPadding, paddingBottom: bottomPadding }]}
+    >
+      {/* Web's SettingsPage leads with an <h1> and places each section
+          heading *above* its card, not inside it. Mobile had neither: it
+          opened straight into an unlabelled Account card. */}
+      <Text style={[styles.pageTitle, { color: theme.text.primary }]}>Settings</Text>
 
+      <Text style={[styles.sectionHeading, { color: theme.text.primary }]}>Account</Text>
       <Card>
-        <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Preferences</Text>
+        <SettingsRow label="Email" value={user?.primaryEmailAddress?.emailAddress ?? '—'} />
+        {/* Units and Timezone belong to Account on web rather than to a
+            separate Preferences section. */}
         {meLoading ? (
           <ActivityIndicator color={theme.action.primary} />
         ) : (
@@ -153,10 +161,13 @@ export default function SettingsScreen() {
             ) : null}
           </>
         )}
+        <Button label="Manage account → Clerk" variant="secondary" onPress={() => openUserProfile()} />
       </Card>
 
+      {/* One combined section, matching web's "Apple Health & notifications"
+          — these were two separate cards on mobile. */}
+      <Text style={[styles.sectionHeading, { color: theme.text.primary }]}>Apple Health &amp; notifications</Text>
       <Card>
-        <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Apple Health sync</Text>
         {syncLoading ? (
           <ActivityIndicator color={theme.action.primary} />
         ) : (
@@ -165,37 +176,45 @@ export default function SettingsScreen() {
             <SettingsRow label="Last synced" value={formatRelativeTime(syncState?.lastSuccessAt ?? null)} />
           </>
         )}
-      </Card>
-
-      <Card>
-        <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Notifications</Text>
         {notificationLoading ? (
           <ActivityIndicator color={theme.action.primary} />
         ) : (
           <>
             <View style={styles.toggleRow}>
               <Text style={[styles.rowLabel, { color: theme.text.secondary }]}>Workout reminders</Text>
-              <Switch
-                value={workoutReminders}
-                disabled={updateNotificationPrefs.isPending}
-                onValueChange={(value) => {
-                  setWorkoutReminders(value);
-                  updateNotificationPrefs.mutate({ workoutRemindersEnabled: value });
-                }}
-                trackColor={{ true: theme.action.primary }}
-              />
+              <View style={styles.toggleValue}>
+                {/* Web states the value in words beside the switch; a switch
+                    alone carries its state only in colour and position. */}
+                <Text style={[styles.rowValue, { color: theme.text.secondary }]}>
+                  {workoutReminders ? 'On' : 'Off'}
+                </Text>
+                <Switch
+                  value={workoutReminders}
+                  disabled={updateNotificationPrefs.isPending}
+                  onValueChange={(value) => {
+                    setWorkoutReminders(value);
+                    updateNotificationPrefs.mutate({ workoutRemindersEnabled: value });
+                  }}
+                  trackColor={{ true: theme.action.primary }}
+                />
+              </View>
             </View>
             <View style={styles.toggleRow}>
               <Text style={[styles.rowLabel, { color: theme.text.secondary }]}>Weekly progress summary</Text>
-              <Switch
-                value={weeklySummary}
-                disabled={updateNotificationPrefs.isPending}
-                onValueChange={(value) => {
-                  setWeeklySummary(value);
-                  updateNotificationPrefs.mutate({ weeklySummaryEnabled: value });
-                }}
-                trackColor={{ true: theme.action.primary }}
-              />
+              <View style={styles.toggleValue}>
+                <Text style={[styles.rowValue, { color: theme.text.secondary }]}>
+                  {weeklySummary ? 'On' : 'Off'}
+                </Text>
+                <Switch
+                  value={weeklySummary}
+                  disabled={updateNotificationPrefs.isPending}
+                  onValueChange={(value) => {
+                    setWeeklySummary(value);
+                    updateNotificationPrefs.mutate({ weeklySummaryEnabled: value });
+                  }}
+                  trackColor={{ true: theme.action.primary }}
+                />
+              </View>
             </View>
             {updateNotificationPrefs.isPending || notificationFetching ? (
               <Text style={[styles.helperText, { color: theme.text.secondary }]}>Updating notification preferences…</Text>
@@ -204,10 +223,10 @@ export default function SettingsScreen() {
         )}
       </Card>
 
+      <Text style={[styles.sectionHeading, { color: theme.status.error }]}>Danger zone</Text>
       <Card>
-        <Text style={[styles.sectionTitle, { color: theme.status.error }]}>Danger zone</Text>
+        <SettingsRow label="Delete account" value="This cannot be undone" valueTone="destructive" />
         <Button label="Delete account" variant="destructive" onPress={() => {}} />
-        <Text style={{ color: theme.text.secondary, fontSize: typeScale.caption.fontSize }}>This cannot be undone.</Text>
       </Card>
 
       <Button label="Sign out" variant="secondary" onPress={() => signOut()} />
@@ -223,6 +242,24 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: typeScale.sectionTitle.fontSize,
     fontWeight: '600',
+  },
+  /* Web's SettingsPage opens with an <h1> at pageTitle scale, then labels
+     each card with a heading placed above it. */
+  pageTitle: {
+    fontSize: typeScale.pageTitle.fontSize,
+    fontWeight: '600',
+  },
+  sectionHeading: {
+    fontSize: typeScale.sectionTitle.fontSize,
+    fontWeight: '600',
+    // Pulls the heading toward the card it labels, against the container's
+    // uniform 16pt gap, so it reads as attached rather than free-floating.
+    marginBottom: -spacing[8],
+  },
+  toggleValue: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[8],
   },
   row: {
     flexDirection: 'row',
