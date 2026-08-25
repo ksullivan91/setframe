@@ -294,6 +294,43 @@ describe('BodyWeightSection regressions', () => {
     expect(summary).toContain('\u2013');
     expect(summary).toMatch(/average of \d+ check-ins/);
   });
+
+  /*
+   * Story 49 — parity with the web assertion of the same name. A gap between
+   * the two weeks must not be bridged: three weeks of drift labelled "vs
+   * previous week" attributes it all to seven days.
+   */
+  it('compares this week to the previous one only when the two are adjacent', () => {
+    const adjacent = renderTree(
+      <BodyWeightSection
+        bodyWeight={{
+          ...twoConsecutiveMornings,
+          weeks: [
+            { weekStart: '2025-06-23', average: 168.2, low: 167.4, high: 169.0, checkInCount: 4 },
+            { weekStart: '2025-06-30', average: 167.7, low: 166.8, high: 168.6, checkInCount: 3 },
+          ],
+        }}
+        localDate="2025-07-02"
+      />,
+    );
+    expect(textOf(adjacent, 'body-weight-week-range')).toContain(
+      '\u22120.5 lb vs previous week',
+    );
+
+    const gapped = renderTree(
+      <BodyWeightSection
+        bodyWeight={{
+          ...twoConsecutiveMornings,
+          weeks: [
+            { weekStart: '2025-06-02', average: 168.2, low: 167.4, high: 169.0, checkInCount: 4 },
+            { weekStart: '2025-06-30', average: 167.7, low: 166.8, high: 168.6, checkInCount: 3 },
+          ],
+        }}
+        localDate="2025-07-02"
+      />,
+    );
+    expect(textOf(gapped, 'body-weight-week-range')).not.toContain('vs previous week');
+  });
 });
 
 describe('BodyWeightSection', () => {

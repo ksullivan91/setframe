@@ -17,6 +17,7 @@ import {
   metricDefinition,
   metricLabel,
   weekEndDate,
+  weekOverWeekChange,
   weekStartOf,
   type ProgressRange,
   type ProgressMetricKey,
@@ -178,6 +179,9 @@ export function BodyWeightSection({
   // entry can be weeks old after a break. Label it honestly rather than
   // calling a fortnight-old average "this week".
   const latestWeek = bodyWeight.weeks.at(-1) ?? null;
+  /* Only offered when the two weeks are adjacent and each has enough
+     check-ins to have a real average — see weekOverWeekChange. */
+  const weekChange = useMemo(() => weekOverWeekChange(bodyWeight.weeks), [bodyWeight.weeks]);
 
   // Story 32 — Start/Current/Change for the selected range, from the raw
   // check-ins actually visible (not the prior period's last value, and not
@@ -345,6 +349,11 @@ export function BodyWeightSection({
           }: avg ${latestWeek.average.toFixed(1)} · range ${latestWeek.low.toFixed(1)}–${latestWeek.high.toFixed(
             1,
           )} ${bodyWeight.unit}`}
+          {weekChange
+            ? `${' · '}${weekChange.change >= 0 ? '+' : '−'}${Math.abs(weekChange.change).toFixed(
+                1,
+              )} ${bodyWeight.unit} vs previous week`
+            : ''}
         </Text>
       ) : null}
     </Card>

@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   checkInsUntilTrend,
   computeWeightTrend,
+  weekOverWeekChange,
   weekStartOf,
   type WeightCheckIn,
+  type WeightWeek,
 } from './weight-trend';
 
 function series(start: string, values: number[], unit: 'lb' | 'kg' = 'lb'): WeightCheckIn[] {
@@ -232,5 +234,45 @@ describe('units', () => {
       { displayUnit: 'lb' },
     );
     expect(lbTrend.ratePerWeek!).toBeCloseTo(kgTrend.ratePerWeek! / 0.45359237, 4);
+  });
+});
+
+describe('weekOverWeekChange', () => {
+  function week(weekStart: string, average: number, checkInCount = 4): WeightWeek {
+    return { weekStart, average, low: average - 1, high: average + 1, checkInCount };
+  }
+
+  it('reports the signed change against the immediately preceding week', () => {
+    const result = weekOverWeekChange([week('2026-01-05', 168.2), week('2026-01-12', 167.8)]);
+    expect(result?.change).toBeCloseTo(-0.4, 5);
+    expect(result?.previous.weekStart).toBe('2026-01-05');
+    expect(result?.current.weekStart).toBe('2026-01-12');
+  });
+
+  /*
+   * The load-bearing case: a gap must not be bridged. Labelling three weeks
+   * of drift as "vs previous week" attributes it all to seven days.
+   */
+  it('withholds a comparison when the two weeks are not adjacent', () => {
+    expect(weekOverWeekChange([week('2025-12-15', 170.0), week('2026-01-12', 167.8)])).toBeNull();
+  });
+
+  it('withholds a comparison when either week is a single check-in', () => {
+    expect(
+      weekOverWeekChange([week('2026-01-05', 168.2, 1), week('2026-01-12', 167.8, 4)]),
+    ).toBeNull();
+    expect(
+      weekOverWeekChange([week('2026-01-05', 168.2, 4), week('2026-01-12', 167.8, 1)]),
+    ).toBeNull();
+  });
+
+  it('has nothing to compare against in the first week', () => {
+    expect(weekOverWeekChange([week('2026-01-12', 167.8)])).toBeNull();
+    expect(weekOverWeekChange([])).toBeNull();
+  });
+
+  it('reports an unchanged average as zero rather than withholding it', () => {
+    const result = weekOverWeekChange([week('2026-01-05', 168.0), week('2026-01-12', 168.0)]);
+    expect(result?.change).toBe(0);
   });
 });

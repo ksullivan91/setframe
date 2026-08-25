@@ -575,6 +575,41 @@ describe('regressions', () => {
       .filter((label) => label.includes('\u2013'));
     expect(marks.some((label) => /average of \d+ check-ins/.test(label))).toBe(true);
   });
+
+  /*
+   * Story 49 — "vs previous 7 days" context, but only where the comparison is
+   * real. A gap between the two weeks must not be bridged: three weeks of
+   * drift labelled "vs previous week" attributes it all to seven days.
+   */
+  it('compares this week to the previous one only when the two are adjacent', async () => {
+    const adjacent = {
+      ...twoConsecutiveMornings,
+      weeks: [
+        { weekStart: '2025-06-23', average: 168.2, low: 167.4, high: 169.0, checkInCount: 4 },
+        { weekStart: '2025-06-30', average: 167.7, low: 166.8, high: 168.6, checkInCount: 3 },
+      ],
+    };
+    const { unmount } = renderProgress(baseOverview({ bodyWeight: adjacent }));
+    await waitFor(() => expect(screen.getByTestId('body-weight-week-change')).toBeTruthy());
+    expect(screen.getByTestId('body-weight-week-change')).toHaveTextContent(
+      '\u22120.5 lb vs previous week',
+    );
+    unmount();
+
+    renderProgress(
+      baseOverview({
+        bodyWeight: {
+          ...adjacent,
+          weeks: [
+            { weekStart: '2025-06-02', average: 168.2, low: 167.4, high: 169.0, checkInCount: 4 },
+            { weekStart: '2025-06-30', average: 167.7, low: 166.8, high: 168.6, checkInCount: 3 },
+          ],
+        },
+      }),
+    );
+    await waitFor(() => expect(screen.getByTestId('body-weight-week-range')).toBeTruthy());
+    expect(screen.queryByTestId('body-weight-week-change')).toBeNull();
+  });
 });
 
 describe('API version skew', () => {
