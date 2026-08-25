@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Pencil, Trophy } from 'lucide-react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { calculateVolume, estimateOneRepMax, visibleSessionExercises } from '@setframe/domain';
-import { countsTowardVolume } from '../src/lib/prescription';
+import { countsTowardVolume, formatSessionSet, isSessionSetLogged } from '../src/lib/prescription';
 import type { WorkoutSessionDetail, WorkoutSet } from '@setframe/schemas';
 import { Card } from '../src/components/Card';
 import { Button } from '../src/components/Button';
@@ -39,7 +39,17 @@ function findPrSet(session: WorkoutSessionDetail) {
   return null;
 }
 
-function formatSet(set: { weightValue: number | null; weightUnit?: string | null; reps: number | null }) {
+/**
+ * Only used for the PR banner, where the prescription is not to hand.
+ *
+ * Set rows use the shared, prescription-aware `formatSessionSet` instead:
+ * this always renders a weight, so a bodyweight Pull-Up read "0 lb × 6" —
+ * exactly the misleading zero that Story 09 introduced per-prescription
+ * fields to eliminate. A PR is by definition a weighted strength set
+ * (`resolveSessionPRs` only ever flags working/top/backoff), so the
+ * weight × reps shape is always right here.
+ */
+function formatPrSet(set: { weightValue: number | null; weightUnit?: string | null; reps: number | null }) {
   const weight = set.weightValue != null ? `${set.weightValue} ${set.weightUnit ?? 'lb'}` : '—';
   const reps = set.reps != null ? `${set.reps}` : '—';
   return `${weight} × ${reps}`;
@@ -105,6 +115,21 @@ export default function SessionSummaryScreen() {
     () => visibleSessionExercises(sessionQuery.data?.exercises ?? []).flatMap((exerciseLog) => exerciseLog.sets),
     [sessionQuery.data],
   );
+  /* "Sets logged" must mean sets the user actually performed, not rows that
+     exist. Starting a session from a template pre-creates one row per
+     planned set, so counting `allSets` reported 18 for a workout of 13
+     logged sets — and Today, which filters the same session through
+     `isSessionSetLogged`, showed 13 for it. One metric, one session, two
+     numbers depending on the screen. */
+  const loggedSetCount = useMemo(
+    () =>
+      visibleSessionExercises(sessionQuery.data?.exercises ?? []).reduce(
+        (total, exerciseLog) =>
+          total + exerciseLog.sets.filter((set) => isSessionSetLogged(exerciseLog.prescription, set)).length,
+        0,
+      ),
+    [sessionQuery.data],
+  );
   // Only weighted strength work contributes volume; see Story 09.
   const volume = useMemo(
     () =>
@@ -151,15 +176,15 @@ export default function SessionSummaryScreen() {
             <Text style={[styles.prTitle, { color: theme.action.primary }]}>New PR</Text>
           </View>
           <Text style={{ color: theme.text.primary }}>
-            {prSummary.exerciseName} — {formatSet(prSummary.set)}
-            {prSummary.previous ? `, up from ${formatSet(prSummary.previous)}` : ''}
+            {prSummary.exerciseName} — {formatPrSet(prSummary.set)}
+            {prSummary.previous ? `, up from ${formatPrSet(prSummary.previous)}` : ''}
           </Text>
         </Card>
       ) : null}
 
       <Card>
         <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Session stats</Text>
-        <SetRowReadOnly setLabel="Sets logged" valueLabel={`${allSets.length}`} />
+        <SetRowReadOnly setLabel="Sets logged" valueLabel={`${loggedSetCount}`} />
         <SetRowReadOnly setLabel="Best est. 1RM" valueLabel={bestEstimated1rm(allSets)} />
       </Card>
 
@@ -179,7 +204,7 @@ export default function SessionSummaryScreen() {
                 style={styles.editableSetRow}
               >
                 <View style={{ flex: 1 }}>
-                  <SetRowReadOnly setLabel={setLabel} valueLabel={formatSet(set)} isPr={set.isPrWeight || set.isPrReps} />
+                  <SetRowReadOnly setLabel={setLabel} valueLabel={formatSessionSet(exerciseLog.prescription, set) || '—'} isPr={set.isPrWeight || set.isPrReps} />
                 </View>
                 <Pencil size={16} color={theme.text.secondary} />
               </Pressable>
