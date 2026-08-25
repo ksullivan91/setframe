@@ -370,6 +370,18 @@ export default function ProgramEditorScreen() {
         <Text style={[styles.subtitle, { color: theme.text.secondary }]}>
           Manage the workouts and schedule in your program.
         </Text>
+        {/* Matches web: a lower-emphasis "build another one" entry point in
+            the header once the user already has a program. The Programs tab
+            keeps its own copy for the empty case; web makes the same split
+            between this button and its onboarding banner. */}
+        <View style={styles.headerAction}>
+          <Button
+            label="Guided setup"
+            variant="secondary"
+            fullWidth={false}
+            onPress={() => router.push('/program-wizard')}
+          />
+        </View>
       </View>
 
       {/* The one place Training acknowledges a live workout: a way back to
@@ -498,7 +510,17 @@ export default function ProgramEditorScreen() {
                     : null,
                 ]}
               >
-                <Text style={[styles.bodyText, { color: theme.text.primary, flex: 1 }]}>{workout.name}</Text>
+                {/* Web's rows carry the estimated duration under the name;
+                    it is often the thing that distinguishes two similarly
+                    named workouts at a glance. */}
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.bodyText, { color: theme.text.primary }]}>{workout.name}</Text>
+                  {workout.estimatedDurationMinutes != null ? (
+                    <Text style={[styles.helpText, { color: theme.text.secondary }]}>
+                      ~{workout.estimatedDurationMinutes} min
+                    </Text>
+                  ) : null}
+                </View>
                 <ChevronRight size={16} color={theme.text.secondary} />
               </Pressable>
             ))
@@ -593,6 +615,19 @@ export default function ProgramEditorScreen() {
           <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>
             {dayTypeById.get(selectedDayTypeId)?.name ?? 'Workout'}
           </Text>
+          {/* Web summarises the workout under its name — the count is how a
+              user judges whether a training day is actually built out. */}
+          {(() => {
+            const count = selectedDayTypeDetailQuery.data?.exercises.length ?? 0;
+            const minutes = dayTypeById.get(selectedDayTypeId)?.estimatedDurationMinutes;
+            if (selectedDayTypeDetailQuery.isLoading || selectedDayTypeDetailQuery.isError) return null;
+            return (
+              <Text style={[styles.helpText, { color: theme.text.secondary }]}>
+                {count} {count === 1 ? 'exercise' : 'exercises'}
+                {minutes != null ? ` · approximately ${minutes} min` : ''}
+              </Text>
+            );
+          })()}
           {selectedDayTypeDetailQuery.isLoading ? (
             <ActivityIndicator color={theme.action.primary} />
           ) : selectedDayTypeDetailQuery.isError ? (
@@ -708,6 +743,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   /* Supporting copy under a section heading — web's `Small`. */
+  headerAction: {
+    marginTop: spacing[12],
+    alignSelf: 'flex-start',
+  },
   helpText: {
     fontSize: typeScale.compactBody.fontSize,
   },
