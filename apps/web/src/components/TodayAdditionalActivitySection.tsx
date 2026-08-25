@@ -2,8 +2,8 @@ import { useState } from 'react';
 import styled from 'styled-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2, Pencil } from 'lucide-react';
-import type { AdditionalActivity, AdditionalActivityType, User } from '@setframe/schemas';
-import { getAdditionalActivityFields } from '@setframe/domain';
+import type { AdditionalActivity, AdditionalActivityPreset, AdditionalActivityType, User } from '@setframe/schemas';
+import { deriveRecentActivitySuggestions, getAdditionalActivityFields, type RecentActivitySuggestion } from '@setframe/domain';
 import { radius, spacing } from '@setframe/design-tokens';
 import { Button } from './Button';
 import { Card } from './Card';
@@ -42,6 +42,18 @@ function formatActivityDuration(seconds: number | null): string | null {
 function formatActivityTime(startedAt: string | null): string | null {
   if (!startedAt) return null;
   return new Date(startedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+
+function daysAgo(localDate: string, days: number): string {
+  const date = new Date(`${localDate}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() - days);
+  return date.toISOString().slice(0, 10);
+}
+
+function suggestionLabel(suggestion: { activityType: AdditionalActivityType; title: string | null; durationSeconds: number | null }): string {
+  const duration = formatActivityDuration(suggestion.durationSeconds);
+  const name = suggestion.title || activityTypeLabels[suggestion.activityType];
+  return duration ? `${name} · ${duration}` : name;
 }
 
 interface ActivityDraft {
@@ -165,6 +177,81 @@ const ErrorRow = styled.div`
   gap: ${spacing[8]}px;
 `;
 
+const QuickAddSection = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${spacing[8]}px;
+`;
+
+const QuickAddLabel = styled.span`
+  font-size: ${typeScale.helper.fontSize}px;
+  color: ${(p) => p.theme.text.secondary};
+`;
+
+const ChipRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: ${spacing[8]}px;
+`;
+
+// A plain div, not a <button> — the removable variant nests a real <button>
+// (ChipRemove) inside it, which HTML doesn't allow inside an actual button
+// element. Suggestion chips (no remove affordance) use ChipButton instead.
+const Chip = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${spacing[4]}px;
+  border: 1px solid ${(p) => p.theme.border.default};
+  background: ${(p) => p.theme.surface.raised};
+  border-radius: ${radius.small}px;
+  padding: ${spacing[4]}px ${spacing[8]}px;
+  font-size: ${typeScale.helper.fontSize}px;
+  color: ${(p) => p.theme.text.primary};
+`;
+
+const ChipButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: ${spacing[4]}px;
+  border: 1px solid ${(p) => p.theme.border.default};
+  background: ${(p) => p.theme.surface.raised};
+  border-radius: ${radius.small}px;
+  padding: ${spacing[4]}px ${spacing[8]}px;
+  font-size: ${typeScale.helper.fontSize}px;
+  color: ${(p) => p.theme.text.primary};
+  cursor: pointer;
+`;
+
+const ChipLabel = styled.button`
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+`;
+
+const ChipRemove = styled.button`
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  color: ${(p) => p.theme.text.disabled};
+
+  &:hover {
+    color: ${(p) => p.theme.status.error};
+  }
+`;
+
+const SavePresetRow = styled.div`
+  display: flex;
+  align-items: flex-end;
+  gap: ${spacing[8]}px;
+`;
+
 /**
  * Story 41 — a distinct, visually-secondary section for supplemental
  * movement (walks, yoga, mobility) outside the scheduled workout. Fetches
@@ -186,11 +273,36 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
   const [editTarget, setEditTarget] = useState<AdditionalActivity | null>(null);
   const [draft, setDraft] = useState<ActivityDraft>(emptyDraft('mi'));
   const [pendingDelete, setPendingDelete] = useState<AdditionalActivity | null>(null);
+  const [presetTitleDraft, setPresetTitleDraft] = useState('');
 
   const query = useQuery({
     queryKey: ['additional-activities', localDate],
     queryFn: () => api.get<{ items: AdditionalActivity[] }>(`/additional-activities?localDate=${localDate}`),
   });
+
+  // Story 43 — recent suggestions only matter while adding something new,
+  // so this only fetches once the form is actually open, and never for an
+  // edit (there's nothing to "suggest" when a specific activity is already
+  // selected). A 30-day window is enough recency to be useful without
+  // pulling a user's entire history for a dedup pass that only keeps 3.
+  const recentsQuery = useQuery({
+    queryKey: ['additional-activities', 'recents', localDate],
+    queryFn: () =>
+      api.get<{ items: AdditionalActivity[] }>(
+        `/additional-activities?from=${daysAgo(localDate, 30)}&to=${localDate}`,
+      ),
+    enabled: formOpen && !editTarget,
+  });
+  // Only fetched while the form that would show them is actually open —
+  // otherwise every Today page load would fetch shortcuts nobody asked for.
+  const presetsQuery = useQuery({
+    queryKey: ['additional-activity-presets'],
+    queryFn: () => api.get<{ items: AdditionalActivityPreset[] }>('/additional-activity-presets'),
+    enabled: formOpen && !editTarget,
+  });
+  const recentSuggestions: RecentActivitySuggestion[] = recentsQuery.data?.items
+    ? deriveRecentActivitySuggestions(recentsQuery.data.items)
+    : [];
 
   // Story 42 — a new activity's distance unit defaults to the user's
   // preference; editing an existing one still preserves its own stored
@@ -203,6 +315,7 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
   function openAdd() {
     setEditTarget(null);
     setDraft(emptyDraft(preferredDistanceUnit));
+    setPresetTitleDraft('');
     setFormOpen(true);
   }
 
@@ -210,6 +323,20 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
     setEditTarget(activity);
     setDraft(draftFromActivity(activity));
     setFormOpen(true);
+  }
+
+  // Story 43 — a tapped shortcut prefills the form for review, it never
+  // saves directly: the user still has to hit Save, and can change
+  // anything first (AC: "user can modify values before save").
+  function applySuggestion(suggestion: RecentActivitySuggestion) {
+    setDraft((prev) => ({
+      ...prev,
+      activityType: suggestion.activityType,
+      title: suggestion.title ?? '',
+      durationMinutes: suggestion.durationSeconds != null ? String(Math.round(suggestion.durationSeconds / 60)) : '',
+      distanceValue: suggestion.distanceValue != null ? String(suggestion.distanceValue) : '',
+      distanceUnit: suggestion.distanceUnit ?? prev.distanceUnit,
+    }));
   }
 
   function buildBody() {
@@ -264,6 +391,34 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
       toast.show({ variant: 'success', message: 'Activity removed.' });
     },
     onError: () => toast.show({ variant: 'error', message: 'Could not remove activity.' }),
+  });
+
+  const refreshPresets = () => queryClient.invalidateQueries({ queryKey: ['additional-activity-presets'] });
+
+  const savePresetMutation = useMutation({
+    mutationFn: () => {
+      const fields = new Set(getAdditionalActivityFields(draft.activityType));
+      return api.post('/additional-activity-presets', {
+        title: presetTitleDraft.trim(),
+        activityType: draft.activityType,
+        defaultDurationSeconds: fields.has('duration') && draft.durationMinutes ? Math.round(Number(draft.durationMinutes) * 60) : undefined,
+        defaultDistanceValue: fields.has('distance') && draft.distanceValue ? Number(draft.distanceValue) : undefined,
+        defaultDistanceUnit: fields.has('distance') && draft.distanceValue ? draft.distanceUnit : undefined,
+        defaultNotes: fields.has('notes') ? draft.notes || undefined : undefined,
+      });
+    },
+    onSuccess: async () => {
+      await refreshPresets();
+      setPresetTitleDraft('');
+      toast.show({ variant: 'success', message: 'Quick activity saved.' });
+    },
+    onError: () => toast.show({ variant: 'error', message: 'Could not save quick activity.' }),
+  });
+
+  const deletePresetMutation = useMutation({
+    mutationFn: (id: string) => api.del(`/additional-activity-presets/${id}`),
+    onSuccess: refreshPresets,
+    onError: () => toast.show({ variant: 'error', message: 'Could not remove quick activity.' }),
   });
 
   const items = query.data?.items ?? [];
@@ -339,6 +494,48 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
         title={editTarget ? 'Edit activity' : 'Add activity'}
       >
         <FormGrid>
+          {!editTarget && (recentSuggestions.length > 0 || (presetsQuery.data?.items?.length ?? 0) > 0) ? (
+            <QuickAddSection>
+              <QuickAddLabel>Quick add</QuickAddLabel>
+              <ChipRow>
+                {(presetsQuery.data?.items ?? []).map((preset) => (
+                  <Chip key={preset.id}>
+                    <ChipLabel
+                      type="button"
+                      onClick={() =>
+                        applySuggestion({
+                          activityType: preset.activityType,
+                          // "Other" is the one type with a required name
+                          // field — the preset's own title is the only
+                          // sensible default for it, otherwise applying the
+                          // shortcut would leave Save permanently disabled
+                          // until the user retyped the name by hand.
+                          title: preset.activityType === 'other' ? preset.title : null,
+                          durationSeconds: preset.defaultDurationSeconds,
+                          distanceValue: preset.defaultDistanceValue,
+                          distanceUnit: preset.defaultDistanceUnit,
+                        })
+                      }
+                    >
+                      {preset.title}
+                    </ChipLabel>
+                    <ChipRemove
+                      type="button"
+                      aria-label={`Remove ${preset.title} shortcut`}
+                      onClick={() => deletePresetMutation.mutate(preset.id)}
+                    >
+                      ×
+                    </ChipRemove>
+                  </Chip>
+                ))}
+                {recentSuggestions.map((suggestion, index) => (
+                  <ChipButton key={`recent-${index}`} type="button" onClick={() => applySuggestion(suggestion)}>
+                    {suggestionLabel(suggestion)}
+                  </ChipButton>
+                ))}
+              </ChipRow>
+            </QuickAddSection>
+          ) : null}
           <Select
             label="Activity"
             options={activityTypeOptions}
@@ -386,6 +583,23 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
               value={draft.notes}
               onChange={(event) => setDraft((prev) => ({ ...prev, notes: event.target.value }))}
             />
+          ) : null}
+          {!editTarget ? (
+            <SavePresetRow>
+              <Input
+                label="Save as quick activity"
+                placeholder="e.g. Post-meal walk"
+                value={presetTitleDraft}
+                onChange={(event) => setPresetTitleDraft(event.target.value)}
+              />
+              <Button
+                variant="secondary"
+                onClick={() => savePresetMutation.mutate()}
+                disabled={!presetTitleDraft.trim() || !canSave || savePresetMutation.isPending}
+              >
+                Save shortcut
+              </Button>
+            </SavePresetRow>
           ) : null}
           <Actions>
             <Button variant="secondary" onClick={() => setFormOpen(false)}>

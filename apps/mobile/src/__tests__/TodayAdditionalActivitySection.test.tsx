@@ -4,9 +4,11 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '../theme/ThemeProvider';
 import { TodayAdditionalActivitySection } from '../components/TodayAdditionalActivitySection';
-import type { AdditionalActivity } from '@setframe/schemas';
+import type { AdditionalActivity, AdditionalActivityPreset } from '@setframe/schemas';
 
 let mockItems: AdditionalActivity[] = [];
+let mockRecentItems: AdditionalActivity[] = [];
+let mockPresets: AdditionalActivityPreset[] = [];
 let mockGetError = false;
 let mockPreferredUnits: 'imperial' | 'metric' = 'imperial';
 const mockPost = jest.fn((_path: string, body?: unknown) => Promise.resolve(body));
@@ -28,6 +30,8 @@ jest.mock('../lib/api-client', () => {
       get: (path: string) => {
         if (mockGetError) return Promise.reject(new Error('network error'));
         if (path === '/me') return Promise.resolve({ preferredUnits: mockPreferredUnits });
+        if (path === '/additional-activity-presets') return Promise.resolve({ items: mockPresets });
+        if (path.includes('from=')) return Promise.resolve({ items: mockRecentItems });
         return Promise.resolve({ items: mockItems });
       },
       post: (path: string, body?: unknown) => mockPost(path, body),
@@ -75,6 +79,17 @@ function pressablesByLabel(rendered: ReactTestRenderer, label: string) {
   );
 }
 
+// Chip labels are bare Pressables around Text with no accessibilityLabel —
+// find the nearest pressable ancestor of the matching text instead.
+function pressableForText(rendered: ReactTestRenderer, text: string) {
+  let current = textNodesContaining(rendered, text)[0] ?? null;
+  while (current) {
+    if (typeof current.props?.onPress === 'function') return current;
+    current = current.parent;
+  }
+  return null;
+}
+
 async function flush() {
   for (let i = 0; i < 10; i += 1) {
     await act(async () => {
@@ -104,6 +119,8 @@ afterEach(() => {
   });
   tree = null;
   mockItems = [];
+  mockRecentItems = [];
+  mockPresets = [];
   mockGetError = false;
   mockPreferredUnits = 'imperial';
   jest.clearAllMocks();
@@ -323,5 +340,147 @@ describe('TodayAdditionalActivitySection activity-type-driven fields', () => {
     expect(mockPatch).toHaveBeenCalled();
     const [, body] = mockPatch.mock.calls[0]!;
     expect(body as object).not.toHaveProperty('title', null);
+  });
+});
+
+function preset(overrides: Partial<AdditionalActivityPreset> = {}): AdditionalActivityPreset {
+  return {
+    id: 'preset-1',
+    title: 'Post-meal walk',
+    activityType: 'walk',
+    defaultDurationSeconds: 900,
+    defaultDistanceValue: null,
+    defaultDistanceUnit: null,
+    defaultNotes: null,
+    createdAt: '2026-08-01T12:00:00.000Z',
+    updatedAt: '2026-08-01T12:00:00.000Z',
+    ...overrides,
+  };
+}
+
+/** Story 43 — reusable quick activity shortcuts (recent + saved presets). */
+describe('TodayAdditionalActivitySection quick activity shortcuts', () => {
+  it('shows no Quick add row for a new user with no history and no saved shortcuts', async () => {
+    const rendered = await renderSection();
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Add activity')[0]!.props.onPress();
+    });
+    await flush();
+
+    expect(textNodesContaining(rendered, 'Quick add')).toHaveLength(0);
+  });
+
+  it('shows a saved preset as a tappable shortcut and prefills the sheet without saving', async () => {
+    mockPresets = [preset()];
+    const rendered = await renderSection();
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Add activity')[0]!.props.onPress();
+    });
+    await flush();
+
+    await act(async () => {
+      pressableForText(rendered, 'Post-meal walk')!.props.onPress();
+    });
+    await flush();
+
+    const durationField = rendered.root.findAll(
+      (node) => node.props?.label === 'Duration' && typeof node.props?.onChangeText === 'function',
+    )[0];
+    expect(durationField!.props.value).toBe('15');
+    expect(mockPost).not.toHaveBeenCalled();
+  });
+
+  // Regression: applying a preset used to always clear the activity name,
+  // which is a *required* field for "Other" — Save stayed disabled after
+  // the one-tap shortcut until the user retyped the name by hand.
+  it('carries the preset name into the required Activity name field for "Other"', async () => {
+    mockPresets = [preset({ activityType: 'other', title: 'Jump rope' })];
+    const rendered = await renderSection();
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Add activity')[0]!.props.onPress();
+    });
+    await flush();
+
+    await act(async () => {
+      pressableForText(rendered, 'Jump rope')!.props.onPress();
+    });
+    await flush();
+
+    const titleField = rendered.root.findAll(
+      (node) => node.props?.label === 'Activity name' && typeof node.props?.onChangeText === 'function',
+    )[0];
+    expect(titleField!.props.value).toBe('Jump rope');
+    const saveButton = rendered.root.findAll((node) => node.props?.label === 'Save' && node.props?.onPress)[0];
+    expect(saveButton!.props.disabled).toBe(false);
+  });
+
+  it('derives a recent suggestion from activity history, deduplicated', async () => {
+    mockRecentItems = [
+      walkActivity({ id: 'a1', durationSeconds: 600, createdAt: '2026-08-20T08:00:00.000Z' }),
+      walkActivity({ id: 'a2', durationSeconds: 600, createdAt: '2026-08-23T08:00:00.000Z' }),
+    ];
+    const rendered = await renderSection();
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Add activity')[0]!.props.onPress();
+    });
+    await flush();
+
+    expect(textNodesContaining(rendered, 'Walk · 10 min')).toHaveLength(1);
+  });
+
+  it('saves the current draft as a named quick activity shortcut', async () => {
+    const rendered = await renderSection();
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Add activity')[0]!.props.onPress();
+    });
+    await flush();
+
+    const durationField = rendered.root.findAll(
+      (node) => node.props?.label === 'Duration' && typeof node.props?.onChangeText === 'function',
+    )[0];
+    await act(async () => {
+      durationField!.props.onChangeText('15');
+    });
+    const presetTitleField = rendered.root.findAll(
+      (node) => node.props?.label === 'Save as quick activity' && typeof node.props?.onChangeText === 'function',
+    )[0];
+    await act(async () => {
+      presetTitleField!.props.onChangeText('Post-meal walk');
+    });
+    await act(async () => {
+      rendered.root.findAll((node) => node.props?.label === 'Save shortcut' && node.props?.onPress)[0]!.props.onPress();
+    });
+    await flush();
+
+    expect(mockPost).toHaveBeenCalledWith(
+      '/additional-activity-presets',
+      expect.objectContaining({ title: 'Post-meal walk', activityType: 'walk', defaultDurationSeconds: 900 }),
+    );
+  });
+
+  it('removes a saved shortcut without applying it', async () => {
+    mockPresets = [preset()];
+    const rendered = await renderSection();
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Add activity')[0]!.props.onPress();
+    });
+    await flush();
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Remove Post-meal walk shortcut')[0]!.props.onPress();
+    });
+    await flush();
+
+    expect(mockDel).toHaveBeenCalledWith('/additional-activity-presets/preset-1');
+    const durationField = rendered.root.findAll(
+      (node) => node.props?.label === 'Duration' && typeof node.props?.onChangeText === 'function',
+    )[0];
+    expect(durationField!.props.value).toBe('');
   });
 });

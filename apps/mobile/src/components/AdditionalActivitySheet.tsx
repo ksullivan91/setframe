@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { spacing } from '@setframe/design-tokens';
-import type { AdditionalActivity, AdditionalActivityType } from '@setframe/schemas';
-import { getAdditionalActivityFields } from '@setframe/domain';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { X } from 'lucide-react-native';
+import { radius, spacing } from '@setframe/design-tokens';
+import type { AdditionalActivity, AdditionalActivityPreset, AdditionalActivityType } from '@setframe/schemas';
+import { getAdditionalActivityFields, type RecentActivitySuggestion } from '@setframe/domain';
 import { useTheme } from '../theme/ThemeProvider';
 import { typeScale } from '../theme/getTheme';
 import { Button } from './Button';
@@ -65,6 +66,17 @@ export function canSaveActivityDraft(draft: ActivityDraft): boolean {
   return draft.durationMinutes.trim() !== '' && (!fields.has('title') || draft.title.trim() !== '');
 }
 
+function formatActivityDuration(seconds: number | null): string | null {
+  if (seconds == null) return null;
+  return `${Math.round(seconds / 60)} min`;
+}
+
+function suggestionLabel(suggestion: { activityType: AdditionalActivityType; title: string | null; durationSeconds: number | null }): string {
+  const duration = formatActivityDuration(suggestion.durationSeconds);
+  const name = suggestion.title || activityTypeLabels[suggestion.activityType];
+  return duration ? `${name} · ${duration}` : name;
+}
+
 export interface AdditionalActivitySheetProps {
   visible: boolean;
   isEditing: boolean;
@@ -73,6 +85,16 @@ export interface AdditionalActivitySheetProps {
   onClose: () => void;
   onSave: () => void;
   isSaving?: boolean;
+  /** Story 43 — quick activity shortcuts. Only relevant while adding
+   * something new; the parent omits these props while editing. */
+  presets?: AdditionalActivityPreset[];
+  recentSuggestions?: RecentActivitySuggestion[];
+  onApplySuggestion?: (suggestion: RecentActivitySuggestion) => void;
+  onRemovePreset?: (id: string) => void;
+  presetTitleDraft?: string;
+  onPresetTitleChange?: (value: string) => void;
+  onSavePreset?: () => void;
+  isSavingPreset?: boolean;
 }
 
 /**
@@ -89,6 +111,14 @@ export function AdditionalActivitySheet({
   onClose,
   onSave,
   isSaving = false,
+  presets = [],
+  recentSuggestions = [],
+  onApplySuggestion,
+  onRemovePreset,
+  presetTitleDraft = '',
+  onPresetTitleChange,
+  onSavePreset,
+  isSavingPreset = false,
 }: AdditionalActivitySheetProps) {
   const theme = useTheme();
   const [localDraft, setLocalDraft] = useState(draft);
@@ -108,6 +138,51 @@ export function AdditionalActivitySheet({
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.text.primary }]}>{isEditing ? 'Edit activity' : 'Add activity'}</Text>
       </View>
+      {!isEditing && (presets.length > 0 || recentSuggestions.length > 0) ? (
+        <View style={styles.quickAdd}>
+          <Text style={[styles.quickAddLabel, { color: theme.text.secondary }]}>Quick add</Text>
+          <View style={styles.chipRow}>
+            {presets.map((preset) => (
+              <View key={preset.id} style={[styles.chip, { borderColor: theme.border.default, backgroundColor: theme.surface.raised }]}>
+                <Pressable
+                  onPress={() =>
+                    onApplySuggestion?.({
+                      activityType: preset.activityType,
+                      // "Other" is the one type with a required name field
+                      // — the preset's own title is the only sensible
+                      // default for it, otherwise applying the shortcut
+                      // would leave Save permanently disabled until the
+                      // user retyped the name by hand.
+                      title: preset.activityType === 'other' ? preset.title : null,
+                      durationSeconds: preset.defaultDurationSeconds,
+                      distanceValue: preset.defaultDistanceValue,
+                      distanceUnit: preset.defaultDistanceUnit,
+                    })
+                  }
+                >
+                  <Text style={{ color: theme.text.primary, fontSize: typeScale.helper.fontSize }}>{preset.title}</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityLabel={`Remove ${preset.title} shortcut`}
+                  hitSlop={8}
+                  onPress={() => onRemovePreset?.(preset.id)}
+                >
+                  <X size={12} color={theme.text.disabled} />
+                </Pressable>
+              </View>
+            ))}
+            {recentSuggestions.map((suggestion, index) => (
+              <Pressable
+                key={`recent-${index}`}
+                style={[styles.chip, { borderColor: theme.border.default, backgroundColor: theme.surface.raised }]}
+                onPress={() => onApplySuggestion?.(suggestion)}
+              >
+                <Text style={{ color: theme.text.primary, fontSize: typeScale.helper.fontSize }}>{suggestionLabel(suggestion)}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ) : null}
       <Select label="Activity" value={localDraft.activityType} options={activityTypeOptions} onChange={(value) => update({ activityType: value })} />
       {fields.has('title') ? (
         <Input label="Activity name" value={localDraft.title} onChangeText={(value) => update({ title: value })} />
@@ -122,6 +197,25 @@ export function AdditionalActivitySheet({
         <Input label="Start time" placeholder="HH:MM" value={localDraft.startTime} onChangeText={(value) => update({ startTime: value })} />
       ) : null}
       {fields.has('notes') ? <Input label="Notes" value={localDraft.notes} onChangeText={(value) => update({ notes: value })} /> : null}
+      {!isEditing && onSavePreset ? (
+        <View style={styles.savePresetRow}>
+          <View style={styles.savePresetInput}>
+            <Input
+              label="Save as quick activity"
+              placeholder="e.g. Post-meal walk"
+              value={presetTitleDraft}
+              onChangeText={(value) => onPresetTitleChange?.(value)}
+            />
+          </View>
+          <Button
+            label="Save shortcut"
+            variant="secondary"
+            onPress={onSavePreset}
+            loading={isSavingPreset}
+            disabled={!presetTitleDraft.trim() || !canSaveActivityDraft(localDraft)}
+          />
+        </View>
+      ) : null}
       <View style={styles.actions}>
         <Button label="Cancel" variant="secondary" onPress={onClose} />
         <Button label="Save" onPress={onSave} loading={isSaving} disabled={!canSaveActivityDraft(localDraft)} />
@@ -134,4 +228,18 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { fontSize: typeScale.sectionTitle.fontSize, fontWeight: '600' },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing[8] },
+  quickAdd: { gap: spacing[8] },
+  quickAddLabel: { fontSize: typeScale.helper.fontSize },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[8] },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[4],
+    borderWidth: 1,
+    borderRadius: radius.small,
+    paddingVertical: spacing[4],
+    paddingHorizontal: spacing[8],
+  },
+  savePresetRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing[8] },
+  savePresetInput: { flex: 1 },
 });

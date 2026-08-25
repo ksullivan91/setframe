@@ -64,3 +64,31 @@ export const updateAdditionalActivitySchema = createAdditionalActivitySchema
   .omit({ localDate: true, timezone: true, source: true, externalSourceId: true })
   .partial();
 export type UpdateAdditionalActivityInput = z.infer<typeof updateAdditionalActivitySchema>;
+
+/**
+ * Story 43 — a saved shortcut for a frequently-repeated activity. Stores
+ * defaults only, never a reference to a specific logged activity; tapping
+ * one prefills the add form for review, it never saves directly.
+ */
+export const additionalActivityPresetSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string(),
+  activityType: additionalActivityTypeSchema,
+  defaultDurationSeconds: z.number().int().positive().nullable(),
+  defaultDistanceValue: z.number().positive().nullable(),
+  defaultDistanceUnit: z.enum(['m', 'km', 'mi']).nullable(),
+  defaultNotes: z.string().nullable(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type AdditionalActivityPreset = z.infer<typeof additionalActivityPresetSchema>;
+
+export const createAdditionalActivityPresetSchema = z.object({
+  title: z.string().min(1).max(60),
+  activityType: additionalActivityTypeSchema,
+  defaultDurationSeconds: z.number().int().positive().nullable().optional(),
+  defaultDistanceValue: z.number().positive().nullable().optional(),
+  defaultDistanceUnit: z.enum(['m', 'km', 'mi']).nullable().optional(),
+  defaultNotes: z.string().max(500).nullable().optional(),
+});
+export type CreateAdditionalActivityPresetInput = z.infer<typeof createAdditionalActivityPresetSchema>;
