@@ -170,3 +170,58 @@ describe('LineChart scrub', () => {
     );
   });
 });
+
+/**
+ * Story 49 — the smoothed line carries the actual signal, but it lived only
+ * in the drawing: the text equivalent listed the raw measurements alone, so a
+ * screen-reader user was never told a trend existed, let alone which number
+ * was measured and which was derived.
+ */
+describe('LineChart trend accessibility', () => {
+  const raw: SeriesPoint[] = [
+    { localDate: '2026-01-01', value: 180 },
+    { localDate: '2026-01-02', value: 182 },
+    { localDate: '2026-01-03', value: 181 },
+  ];
+  // Starts a day late, as a real smoothed series does before it has history.
+  const trend: SeriesPoint[] = [
+    { localDate: '2026-01-02', value: 181 },
+    { localDate: '2026-01-03', value: 181.4 },
+  ];
+
+  function renderLine(trendSeries?: SeriesPoint[]) {
+    return render(
+      <ThemeProvider theme={getTheme('light')}>
+        <LineChart
+          series={raw}
+          trendSeries={trendSeries}
+          formatValue={(v) => `${v.toFixed(1)} lb`}
+          label="Body weight"
+        />
+      </ThemeProvider>,
+    );
+  }
+
+  it('names the measured and derived columns separately', () => {
+    renderLine(trend);
+    expect(screen.getByRole('columnheader', { name: 'Measured' })).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: 'Trend' })).toBeTruthy();
+  });
+
+  it('gives each period both its measurement and its trend value', () => {
+    renderLine(trend);
+    const row = screen.getByRole('row', { name: /Jan 3/ });
+    expect(row.textContent).toContain('181.0 lb');
+    expect(row.textContent).toContain('181.4 lb');
+  });
+
+  it('says so rather than implying a value where the trend has not started', () => {
+    renderLine(trend);
+    expect(screen.getByRole('row', { name: /Jan 1/ }).textContent).toContain('no trend yet');
+  });
+
+  it('omits the trend column entirely when no trend is drawn', () => {
+    renderLine(undefined);
+    expect(screen.queryByRole('columnheader', { name: 'Trend' })).toBeNull();
+  });
+});

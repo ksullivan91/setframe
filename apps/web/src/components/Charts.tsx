@@ -178,6 +178,12 @@ export function LineChart({
   );
 
   const plotted = rawChart.points;
+  /* Keyed by date because the two series are bucketed identically but the
+     trend can start later, once there is enough history to smooth. */
+  const trendByDate = useMemo(
+    () => new Map((trendChart?.points ?? []).map((point) => [point.localDate, point])),
+    [trendChart],
+  );
   const selectedPoint = selected != null ? plotted.find((point) => point.index === selected) : null;
 
   if (!plotted.length) return null;
@@ -350,17 +356,34 @@ export function LineChart({
         )}
       </Readout>
 
-      {/* Text equivalent — the same information without the picture. */}
+      {/* Text equivalent — the same information without the picture. The
+          smoothed line is a separate labelled column rather than being folded
+          in with the measurements, so the distinction between what was
+          recorded and what was derived survives without the colours. */}
       <VisuallyHidden>
         <table>
           <caption>{label}</caption>
+          <thead>
+            <tr>
+              <th scope="col">Period</th>
+              <th scope="col">Measured</th>
+              {trendChart ? <th scope="col">Trend</th> : null}
+            </tr>
+          </thead>
           <tbody>
-            {plotted.map((point) => (
-              <tr key={`row-${point.index}`}>
-                <th scope="row">{formatPeriod(point.localDate)}</th>
-                <td>{formatValue(point.value)}</td>
-              </tr>
-            ))}
+            {plotted.map((point) => {
+              const context = describePoint?.(point.index);
+              const trendPoint = trendByDate.get(point.localDate);
+              return (
+                <tr key={`row-${point.index}`}>
+                  <th scope="row">{formatPeriod(point.localDate)}</th>
+                  <td>{context ? `${formatValue(point.value)} (${context})` : formatValue(point.value)}</td>
+                  {trendChart ? (
+                    <td>{trendPoint ? formatValue(trendPoint.value) : 'no trend yet'}</td>
+                  ) : null}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </VisuallyHidden>

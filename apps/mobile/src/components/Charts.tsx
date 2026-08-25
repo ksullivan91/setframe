@@ -170,12 +170,21 @@ export function LineChart({
     if (best != null && best !== lastSelected.current) select(best);
   };
 
+  /* The smoothed line is named as such per period rather than folded in with
+     the measurements, so the distinction between what was recorded and what
+     was derived survives for VoiceOver. Mirrors the web table's columns. */
+  const trendByDate = new Map((trendChart?.points ?? []).map((point) => [point.localDate, point]));
   const tableLabel = `${label}. ${plotted
-    .map((point) =>
-      [`${formatPeriod(point.localDate)}: ${formatValue(point.value)}`, describePoint?.(point.index)]
+    .map((point) => {
+      const trendPoint = trendByDate.get(point.localDate);
+      return [
+        `${formatPeriod(point.localDate)}: measured ${formatValue(point.value)}`,
+        describePoint?.(point.index),
+        trendChart ? (trendPoint ? `trend ${formatValue(trendPoint.value)}` : 'no trend yet') : null,
+      ]
         .filter(Boolean)
-        .join(', '),
-    )
+        .join(', ');
+    })
     .join('. ')}`;
 
   return (
