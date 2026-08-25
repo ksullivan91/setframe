@@ -9,11 +9,9 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
-- `setframe-progress-experience-rebuild/` — stories 46, 48–51 remain (47
+- `setframe-progress-experience-rebuild/` — stories 48–51 remain (46, 47
   shipped), the Progress page rebuilt as a core product experience rather
   than static reporting.
-  46: re-anchor contextual help to its trigger (the current mobile path
-  centers a card in the viewport, decoupled from the `?` that opened it).
   48: a universal time-range and
   interaction model with *real* per-range aggregation (today's
   `filterByRange` only trims a trailing window — every range renders the
@@ -122,6 +120,15 @@ alongside their stories, named `README-{range}-{review}.md`.
 - `completed/43-quick-activity-shortcuts.md` — story 43, saved presets
   (new `additional_activity_preset` table) plus recency-deduped
   suggestions, tap-to-prefill only — never auto-logs.
+- `completed/46-progress-contextual-help-popovers.md` — story 46,
+  contextual help re-anchored to its trigger at every width on web (via
+  Floating UI — collision detection, flip, shift and portalling, which
+  Story 30 hand-rolled and shipped four regressions attempting). The
+  full-viewport backdrop that was intercepting taps — the cause of
+  two-tap tooltip switching — is gone. Mobile keeps its bottom `Sheet`
+  deliberately: that is this story's own sanctioned escalation for narrow
+  screens, and the reported breakage was mobile *web*, which is what got
+  anchored.
 - `completed/47-charting-technology-spike.md` — story 47, the charting
   decision spike. Outcome: **keep the hand-rolled SVG architecture and
   extend it** (ADR 0008). Scrub — the capability that looked like it
