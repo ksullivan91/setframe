@@ -329,11 +329,19 @@ export default function TodayScreen() {
         timezone: localTimezone(),
       });
     },
-    onSuccess: (session) => {
+    onSuccess: async (session) => {
+      /* Refresh Today before navigating. This screen stays mounted behind
+         the pushed logger, and its own dedup guard above reads
+         `sessions.find(status === 'in_progress')` from this cache — so a
+         stale copy means a second "Start workout" press does not see the
+         session that was just created and POSTs another one, duplicating
+         the workout and deleting that date's `rest_day`. Nothing else
+         refreshes it: the app never wires react-query's focusManager. */
+      await queryClient.invalidateQueries({ queryKey: ['today', localDate] });
       /* Hand the logger the session id explicitly rather than letting it
          re-derive one. A session-scoped screen working out its own subject
          is what produced both the duplicate-session bug (it guessed wrong
-         and created another) and the dead-end that followed (it guessed
+         and created another) and the dead end that followed (it guessed
          nothing and showed an empty state). The logger now requires this
          id and cannot create a session at all. */
       router.push({ pathname: '/workout/[sessionId]', params: { sessionId: session.id } });

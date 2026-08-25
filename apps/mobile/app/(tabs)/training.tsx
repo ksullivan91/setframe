@@ -13,6 +13,7 @@ import { WeekScheduleEditor } from '../../src/components/WeekScheduleEditor';
 import { AddExercisePicker } from '../../src/components/AddExercisePicker';
 import { ExerciseEditSheet, type ExerciseEditState } from '../../src/components/ExerciseEditSheet';
 import { useApiClient } from '../../src/lib/api-client';
+import { useLocalDate } from '../../src/lib/useLocalDate';
 import { summarizePrescription } from '../../src/lib/prescription';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { spacing, typeScale } from '../../src/theme/getTheme';
@@ -22,13 +23,6 @@ interface DayTypeDetail extends DayType {
 }
 
 const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-function localDateString() {
-  const now = new Date();
-  const month = `${now.getMonth() + 1}`.padStart(2, '0');
-  const day = `${now.getDate()}`.padStart(2, '0');
-  return `${now.getFullYear()}-${month}-${day}`;
-}
 
 /**
  * The Training tab: where a program is built — programs, workouts,
@@ -50,6 +44,9 @@ export default function ProgramEditorScreen() {
   const router = useRouter();
   const api = useApiClient();
   const queryClient = useQueryClient();
+  /* Story 07: a tab left mounted across midnight must not keep querying
+     yesterday — useLocalDate re-renders on the rollover. */
+  const localDate = useLocalDate();
   const [selectedDayTypeId, setSelectedDayTypeId] = useState<string | null>(null);
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ variant: 'success' | 'error'; message: string } | null>(null);
@@ -72,9 +69,9 @@ export default function ProgramEditorScreen() {
      user who wandered here mid-workout is not stranded. Read-only — this
      screen never starts, resumes or mutates a session. */
   const todayQuery = useQuery({
-    queryKey: ['today', localDateString()],
+    queryKey: ['today', localDate],
     queryFn: () => api.get<{ sessions: { id: string; status: string }[] }>(
-      `/dashboard/today?localDate=${localDateString()}`,
+      `/dashboard/today?localDate=${localDate}`,
     ),
   });
   /* `sessions` is optional-chained rather than assumed: a client can outrun
@@ -168,7 +165,7 @@ export default function ProgramEditorScreen() {
     mutationFn: ({ dayTypeId, exerciseId, prescription }: { dayTypeId: string; exerciseId: string; prescription: Prescription }) =>
       api.post(`/day-types/${dayTypeId}/exercises`, { exerciseId, prescription }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['day-type-detail', selectedDayTypeId] });
+      await queryClient.invalidateQueries({ queryKey: ['day-type', selectedDayTypeId] });
       setShowAddExercise(false);
       setToast({ variant: 'success', message: 'Exercise added.' });
     },
@@ -176,10 +173,13 @@ export default function ProgramEditorScreen() {
   });
 
   const updateExercise = useMutation({
-    mutationFn: ({ dayTypeId, exerciseId, prescription }: { dayTypeId: string; exerciseId: string; prescription: Prescription }) =>
-      api.patch(`/day-types/${dayTypeId}/exercises/${exerciseId}`, { prescription }),
+    // `notes` travels with the prescription: ExerciseEditSheet edits both,
+    // and sending only the prescription silently discarded a note the user
+    // had just typed and been told was saved.
+    mutationFn: ({ dayTypeId, exerciseId, prescription, notes }: { dayTypeId: string; exerciseId: string; prescription: Prescription; notes: string }) =>
+      api.patch(`/day-types/${dayTypeId}/exercises/${exerciseId}`, { prescription, notes: notes || null }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['day-type-detail', selectedDayTypeId] });
+      await queryClient.invalidateQueries({ queryKey: ['day-type', selectedDayTypeId] });
       setEditingExercise(null);
       setToast({ variant: 'success', message: 'Exercise updated.' });
     },
@@ -190,7 +190,7 @@ export default function ProgramEditorScreen() {
     mutationFn: ({ dayTypeId, exerciseId }: { dayTypeId: string; exerciseId: string }) =>
       api.del(`/day-types/${dayTypeId}/exercises/${exerciseId}`),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['day-type-detail', selectedDayTypeId] });
+      await queryClient.invalidateQueries({ queryKey: ['day-type', selectedDayTypeId] });
       setEditingExercise(null);
       setToast({ variant: 'success', message: 'Exercise removed.' });
     },
@@ -530,6 +530,7 @@ export default function ProgramEditorScreen() {
               dayTypeId: next.dayTypeId,
               exerciseId: next.exerciseId,
               prescription: next.prescription,
+              notes: next.notes,
             })
           }
           onRemove={() =>

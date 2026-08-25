@@ -7,7 +7,6 @@ import { calculateVolume, estimateOneRepMax, isExerciseComplete, quickEntryField
 import type {
   Exercise,
   Prescription,
-  WorkoutSession,
   WorkoutSessionDetail,
   WorkoutSet,
   WorkoutSetPreviousPerformance,
@@ -44,18 +43,6 @@ import {
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { spacing, typeScale } from '../../src/theme/getTheme';
 
-interface DashboardSessionSummary {
-  id: string;
-  status: 'in_progress' | 'completed' | 'abandoned';
-}
-
-interface DashboardTodayResponse {
-  localDate: string;
-  sessions: DashboardSessionSummary[];
-  dayLabel: string | null;
-  dayTypeId: string | null;
-}
-
 interface ExerciseHistoryItem {
   sessionId: string;
   weightValue: number | null;
@@ -73,17 +60,6 @@ interface SetDraft {
   values: Partial<Record<SessionField, string>>;
   distanceUnit: string;
   completed: boolean;
-}
-
-function localDateString() {
-  const now = new Date();
-  const month = `${now.getMonth() + 1}`.padStart(2, '0');
-  const day = `${now.getDate()}`.padStart(2, '0');
-  return `${now.getFullYear()}-${month}-${day}`;
-}
-
-function localTimezone() {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
 function formatElapsed(startedAt: string | null | undefined, completedAt?: string | null): string {

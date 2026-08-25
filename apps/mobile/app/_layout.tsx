@@ -28,7 +28,12 @@ export default function RootLayout() {
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="sign-in" />
                 <Stack.Screen name="sign-up" />
-                <Stack.Screen name="program-editor" options={{ headerShown: true, title: 'Program Editor' }} />
+                {/* The program editor is now the Training tab, not a pushed
+                    route — `app/program-editor.tsx` no longer exists. */}
+                <Stack.Screen
+                  name="workout/[sessionId]"
+                  options={{ headerShown: true, title: 'Workout' }}
+                />
                 <Stack.Screen name="session-summary" options={{ headerShown: true, title: 'Session Summary' }} />
                 <Stack.Screen
                   name="exercise-history/[exerciseId]"
