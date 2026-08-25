@@ -1,16 +1,18 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, View, Text, Pressable, StyleSheet } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, ScrollView, View, Text, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronRight } from 'lucide-react-native';
+import { ChevronDown, ChevronRight, ChevronUp, MoreVertical, Plus } from 'lucide-react-native';
 import type { DayType, DayTypeExercise, Exercise, Prescription, ProgramScheduleSlot, TrainingProgram } from '@setframe/schemas';
 import { useScreenTopPadding } from '../../src/lib/useScreenInsets';
 import { Card } from '../../src/components/Card';
 import { Badge } from '../../src/components/Badge';
+import { IconButton } from '../../src/components/IconButton';
 import { Tabs } from '../../src/components/Tabs';
 import { Button } from '../../src/components/Button';
 import { Input } from '../../src/components/Input';
 import { Toast } from '../../src/components/Toast';
+import { Sheet } from '../../src/components/Sheet';
 import { WeekScheduleEditor } from '../../src/components/WeekScheduleEditor';
 import { AddExercisePicker } from '../../src/components/AddExercisePicker';
 import { ExerciseEditSheet, type ExerciseEditState } from '../../src/components/ExerciseEditSheet';
@@ -61,6 +63,7 @@ export default function ProgramEditorScreen() {
      form (`CreateWorkoutActions` → `WorkoutCreateForm`); an input wedged
      permanently into the list reads as another list row. */
   const [showCreateWorkout, setShowCreateWorkout] = useState(false);
+  const [showAddExisting, setShowAddExisting] = useState(false);
   const [toast, setToast] = useState<{ variant: 'success' | 'error'; message: string } | null>(null);
   const [newWorkoutName, setNewWorkoutName] = useState('');
   const [newProgramName, setNewProgramName] = useState('');
@@ -231,6 +234,83 @@ export default function ProgramEditorScreen() {
     onError: () => setToast({ variant: 'error', message: 'Could not remove that exercise.' }),
   });
 
+  /* Story 25 made program↔workout membership explicit (`program_day_type`),
+     so these two are genuinely different acts and web offers both: removing
+     from a program leaves the workout intact for every other program that
+     uses it, while deleting destroys it outright. Mobile offered neither —
+     a workout added by mistake could not be taken back off a program, let
+     alone deleted, without switching to the web app. */
+  /* The constructive half of the membership pair. Shipping "Remove from
+     this program" without it made removal a one-way door on mobile: the
+     `day_type` survives exactly as the confirmation promises, but nothing
+     on mobile lists workouts outside the current program, so it could
+     never be added back — the only recovery was the web app, on the one
+     platform whose reason for having this at all was not needing web. */
+  const allDayTypesQuery = useQuery({
+    queryKey: ['day-types'],
+    queryFn: () => api.get<DayType[]>('/day-types'),
+  });
+
+  const addableDayTypes = useMemo(() => {
+    const memberIds = new Set((dayTypesQuery.data ?? []).map((dayType) => dayType.id));
+    return (allDayTypesQuery.data ?? []).filter((dayType) => !memberIds.has(dayType.id));
+  }, [allDayTypesQuery.data, dayTypesQuery.data]);
+
+  const addExistingToProgram = useMutation({
+    mutationFn: (dayTypeId: string) =>
+      api.post<DayType>(`/programs/${selectedProgram?.id}/day-types`, { dayTypeId }),
+    onSuccess: async (added) => {
+      await queryClient.invalidateQueries({ queryKey: ['program-day-types'] });
+      setShowAddExisting(false);
+      setSelectedDayTypeId(added.id);
+      setToast({ variant: 'success', message: `${added.name} added to this program.` });
+    },
+    onError: () => setToast({ variant: 'error', message: 'Could not add that workout.' }),
+  });
+
+  const removeFromProgram = useMutation({
+    mutationFn: (dayTypeId: string) =>
+      api.del(`/programs/${selectedProgram?.id}/day-types/${dayTypeId}`),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['program-day-types'] });
+      await queryClient.invalidateQueries({ queryKey: ['schedule-slots', selectedProgram?.id] });
+      setSelectedDayTypeId(null);
+      setToast({ variant: 'success', message: 'Removed from this program.' });
+    },
+    onError: () =>
+      setToast({ variant: 'error', message: 'Could not remove that workout from the program.' }),
+  });
+
+  const deleteDayType = useMutation({
+    mutationFn: (dayTypeId: string) => api.del(`/day-types/${dayTypeId}`),
+    onSuccess: async () => {
+      /* Both prefixes, deliberately. This route clears the workout's
+         schedule slots and program memberships across *every* program, not
+         just the selected one, so scoping the invalidation to the current
+         program would leave another program's cached schedule still
+         showing a workout that no longer exists. `removeFromProgram` below
+         is correctly scoped because that route only touches this program. */
+      await queryClient.invalidateQueries({ queryKey: ['program-day-types'] });
+      await queryClient.invalidateQueries({ queryKey: ['schedule-slots'] });
+      setSelectedDayTypeId(null);
+      setToast({ variant: 'success', message: 'Workout deleted.' });
+    },
+    onError: () => setToast({ variant: 'error', message: 'Could not delete that workout.' }),
+  });
+
+  /* Order is meaningful — it is the order the exercises appear in during a
+     session — and mobile had no way to change it. ADR 0009 recorded this as
+     web-only because "drag-reorder needs an interaction that doesn't
+     exist", but web does not use drag either: it moves one position at a
+     time with arrow buttons and PUTs the resulting order. Nothing about
+     that is platform-specific. */
+  const reorderExercises = useMutation({
+    mutationFn: ({ dayTypeId, exerciseIdsInOrder }: { dayTypeId: string; exerciseIdsInOrder: string[] }) =>
+      api.post(`/day-types/${dayTypeId}/exercises/reorder`, { exerciseIdsInOrder }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['day-type', selectedDayTypeId] }),
+    onError: () => setToast({ variant: 'error', message: 'Could not reorder those exercises.' }),
+  });
+
   const upsertSlot = useMutation({
     mutationFn: (body: { id?: string; dayTypeId: string; weekNumber: number | null; dayIndex: number; sortOrder: number }) =>
       body.id
@@ -272,6 +352,52 @@ export default function ProgramEditorScreen() {
     return map;
   }, [dayTypesQuery.data]);
 
+  /* Web puts these behind a `⋮` dropdown; the native equivalent is an
+     action sheet, which is also what this app already uses for destructive
+     per-item actions (see the logger's exercise removal). Both actions
+     destroy something, so both confirm — and "Delete permanently" says
+     plainly that it is not scoped to this program, because the two options
+     sit next to each other and the difference is the whole point. */
+  function confirmWorkoutActions(dayTypeId: string, name: string) {
+    Alert.alert(name, undefined, [
+      {
+        text: 'Remove from this program',
+        style: 'destructive',
+        onPress: () =>
+          Alert.alert(
+            `Remove ${name} from ${selectedProgram?.name ?? 'this program'}?`,
+            'The workout itself is kept, along with any other program using it. Its scheduled days in this program are cleared.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Remove',
+                style: 'destructive',
+                onPress: () => removeFromProgram.mutate(dayTypeId),
+              },
+            ],
+          ),
+      },
+      {
+        text: 'Delete permanently',
+        style: 'destructive',
+        onPress: () =>
+          Alert.alert(
+            `Delete ${name}?`,
+            'This deletes the workout for every program that uses it, along with its exercises. Workouts you have already logged are not affected.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Delete',
+                style: 'destructive',
+                onPress: () => deleteDayType.mutate(dayTypeId),
+              },
+            ],
+          ),
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }
+
   const exerciseNameById = useMemo(() => {
     const map = new Map<string, string>();
     (exercisesQuery.data ?? []).forEach((exercise) => map.set(exercise.id, exercise.name));
@@ -297,17 +423,61 @@ export default function ProgramEditorScreen() {
     setSelectedDayTypeId(null);
   }, [selectedProgram?.id]);
 
+  /* Seeds a default selection once per program, not every time the
+     selection happens to be null.
+
+     Re-firing on any null meant deleting or removing a workout re-opened
+     the detail card on whatever was scheduled earliest — the toast said
+     "Workout deleted." while a different workout appeared in its place,
+     which reads as though the wrong one went. Closing the card is the
+     point of nulling it there, so this must not undo that. */
+  const seededForProgramId = useRef<string | null>(null);
   useEffect(() => {
+    const programId = selectedProgram?.id ?? null;
+    if (seededForProgramId.current === programId) return;
     if (!selectedDayTypeId && weekOneSlots.length > 0) {
       setSelectedDayTypeId(weekOneSlots[0]!.dayTypeId);
+      seededForProgramId.current = programId;
     }
-  }, [selectedDayTypeId, weekOneSlots]);
+  }, [selectedDayTypeId, weekOneSlots, selectedProgram?.id]);
 
   const selectedDayTypeDetailQuery = useQuery({
     queryKey: ['day-type', selectedDayTypeId],
     queryFn: () => api.get<DayTypeDetail>(`/day-types/${selectedDayTypeId}`),
     enabled: Boolean(selectedDayTypeId),
   });
+
+  /* Exercises as displayed — sortOrder ascending. Reordering works against
+     this array's indices, so it has to be the same ordering the rows are
+     rendered from, not the raw query order.
+   *
+   * Also the single place the detail payload's `exercises` is read. The
+   * count and empty-state checks used to dereference it separately as
+   * `data?.exercises.length`, which guards `data` but not the field — a
+   * payload arriving without it took the whole Training tab down rather
+   * than rendering an empty workout. Same version-skew reasoning as
+   * `isProgressOverview` and the optional-chained `sessions` above. */
+  const sortedExercises = useMemo(
+    () =>
+      (selectedDayTypeDetailQuery.data?.exercises ?? [])
+        .slice()
+        .sort((a, b) => a.sortOrder - b.sortOrder),
+    [selectedDayTypeDetailQuery.data],
+  );
+
+  /* Moves one exercise a single position and sends the whole resulting
+     order, matching web. Sending the full list rather than a delta means
+     the server never has to reconcile two clients' partial moves. */
+  function moveExercise(index: number, delta: number) {
+    const nextIndex = index + delta;
+    if (!selectedDayTypeId) return;
+    if (nextIndex < 0 || nextIndex >= sortedExercises.length) return;
+    const ids = sortedExercises.map((exercise) => exercise.id);
+    const [moved] = ids.splice(index, 1);
+    if (!moved) return;
+    ids.splice(nextIndex, 0, moved);
+    reorderExercises.mutate({ dayTypeId: selectedDayTypeId, exerciseIdsInOrder: ids });
+  }
 
   const isLoading = programsQuery.isLoading || dayTypesQuery.isLoading;
 
@@ -559,11 +729,24 @@ export default function ProgramEditorScreen() {
               </View>
             </View>
           ) : (
-            <Button
-              label="New workout"
-              variant="secondary"
-              onPress={() => setShowCreateWorkout(true)}
-            />
+            <>
+              <Button
+                label="New workout"
+                variant="secondary"
+                icon={Plus}
+                onPress={() => setShowCreateWorkout(true)}
+              />
+              {/* Only offered when there is actually something to add —
+                  an empty picker is a dead end, and most users have every
+                  workout they own already in the program they are editing. */}
+              {addableDayTypes.length > 0 ? (
+                <Button
+                  label="Add existing workout"
+                  variant="secondary"
+                  onPress={() => setShowAddExisting(true)}
+                />
+              ) : null}
+            </>
           )}
         </Card>
       ) : null}
@@ -612,13 +795,26 @@ export default function ProgramEditorScreen() {
           this. */}
       {activeTab === 'workouts' && selectedDayTypeId ? (
         <Card>
-          <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>
-            {dayTypeById.get(selectedDayTypeId)?.name ?? 'Workout'}
-          </Text>
+          <View style={styles.detailHeader}>
+            <Text style={[styles.sectionTitle, { color: theme.text.primary, flex: 1 }]}>
+              {dayTypeById.get(selectedDayTypeId)?.name ?? 'Workout'}
+            </Text>
+            <IconButton
+              icon={MoreVertical}
+              variant="subtle"
+              accessibilityLabel={`Actions for ${dayTypeById.get(selectedDayTypeId)?.name ?? 'workout'}`}
+              onPress={() =>
+                confirmWorkoutActions(
+                  selectedDayTypeId,
+                  dayTypeById.get(selectedDayTypeId)?.name ?? 'this workout',
+                )
+              }
+            />
+          </View>
           {/* Web summarises the workout under its name — the count is how a
               user judges whether a training day is actually built out. */}
           {(() => {
-            const count = selectedDayTypeDetailQuery.data?.exercises.length ?? 0;
+            const count = sortedExercises.length;
             const minutes = dayTypeById.get(selectedDayTypeId)?.estimatedDurationMinutes;
             if (selectedDayTypeDetailQuery.isLoading || selectedDayTypeDetailQuery.isError) return null;
             return (
@@ -632,41 +828,63 @@ export default function ProgramEditorScreen() {
             <ActivityIndicator color={theme.action.primary} />
           ) : selectedDayTypeDetailQuery.isError ? (
             <Text style={{ color: theme.text.secondary }}>Couldn&apos;t load this workout&apos;s exercises.</Text>
-          ) : (selectedDayTypeDetailQuery.data?.exercises.length ?? 0) === 0 ? (
+          ) : sortedExercises.length === 0 ? (
             <Text style={{ color: theme.text.secondary }}>No exercises added to this workout yet.</Text>
           ) : (
-            selectedDayTypeDetailQuery.data!.exercises
-              .slice()
-              .sort((a, b) => a.sortOrder - b.sortOrder)
-              .map((exercise) => (
-                <Pressable
-                  key={exercise.id}
-                  style={styles.exerciseRow}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Edit ${exerciseNameById.get(exercise.exerciseId) ?? 'exercise'}`}
-                  onPress={() =>
-                    setEditingExercise({
-                      dayTypeId: selectedDayTypeId,
-                      // The join row's id, not the catalog exercise's — this
-                      // is what `/day-types/:id/exercises/:id` addresses.
-                      exerciseId: exercise.id,
-                      exerciseName: exerciseNameById.get(exercise.exerciseId) ?? 'Exercise',
-                      prescription: exercise.prescription,
-                      notes: exercise.notes ?? '',
-                    })
-                  }
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: theme.text.primary }}>
-                      {exerciseNameById.get(exercise.exerciseId) ?? 'Exercise'}
-                    </Text>
-                    <Text style={{ color: theme.text.secondary, fontSize: typeScale.caption.fontSize }}>
-                      {summarizePrescription(exercise.prescription)}
-                    </Text>
+            sortedExercises.map((exercise, index) => {
+              const exerciseName = exerciseNameById.get(exercise.exerciseId) ?? 'Exercise';
+              return (
+                <View key={exercise.id} style={styles.exerciseRow}>
+                  {/* Tapping the row opens the edit sheet, which already
+                      carries its own destructive Remove — so web's `⋮`
+                      menu (Edit / Delete) is fully reachable here in the
+                      same number of taps, and a second menu offering the
+                      same two things would be redundant. */}
+                  <Pressable
+                    style={styles.exerciseRowMain}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Edit ${exerciseName}`}
+                    onPress={() =>
+                      setEditingExercise({
+                        dayTypeId: selectedDayTypeId,
+                        // The join row's id, not the catalog exercise's — this
+                        // is what `/day-types/:id/exercises/:id` addresses.
+                        exerciseId: exercise.id,
+                        exerciseName,
+                        prescription: exercise.prescription,
+                        notes: exercise.notes ?? '',
+                      })
+                    }
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: theme.text.primary }}>{exerciseName}</Text>
+                      <Text style={{ color: theme.text.secondary, fontSize: typeScale.caption.fontSize }}>
+                        {summarizePrescription(exercise.prescription)}
+                      </Text>
+                    </View>
+                    <ChevronRight size={16} color={theme.text.secondary} />
+                  </Pressable>
+                  <View style={styles.reorderControls}>
+                    <IconButton
+                      icon={ChevronUp}
+                      variant="subtle"
+                      size={28}
+                      accessibilityLabel={`Move ${exerciseName} up, position ${index + 1} of ${sortedExercises.length}`}
+                      disabled={index === 0 || reorderExercises.isPending}
+                      onPress={() => moveExercise(index, -1)}
+                    />
+                    <IconButton
+                      icon={ChevronDown}
+                      variant="subtle"
+                      size={28}
+                      accessibilityLabel={`Move ${exerciseName} down, position ${index + 1} of ${sortedExercises.length}`}
+                      disabled={index === sortedExercises.length - 1 || reorderExercises.isPending}
+                      onPress={() => moveExercise(index, 1)}
+                    />
                   </View>
-                  <ChevronRight size={16} color={theme.text.secondary} />
-                </Pressable>
-              ))
+                </View>
+              );
+            })
           )}
           <Button
             label="Add exercise"
@@ -675,6 +893,33 @@ export default function ProgramEditorScreen() {
           />
         </Card>
       ) : null}
+
+      {/* Adds a workout this user already owns to the selected program —
+          the counterpart to "Remove from this program", so removal is
+          reversible without leaving the app. */}
+      <Sheet
+        visible={showAddExisting}
+        onRequestClose={() => setShowAddExisting(false)}
+        dismissOnBackdropPress
+        maxHeightPercent={60}
+      >
+        <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Add an existing workout</Text>
+        <Text style={[styles.helpText, { color: theme.text.secondary }]}>
+          Workouts you have built that are not in {selectedProgram?.name ?? 'this program'} yet.
+        </Text>
+        {addableDayTypes.map((dayType) => (
+          <View key={dayType.id} style={styles.dayRow}>
+            <Text style={[styles.bodyText, { color: theme.text.primary, flex: 1 }]}>{dayType.name}</Text>
+            <Button
+              label="Add"
+              variant="secondary"
+              fullWidth={false}
+              disabled={addExistingToProgram.isPending}
+              onPress={() => addExistingToProgram.mutate(dayType.id)}
+            />
+          </View>
+        ))}
+      </Sheet>
 
       {toast ? <Toast variant={toast.variant} message={toast.message} onDismiss={() => setToast(null)} /> : null}
 
@@ -784,6 +1029,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing[8],
     paddingVertical: spacing[8],
+  },
+  /* The tappable part of the row. Split out from `exerciseRow` so the
+     reorder arrows sit beside it rather than inside its press target —
+     otherwise moving an exercise would also open the edit sheet. */
+  exerciseRowMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[8],
+  },
+  reorderControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[4],
+  },
+  detailHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[8],
   },
   bodyText: {
     fontSize: typeScale.compactBody.fontSize,

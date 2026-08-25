@@ -32,22 +32,53 @@ any screen directly, since the Simulator has no tap primitive.
 
 ## Divergences found
 
-| # | Web | Mobile | Kind |
-|---|---|---|---|
-| 1 | "Guided setup" button in the page header, shown once programs exist | Only inside the Programs tab | structure |
-| 2 | Workout rows carry an estimated duration (`~50 min`) | Name and chevron only | missing information |
-| 3 | "New workout" carries a `+` icon | Text only | cosmetic |
-| 4 | Detail card summarises `2 exercises · approximately 50 min` | Absent | missing information |
-| 5 | Detail card has a `⋮` menu (rename / remove workout) | Absent | missing capability |
-| 6 | Each exercise row has `↑ ↓` reorder controls | Absent | known gap, ADR 0009 |
-| 7 | Each exercise row has a `⋮` menu | Absent | missing capability |
+| # | Web | Mobile | Kind | Status |
+|---|---|---|---|---|
+| 1 | "Guided setup" button in the page header, shown once programs exist | Only inside the Programs tab | structure | closed |
+| 2 | Workout rows carry an estimated duration (`~50 min`) | Name and chevron only | missing information | closed |
+| 3 | "New workout" carries a `+` icon | Text only | cosmetic | open |
+| 4 | Detail card summarises `2 exercises · approximately 50 min` | Absent | missing information | closed |
+| 5 | Detail card has a `⋮` menu (remove from program / delete) | Absent | missing capability | closed |
+| 6 | Each exercise row has `↑ ↓` reorder controls | Absent | ADR 0009 said web-only | closed |
+| 7 | Each exercise row has a `⋮` menu | Absent | **misdiagnosed** | not a gap |
 
-Items 5 and 7 are the significant ones: they are not styling, they are
-actions a user can perform on web and simply cannot on mobile.
+### 5 — workout actions (closed)
 
-Item 6 is already recorded in ADR 0009 as deliberately web-only — the
-reorder endpoint exists but no drag interaction was built. It stays
-deferred here rather than being silently reopened.
+Web's two items are genuinely different, and mobile had neither: Story 25
+made program↔workout membership explicit, so *Remove from this program*
+leaves the workout intact for every other program using it, while *Delete
+permanently* destroys it. Mobile now offers both through a native action
+sheet — the platform's equivalent of web's dropdown, and already the
+pattern this app uses for destructive per-item actions. Both confirm, and
+the delete confirmation says outright that it is not scoped to this
+program, because the two options sit next to each other and that
+difference is the whole point.
+
+### 6 — reordering (closed, and ADR 0009 corrected)
+
+ADR 0009 recorded this as web-only because "the endpoint exists but
+drag-reorder needs an interaction this screen does not yet have." That
+reason was wrong: **web does not use drag either.** It moves one position
+at a time with arrow buttons and POSTs the resulting order. Mobile now
+does the same, with the end arrows disabled rather than omitted so a
+screen reader still announces them. ADR 0009 has been amended rather than
+left carrying a false claim.
+
+### 7 — exercise row menu (not a gap)
+
+Recorded as "missing capability" on the strength of web having a `⋮` menu.
+That was wrong. Web's menu holds *Edit* and *Delete*; on mobile, tapping
+an exercise row opens `ExerciseEditSheet`, which edits the prescription
+**and already carries its own destructive Remove**. Both actions are
+reachable in the same number of taps. Adding a second menu offering the
+same two things would be a redundant path, not new capability, so it was
+deliberately not built.
+
+Worth noting as a method failure rather than just a wrong row: the gap was
+recorded by comparing *controls* rather than *reachable actions*. Two
+platforms can offer identical capability through different affordances,
+and a parity audit that only diffs widgets will keep manufacturing
+findings like this one.
 
 ## Deliberate differences, not defects
 

@@ -89,10 +89,18 @@ record's id.**
 ### Still web-only
 
 Per-set planned overrides (`day_type_exercise_planned_set`) are not
-editable on mobile. Exercise reordering within a workout is not exposed
-either — the endpoint exists
-(`POST /day-types/:id/exercises/reorder`) but drag-reorder needs an
-interaction this screen does not yet have.
+editable on mobile.
+
+**Correction (2026-08-25).** This section originally also listed exercise
+reordering as web-only, on the grounds that "the endpoint exists but
+drag-reorder needs an interaction this screen does not yet have." That
+reason was wrong: web does not use drag either. It moves an exercise one
+position at a time with a pair of arrow buttons and POSTs the resulting
+order to `/day-types/:id/exercises/reorder`. Nothing about that is
+platform-specific, and mobile now does the same. The lesson worth keeping
+is that the deferral was justified by an assumed implementation rather
+than the one actually shipped on the other platform — the same mistake
+that let this screen diverge from web in the first place.
 
 ## Alternatives considered
 

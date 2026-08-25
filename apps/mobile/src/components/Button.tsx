@@ -1,4 +1,5 @@
-import { Pressable, Text, StyleSheet, ActivityIndicator, type GestureResponderEvent } from 'react-native';
+import { Pressable, Text, View, StyleSheet, ActivityIndicator, type GestureResponderEvent } from 'react-native';
+import type { LucideIcon } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { radius, spacing } from '@setframe/design-tokens';
 import { typeScale } from '../theme/getTheme';
@@ -13,6 +14,12 @@ export interface ButtonProps {
   loading?: boolean;
   fullWidth?: boolean;
   testID?: string;
+  /**
+   * Optional leading glyph, drawn before the label. Decorative only — the
+   * label already names the action, and the accessible name comes from
+   * `label`, so the icon is never the sole carrier of meaning.
+   */
+  icon?: LucideIcon;
 }
 
 /**
@@ -30,6 +37,7 @@ export function Button({
   loading = false,
   fullWidth = true,
   testID,
+  icon: Icon,
 }: ButtonProps) {
   const theme = useTheme();
   const isDisabled = disabled || loading;
@@ -68,19 +76,22 @@ export function Button({
       {loading ? (
         <ActivityIndicator color={textColor} />
       ) : (
-        <Text
-          style={[
-            styles.label,
-            {
-              color: textColor,
-              fontSize: typeScale.button.fontSize,
-              lineHeight: typeScale.button.lineHeight,
-              fontWeight: typeScale.button.fontWeight as '600',
-            },
-          ]}
-        >
-          {label}
-        </Text>
+        <View style={styles.content}>
+          {Icon ? <Icon size={16} color={textColor} /> : null}
+          <Text
+            style={[
+              styles.label,
+              {
+                color: textColor,
+                fontSize: typeScale.button.fontSize,
+                lineHeight: typeScale.button.lineHeight,
+                fontWeight: typeScale.button.fontWeight as '600',
+              },
+            ]}
+          >
+            {label}
+          </Text>
+        </View>
       )}
     </Pressable>
   );
@@ -97,5 +108,11 @@ const styles = StyleSheet.create({
   },
   label: {
     textAlign: 'center',
+  },
+  content: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing[8],
   },
 });

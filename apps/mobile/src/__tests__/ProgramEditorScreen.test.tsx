@@ -1,4 +1,5 @@
 import React from 'react';
+import { Alert } from 'react-native';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '../theme/ThemeProvider';
@@ -7,6 +8,7 @@ import ProgramEditorScreen from '../../app/(tabs)/training';
 const mockPush = jest.fn();
 let mockGet: (path: string) => Promise<unknown> = () => Promise.resolve([]);
 const mockPost = jest.fn((_path: string, _body?: unknown) => Promise.resolve({} as unknown));
+const mockDel = jest.fn((_path: string) => Promise.resolve(undefined as unknown));
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush }),
@@ -17,8 +19,8 @@ jest.mock('../lib/api-client', () => ({
     get: (path: string) => mockGet(path),
     post: (path: string, body?: unknown) => mockPost(path, body),
     patch: () => Promise.resolve({}),
-    del: () => Promise.resolve(undefined),
-    delete: () => Promise.resolve(undefined),
+    del: (path: string) => mockDel(path),
+    delete: (path: string) => mockDel(path),
   }),
 }));
 
@@ -452,5 +454,191 @@ describe('ProgramEditorScreen program creation', () => {
     // Story 24: creating must never silently change which program Today
     // follows — no activate call may accompany it.
     expect(mockPost).not.toHaveBeenCalledWith('/programs/program-new/activate', undefined);
+  });
+});
+
+const upperA = {
+  id: 'day-1',
+  userId: 'user-1',
+  name: 'Upper A',
+  description: null,
+  estimatedDurationMinutes: 45,
+  createdAt: '',
+  updatedAt: '',
+};
+
+function getWithWorkout(exercises: unknown[] = []): (path: string) => Promise<unknown> {
+  return (path: string) => {
+    if (path === '/programs') return Promise.resolve([baseProgram]);
+    if (path === '/programs/program-1/day-types') return Promise.resolve([upperA]);
+    if (path === '/day-types/day-1') return Promise.resolve({ ...upperA, exercises });
+    if (path.startsWith('/programs/') && path.endsWith('/schedule-slots')) return Promise.resolve([]);
+    if (path === '/exercises') {
+      return Promise.resolve([
+        { id: 'ex-1', name: 'Bench Press' },
+        { id: 'ex-2', name: 'Row' },
+      ]);
+    }
+    return Promise.resolve([]);
+  };
+}
+
+/** Selects the only workout, so the detail card is on screen. */
+async function openUpperA(rendered: ReactTestRenderer) {
+  await act(async () => {
+    pressablesByLabel(rendered, 'Upper A')[0]!.props.onPress();
+  });
+  await flush();
+}
+
+/**
+ * Web offers two distinct workout-level actions behind a `⋮` menu, and
+ * mobile offered neither: a workout added to a program by mistake could
+ * not be taken back off it, let alone deleted, without switching to the
+ * web app. Story 25 made the two genuinely different — removing from a
+ * program leaves the workout intact for every other program using it.
+ */
+describe('ProgramEditorScreen workout actions', () => {
+  it('removes a workout from the program without deleting it', async () => {
+    mockGet = getWithWorkout();
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    const rendered = await renderScreen();
+    await openUpperA(rendered);
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Actions for Upper A')[0]!.props.onPress();
+    });
+    // The action sheet, then that action's own confirmation.
+    await act(async () => {
+      alertSpy.mock.calls[0]![2]!.find((b) => b.text === 'Remove from this program')!.onPress!();
+    });
+    await act(async () => {
+      alertSpy.mock.calls[1]![2]!.find((b) => b.text === 'Remove')!.onPress!();
+    });
+    await flush();
+
+    expect(mockDel).toHaveBeenCalledWith('/programs/program-1/day-types/day-1');
+    // The workout itself survives — only its membership is dropped.
+    expect(mockDel).not.toHaveBeenCalledWith('/day-types/day-1');
+  });
+
+  it('deletes a workout outright, and says the deletion is not scoped to this program', async () => {
+    mockGet = getWithWorkout();
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    const rendered = await renderScreen();
+    await openUpperA(rendered);
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Actions for Upper A')[0]!.props.onPress();
+    });
+    await act(async () => {
+      alertSpy.mock.calls[0]![2]!.find((b) => b.text === 'Delete permanently')!.onPress!();
+    });
+
+    // The two options sit side by side, so the destructive one has to say
+    // what makes it different rather than leaving the user to infer it.
+    expect(alertSpy).toHaveBeenLastCalledWith(
+      'Delete Upper A?',
+      expect.stringContaining('every program'),
+      expect.any(Array),
+    );
+
+    await act(async () => {
+      alertSpy.mock.calls[1]![2]!.find((b) => b.text === 'Delete')!.onPress!();
+    });
+    await flush();
+
+    expect(mockDel).toHaveBeenCalledWith('/day-types/day-1');
+  });
+
+  /**
+   * Removal has to be reversible without leaving the app. Shipping "Remove
+   * from this program" alone made it a one-way door: the day_type survives
+   * on the server exactly as the confirmation promises, but nothing on
+   * mobile listed workouts outside the current program, so it could never
+   * be added back.
+   */
+  it('offers workouts that exist outside this program, and adds one back', async () => {
+    const orphan = { ...upperA, id: 'day-9', name: 'Conditioning' };
+    mockGet = (path: string) => {
+      if (path === '/programs') return Promise.resolve([baseProgram]);
+      if (path === '/programs/program-1/day-types') return Promise.resolve([upperA]);
+      // The unscoped catalogue holds one the program does not have.
+      if (path === '/day-types') return Promise.resolve([upperA, orphan]);
+      if (path === '/day-types/day-1') return Promise.resolve({ ...upperA, exercises: [] });
+      if (path.startsWith('/programs/') && path.endsWith('/schedule-slots')) return Promise.resolve([]);
+      if (path === '/exercises') return Promise.resolve([]);
+      return Promise.resolve([]);
+    };
+    mockPost.mockImplementation(() => Promise.resolve(orphan));
+    const rendered = await renderScreen();
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Add existing workout')[0]!.props.onPress();
+    });
+    await flush();
+
+    // Only the non-member is offered — the one already in the program is not.
+    expect(textNodesContaining(rendered, 'Conditioning').length).toBeGreaterThan(0);
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Add')[0]!.props.onPress();
+    });
+    await flush();
+
+    expect(mockPost).toHaveBeenCalledWith('/programs/program-1/day-types', { dayTypeId: 'day-9' });
+  });
+});
+
+/**
+ * ADR 0009 recorded reordering as web-only because "drag-reorder needs an
+ * interaction this screen does not have" — but web uses arrow buttons, not
+ * drag. Order is the order exercises appear in during a session, so being
+ * unable to change it on mobile was a real gap.
+ */
+describe('ProgramEditorScreen exercise reordering', () => {
+  const exercises = [
+    { id: 'dte-1', dayTypeId: 'day-1', exerciseId: 'ex-1', sortOrder: 0, prescription: { kind: 'sets_reps', sets: 3, repsMin: 8 }, notes: null },
+    { id: 'dte-2', dayTypeId: 'day-1', exerciseId: 'ex-2', sortOrder: 1, prescription: { kind: 'sets_reps', sets: 3, repsMin: 8 }, notes: null },
+  ];
+
+  it('sends the whole resulting order when an exercise moves down', async () => {
+    mockGet = getWithWorkout(exercises);
+    const rendered = await renderScreen();
+    await openUpperA(rendered);
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Move Bench Press down, position 1 of 2')[0]!.props.onPress();
+    });
+    await flush();
+
+    expect(mockPost).toHaveBeenCalledWith('/day-types/day-1/exercises/reorder', {
+      exerciseIdsInOrder: ['dte-2', 'dte-1'],
+    });
+  });
+
+  it('does not move an exercise off either end of the list', async () => {
+    mockGet = getWithWorkout(exercises);
+    const rendered = await renderScreen();
+    await openUpperA(rendered);
+
+    // Both arrows are still rendered and labelled — a disabled control has
+    // to be announced as present-but-unavailable, not omitted — but neither
+    // end one may produce a write.
+    expect(pressablesByLabel(rendered, 'Move Bench Press up, position 1 of 2').length).toBeGreaterThan(0);
+    expect(pressablesByLabel(rendered, 'Move Row down, position 2 of 2').length).toBeGreaterThan(0);
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Move Bench Press up, position 1 of 2')[0]!.props.onPress();
+    });
+    await act(async () => {
+      pressablesByLabel(rendered, 'Move Row down, position 2 of 2')[0]!.props.onPress();
+    });
+    await flush();
+
+    expect(mockPost).not.toHaveBeenCalledWith(
+      '/day-types/day-1/exercises/reorder',
+      expect.anything(),
+    );
   });
 });
