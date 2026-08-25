@@ -261,6 +261,39 @@ describe('BodyWeightSection regressions', () => {
     expect(text).toContain('Week of');
     expect(text).not.toContain('This week');
   });
+
+  /*
+   * Story 49 — parity with the web assertion of the same name. At 3M a mark
+   * is a week's mean, not a morning's weigh-in, so it must name its own span
+   * rather than claim a reading on a day that may never have been logged.
+   */
+  it('labels a bucketed mark with its period and sample count, not a single date', () => {
+    // Every morning for ~4 months, so 3M is offered and buckets by week.
+    const daily = Array.from({ length: 120 }, (_, index) => {
+      const day = new Date(Date.UTC(2026, 0, 20) - (119 - index) * 86_400_000);
+      return {
+        localDate: day.toISOString().slice(0, 10),
+        raw: 180 - index * 0.05,
+        trend: 180 - index * 0.04,
+        rollingAverage: index >= 6 ? 179.5 - index * 0.04 : null,
+      };
+    });
+
+    const rendered = renderTree(
+      <BodyWeightSection
+        bodyWeight={bodyWeight({ checkInCount: daily.length, points: daily, weeks: [] })}
+        localDate="2026-01-20"
+      />,
+    );
+    press(rendered, 'chart-range-3M');
+
+    // The visually-hidden table mirrors every mark, so it is the stable
+    // surface for what the marks claim to represent.
+    const summary = hostsByTestId(rendered, 'chart-table')[0]!.props.accessibilityLabel as string;
+    // An en dash means the label names a span; a bare date would name one morning.
+    expect(summary).toContain('\u2013');
+    expect(summary).toMatch(/average of \d+ check-ins/);
+  });
 });
 
 describe('BodyWeightSection', () => {
