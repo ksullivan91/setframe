@@ -108,6 +108,19 @@ async function renderScreen(): Promise<ReactTestRenderer> {
   return tree!;
 }
 
+/**
+ * Training mirrors web's three tabs (Programs / Workouts / Schedule) and
+ * shows one at a time, defaulting to Workouts. Anything outside that tab
+ * has to be navigated to first — these tests drive the same control a user
+ * would.
+ */
+async function switchTab(rendered: ReactTestRenderer, label: 'Programs' | 'Workouts' | 'Schedule') {
+  await act(async () => {
+    pressablesByLabel(rendered, label)[0]!.props.onPress();
+  });
+  await flush();
+}
+
 afterEach(() => {
   act(() => {
     tree?.unmount();
@@ -124,21 +137,32 @@ describe('ProgramEditorScreen program switching', () => {
   it('lists every program with the active one marked, once more than one exists', async () => {
     mockGet = getFor([baseProgram, recoveryProgram]);
     const rendered = await renderScreen();
+    await switchTab(rendered, 'Programs');
 
     expect(textNodesContaining(rendered, 'Base').length).toBeGreaterThan(0);
     expect(textNodesContaining(rendered, 'Recovery Block').length).toBeGreaterThan(0);
   });
 
-  it('does not show a program switcher with only one program', async () => {
+  /**
+   * The Programs list is no longer conditional on there being a choice to
+   * make. It used to be one of three cards stacked on a single scroll, so
+   * a switcher offering one option was pure noise; it is now a tab the
+   * user deliberately navigates to, and an empty-looking tab is worse than
+   * a single-row one. Matches web, which always renders the list.
+   */
+  it('shows the program list even with a single program', async () => {
     mockGet = getFor([baseProgram]);
     const rendered = await renderScreen();
+    await switchTab(rendered, 'Programs');
 
-    expect(textNodesContaining(rendered, 'Your programs')).toHaveLength(0);
+    expect(textNodesContaining(rendered, 'Your programs').length).toBeGreaterThan(0);
+    expect(textNodesContaining(rendered, 'Base').length).toBeGreaterThan(0);
   });
 
   it('viewing a non-active program does not activate it', async () => {
     mockGet = getFor([baseProgram, recoveryProgram]);
     const rendered = await renderScreen();
+    await switchTab(rendered, 'Programs');
 
     await act(async () => {
       pressablesByLabel(rendered, 'View Recovery Block')[0]!.props.onPress();
@@ -154,6 +178,7 @@ describe('ProgramEditorScreen program switching', () => {
     );
     mockGet = getFor([baseProgram, recoveryProgram]);
     const rendered = await renderScreen();
+    await switchTab(rendered, 'Programs');
 
     await act(async () => {
       pressablesByText(rendered, 'Set active')[0]!.props.onPress();
@@ -162,6 +187,30 @@ describe('ProgramEditorScreen program switching', () => {
 
     expect(mockPost).toHaveBeenCalledWith('/programs/program-2/activate', undefined);
     expect(textNodesContaining(rendered, 'Recovery Block is now your active program.').length).toBeGreaterThan(0);
+  });
+
+  /**
+   * "Active" used to appear twice for one program — as the badge stating
+   * the fact, and again as a disabled button beside it. The button is now
+   * only ever an action, so it is absent for the program that already is.
+   */
+  it('offers Set active only for programs that are not already active', async () => {
+    mockGet = getFor([baseProgram, recoveryProgram]);
+    const rendered = await renderScreen();
+    await switchTab(rendered, 'Programs');
+
+    // Two programs, one active → the inactive one offers the action…
+    expect(pressablesByText(rendered, 'Set active').length).toBeGreaterThan(0);
+    // …and "Active" appears only as the badge stating a fact, never as a
+    // pressable. `textNodesContaining` finds the badge; the absence of any
+    // pressable whose exact label is "Active" is the regression guard.
+    const activeButtons = rendered.root.findAll(
+      (node) =>
+        typeof node.props?.onPress === 'function' &&
+        node.props?.label === 'Active',
+    );
+    expect(activeButtons).toHaveLength(0);
+    expect(textNodesContaining(rendered, 'Active').length).toBeGreaterThan(0);
   });
 });
 
@@ -195,13 +244,17 @@ describe('ProgramEditorScreen program-aware schedule', () => {
     };
     const rendered = await renderScreen();
 
+    // Workouts is the default tab, so this program's own workouts are
+    // already on screen.
     expect(textNodesContaining(rendered, 'Upper A').length).toBeGreaterThan(0);
     expect(textNodesContaining(rendered, 'Lower B').length).toBe(0);
 
+    await switchTab(rendered, 'Programs');
     await act(async () => {
       pressablesByLabel(rendered, 'View Recovery Block')[0]!.props.onPress();
     });
     await flush();
+    await switchTab(rendered, 'Workouts');
 
     expect(textNodesContaining(rendered, 'Lower B').length).toBeGreaterThan(0);
     expect(textNodesContaining(rendered, 'Upper A').length).toBe(0);
@@ -218,28 +271,41 @@ describe('ProgramEditorScreen program-aware schedule', () => {
  * are now reachable from the tab.
  */
 describe('ProgramEditorScreen editing', () => {
+  /* Creation sits behind a button rather than an always-open form, so the
+     workout list reads as a list. Matches web's CreateWorkoutActions. */
+  async function openCreateForm(rendered: ReactTestRenderer) {
+    await act(async () => {
+      pressablesByText(rendered, 'New workout')[0]!.props.onPress();
+    });
+    await flush();
+  }
+
   it('creates a workout in the selected program', async () => {
     mockGet = getFor([baseProgram]);
     const rendered = await renderScreen();
+    await openCreateForm(rendered);
 
     const input = rendered.root.findAll((node) => typeof node.props?.onChangeText === 'function')[0]!;
     await act(async () => {
       input.props.onChangeText('Upper A');
     });
     await act(async () => {
-      pressablesByText(rendered, 'Add workout')[0]!.props.onPress();
+      pressablesByText(rendered, 'Create')[0]!.props.onPress();
     });
     await flush();
 
     expect(mockPost).toHaveBeenCalledWith('/day-types', { name: 'Upper A', programId: 'program-1' });
+    // The form closes on success — an empty input left open reads as failure.
+    expect(rendered.root.findAll((node) => typeof node.props?.onChangeText === 'function')).toHaveLength(0);
   });
 
   it('refuses to create a workout with no name, without calling the API', async () => {
     mockGet = getFor([baseProgram]);
     const rendered = await renderScreen();
+    await openCreateForm(rendered);
 
     await act(async () => {
-      pressablesByText(rendered, 'Add workout')[0]!.props.onPress();
+      pressablesByText(rendered, 'Create')[0]!.props.onPress();
     });
     await flush();
 
@@ -247,10 +313,58 @@ describe('ProgramEditorScreen editing', () => {
     expect(textNodesContaining(rendered, 'Give the workout a name first').length).toBeGreaterThan(0);
   });
 
+  it('keeps the workout list free of a permanently-open creation form', async () => {
+    mockGet = getFor([baseProgram]);
+    const rendered = await renderScreen();
+
+    // Nothing is editable until the user asks to create something.
+    expect(rendered.root.findAll((node) => typeof node.props?.onChangeText === 'function')).toHaveLength(0);
+  });
+
   it('no longer tells the user to go to the web app', async () => {
     mockGet = getFor([baseProgram]);
     const rendered = await renderScreen();
 
     expect(textNodesContaining(rendered, 'Edit on web').length).toBe(0);
+  });
+});
+
+/**
+ * Web splits Training into three tabs and shows one at a time. Mobile
+ * stacked all three as full-height cards, which turned one screen into an
+ * endless scroll — the reason this screen was rejected on first review.
+ */
+describe('ProgramEditorScreen tabs', () => {
+  it('shows one panel at a time, defaulting to Workouts', async () => {
+    mockGet = getFor([baseProgram]);
+    const rendered = await renderScreen();
+
+    // Workouts is live; the other two panels are not mounted.
+    expect(textNodesContaining(rendered, 'Workouts').length).toBeGreaterThan(0);
+    expect(textNodesContaining(rendered, 'Your programs').length).toBe(0);
+    expect(textNodesContaining(rendered, 'Program schedule').length).toBe(0);
+  });
+
+  it('swaps the visible panel when a tab is chosen', async () => {
+    mockGet = getFor([baseProgram]);
+    const rendered = await renderScreen();
+
+    await switchTab(rendered, 'Schedule');
+    expect(textNodesContaining(rendered, 'Program schedule').length).toBeGreaterThan(0);
+    expect(textNodesContaining(rendered, 'Your programs').length).toBe(0);
+
+    await switchTab(rendered, 'Programs');
+    expect(textNodesContaining(rendered, 'Your programs').length).toBeGreaterThan(0);
+    expect(textNodesContaining(rendered, 'Program schedule').length).toBe(0);
+  });
+
+  /* The screen header is the static word "Training", as on web — not the
+     program name, which at page-title size wrapped under the Dynamic
+     Island for any realistically-long name. */
+  it('titles the screen Training rather than the program name', async () => {
+    mockGet = getFor([baseProgram]);
+    const rendered = await renderScreen();
+
+    expect(textNodesContaining(rendered, 'Training').length).toBeGreaterThan(0);
   });
 });

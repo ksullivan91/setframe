@@ -6,6 +6,7 @@ import { ChevronRight } from 'lucide-react-native';
 import type { DayType, DayTypeExercise, Exercise, Prescription, ProgramScheduleSlot, TrainingProgram } from '@setframe/schemas';
 import { Card } from '../../src/components/Card';
 import { Badge } from '../../src/components/Badge';
+import { Tabs } from '../../src/components/Tabs';
 import { Button } from '../../src/components/Button';
 import { Input } from '../../src/components/Input';
 import { Toast } from '../../src/components/Toast';
@@ -16,7 +17,7 @@ import { useApiClient } from '../../src/lib/api-client';
 import { useLocalDate } from '../../src/lib/useLocalDate';
 import { summarizePrescription } from '../../src/lib/prescription';
 import { useTheme } from '../../src/theme/ThemeProvider';
-import { spacing, typeScale } from '../../src/theme/getTheme';
+import { radius, spacing, typeScale } from '../../src/theme/getTheme';
 
 interface DayTypeDetail extends DayType {
   exercises: DayTypeExercise[];
@@ -47,8 +48,15 @@ export default function ProgramEditorScreen() {
   /* Story 07: a tab left mounted across midnight must not keep querying
      yesterday — useLocalDate re-renders on the rollover. */
   const localDate = useLocalDate();
+  /* Mirrors web's Training tabs exactly, including its default of
+     'workouts' — the thing a returning user most often came to change. */
+  const [activeTab, setActiveTab] = useState<'programs' | 'workouts' | 'schedule'>('workouts');
   const [selectedDayTypeId, setSelectedDayTypeId] = useState<string | null>(null);
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
+  /* Web keeps workout creation behind a button rather than an always-open
+     form (`CreateWorkoutActions` → `WorkoutCreateForm`); an input wedged
+     permanently into the list reads as another list row. */
+  const [showCreateWorkout, setShowCreateWorkout] = useState(false);
   const [toast, setToast] = useState<{ variant: 'success' | 'error'; message: string } | null>(null);
   const [newWorkoutName, setNewWorkoutName] = useState('');
   const [showAddExercise, setShowAddExercise] = useState(false);
@@ -156,6 +164,9 @@ export default function ProgramEditorScreen() {
       await queryClient.invalidateQueries({ queryKey: ['day-types'] });
       setSelectedDayTypeId(created.id);
       setNewWorkoutName('');
+      // Dismiss the form too, not just its contents — leaving an empty
+      // input open after a successful create reads as though it failed.
+      setShowCreateWorkout(false);
       setToast({ variant: 'success', message: `${created.name} added.` });
     },
     onError: () => setToast({ variant: 'error', message: 'Could not add that workout.' }),
@@ -307,8 +318,22 @@ export default function ProgramEditorScreen() {
 
   return (
     <ScrollView style={{ backgroundColor: theme.surface.canvas }} contentContainerStyle={styles.content}>
+      {/* Web's header is the static word "Training" with a one-line
+          description — not the program name. Mobile used the program name
+          at page-title size, so "3 lower 2 upper strength split" wrapped
+          straight under the Dynamic Island. Program identity belongs in
+          the Programs tab, where it can be acted on. */}
+      <View style={styles.header}>
+        <Text style={[styles.title, { color: theme.text.primary }]}>Training</Text>
+        <Text style={[styles.subtitle, { color: theme.text.secondary }]}>
+          Manage the workouts and schedule in your program.
+        </Text>
+      </View>
+
       {/* The one place Training acknowledges a live workout: a way back to
-          it. Logging happens on the session's own screen, not here. */}
+          it. Logging happens on the session's own screen, not here. Sits
+          under the header rather than above it — a screen states what it
+          is before it states what is going on elsewhere. */}
       {activeSessionId ? (
         <Card style={{ backgroundColor: theme.action.accentSubtle }}>
           <Text style={{ color: theme.text.primary, fontWeight: '600' }}>Workout in progress</Text>
@@ -320,25 +345,31 @@ export default function ProgramEditorScreen() {
         </Card>
       ) : null}
 
-      <View style={styles.headerRow}>
-        <Text style={[styles.title, { color: theme.text.primary }]}>{selectedProgram?.name ?? activeProgram.name}</Text>
-        <Badge
-          label={selectedProgram?.isActive ? 'Active' : 'Inactive'}
-          tone={selectedProgram?.isActive ? 'success' : 'neutral'}
-        />
-      </View>
+      <Tabs
+        label="Training views"
+        items={[
+          { key: 'programs', label: 'Programs' },
+          { key: 'workouts', label: 'Workouts' },
+          { key: 'schedule', label: 'Schedule' },
+        ]}
+        activeKey={activeTab}
+        onChange={(key) => setActiveTab(key as 'programs' | 'workouts' | 'schedule')}
+      />
 
-      {/* Story 24 — only shown once there's an actual choice to make; the
-          header above already makes the single-program case clear. */}
-      {programsQuery.data && (programsQuery.data.length > 1 || !hasActiveProgram) ? (
+      {activeTab === 'programs' ? (
         <Card>
           <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Your programs</Text>
-          {programsQuery.data.map((program) => (
+          <Text style={[styles.helpText, { color: theme.text.secondary }]}>
+            Select a program to view or edit it. Only one is active at a time — that&apos;s the one Today
+            follows.
+          </Text>
+          {(programsQuery.data ?? []).map((program) => (
             <View key={program.id} style={styles.programRow}>
               <Pressable
                 onPress={() => setSelectedProgramId(program.id)}
                 accessibilityRole="button"
                 accessibilityLabel={`View ${program.name}`}
+                accessibilityState={{ selected: program.id === selectedProgram?.id }}
                 style={styles.programRowName}
               >
                 <Text
@@ -346,20 +377,26 @@ export default function ProgramEditorScreen() {
                     styles.bodyText,
                     { color: theme.text.primary, fontWeight: program.id === selectedProgram?.id ? '600' : '400' },
                   ]}
-                  numberOfLines={1}
+                  numberOfLines={2}
                 >
                   {program.name}
                 </Text>
                 {program.isActive ? <Badge label="Active" tone="success" /> : null}
               </Pressable>
-              <Button
-                label={program.isActive ? 'Active' : 'Set active'}
-                variant="secondary"
-                fullWidth={false}
-                disabled={program.isActive}
-                loading={activateMutation.isPending && activateMutation.variables === program.id}
-                onPress={() => activateMutation.mutate(program.id)}
-              />
+              {/* Only rendered for programs that are *not* active. Web
+                  disables this button and relabels it "Active" when it is,
+                  which — beside the badge that already says so — put the
+                  word "Active" on screen twice for one program. The badge
+                  states the fact; the button is only ever an action. */}
+              {program.isActive ? null : (
+                <Button
+                  label="Set active"
+                  variant="secondary"
+                  fullWidth={false}
+                  loading={activateMutation.isPending && activateMutation.variables === program.id}
+                  onPress={() => activateMutation.mutate(program.id)}
+                />
+              )}
             </View>
           ))}
         </Card>
@@ -368,59 +405,82 @@ export default function ProgramEditorScreen() {
       {/* Workouts — creating one used to be possible only inside the
           onboarding wizard, so a user who finished setup could never add
           another without switching to the web app. */}
-      <Card>
-        <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Workouts</Text>
-        {programWorkouts.length === 0 ? (
-          <Text style={{ color: theme.text.secondary }}>
-            No workouts yet. Add one — a reusable training day like &quot;Upper A&quot;.
-          </Text>
-        ) : (
-          programWorkouts.map((workout) => (
-            <Pressable
-              key={workout.id}
-              onPress={() => setSelectedDayTypeId(workout.id)}
-              style={[
-                styles.dayRow,
-                workout.id === selectedDayTypeId
-                  ? { backgroundColor: theme.action.accentSubtle, borderRadius: spacing[8] }
-                  : null,
-              ]}
-            >
-              <Text style={{ color: theme.text.primary, flex: 1 }}>{workout.name}</Text>
-              <ChevronRight size={16} color={theme.text.secondary} />
-            </Pressable>
-          ))
-        )}
-        <View style={styles.addWorkoutRow}>
-          <View style={{ flex: 1 }}>
-            <Input
+      {activeTab === 'workouts' ? (
+        <Card>
+          <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Workouts</Text>
+          {programWorkouts.length === 0 ? (
+            <Text style={[styles.helpText, { color: theme.text.secondary }]}>
+              No workouts yet. Create reusable training days like &quot;Upper A&quot; or &quot;Recovery&quot;.
+            </Text>
+          ) : (
+            programWorkouts.map((workout) => (
+              <Pressable
+                key={workout.id}
+                onPress={() => setSelectedDayTypeId(workout.id)}
+                accessibilityRole="button"
+                accessibilityLabel={workout.name}
+                accessibilityState={{ selected: workout.id === selectedDayTypeId }}
+                style={[
+                  styles.dayRow,
+                  workout.id === selectedDayTypeId
+                    ? { backgroundColor: theme.action.accentSubtle, borderRadius: radius.small }
+                    : null,
+                ]}
+              >
+                <Text style={[styles.bodyText, { color: theme.text.primary, flex: 1 }]}>{workout.name}</Text>
+                <ChevronRight size={16} color={theme.text.secondary} />
+              </Pressable>
+            ))
+          )}
+          {showCreateWorkout ? (
+            <View style={styles.createForm}>
+              <Input
+                label="Workout name"
+                value={newWorkoutName}
+                onChangeText={setNewWorkoutName}
+                placeholder="e.g. Upper A"
+              />
+              <View style={styles.createFormActions}>
+                <Button
+                  label="Cancel"
+                  variant="secondary"
+                  fullWidth={false}
+                  onPress={() => {
+                    setShowCreateWorkout(false);
+                    setNewWorkoutName('');
+                  }}
+                />
+                <Button
+                  label="Create"
+                  fullWidth={false}
+                  loading={createWorkout.isPending}
+                  onPress={() => {
+                    const name = newWorkoutName.trim();
+                    if (!name) {
+                      setToast({ variant: 'error', message: 'Give the workout a name first.' });
+                      return;
+                    }
+                    createWorkout.mutate(name);
+                  }}
+                />
+              </View>
+            </View>
+          ) : (
+            <Button
               label="New workout"
-              value={newWorkoutName}
-              onChangeText={setNewWorkoutName}
-              placeholder="e.g. Upper A"
+              variant="secondary"
+              onPress={() => setShowCreateWorkout(true)}
             />
-          </View>
-        </View>
-        <Button
-          label="Add workout"
-          variant="secondary"
-          loading={createWorkout.isPending}
-          onPress={() => {
-            const name = newWorkoutName.trim();
-            if (!name) {
-              setToast({ variant: 'error', message: 'Give the workout a name first.' });
-              return;
-            }
-            createWorkout.mutate(name);
-          }}
-        />
-      </Card>
+          )}
+        </Card>
+      ) : null}
 
       {/* Schedule — assigning days was previously web-only. Reuses the same
           WeekScheduleEditor the onboarding wizard already drives. */}
-      <Card>
-        <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Weekly schedule</Text>
-        <WeekScheduleEditor
+      {activeTab === 'schedule' ? (
+        <Card>
+          <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Program schedule</Text>
+          <WeekScheduleEditor
           workouts={programWorkouts.map((workout) => ({ id: workout.id, name: workout.name }))}
           assignmentsByDay={assignmentsByDay}
           selectedWorkoutId={heldWorkoutId}
@@ -447,10 +507,15 @@ export default function ProgramEditorScreen() {
             setPendingDayIndex(dayIndex);
             removeSlot.mutate(existing.id);
           }}
-        />
-      </Card>
+          />
+        </Card>
+      ) : null}
 
-      {selectedDayTypeId ? (
+      {/* The selected workout's exercises. Belongs to the Workouts tab —
+          web pairs the library and this detail panel side by side at
+          desktop width and stacks them at mobile width, which is exactly
+          this. */}
+      {activeTab === 'workouts' && selectedDayTypeId ? (
         <Card>
           <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>
             {dayTypeById.get(selectedDayTypeId)?.name ?? 'Workout'}
@@ -555,18 +620,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  header: {
+    gap: spacing[4],
   },
   title: {
     fontSize: typeScale.pageTitle.fontSize,
     fontWeight: '600',
   },
+  subtitle: {
+    fontSize: typeScale.compactBody.fontSize,
+  },
   sectionTitle: {
     fontSize: typeScale.sectionTitle.fontSize,
     fontWeight: '600',
+  },
+  /* Supporting copy under a section heading — web's `Small`. */
+  helpText: {
+    fontSize: typeScale.compactBody.fontSize,
+  },
+  createForm: {
+    gap: spacing[8],
+  },
+  createFormActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: spacing[8],
   },
   dayRow: {
     flexDirection: 'row',
@@ -580,11 +658,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing[8],
     paddingVertical: spacing[8],
-  },
-  addWorkoutRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: spacing[8],
   },
   bodyText: {
     fontSize: typeScale.compactBody.fontSize,
