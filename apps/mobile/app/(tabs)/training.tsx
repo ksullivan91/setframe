@@ -3,7 +3,7 @@ import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown, ChevronUp, GripVertical, MoreVertical } from 'lucide-react-native';
-import { calculateVolume, estimateOneRepMax, quickEntryFields, visibleSessionExercises } from '@setframe/domain';
+import { calculateVolume, estimateOneRepMax, isExerciseComplete, quickEntryFields, visibleSessionExercises } from '@setframe/domain';
 import type {
   Exercise,
   Prescription,
@@ -19,6 +19,7 @@ type WorkoutSetLike = Pick<
   'weightValue' | 'weightUnit' | 'reps' | 'durationSeconds' | 'distanceValue' | 'distanceUnit' | 'rpe'
 >;
 import { Card } from '../../src/components/Card';
+import { Badge } from '../../src/components/Badge';
 import { Button } from '../../src/components/Button';
 import { Input } from '../../src/components/Input';
 import { Select } from '../../src/components/Select';
@@ -580,6 +581,7 @@ export default function TrainingScreen() {
       {visibleExercises.map((exerciseLog) => {
         const definition = getPrescriptionDefinition(exerciseLog.prescription);
         const loggedSetCount = exerciseLog.sets.filter((set) => isSessionSetLogged(exerciseLog.prescription, set)).length;
+        const isComplete = isExerciseComplete(exerciseLog.prescription, exerciseLog.sets);
         const isExpanded = expandedExerciseIds[exerciseLog.id] ?? true;
         const headerDraft = headerDrafts[exerciseLog.id] ?? getHeaderDraft(exerciseLog, definition);
         const touchHeaderKey = (key: 'unit' | SessionField) =>
@@ -628,6 +630,18 @@ export default function TrainingScreen() {
           </View>
 
           <Text style={[styles.prescription, { color: theme.text.secondary }]}>{summarizePrescription(exerciseLog.prescription)}</Text>
+
+          {/* Story 38: completion is derived from every set's own
+              required-field completeness (isExerciseComplete), never a UI
+              flag toggled on collapse — text always accompanies the color
+              so it isn't the only signal. */}
+          {isComplete ? (
+            <Badge label="Complete" tone="success" />
+          ) : exerciseLog.sets.length > 0 ? (
+            <Text style={[styles.prescription, { color: theme.text.secondary }]}>
+              {`${loggedSetCount} of ${exerciseLog.sets.length} sets complete`}
+            </Text>
+          ) : null}
 
           {/* Story 37: quick-entry — set a common value once here and apply
               it to every set instead of repeating it per row. Visible

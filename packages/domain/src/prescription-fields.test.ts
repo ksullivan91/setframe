@@ -5,6 +5,7 @@ import {
   formatSessionSet,
   getPrescriptionDefinition,
   getSessionFieldLabel,
+  isExerciseComplete,
   isSessionSetLogged,
   prescriptionDefinitions,
   quickEntryFields,
@@ -284,5 +285,32 @@ describe('quickEntryFields', () => {
 
   it('keeps duration, distance, and rpe for a distance + duration exercise', () => {
     expect(quickEntryFields(getPrescriptionDefinition(samples.distanceDuration))).toEqual(['duration', 'distance', 'rpe']);
+  });
+});
+
+/**
+ * Story 38 — exercise-level completion, derived from every set's own
+ * completion (only required fields count, matching `isSessionSetLogged`).
+ */
+describe('isExerciseComplete', () => {
+  it('is incomplete with zero sets — not vacuously complete', () => {
+    expect(isExerciseComplete(samples.sets_reps, [])).toBe(false);
+  });
+
+  it('is complete only once every set has its required fields', () => {
+    expect(isExerciseComplete(samples.sets_reps, [{ weightValue: 135, reps: 5 }])).toBe(true);
+    expect(
+      isExerciseComplete(samples.sets_reps, [{ weightValue: 135, reps: 5 }, { weightValue: 145, reps: 5 }]),
+    ).toBe(true);
+  });
+
+  it('is incomplete while any single set is missing a required field', () => {
+    expect(
+      isExerciseComplete(samples.sets_reps, [{ weightValue: 135, reps: 5 }, { weightValue: 145 }]),
+    ).toBe(false);
+  });
+
+  it('does not require optional fields like RPE', () => {
+    expect(isExerciseComplete(samples.sets_reps, [{ weightValue: 135, reps: 5, rpe: undefined }])).toBe(true);
   });
 });

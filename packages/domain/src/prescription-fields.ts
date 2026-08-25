@@ -244,6 +244,25 @@ export function isSessionSetLogged(
   return definition.requiredFields.every((field) => hasFieldValue(set, field));
 }
 
+/**
+ * Story 38 — exercise-level completion is a derived domain state, not a UI
+ * boolean toggled on accordion close: an exercise is complete once every
+ * one of its sets is complete (per `isSessionSetLogged`, so only required
+ * fields count and optional ones like RPE never block it), and it has at
+ * least one set at all — an exercise with none logged is incomplete, not
+ * vacuously complete. Always computed from the sets actually persisted on
+ * the server, never a local unsaved draft, so a prefilled-but-unsaved
+ * value can't count: removing a set, or the completing/un-completing edit
+ * to any one set, naturally recomputes this on the next render with no
+ * cached state of its own to invalidate.
+ */
+export function isExerciseComplete(
+  prescription: Prescription | PrescriptionKind | null | undefined,
+  sets: readonly SessionSetValues[],
+): boolean {
+  return sets.length > 0 && sets.every((set) => isSessionSetLogged(prescription, set));
+}
+
 export type SessionFieldErrors = Partial<Record<SessionField, string>>;
 
 const fieldLabels: Record<SessionField, string> = {

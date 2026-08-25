@@ -506,3 +506,39 @@ describe('TrainingScreen collapsible quick-entry', () => {
     expect(textInputsByLabel(rendered, 'Duration (min)')).toHaveLength(1);
   });
 });
+
+/**
+ * Story 38 — exercise-level completion state, derived from every set's
+ * own required-field completeness (packages/domain's isExerciseComplete),
+ * never a UI flag toggled on accordion close.
+ */
+describe('TrainingScreen exercise completion state', () => {
+  it('shows Complete once every set has its required fields', async () => {
+    mockSessionPayload = baseSession({
+      sets: [baseSet(), baseSet({ id: 'set-2', sortOrder: 1 })],
+    });
+    const rendered = await renderScreen();
+
+    expect(textNodesContaining(rendered, 'Complete').length).toBeGreaterThan(0);
+    expect(textNodesContaining(rendered, 'sets complete')).toHaveLength(0);
+  });
+
+  it('shows a running count while any set is still missing a required field', async () => {
+    mockSessionPayload = baseSession({
+      sets: [baseSet(), baseSet({ id: 'set-2', sortOrder: 1, distanceValue: null, durationSeconds: null })],
+    });
+    const rendered = await renderScreen();
+
+    expect(textNodesContaining(rendered, '1 of 2 sets complete').length).toBeGreaterThan(0);
+    expect(textNodesContaining(rendered, 'Complete').length).toBe(0);
+  });
+
+  it('is not vacuously complete with zero sets', async () => {
+    mockSessionPayload = baseSession({ sets: [] });
+    const rendered = await renderScreen();
+
+    await flush();
+    expect(textNodesContaining(rendered, 'Complete')).toHaveLength(0);
+    expect(textNodesContaining(rendered, 'sets complete')).toHaveLength(0);
+  });
+});

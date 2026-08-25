@@ -812,3 +812,68 @@ describe('WorkoutSessionPage collapsible quick-entry', () => {
     expect(await screen.findByLabelText('Reps')).toBeInTheDocument();
   });
 });
+
+/**
+ * Story 38 — exercise-level completion state, derived from every set's
+ * own required-field completeness (packages/domain's isExerciseComplete),
+ * never a UI flag toggled on accordion close.
+ */
+describe('WorkoutSessionPage exercise completion state', () => {
+  function renderMultiSetWithCompletion(sets: { weightValue: number | null; reps: number | null }[]) {
+    const session = buildSession({ kind: 'sets_reps', sets: 3, repsMin: 8 }) as unknown as {
+      exercises: { sets: unknown[] }[];
+    };
+    session.exercises[0]!.sets = sets.map((set, index) => ({
+      id: `set-${index + 1}`,
+      exerciseLogId: 'log-1',
+      clientId: `5555555${index}-1111-4111-8111-111111111111`,
+      sortOrder: index,
+      setType: 'working',
+      weightUnit: 'lb',
+      durationSeconds: null,
+      distanceValue: null,
+      distanceUnit: null,
+      rpe: null,
+      isPrWeight: false,
+      isPrReps: false,
+      createdAt: '2026-08-22T15:00:00.000Z',
+      updatedAt: '2026-08-22T15:00:00.000Z',
+      ...set,
+    }));
+
+    mockGet = (path: string) => {
+      if (path.startsWith('/workout-sessions/')) return Promise.resolve(session);
+      if (path === '/exercises') return Promise.resolve([]);
+      return Promise.resolve(null);
+    };
+    return renderPage();
+  }
+
+  it('shows Complete once every set has its required fields', async () => {
+    renderMultiSetWithCompletion([
+      { weightValue: 135, reps: 8 },
+      { weightValue: 145, reps: 8 },
+    ]);
+
+    expect(await screen.findByText('Complete')).toBeInTheDocument();
+    expect(screen.queryByText(/sets complete/)).not.toBeInTheDocument();
+  });
+
+  it('shows a running count while any set is still missing a required field', async () => {
+    renderMultiSetWithCompletion([
+      { weightValue: 135, reps: 8 },
+      { weightValue: null, reps: null },
+    ]);
+
+    expect(await screen.findByText('1 of 2 sets complete')).toBeInTheDocument();
+    expect(screen.queryByText('Complete')).not.toBeInTheDocument();
+  });
+
+  it('is not vacuously complete with zero sets', async () => {
+    renderMultiSetWithCompletion([]);
+
+    await screen.findByText('Outdoor Cycle');
+    expect(screen.queryByText('Complete')).not.toBeInTheDocument();
+    expect(screen.queryByText(/sets complete/)).not.toBeInTheDocument();
+  });
+});

@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { ChevronDown, ChevronUp, Copy, Plus, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Copy, Plus, Trash2 } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import type {
@@ -11,9 +11,9 @@ import type {
   WorkoutSet,
   WorkoutSetPreviousPerformance,
 } from '@setframe/schemas';
-import { calculateVolume, estimateOneRepMax, quickEntryFields, visibleSessionExercises } from '@setframe/domain';
+import { calculateVolume, estimateOneRepMax, isExerciseComplete, quickEntryFields, visibleSessionExercises } from '@setframe/domain';
 import { radius, spacing } from '@setframe/design-tokens';
-import { AsyncStatusIndicator, Button, Card, IconButton, Input, Menu, Modal, PRBadge, Select, Skeleton, SkeletonStack, useAsyncStatus, useToast } from '../components';
+import { AsyncStatusIndicator, Badge, Button, Card, IconButton, Input, Menu, Modal, PRBadge, Select, Skeleton, SkeletonStack, useAsyncStatus, useToast } from '../components';
 import { AddExercisePicker } from '../components/AddExercisePicker';
 import { useApiClient } from '../lib/api-client';
 import {
@@ -886,6 +886,7 @@ export function WorkoutSessionPage() {
         {orderedExercises.map((exerciseLog) => {
           const definition = getPrescriptionDefinition(exerciseLog.prescription);
           const loggedSetCount = exerciseLog.sets.filter((set) => isSessionSetLogged(exerciseLog.prescription, set)).length;
+          const isComplete = isExerciseComplete(exerciseLog.prescription, exerciseLog.sets);
           const isExpanded = expandedExerciseIds[exerciseLog.id] ?? true;
           const headerDraft = headerDrafts[exerciseLog.id] ?? getHeaderDraft(exerciseLog, definition);
           // Touched keys are derived straight from the patch's own keys, so
@@ -912,6 +913,19 @@ export function WorkoutSessionPage() {
                 <div>
                   <ExerciseTitle>{exerciseLog.exercise.name}</ExerciseTitle>
                   <SupportingText>{summarizePrescription(exerciseLog.prescription)}</SupportingText>
+                  {/* Story 38: completion is derived from every set's own
+                      required-field completeness (isExerciseComplete),
+                      never a UI flag toggled on collapse — text always
+                      accompanies the color so it isn't the only signal. */}
+                  {isComplete ? (
+                    <Badge tone="success">
+                      <Check size={14} aria-hidden="true" /> Complete
+                    </Badge>
+                  ) : exerciseLog.sets.length > 0 ? (
+                    <SupportingText>
+                      {loggedSetCount} of {exerciseLog.sets.length} sets complete
+                    </SupportingText>
+                  ) : null}
                 </div>
               </ExerciseTitleRow>
               <ExerciseHeaderActions>
