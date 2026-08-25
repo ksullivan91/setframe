@@ -232,6 +232,26 @@ describe('ColumnChart', () => {
     const vanishedHit = hits.find((node) => !node.props.accessibilityLabel.includes('rest week'));
     expect(vanishedHit).toBeDefined();
   });
+
+  /**
+   * Story 33 — the current/incomplete period must be labeled
+   * semantically, not only by its distinct fill color.
+   */
+  it('labels the current week semantically, both in the accessible name and the visible readout', () => {
+    const series: SeriesPoint<{ isCurrent?: boolean }>[] = [
+      { localDate: '2026-01-05', value: 3 },
+      { localDate: '2026-01-12', value: 4, meta: { isCurrent: true } },
+    ];
+    const rendered = renderTree(<ColumnChart series={series} formatValue={(v) => `${v}`} label="Sessions" />);
+
+    const hits = pressablesByTestId(rendered, 'chart-column-hit');
+    expect(hits[1]!.props.accessibilityLabel).toContain('current week');
+    expect(hits[0]!.props.accessibilityLabel).not.toContain('current week');
+
+    act(() => hits[1]!.props.onPress());
+    const readout = hostsByTestId(rendered, 'chart-current-label')[0];
+    expect(readout).toBeDefined();
+  });
 });
 
 describe('RangeSelector', () => {

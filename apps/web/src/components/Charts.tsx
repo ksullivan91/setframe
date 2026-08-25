@@ -398,7 +398,7 @@ export function ColumnChart({
                   role="button"
                   aria-label={`${formatPeriod(column.localDate)}: ${
                     column.value == null ? emptyLabel : formatValue(column.value)
-                  }${isRest ? ', rest week' : ''}`}
+                  }${isRest ? ', rest week' : ''}${isCurrent ? ', current week' : ''}`}
                   style={{ cursor: onSelectColumn ? 'pointer' : 'default', outline: 'none' }}
                   onClick={() => select(index)}
                   onFocus={() => setSelected(index)}
@@ -422,6 +422,9 @@ export function ColumnChart({
               {selectedColumn.value == null ? emptyLabel : formatValue(selectedColumn.value)}
             </ReadoutValue>
             <span>{formatPeriod(selectedColumn.localDate)}</span>
+            {/* Story 33: current/incomplete period must be labeled
+                semantically, not only by its distinct fill color. */}
+            {selectedColumn.meta?.isCurrent ? <span data-testid="chart-current-label">Current week</span> : null}
           </>
         ) : (
           <span>Select a bar to see its period and value.</span>
