@@ -323,3 +323,13 @@ export function countsTowardVolume(
 export function visibleSessionExercises<T extends { skipped: boolean }>(exercises: readonly T[]): T[] {
   return exercises.filter((exerciseLog) => !exerciseLog.skipped);
 }
+
+/**
+ * Story 37 — the quick-entry header's own field set: one common value
+ * typed once and applied to every set. `setType` is a structural per-set
+ * choice, not a "common value" the same way weight/reps/duration/distance/
+ * rpe are, so it's excluded from what the header shows and applies.
+ */
+export function quickEntryFields(definition: PrescriptionDefinition): Exclude<SessionField, 'setType'>[] {
+  return definition.fields.filter((field): field is Exclude<SessionField, 'setType'> => field !== 'setType');
+}

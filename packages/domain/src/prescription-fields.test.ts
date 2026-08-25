@@ -7,6 +7,7 @@ import {
   getSessionFieldLabel,
   isSessionSetLogged,
   prescriptionDefinitions,
+  quickEntryFields,
   resolveSessionFields,
   summarizePrescription,
   validateSessionSet,
@@ -266,5 +267,22 @@ describe('visibleSessionExercises', () => {
   it('returns everything when nothing was removed', () => {
     const exercises = [{ id: 'a', skipped: false }, { id: 'b', skipped: false }];
     expect(visibleSessionExercises(exercises)).toEqual(exercises);
+  });
+});
+
+/** Story 37 — the quick-entry header's field set. */
+describe('quickEntryFields', () => {
+  it('excludes setType but keeps every other visible field, in order', () => {
+    expect(quickEntryFields(getPrescriptionDefinition(samples.sets_reps))).toEqual(['weight', 'reps', 'rpe']);
+  });
+
+  it('is empty for a representation whose only field is setType', () => {
+    // No sample prescription is setType-only, but the contract should
+    // still hold for a definition shaped that way.
+    expect(quickEntryFields({ ...getPrescriptionDefinition(samples.sets_reps), fields: ['setType'] })).toEqual([]);
+  });
+
+  it('keeps duration, distance, and rpe for a distance + duration exercise', () => {
+    expect(quickEntryFields(getPrescriptionDefinition(samples.distanceDuration))).toEqual(['duration', 'distance', 'rpe']);
   });
 });

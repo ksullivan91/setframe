@@ -144,6 +144,22 @@ function pressablesByLabel(rendered: ReactTestRenderer, label: string) {
   );
 }
 
+function textInputsByLabel(rendered: ReactTestRenderer, label: string) {
+  return rendered.root.findAll(
+    (node) =>
+      typeof node.type === 'string' &&
+      node.props?.accessibilityLabel === label &&
+      typeof node.props?.onChangeText === 'function',
+  );
+}
+
+// The Select component (unlike TextInput) has no accessibilityLabel prop —
+// only its own composite instance carries `label`/`onChange`, so no
+// host-vs-composite duplication concern here.
+function selectsByLabel(rendered: ReactTestRenderer, label: string) {
+  return rendered.root.findAll((node) => node.props?.label === label && typeof node.props?.onChange === 'function');
+}
+
 // Toast's action button (e.g. "Undo") carries no accessibility label, so
 // find it by walking up from its text to the nearest pressable ancestor.
 function pressableForText(rendered: ReactTestRenderer, text: string) {
@@ -323,5 +339,170 @@ describe('TrainingScreen persistent session actions', () => {
 
     expect(pressablesByLabel(rendered, 'Add exercise')).toHaveLength(0);
     expect(pressablesByLabel(rendered, 'Finish workout')).toHaveLength(0);
+  });
+});
+
+/**
+ * Story 37 — a quick-entry header above each exercise's full set editor,
+ * for the common case where sets share a value. Explicit "Apply to all
+ * sets" rather than automatic cascade, so a manually-edited set is never
+ * silently overwritten (only ever by the user's own next click).
+ */
+describe('TrainingScreen collapsible quick-entry', () => {
+  it('pre-fills the quick-entry header from the first set, matching what session-start already templated', async () => {
+    mockSessionPayload = baseSession({ sets: [baseSet(), baseSet({ id: 'set-2', sortOrder: 1 })] });
+    const rendered = await renderScreen();
+
+    const header = textInputsByLabel(rendered, 'All sets: Duration (min)')[0]!;
+    expect(header.props.value).toBe('30');
+  });
+
+  it('applies the header value to every set only when Apply to all sets is explicitly clicked', async () => {
+    mockSessionPayload = baseSession({ sets: [baseSet(), baseSet({ id: 'set-2', sortOrder: 1 })] });
+    const rendered = await renderScreen();
+
+    const header = textInputsByLabel(rendered, 'All sets: Duration (min)')[0]!;
+    await act(async () => {
+      header.props.onChangeText('45');
+    });
+
+    // Not applied yet — each set's own field is untouched.
+    let perSetDuration = textInputsByLabel(rendered, 'Duration (min)');
+    expect(perSetDuration[0]!.props.value).toBe('30');
+    expect(perSetDuration[1]!.props.value).toBe('30');
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Apply to all sets')[0]!.props.onPress();
+    });
+
+    perSetDuration = textInputsByLabel(rendered, 'Duration (min)');
+    expect(perSetDuration[0]!.props.value).toBe('45');
+    expect(perSetDuration[1]!.props.value).toBe('45');
+  });
+
+  it('leaves a manual per-set override alone unless Apply to all sets is clicked again', async () => {
+    // Set 2 differs from set 1 on every quick-entry field, not just
+    // duration — otherwise a bug that applied the *whole* header (instead
+    // of only the field the user actually touched) couldn't be caught:
+    // distance/rpe would already coincidentally match and look unchanged.
+    mockSessionPayload = baseSession({
+      sets: [baseSet(), baseSet({ id: 'set-2', sortOrder: 1, distanceValue: 8, rpe: 6 })],
+    });
+    const rendered = await renderScreen();
+
+    let perSetDuration = textInputsByLabel(rendered, 'Duration (min)');
+    await act(async () => {
+      perSetDuration[1]!.props.onChangeText('20');
+    });
+    perSetDuration = textInputsByLabel(rendered, 'Duration (min)');
+    expect(perSetDuration[1]!.props.value).toBe('20');
+
+    // Editing the header itself, without clicking Apply, never touches any
+    // set — the cascade is only ever triggered by the explicit button.
+    const header = textInputsByLabel(rendered, 'All sets: Duration (min)')[0]!;
+    await act(async () => {
+      header.props.onChangeText('45');
+    });
+    perSetDuration = textInputsByLabel(rendered, 'Duration (min)');
+    expect(perSetDuration[1]!.props.value).toBe('20');
+
+    // Clicking Apply is the one action that does overwrite it — an
+    // explicit, deliberate re-application, not a silent one. Only the
+    // field actually edited in the header (duration) should move; set 2's
+    // own distance/rpe — never touched in the header — must survive.
+    await act(async () => {
+      pressablesByLabel(rendered, 'Apply to all sets')[0]!.props.onPress();
+    });
+    expect(textInputsByLabel(rendered, 'Distance')[1]!.props.value).toBe('8');
+    expect(textInputsByLabel(rendered, 'RPE')[1]!.props.value).toBe('6');
+    perSetDuration = textInputsByLabel(rendered, 'Duration (min)');
+    expect(perSetDuration[1]!.props.value).toBe('45');
+  });
+
+  it('changing only the distance unit does not drag the distance value along when applied', async () => {
+    mockSessionPayload = baseSession({
+      sets: [baseSet({ distanceValue: 5 }), baseSet({ id: 'set-2', sortOrder: 1, distanceValue: 8 })],
+    });
+    const rendered = await renderScreen();
+
+    // Only the unit dropdown is touched — the distance value input itself
+    // is never edited.
+    await act(async () => {
+      selectsByLabel(rendered, 'All sets: Distance unit')[0]!.props.onChange('km');
+    });
+    await act(async () => {
+      pressablesByLabel(rendered, 'Apply to all sets')[0]!.props.onPress();
+    });
+
+    // The unit applies to both sets...
+    const perSetUnit = selectsByLabel(rendered, 'Unit');
+    expect(perSetUnit[0]!.props.value).toBe('km');
+    expect(perSetUnit[1]!.props.value).toBe('km');
+    // ...but each set's own distance value — never touched in the header
+    // — must survive untouched.
+    const perSetDistance = textInputsByLabel(rendered, 'Distance');
+    expect(perSetDistance[0]!.props.value).toBe('5');
+    expect(perSetDistance[1]!.props.value).toBe('8');
+  });
+
+  it('clears the touched header fields after a successful Apply, so a later click cannot silently reapply a stale edit', async () => {
+    mockSessionPayload = baseSession({
+      sets: [baseSet({ durationSeconds: 1800 }), baseSet({ id: 'set-2', sortOrder: 1, durationSeconds: 1200 })],
+    });
+    const rendered = await renderScreen();
+
+    const headerDuration = textInputsByLabel(rendered, 'All sets: Duration (min)')[0]!;
+    await act(async () => {
+      headerDuration.props.onChangeText('60');
+    });
+    await act(async () => {
+      pressablesByLabel(rendered, 'Apply to all sets')[0]!.props.onPress();
+    });
+    expect(textInputsByLabel(rendered, 'Duration (min)')[1]!.props.value).toBe('60');
+
+    // Set 2's duration is hand-edited back to something else after the
+    // apply...
+    let perSetDuration = textInputsByLabel(rendered, 'Duration (min)');
+    await act(async () => {
+      perSetDuration[1]!.props.onChangeText('15');
+    });
+    perSetDuration = textInputsByLabel(rendered, 'Duration (min)');
+    expect(perSetDuration[1]!.props.value).toBe('15');
+
+    // ...and now the user edits the header's *distance* only, then
+    // applies. The stale "duration" touch from earlier must not still be
+    // armed — set 2's hand-edited duration must survive this unrelated
+    // apply.
+    const headerDistance = textInputsByLabel(rendered, 'All sets: Distance')[0]!;
+    await act(async () => {
+      headerDistance.props.onChangeText('12');
+    });
+    await act(async () => {
+      pressablesByLabel(rendered, 'Apply to all sets')[0]!.props.onPress();
+    });
+
+    perSetDuration = textInputsByLabel(rendered, 'Duration (min)');
+    expect(perSetDuration[1]!.props.value).toBe('15');
+    expect(textInputsByLabel(rendered, 'Distance')[1]!.props.value).toBe('12');
+  });
+
+  it('collapses and re-expands an exercise, hiding and restoring its set editor', async () => {
+    mockSessionPayload = baseSession({ sets: [baseSet()] });
+    const rendered = await renderScreen();
+
+    expect(textInputsByLabel(rendered, 'Duration (min)')).toHaveLength(1);
+    // The quick-entry header stays visible either way.
+    expect(textInputsByLabel(rendered, 'All sets: Duration (min)')).toHaveLength(1);
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Collapse Outdoor Cycle')[0]!.props.onPress();
+    });
+    expect(textInputsByLabel(rendered, 'Duration (min)')).toHaveLength(0);
+    expect(textInputsByLabel(rendered, 'All sets: Duration (min)')).toHaveLength(1);
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Expand Outdoor Cycle')[0]!.props.onPress();
+    });
+    expect(textInputsByLabel(rendered, 'Duration (min)')).toHaveLength(1);
   });
 });

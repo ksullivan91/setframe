@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { GripVertical, MoreVertical } from 'lucide-react-native';
-import { calculateVolume, estimateOneRepMax, visibleSessionExercises } from '@setframe/domain';
+import { ChevronDown, ChevronUp, GripVertical, MoreVertical } from 'lucide-react-native';
+import { calculateVolume, estimateOneRepMax, quickEntryFields, visibleSessionExercises } from '@setframe/domain';
 import type {
   Exercise,
   Prescription,
@@ -20,7 +20,9 @@ type WorkoutSetLike = Pick<
 >;
 import { Card } from '../../src/components/Card';
 import { Button } from '../../src/components/Button';
-import { SetRowEditable } from '../../src/components/SetRow';
+import { Input } from '../../src/components/Input';
+import { Select } from '../../src/components/Select';
+import { SetRowEditable, distanceUnitOptions } from '../../src/components/SetRow';
 import { IconButton } from '../../src/components/IconButton';
 import { AddExercisePicker } from '../../src/components/AddExercisePicker';
 import { FadeIn, Skeleton, SkeletonStack } from '../../src/components/Skeleton';
@@ -30,6 +32,7 @@ import {
   countsTowardVolume,
   formatSessionSet,
   getPrescriptionDefinition,
+  getSessionFieldLabel,
   isSessionSetLogged,
   resolveSessionFields,
   summarizePrescription,
@@ -130,6 +133,20 @@ function buildDraft(set: WorkoutSet, definition: PrescriptionDefinition, prescri
   };
 }
 
+/**
+ * Story 37: the quick-entry header's starting point. The first set already
+ * carries the template's prefill (session-start expands the prescription
+ * onto every set — weight left blank, everything else pre-populated), so
+ * reusing it here means the header never has to re-derive prescription
+ * defaults on its own. An exercise with no sets yet just starts blank.
+ */
+function getHeaderDraft(exerciseLog: WorkoutSessionDetail['exercises'][number], definition: PrescriptionDefinition): SetDraft {
+  const firstSet = exerciseLog.sets[0];
+  return firstSet
+    ? buildDraft(firstSet, definition, exerciseLog.prescription)
+    : { values: { setType: 'working' }, distanceUnit: definition.units.distance, completed: false };
+}
+
 function draftToValues(draft: SetDraft, definition: PrescriptionDefinition) {
   return {
     setType: draft.values.setType ?? 'working',
@@ -196,6 +213,23 @@ export default function TrainingScreen() {
   const [elapsedLabel, setElapsedLabel] = useState('—');
   const [showAddExercise, setShowAddExercise] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, SetDraft>>({});
+  // Story 37: a separate, exercise-level draft for the quick-entry header —
+  // distinct from any one set's own draft, since it's a value to apply,
+  // not a value that's itself logged.
+  const [headerDrafts, setHeaderDrafts] = useState<Record<string, SetDraft>>({});
+  // Story 37: which header keys the user has actually edited since the
+  // header was last reset — Apply to all sets must only ever patch these,
+  // not every quick-entry field, or changing just reps would silently
+  // blow away a sibling set's own distinct weight/duration/etc. `'unit'`
+  // is tracked separately from `'distance'` (the value) so touching only
+  // the unit dropdown doesn't also drag the distance value along — they're
+  // one field, but two independent draft keys. Cleared after a successful
+  // Apply and whenever a set is added, so a stale earlier edit can never
+  // silently reapply on a later, unrelated click.
+  const [headerTouchedKeys, setHeaderTouchedKeys] = useState<Record<string, ('unit' | SessionField)[]>>({});
+  // Story 37: undefined means expanded — every exercise starts open,
+  // matching the screen's existing pre-collapsible behavior.
+  const [expandedExerciseIds, setExpandedExerciseIds] = useState<Record<string, boolean>>({});
   const [createdSessionId, setCreatedSessionId] = useState<string | undefined>();
   const [toast, setToast] = useState<{
     variant: 'success' | 'error';
@@ -312,7 +346,13 @@ export default function TrainingScreen() {
         distanceUnit: sourceSet?.distanceValue != null ? sourceSet.distanceUnit ?? undefined : undefined,
         rpe: sourceSet?.rpe ?? undefined,
       }),
-    onSuccess: refreshSession,
+    onSuccess: async (_, variables) => {
+      await refreshSession();
+      // Story 37: a newly added set didn't exist when any header field was
+      // marked touched, so a stale touched key could otherwise reapply to
+      // it (and every other set) on the next unrelated Apply click.
+      setHeaderTouchedKeys((prev) => ({ ...prev, [variables.exerciseLogId]: [] }));
+    },
   });
 
   const saveSetMutation = useMutation({
@@ -432,6 +472,46 @@ export default function TrainingScreen() {
     );
   }
 
+  function toggleExpanded(exerciseLogId: string) {
+    setExpandedExerciseIds((prev) => ({ ...prev, [exerciseLogId]: !(prev[exerciseLogId] ?? true) }));
+  }
+
+  /**
+   * Story 37: applies the header's quick-entry values onto every set's own
+   * draft. Explicit and only ever fired by this button — the cascade never
+   * runs on its own, so a set the user already edited by hand is never
+   * silently overwritten; the user has to knowingly re-apply over it.
+   *
+   * Only the exact keys the user actually edited in the header are
+   * copied — not every key belonging to the same quick-entry field. That
+   * distinction matters for distance specifically: touching only the unit
+   * dropdown must not also drag the (untouched) distance value along.
+   */
+  function applyHeaderToAllSets(exerciseLog: WorkoutSessionDetail['exercises'][number], definition: PrescriptionDefinition) {
+    const header = headerDrafts[exerciseLog.id] ?? getHeaderDraft(exerciseLog, definition);
+    const touchedKeys = headerTouchedKeys[exerciseLog.id] ?? [];
+    setDrafts((prev) => {
+      const next = { ...prev };
+      for (const set of exerciseLog.sets) {
+        const current = next[set.id] ?? buildDraft(set, definition, exerciseLog.prescription);
+        const patch: Partial<Record<SessionField, string>> = {};
+        for (const key of touchedKeys) {
+          if (key !== 'unit') patch[key] = header.values[key];
+        }
+        next[set.id] = {
+          ...current,
+          values: { ...current.values, ...patch },
+          distanceUnit: touchedKeys.includes('unit') ? header.distanceUnit : current.distanceUnit,
+        };
+      }
+      return next;
+    });
+    // Cleared so a later, unrelated Apply click can't silently reapply a
+    // stale edit — the next click only ever acts on what's touched after
+    // this point.
+    setHeaderTouchedKeys((prev) => ({ ...prev, [exerciseLog.id]: [] }));
+  }
+
   // Timed, distance and bodyweight work carries no weight, so including it
   // would contribute nothing while making the total look authoritative.
   const totalVolume = useMemo(
@@ -500,10 +580,30 @@ export default function TrainingScreen() {
       {visibleExercises.map((exerciseLog) => {
         const definition = getPrescriptionDefinition(exerciseLog.prescription);
         const loggedSetCount = exerciseLog.sets.filter((set) => isSessionSetLogged(exerciseLog.prescription, set)).length;
+        const isExpanded = expandedExerciseIds[exerciseLog.id] ?? true;
+        const headerDraft = headerDrafts[exerciseLog.id] ?? getHeaderDraft(exerciseLog, definition);
+        const touchHeaderKey = (key: 'unit' | SessionField) =>
+          setHeaderTouchedKeys((prev) => ({
+            ...prev,
+            [exerciseLog.id]: prev[exerciseLog.id]?.includes(key) ? prev[exerciseLog.id]! : [...(prev[exerciseLog.id] ?? []), key],
+          }));
+        // Touched keys are derived straight from the patch's own keys, so
+        // e.g. changing only the distance value marks just `distance`
+        // touched, never the (separately tracked) unit alongside it.
+        const updateHeader = (patch: Partial<Record<SessionField, string>>) => {
+          setHeaderDrafts((prev) => ({ ...prev, [exerciseLog.id]: { ...headerDraft, values: { ...headerDraft.values, ...patch } } }));
+          for (const key of Object.keys(patch) as SessionField[]) touchHeaderKey(key);
+        };
         return (
         <Card key={exerciseLog.id}>
           <View style={styles.exerciseHeader}>
             <View style={styles.exerciseTitleRow}>
+              <IconButton
+                icon={isExpanded ? ChevronUp : ChevronDown}
+                variant="subtle"
+                accessibilityLabel={isExpanded ? `Collapse ${exerciseLog.exercise.name}` : `Expand ${exerciseLog.exercise.name}`}
+                onPress={() => toggleExpanded(exerciseLog.id)}
+              />
               <GripVertical size={18} color={theme.text.secondary} />
               <Text style={[styles.exerciseTitle, { color: theme.text.primary }]}>{exerciseLog.exercise.name}</Text>
             </View>
@@ -529,8 +629,66 @@ export default function TrainingScreen() {
 
           <Text style={[styles.prescription, { color: theme.text.secondary }]}>{summarizePrescription(exerciseLog.prescription)}</Text>
 
+          {/* Story 37: quick-entry — set a common value once here and apply
+              it to every set instead of repeating it per row. Visible
+              regardless of expand state, matching the collapsed header's
+              own content per the story's UX intent. */}
+          <View style={styles.quickEntryGrid}>
+            {quickEntryFields(definition).map((field) => {
+              // Distinct from the per-set field labels below (not just
+              // "Weight"/"Reps") — two identically-labeled inputs in the
+              // same section would be genuinely ambiguous for a
+              // screen-reader user navigating by label, not only in tests.
+              const label = `All sets: ${getSessionFieldLabel(field, definition)}`;
+              if (field === 'distance') {
+                return (
+                  <View key={field} style={styles.quickEntryDistanceRow}>
+                    <View style={styles.quickEntryDistanceValue}>
+                      <Input
+                        label={label}
+                        value={headerDraft.values.distance ?? ''}
+                        onChangeText={(value) => updateHeader({ distance: value })}
+                        keyboardType="decimal-pad"
+                      />
+                    </View>
+                    <Select
+                      label="All sets: Distance unit"
+                      value={headerDraft.distanceUnit}
+                      options={distanceUnitOptions.map((option) => ({ ...option }))}
+                      onChange={(value) => {
+                        setHeaderDrafts((prev) => ({ ...prev, [exerciseLog.id]: { ...headerDraft, distanceUnit: value } }));
+                        touchHeaderKey('unit');
+                      }}
+                    />
+                  </View>
+                );
+              }
+              return (
+                <Input
+                  key={field}
+                  label={label}
+                  value={headerDraft.values[field] ?? ''}
+                  onChangeText={(value) => updateHeader({ [field]: value })}
+                  keyboardType={field === 'reps' ? 'number-pad' : 'decimal-pad'}
+                  unit={field === 'weight' ? exerciseLog.sets[0]?.weightUnit ?? 'lb' : undefined}
+                />
+              );
+            })}
+          </View>
+          <View style={styles.quickEntryFooter}>
+            <Button
+              label="Apply to all sets"
+              variant="secondary"
+              fullWidth={false}
+              disabled={!exerciseLog.sets.length || sessionQuery.data.status === 'completed'}
+              onPress={() => applyHeaderToAllSets(exerciseLog, definition)}
+            />
+          </View>
+
+          {isExpanded ? (
+          <>
           {exerciseLog.previousSession ? (
-            <Card style={[styles.previousCard, { backgroundColor: theme.surface.sunken }]}> 
+            <Card style={[styles.previousCard, { backgroundColor: theme.surface.sunken }]}>
               <Text style={[styles.previousTitle, { color: theme.text.secondary }]}>Previous session</Text>
               {exerciseLog.previousSession.sets.map((set, index) => (
                 <Text key={`${exerciseLog.previousSession?.sessionId}-${index}`} style={{ color: theme.text.primary }}>
@@ -606,6 +764,8 @@ export default function TrainingScreen() {
               </View>
             );
           })}
+          </>
+          ) : null}
         </Card>
         );
       })}
@@ -806,6 +966,23 @@ const styles = StyleSheet.create({
     fontSize: typeScale.sectionTitle.fontSize,
     fontWeight: '600',
     flexShrink: 1,
+  },
+  quickEntryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing[8],
+  },
+  quickEntryDistanceRow: {
+    flexDirection: 'row',
+    gap: spacing[8],
+    flex: 1,
+  },
+  quickEntryDistanceValue: {
+    flex: 1,
+  },
+  quickEntryFooter: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
   },
   prescription: {
     fontSize: typeScale.compactBody.fontSize,
