@@ -283,6 +283,58 @@ describe('body weight', () => {
     );
     await waitFor(() => expect(screen.getByTestId('chart-trend-line')).toBeTruthy());
   });
+
+  /**
+   * Story 32 — Start/Current/Change framing for the selected range, built
+   * from the raw check-ins actually visible, not the prior period's value.
+   */
+  it('shows Start, Current (with date), and Change for the visible range', async () => {
+    renderProgress(
+      baseOverview({
+        bodyWeight: {
+          unit: 'lb',
+          sufficiency: 'ready',
+          checkInCount: points.length,
+          currentAverage: 177.4,
+          latestCheckIn: { localDate: '2025-07-20', weightValue: 177.1 },
+          ratePerWeek: -0.84,
+          direction: 'falling',
+          windowWeeks: 4,
+          points,
+          weeks: [],
+        },
+      }),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('body-weight-range-summary')).toBeTruthy());
+    expect(screen.getByTestId('body-weight-range-start')).toHaveTextContent('180.0');
+    expect(screen.getByTestId('body-weight-range-current')).toHaveTextContent('177.2');
+    // 20 points at -0.15/day = a 2.85 lb drop, direction down.
+    expect(screen.getByTestId('body-weight-range-change')).toHaveTextContent('↓ 2.8 lb');
+  });
+
+  it('shows only Current, with no Start or Change, for a single check-in', async () => {
+    renderProgress(
+      baseOverview({
+        bodyWeight: {
+          unit: 'lb',
+          sufficiency: 'establishing',
+          checkInCount: 1,
+          currentAverage: null,
+          latestCheckIn: { localDate: '2025-07-20', weightValue: 180 },
+          ratePerWeek: null,
+          direction: null,
+          windowWeeks: 4,
+          points: [{ localDate: '2025-07-20', raw: 180, trend: null, rollingAverage: null }],
+          weeks: [],
+        },
+      }),
+    );
+
+    await waitFor(() => expect(screen.getByTestId('body-weight-range-current')).toBeTruthy());
+    expect(screen.queryByTestId('body-weight-range-start')).toBeNull();
+    expect(screen.queryByTestId('body-weight-range-change')).toBeNull();
+  });
 });
 
 describe('prescription-aware exercise metrics', () => {

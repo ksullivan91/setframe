@@ -170,6 +170,19 @@ export function BodyWeightSection({
   // calling a fortnight-old average "this week".
   const latestWeek = bodyWeight.weeks.at(-1) ?? null;
 
+  // Story 32 — Start/Current/Change for the selected range, from the raw
+  // check-ins actually visible (not the prior period's last value, and not
+  // the smoothed trend below). A single present point shows only Current: a
+  // change or trend computed from one observation would be fabricated.
+  const rangeSummary = useMemo(() => {
+    const present = visibleRaw.filter((point) => point.value != null);
+    if (!present.length) return null;
+    const start = present[0]!;
+    const current = present.at(-1)!;
+    if (present.length === 1 || start === current) return { start: null, current, change: null };
+    return { start, current, change: current.value! - start.value! };
+  }, [visibleRaw]);
+
   // Deliberately built from the smoothed series and gated on a week of
   // elapsed time: an endpoint-to-endpoint difference between two raw
   // mornings a day apart is the day-over-day delta under another name.
@@ -213,6 +226,44 @@ export function BodyWeightSection({
         <Helper testID="body-weight-range-context">
           {formatDateRangeLabel(visibleRaw[0]!.localDate, visibleRaw.at(-1)!.localDate)}
         </Helper>
+      ) : null}
+
+      {rangeSummary ? (
+        <View style={styles.rangeStatRow} testID="body-weight-range-summary">
+          {rangeSummary.start ? (
+            <View>
+              <Text style={[styles.rangeStatLabel, { color: theme.text.secondary }]}>Start</Text>
+              <Text
+                style={[styles.rangeStatValue, { color: theme.text.primary }]}
+                testID="body-weight-range-start"
+              >
+                {format(rangeSummary.start.value!)}
+              </Text>
+            </View>
+          ) : null}
+          <View>
+            <Text style={[styles.rangeStatLabel, { color: theme.text.secondary }]}>Current</Text>
+            <Text
+              style={[styles.rangeStatValue, { color: theme.text.primary }]}
+              testID="body-weight-range-current"
+            >
+              {`${format(rangeSummary.current.value!)} · ${formatDate(rangeSummary.current.localDate)}`}
+            </Text>
+          </View>
+          {rangeSummary.change != null ? (
+            <View>
+              <Text style={[styles.rangeStatLabel, { color: theme.text.secondary }]}>Change</Text>
+              <Text
+                style={[styles.rangeStatValue, { color: theme.text.primary }]}
+                testID="body-weight-range-change"
+              >
+                {`${rangeSummary.change > 0 ? '↑' : rangeSummary.change < 0 ? '↓' : '→'} ${Math.abs(
+                  rangeSummary.change,
+                ).toFixed(1)} ${bodyWeight.unit}`}
+              </Text>
+            </View>
+          ) : null}
+        </View>
       ) : null}
 
       {bodyWeight.sufficiency === 'establishing' ? (
@@ -751,6 +802,19 @@ const styles = StyleSheet.create({
   },
   summaryDetail: {
     fontSize: typeScale.caption.fontSize,
+  },
+  /* Story 32 — Start/Current/Change framing for the selected range. */
+  rangeStatRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing[16],
+  },
+  rangeStatLabel: {
+    fontSize: typeScale.caption.fontSize,
+  },
+  rangeStatValue: {
+    fontSize: typeScale.body.fontSize,
+    fontWeight: '600',
   },
   stack: {
     gap: spacing[16],
