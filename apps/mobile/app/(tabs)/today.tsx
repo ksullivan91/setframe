@@ -32,6 +32,7 @@ import { MetricTile } from '../../src/components/MetricTile';
 import { SyncStatusPill, type SyncStatus } from '../../src/components/SyncStatusPill';
 import { Checkbox } from '../../src/components/Checkbox';
 import { Toast } from '../../src/components/Toast';
+import { TodayAdditionalActivitySection } from '../../src/components/TodayAdditionalActivitySection';
 import { countsTowardVolume, isSessionSetLogged } from '../../src/lib/prescription';
 import { visibleSessionExercises } from '@setframe/domain';
 import { ApiError, useApiClient } from '../../src/lib/api-client';
@@ -672,6 +673,11 @@ export default function TodayScreen() {
           </>
         )}
       </Card>
+
+      {/* Story 41 — available on training, recovery, rest, and no-program
+          days alike; deliberately outside every todayWorkoutState branch
+          above. */}
+      <TodayAdditionalActivitySection localDate={localDate} />
 
       {toast ? (
         <Toast variant={toast.variant} message={toast.message} onDismiss={() => setToast(null)} />

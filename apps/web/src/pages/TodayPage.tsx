@@ -29,6 +29,7 @@ import {
   Select,
   Skeleton,
   SkeletonStack,
+  TodayAdditionalActivitySection,
   useAsyncStatus,
   useToast,
 } from '../components';
@@ -971,6 +972,11 @@ export function TodayPage() {
             </PrimaryWorkoutCard>
 
           ) : null}
+
+          {/* Story 41 — available on training, recovery, rest, and
+              no-program days alike; deliberately outside every
+              `todayWorkoutState` branch above. */}
+          <TodayAdditionalActivitySection localDate={localDate} />
 
           <RitualCard>
             {isLoading ? (
