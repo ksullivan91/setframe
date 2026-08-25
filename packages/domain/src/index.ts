@@ -15,3 +15,4 @@ export * from './progress-contract';
 export * from './progress-format';
 export * from './additional-activity-fields';
 export * from './additional-activity-recents';
+export * from './progress-range';

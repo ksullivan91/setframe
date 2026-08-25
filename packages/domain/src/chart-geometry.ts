@@ -297,60 +297,43 @@ export function buildColumnChart<Meta>(
   return { columns, ticks, domain: { min: 0, max: domainMax }, slotWidth: slot, plot };
 }
 
-export type ChartRange = '1W' | '1M' | '3M' | '6M' | '1Y' | 'ALL';
+/**
+ * Scrub support. ADR 0008 keeps the renderers hand-rolled but insists the
+ * geometry live here once, so web and native resolve a gesture to the same
+ * datum by construction rather than by two implementations agreeing.
+ */
 
-export const chartRanges: readonly ChartRange[] = ['1W', '1M', '3M', '6M', '1Y', 'ALL'] as const;
+/** Minimum horizontal travel, in px, before a drag counts as a scrub. */
+export const scrubClaimThreshold = 4;
 
-const rangeDays: Record<Exclude<ChartRange, 'ALL'>, number> = {
-  '1W': 7,
-  '1M': 30,
-  '3M': 91,
-  '6M': 182,
-  '1Y': 365,
-};
-
-export function rangeLabel(range: ChartRange): string {
-  switch (range) {
-    case '1W':
-      return 'Last week';
-    case '1M':
-      return 'Last month';
-    case '3M':
-      return 'Last 3 months';
-    case '6M':
-      return 'Last 6 months';
-    case '1Y':
-      return 'Last year';
-    case 'ALL':
-      return 'All time';
-  }
-}
-
-/** Trims a series to a trailing range ending at `endLocalDate`. */
-export function filterByRange<Meta>(
-  series: readonly SeriesPoint<Meta>[],
-  range: ChartRange,
-  endLocalDate: string,
-): SeriesPoint<Meta>[] {
-  if (range === 'ALL') return [...series];
-  const cutoff = toDayNumber(endLocalDate) - rangeDays[range];
-  return series.filter((point) => toDayNumber(point.localDate) >= cutoff);
+/**
+ * Whether a drag should be treated as a chart scrub rather than left to the
+ * surrounding scroll container. Native has to decide this explicitly (there
+ * is no `touch-action`), and the answer must match what the web CSS rule
+ * `touch-action: pan-y` produces: horizontal belongs to the chart, vertical
+ * to the page, and a jittery tap to neither.
+ */
+export function shouldClaimScrub(dx: number, dy: number): boolean {
+  return Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > scrubClaimThreshold;
 }
 
 /**
- * The ranges worth offering for a series. A range that would show the same
- * points as the full history is not a choice, it is a decoy, so ranges are
- * only enabled once the data actually extends beyond them.
+ * The index of the plotted point nearest an x in plot coordinates. Returns
+ * null for an empty plot. Ties resolve to the earlier point, so dragging
+ * from the left edge starts on the first datum.
  */
-export function availableRanges<Meta>(
-  series: readonly SeriesPoint<Meta>[],
-  endLocalDate: string,
-): ChartRange[] {
-  const present = series.filter((point) => point.value != null);
-  if (present.length < 2) return [];
-  const earliest = Math.min(...present.map((point) => toDayNumber(point.localDate)));
-  const spanDays = toDayNumber(endLocalDate) - earliest;
-  const usable = chartRanges.filter((range) => range === 'ALL' || rangeDays[range] < spanDays);
-  // 'ALL' alone is not a choice either.
-  return usable.length > 1 ? usable : [];
+export function nearestPointIndex(
+  points: readonly { x: number; index: number }[],
+  x: number,
+): number | null {
+  let best: number | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const point of points) {
+    const distance = Math.abs(point.x - x);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = point.index;
+    }
+  }
+  return best;
 }

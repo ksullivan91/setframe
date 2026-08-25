@@ -255,18 +255,105 @@ describe('ColumnChart', () => {
 });
 
 describe('RangeSelector', () => {
-  it('renders nothing when fewer than two ranges are offered', () => {
+  /* The superseded control filtered unavailable ranges out and rendered
+     nothing at all below two options, so a user with a few days of data saw
+     no time-range control and a reviewer concluded it had never been built.
+     Every range is now always present; the ones the data cannot fill are
+     dimmed and reported disabled. */
+  it('still renders the control when only one range is usable', () => {
     const rendered = renderTree(
-      <RangeSelector ranges={['ALL']} value="ALL" onChange={() => {}} label="Range" />,
+      <RangeSelector
+        options={[
+          { range: 'W', disabled: true },
+          { range: 'ALL', disabled: false },
+        ]}
+        value="ALL"
+        onChange={() => {}}
+        label="Range"
+      />,
     );
-    expect(hostsByTestId(rendered, 'chart-range-selector')).toHaveLength(0);
+    expect(hostsByTestId(rendered, 'chart-range-selector')).toHaveLength(1);
+    expect(hostsByTestId(rendered, 'chart-range-W')).toHaveLength(1);
+  });
+
+  it('reports an unfillable range as disabled rather than hiding it', () => {
+    const rendered = renderTree(
+      <RangeSelector
+        options={[
+          { range: 'W', disabled: false },
+          { range: 'Y', disabled: true },
+        ]}
+        value="W"
+        onChange={() => {}}
+        label="Range"
+      />,
+    );
+    const unavailable = hostsByTestId(rendered, 'chart-range-Y')[0]!;
+    expect(unavailable.props.accessibilityState.disabled).toBe(true);
   });
 
   it('marks the active range as selected for assistive technology', () => {
     const rendered = renderTree(
-      <RangeSelector ranges={['1M', '3M', 'ALL']} value="3M" onChange={() => {}} label="Range" />,
+      <RangeSelector
+        options={[
+          { range: 'M', disabled: false },
+          { range: '3M', disabled: false },
+          { range: 'ALL', disabled: false },
+        ]}
+        value="3M"
+        onChange={() => {}}
+        label="Range"
+      />,
     );
     const active = hostsByTestId(rendered, 'chart-range-3M')[0]!;
     expect(active.props.accessibilityState.selected).toBe(true);
+  });
+});
+
+/**
+ * Story 48 — the native counterpart of the web scrub. There is no pointer
+ * capture on native, so the equivalent is a PanResponder on the container
+ * that claims the gesture only once it is clearly horizontal: a tap must
+ * still reach the per-point Pressables (and with them VoiceOver), and a
+ * vertical drag must still scroll the screen.
+ */
+describe('LineChart scrub', () => {
+  const series = line([180, 181, 182, 183]);
+
+  /* The gesture-resolution maths is shared with web through
+     `nearestPointIndex`/`shouldClaimScrub` and is tested in @setframe/domain.
+     What is worth asserting here is that this renderer actually wires a
+     responder to the plot, since the alternative — a chart that only responds
+     to discrete taps — looks identical in a snapshot. Whether the resulting
+     drag *feels* right is a hardware question; see the story's notes on the
+     simulator run, which no jsdom test can stand in for. */
+  it('wires a pan responder to the plot surface', () => {
+    const rendered = renderTree(
+      <LineChart series={series} formatValue={(v) => `${v} lb`} label="Weight" />,
+    );
+    const surface = rendered.root.find(
+      (node) => node.props?.testID === 'chart-scrub-surface' && typeof node.type === 'string',
+    );
+
+    expect(typeof surface.props.onMoveShouldSetResponder).toBe('function');
+    expect(typeof surface.props.onResponderMove).toBe('function');
+  });
+
+  it('keeps per-point taps working alongside the responder', () => {
+    const rendered = renderTree(
+      <LineChart series={series} formatValue={(v) => `${v} lb`} label="Weight" />,
+    );
+    /* The responder claims only horizontal movement, so a tap must still
+       reach the Pressable bands that carry the accessibility labels. */
+    const pressables = pressablesByTestId(rendered, 'chart-point');
+    expect(pressables).toHaveLength(4);
+
+    tapAt(pressables, expectedX(2, 4));
+    const readout = hostsByTestId(rendered, 'chart-readout')[0]!;
+    const text = readout.findAll((node) => typeof node.type === 'string')
+      .flatMap((node) => [node.props.children].flat(3))
+      .filter((child) => typeof child === 'string')
+      .join('');
+    expect(text).toContain('182 lb');
   });
 });
