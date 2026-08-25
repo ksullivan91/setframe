@@ -177,12 +177,35 @@ export interface BuildInsightOptions {
    * unknown, not zero. Mirrors `emptyIsZero` in `progress-range.ts`.
    */
   emptyIsZero?: boolean;
+  /**
+   * The finest granularity the source observations actually carry.
+   *
+   * Elapsed-matching subdivides the previous window by day, which only works
+   * if the source has per-day observations. `/progress/overview` returns
+   * training data **pre-aggregated by week** — one point per `weekStart`
+   * holding that week's total — so truncating its previous window to
+   * "Monday–Tuesday" would still capture the whole previous week's bucket
+   * and compare it against a partial current one: precisely the artefact
+   * elapsed-matching exists to prevent, arrived at from the other direction.
+   *
+   * With `'week'`, matching falls back to whole periods and the comparison is
+   * labelled partial instead, which is the honest reading the story's own
+   * example uses ("2 sessions this week, compared with 3 last week").
+   */
+  sourceGranularity?: 'day' | 'week';
 }
 
 const DEFAULT_MINIMUM_SAMPLES = 2;
 
 /** Metrics whose value accumulates with elapsed time. See the module note. */
 const ACCUMULATING: readonly BucketAggregation[] = ['sum', 'count'];
+
+/**
+ * How much of a period an averaging metric must cover before its mean is
+ * allowed to stand for that period. Half is the point where "this week" stops
+ * being a couple of readings and starts being a week.
+ */
+const AVERAGING_MIN_COVERAGE = 0.5;
 
 function aggregateValues(values: number[], how: BucketAggregation): number {
   switch (how) {
@@ -381,7 +404,10 @@ export function buildProgressInsight(
   const periodDays = fullPeriodDays(options.range, fullWindow);
   const current = buildPeriod(raw, fullWindow, options, periodDays, elapsedDays);
 
-  const accumulating = ACCUMULATING.includes(options.aggregation);
+  /* Elapsed-matching needs day-level source data to subdivide; see
+     `sourceGranularity`. */
+  const accumulating =
+    ACCUMULATING.includes(options.aggregation) && (options.sourceGranularity ?? 'day') === 'day';
   const previousWindowFull = previousWindowFor(options.range, fullWindow);
 
   /* Elapsed-matching only applies to metrics that accumulate. Truncating the
@@ -397,15 +423,28 @@ export function buildProgressInsight(
     ? buildPeriod(raw, previousWindow, options, windowDays(previousWindow))
     : null;
 
+  /* "Sparse" has to mean *fewer observations than this period could hold*,
+     not simply "fewer than two". Weekly-aggregated training data carries
+     exactly one observation per week by construction, so judging it against a
+     flat minimum flags every single week-range comparison as thin — a caveat
+     that is always on is worse than no caveat, because it trains the reader
+     to ignore the ones that matter. A period already holding everything it
+     can hold is complete, whatever that count happens to be. */
+  const perPeriodCapacity = (period: InsightPeriod) =>
+    (options.sourceGranularity ?? 'day') === 'week'
+      ? Math.max(1, Math.ceil(period.elapsedDays / 7))
+      : period.elapsedDays;
+  const isSparse = (period: InsightPeriod) =>
+    period.sampleCount > 0 &&
+    period.sampleCount < Math.min(minimumSamples, perPeriodCapacity(period));
+
   const dataQuality: DataQualityFlag[] = [];
   if (current.isPartial) dataQuality.push('partial_current_period');
   if (current.sampleCount === 1) dataQuality.push('single_observation');
-  if (current.sampleCount > 0 && current.sampleCount < minimumSamples) {
-    dataQuality.push('sparse_current_period');
-  }
+  if (isSparse(current)) dataQuality.push('sparse_current_period');
   if (!previous || previous.sampleCount === 0) {
     dataQuality.push('no_previous_period');
-  } else if (previous.sampleCount < minimumSamples) {
+  } else if (isSparse(previous)) {
     dataQuality.push('sparse_previous_period');
   }
   /* A gap is a day inside the window with no observation, for metrics where
@@ -415,13 +454,36 @@ export function buildProgressInsight(
     dataQuality.push('gaps_in_window');
   }
 
+  /* An averaging metric over a barely-started period is not a summary of that
+     period, it is the first day or two of it wearing the period's name. Two
+     days of morning weight is dominated by water and gut content — the exact
+     noise `docs/research/body-weight-display-psychology.md` exists to keep off
+     the screen — and calling it "your 2-day average" alongside the 7-day
+     average shown elsewhere invites a comparison between two different
+     things. Accumulating metrics are exempt: a partial count is a real count,
+     and elapsed-matching already makes it comparable. */
+  const coverage = current.periodDays > 0 ? current.elapsedDays / current.periodDays : 1;
+  const tooShortToAverage =
+    !ACCUMULATING.includes(options.aggregation) && coverage < AVERAGING_MIN_COVERAGE;
+
   const canSummariseCurrent =
-    current.value != null && current.sampleCount >= Math.min(minimumSamples, 1);
+    current.value != null &&
+    current.sampleCount >= Math.min(minimumSamples, 1) &&
+    !tooShortToAverage;
+  /* `emptyIsZero` says an empty period means zero — but only for a period the
+     user was actually around for. A week *inside* your history with no
+     sessions is a real zero and the comparison is the whole point. A week
+     that predates your first-ever observation is not a zero, it is an absence
+     of data, and treating it as one manufactures the exact claim this module
+     exists to refuse: "2 sessions, compared with 0 last week" to someone who
+     simply had not started logging yet. History has to reach back into the
+     previous window for its emptiness to mean anything. */
+  const previousWithinHistory = previous != null && observed.length > 0 && earliest <= previous.end;
   const hasComparable =
     canSummariseCurrent &&
     previous != null &&
     previous.value != null &&
-    (previous.sampleCount > 0 || options.emptyIsZero);
+    (previous.sampleCount > 0 || (options.emptyIsZero === true && previousWithinHistory));
 
   const change: InsightChange | null =
     hasComparable && current.value != null && previous!.value != null

@@ -1,8 +1,17 @@
-import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  type LayoutChangeEvent,
+  type ScrollViewInstance,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import {
+  buildOverviewInsights,
   buildProgressSeries,
   describeWeightRate,
   defaultRange,
@@ -14,6 +23,7 @@ import {
   metricLabel,
   weekEndDate,
   weekStartOf,
+  type InsightMetric,
   type ProgressRange,
   type ProgressMetricKey,
   type SeriesPoint,
@@ -22,6 +32,7 @@ import type { ProgressOverviewResponse } from '@setframe/schemas';
 import { Card } from '../../src/components/Card';
 import { ColumnChart, LineChart, RangeSelector } from '../../src/components/Charts';
 import { MetricInfo } from '../../src/components/MetricInfo';
+import { ProgressInsights } from '../../src/components/ProgressInsights';
 import { FadeIn, Skeleton, SkeletonStack } from '../../src/components/Skeleton';
 import { useApiClient } from '../../src/lib/api-client';
 import { useScreenTopPadding } from '../../src/lib/useScreenInsets';
@@ -517,6 +528,30 @@ export default function ProgressScreen() {
     [query.data],
   );
 
+  /* Story 51. Fixed to the week rather than a page-level range: the strip
+     answers "what's changed lately", and week-over-week is the span a user
+     actually acts on. Identical to the web screen's call, so both platforms
+     describe the same payload with the same words. */
+  const insights = useMemo(
+    () => (query.data ? buildOverviewInsights(query.data, { endLocalDate: localDate }) : []),
+    [query.data, localDate],
+  );
+
+  /* Mobile has no anchors to link to, so each chart section records its own
+     offset within the scroll content as it lays out, and focusing an insight
+     scrolls there. Kept in a ref rather than state: these are written on
+     every layout pass, and a setState per pass would re-render the screen
+     continuously while it settles. */
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  const sectionOffsets = useRef<Partial<Record<InsightMetric, number>>>({});
+  const captureOffset = (metric: InsightMetric) => (event: LayoutChangeEvent) => {
+    sectionOffsets.current[metric] = event.nativeEvent.layout.y;
+  };
+  const focusInsight = (metric: InsightMetric) => {
+    const y = sectionOffsets.current[metric];
+    if (y != null) scrollRef.current?.scrollTo({ y, animated: true });
+  };
+
   const background = { backgroundColor: theme.surface.canvas };
 
   if (query.isLoading) {
@@ -571,11 +606,13 @@ export default function ProgressScreen() {
 
   return (
     <FadeIn>
-      <ScrollView style={background} contentContainerStyle={contentStyle}>
+      <ScrollView ref={scrollRef} style={background} contentContainerStyle={contentStyle}>
         <View style={styles.header}>
           <Text style={[styles.title, { color: theme.text.primary }]}>Progress</Text>
           <Helper>How your training, strength and weight are actually moving.</Helper>
         </View>
+
+        <ProgressInsights insights={insights} onFocus={(item) => focusInsight(item.metric)} />
 
         <View style={styles.summaryGrid}>
           <SummaryCard
@@ -646,7 +683,7 @@ export default function ProgressScreen() {
           />
         </View>
 
-        <Card>
+        <Card onLayout={captureOffset('training_frequency')}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
               <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Sessions per week</Text>
@@ -672,10 +709,12 @@ export default function ProgressScreen() {
           </Helper>
         </Card>
 
-        <BodyWeightSection bodyWeight={bodyWeight} localDate={localDate} />
+        <View onLayout={captureOffset('body_weight')}>
+          <BodyWeightSection bodyWeight={bodyWeight} localDate={localDate} />
+        </View>
 
         {hasAnyVolume ? (
-          <Card>
+          <Card onLayout={captureOffset('training_volume')}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionTitleRow}>
                 <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Weekly volume</Text>

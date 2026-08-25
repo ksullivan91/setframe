@@ -9,6 +9,13 @@ import type { SeriesPoint } from './chart-geometry';
 
 /** Deterministic "today" so calendar arithmetic is stable. 2026-08-25 is a Tuesday. */
 const TUESDAY = '2026-08-25';
+/**
+ * Five of seven days elapsed: still a partial week, but past the coverage
+ * floor an averaging metric needs before its mean may stand for the period.
+ * Two days of morning weight is noise, not an average — see
+ * `AVERAGING_MIN_COVERAGE`.
+ */
+const FRIDAY = '2026-08-28';
 const SUNDAY = '2026-08-30';
 
 function points(entries: Array<[string, number]>): SeriesPoint[] {
@@ -80,7 +87,7 @@ describe('partial-period comparison', () => {
     const insight = buildProgressInsight(raw, {
       metric: 'body_weight',
       range: 'W',
-      endLocalDate: TUESDAY,
+      endLocalDate: FRIDAY,
       aggregation: 'mean',
     });
 
@@ -90,6 +97,37 @@ describe('partial-period comparison', () => {
     expect(insight.previous!.value).toBe(168);
     expect(insight.current.value).toBe(170);
     expect(insight.change!.absolute).toBe(2);
+  });
+
+  /**
+   * `/progress/overview` returns training data pre-aggregated by week, so a
+   * previous window truncated to Monday–Tuesday still contains the whole
+   * previous week's bucket. Elapsed-matching that source would reintroduce
+   * the artefact it exists to prevent, from the other direction.
+   */
+  it('falls back to whole periods when the source is only weekly', () => {
+    const weekly: SeriesPoint[] = [
+      { localDate: '2026-08-17', value: 3 },
+      { localDate: '2026-08-24', value: 2 },
+    ];
+    const insight = buildProgressInsight(weekly, {
+      metric: 'training_frequency',
+      range: 'W',
+      endLocalDate: TUESDAY,
+      aggregation: 'sum',
+      emptyIsZero: true,
+      sourceGranularity: 'week',
+    });
+
+    expect(insight.comparisonBasis).toBe('full_period');
+    // The whole previous week, not a truncated slice of it.
+    expect(insight.previous!.end).toBe('2026-08-23');
+    expect(insight.previous!.value).toBe(3);
+    expect(insight.current.value).toBe(2);
+    // Still flagged partial, so copy says "so far" rather than implying a
+    // finished week — the honest reading of an unfinished comparison.
+    expect(insight.current.isPartial).toBe(true);
+    expect(insight.dataQuality).toContain('partial_current_period');
   });
 
   it('flags a complete period as not partial', () => {
@@ -121,11 +159,11 @@ describe('availability', () => {
   });
 
   it('reports no_comparison when history starts inside the current period', () => {
-    const raw = points([['2026-08-24', 168], ['2026-08-25', 169]]);
+    const raw = points([['2026-08-24', 168], ['2026-08-25', 169], ['2026-08-27', 168.5]]);
     const insight = buildProgressInsight(raw, {
       metric: 'body_weight',
       range: 'W',
-      endLocalDate: TUESDAY,
+      endLocalDate: FRIDAY,
       aggregation: 'mean',
     });
     expect(insight.availability).toBe('no_comparison');
@@ -199,7 +237,10 @@ describe('data quality flags', () => {
 
 describe('change and direction', () => {
   it('leaves percent null when the previous value is zero', () => {
-    const raw = sessions(['2026-08-24', '2026-08-25']);
+    /* History has to start before last week for last week's emptiness to be a
+       real zero rather than an absence of data — an empty week the user was
+       not yet around for is not something to compare against. */
+    const raw = sessions(['2026-08-05', '2026-08-24', '2026-08-25']);
     const insight = buildProgressInsight(raw, {
       metric: 'training_frequency',
       range: 'W',
@@ -211,6 +252,28 @@ describe('change and direction', () => {
     expect(insight.previous!.value).toBe(0);
     expect(insight.change!.percent).toBeNull();
     expect(insight.change!.absolute).toBe(2);
+  });
+
+  /**
+   * `emptyIsZero` must not manufacture a baseline out of a period that
+   * predates the user's first observation. Otherwise someone's very first
+   * logged week reads as "2 sessions, compared with 0 last week" — a
+   * comparison against a week they had not started logging in.
+   */
+  it('does not treat a period before any data as a zero baseline', () => {
+    const raw = sessions(['2026-08-24', '2026-08-25']);
+    const insight = buildProgressInsight(raw, {
+      metric: 'training_frequency',
+      range: 'W',
+      endLocalDate: TUESDAY,
+      aggregation: 'count',
+      emptyIsZero: true,
+    });
+
+    expect(insight.availability).toBe('no_comparison');
+    expect(insight.change).toBeNull();
+    expect(insight.dataQuality).toContain('no_previous_period');
+    expect(describeInsight(insight)).toBeNull();
   });
 
   it('reports a small relative move as flat rather than a direction', () => {
@@ -229,7 +292,7 @@ describe('change and direction', () => {
 
   it('raises confidence with sample count, not with magnitude', () => {
     const sparse = buildProgressInsight(points([['2026-08-24', 168], ['2026-08-25', 169]]), {
-      metric: 'body_weight', range: 'W', endLocalDate: TUESDAY, aggregation: 'mean',
+      metric: 'body_weight', range: 'W', endLocalDate: FRIDAY, aggregation: 'mean',
     });
     expect(sparse.trend!.confidence).toBe('low');
 
