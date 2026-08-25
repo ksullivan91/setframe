@@ -134,6 +134,14 @@ export function LineChart({
   );
 
   const plotted = rawChart.points;
+  /* Keyed by date because the two series are bucketed identically but the
+     trend can start later, once there is enough history to smooth. Memoized
+     above the early return so a scrub, which re-renders once per datum
+     crossed, does not rebuild the map on every frame. */
+  const trendByDate = useMemo(
+    () => new Map((trendChart?.points ?? []).map((point) => [point.localDate, point])),
+    [trendChart],
+  );
   const selectedPoint = selected != null ? plotted.find((point) => point.index === selected) : null;
 
   /* Native has no pointer capture, so the equivalent of the web scrub surface
@@ -170,10 +178,6 @@ export function LineChart({
     if (best != null && best !== lastSelected.current) select(best);
   };
 
-  /* The smoothed line is named as such per period rather than folded in with
-     the measurements, so the distinction between what was recorded and what
-     was derived survives for VoiceOver. Mirrors the web table's columns. */
-  const trendByDate = new Map((trendChart?.points ?? []).map((point) => [point.localDate, point]));
   const tableLabel = `${label}. ${plotted
     .map((point) => {
       const trendPoint = trendByDate.get(point.localDate);

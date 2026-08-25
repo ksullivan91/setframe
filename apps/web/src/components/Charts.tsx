@@ -283,7 +283,12 @@ export function LineChart({
                   fill="transparent"
                   tabIndex={0}
                   role="button"
-                  aria-label={[`${formatPeriod(point.localDate)}: ${formatValue(point.value)}`, describePoint?.(point.index)].filter(Boolean).join(", ")}
+                  aria-label={[
+                    `${formatPeriod(point.localDate)}: ${formatValue(point.value)}`,
+                    describePoint?.(point.index),
+                  ]
+                    .filter(Boolean)
+                    .join(', ')}
                   data-testid="chart-point"
                   /* Keyboard and assistive tech reach selection through these
                      circles; live pointer input belongs to the scrub surface
