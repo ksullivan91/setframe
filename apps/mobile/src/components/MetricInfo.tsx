@@ -19,8 +19,31 @@ import { Sheet } from './Sheet';
  * width: 264` View, which could sit off the edge of a narrow screen with no
  * way to scroll it back into view. It's now the shared `Sheet` primitive
  * (Story 20) — a real RN `Modal`, safe-area-aware and inherently viewport-
- * bound by construction, matching the web version's "centered floating
- * card/sheet" treatment for constrained widths.
+ * bound by construction.
+ *
+ * Story 46 rebuilt the *web* counterpart into a properly anchored popover,
+ * because on web the previous fix had drifted into a card centred in the
+ * viewport with no visual relationship to the trigger that opened it. This
+ * native screen deliberately does not follow it, and the divergence is the
+ * decision rather than an oversight:
+ *
+ *   - Story 46's own escalation path ends at "use a deliberate mobile help
+ *     sheet/bottom sheet" once content cannot sit cleanly beside a trigger,
+ *     which on a phone-width screen is the normal case, not the exception.
+ *   - The same story warns against hand-rolling naive absolute positioning
+ *     where a mature overlay primitive exists. On web that primitive is
+ *     Floating UI; here it is `Sheet`. React Native has no equivalent
+ *     collision-detection/portal ecosystem, so an "anchored" popover over a
+ *     ScrollView would be exactly the hand-rolled geometry the story
+ *     cautions about — and the web regressions it was written to fix are
+ *     evidence of how that goes.
+ *   - A modal bottom sheet is already the platform-standard, VoiceOver-
+ *     legible way to present this on iOS.
+ *
+ * The consequence worth stating plainly: because the sheet is modal, a
+ * second trigger is not reachable until this one is dismissed, so web's
+ * "switch help in a single tap" does not apply here. That is inherent to
+ * modal presentation and is the accepted trade for the points above.
  */
 
 // Only one panel open at a time, across every MetricInfo instance on the
@@ -87,8 +110,16 @@ export function MetricInfo({ label, explanation, calculation, limitation }: Metr
       </Pressable>
 
       <Sheet visible={open} onRequestClose={() => setOpen(false)} dismissOnBackdropPress maxHeightPercent={60}>
-        <View accessible accessibilityLiveRegion="polite" testID="metric-info-panel" style={styles.panelContent}>
-          <Text style={[styles.heading, { color: theme.text.primary }]}>{label}</Text>
+        {/* `accessible` collapses the three parts into one VoiceOver
+            utterance on purpose: the caveat is not optional reading, and a
+            user swiping element-by-element could otherwise land on the
+            explanation and never reach the limitation. No live region —
+            presenting the modal already announces it, and a live region on
+            top of that reads the panel twice. */}
+        <View accessible testID="metric-info-panel" style={styles.panelContent}>
+          <Text accessibilityRole="header" style={[styles.heading, { color: theme.text.primary }]}>
+            {label}
+          </Text>
           <Text style={[styles.detail, { color: theme.text.secondary }]}>{explanation}</Text>
           {calculation ? (
             <Text style={[styles.detail, { color: theme.text.secondary }]}>{calculation}</Text>
