@@ -9,6 +9,21 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
+- `setframe-progress-experience-rebuild/` — stories 46–51, the Progress
+  page rebuilt as a core product experience rather than static reporting.
+  46: re-anchor contextual help to its trigger (the current mobile path
+  centers a card in the viewport, decoupled from the `?` that opened it).
+  47: charting-technology spike + shared visualization architecture,
+  delivering an ADR and a recommendation. 48: a universal time-range and
+  interaction model with *real* per-range aggregation (today's
+  `filterByRange` only trims a trailing window — every range renders the
+  same bucket size). 49: Body Weight rebuilt as the reference-quality
+  chart that sets the interaction grammar for the rest. 50: Training
+  Frequency and Weekly Volume rebuilt on that grammar. 51: an
+  insight-ready deterministic metric contract (no AI calls yet).
+  Delivery per the pack's own README: **A** 46 → 47 → 48, **B** 49,
+  **C** 50, **D** 51. Stories 46 and 48 are a direct critical review of
+  stories 30–33, which shipped 2026-08-25.
 - `WAIT-automated-visual-and-e2e-testing.md` — deferred by request. Filed so the
   gap is tracked, deliberately not started.
 - `WAIT-figma-accentsubtle-token-fix.md` — deferred by request. Fixes
