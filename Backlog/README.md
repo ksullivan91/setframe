@@ -9,25 +9,13 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
-- `setframe-workout-session-sticky-actions/` — story 36, keeping Add
-  Exercise/Finish Workout reachable during long workouts.
 - `setframe-workout-quick-entry-accordion-stories/` — stories 37–39, a
   collapsible single-active-exercise accordion with cascading quick-entry
   values and derived completion state.
-- `setframe-progress-graph-enhancements/` — stories 30–33, viewport-safe
-  Progress tooltips, real time-range controls with consistent week
-  boundaries, a reusable chart-detail interaction pattern, and a Body
-  Weight redesign built on both.
-- `setframe-additional-activity-feature/` — stories 40–45, a new
-  `AdditionalActivity` domain model distinct from a scheduled workout
-  (walks, yoga, mobility, foam rolling — logged in seconds, never
-  inflating workout counts/streaks/adherence), a Today section for it, a
-  fast manual add flow, reusable quick-add shortcuts, Apple Health
-  detect-and-suggest discovery, and history/progress separation from
-  scheduled training. Recommended order per the pack's own README:
-  40 → 41 → 42 → 45 (foundation + usable MVP), then 43 (quick-add
-  shortcuts), then 44 (Apple Health discovery) once the entity/dedupe
-  behavior already exists.
+- `setframe-additional-activity-feature/` — stories 43–44 remain (40–42,
+  45 shipped): reusable quick-add shortcuts for repeated activities, and
+  Apple Health detect-and-suggest discovery (safest now that the entity
+  and dedupe behavior already exist).
 - `WAIT-automated-visual-and-e2e-testing.md` — deferred by request. Filed so the
   gap is tracked, deliberately not started.
 - `WAIT-figma-accentsubtle-token-fix.md` — deferred by request. Fixes
@@ -82,3 +70,40 @@ alongside their stories, named `README-{range}-{review}.md`.
 - `completed/README-34-35-active-workout-adaptability-review.md` — the
   original pack README for stories 34–35, archived once both shipped
   (their own story files are the individual entries above).
+- `completed/30-progress-tooltip-viewport-containment.md` — story 30, a
+  measured, viewport-clamped tooltip (`position: fixed`, flips above the
+  trigger, centers below tablet width) replacing an absolutely-positioned
+  panel that could overflow past a narrow viewport.
+- `completed/31-progress-time-range-controls-and-period-semantics.md` —
+  story 31, shared `formatWeekRange`/`formatDateRangeLabel` domain
+  helpers labeling each chart's active period, plus the week-boundary
+  standard documented in `docs/data-model.md`. A user-facing range
+  *selector* on the already-windowed weekly bar charts was deliberately
+  deferred — noted in its own commit, not part of this story's scope.
+- `completed/32-body-weight-progress-chart-redesign.md` — story 32, a
+  Start/Current/Change summary row computed from the range-filtered raw
+  series, kept separate from the existing (untouched) smoothed trend line.
+- `completed/33-progress-chart-detail-and-interaction-system.md` — story
+  33, making the "current week" chart marker accessible (semantic, not
+  color-only) on both platforms.
+- `completed/README-30-33-progress-graph-enhancements-review.md` — the
+  original pack README for stories 30–33, archived once all four shipped.
+- `completed/36-active-workout-persistent-session-actions.md` — story 36,
+  a sticky session-action surface (mobile: compact bar above bottom nav;
+  desktop: persistent header row) keeping Add exercise/Finish workout
+  reachable during long workouts.
+- `completed/README-36-active-workout-persistent-actions-review.md` — the
+  original pack README for story 36, archived once shipped.
+- `completed/40-additional-activity-domain-model.md` — story 40, the new
+  `AdditionalActivity` entity (day-scoped, source + external-id dedupe
+  columns, never touches a program/workout template).
+- `completed/41-today-additional-activity-section.md` — story 41, a
+  visually-secondary Additional Activity section on Today, below the
+  scheduled-workout card, with its own section-level loading/error state.
+- `completed/42-fast-manual-add-activity-flow.md` — story 42, a few-second
+  add flow driven entirely by activity type (no full workout-builder UI).
+- `completed/45-history-progress-activity-semantics.md` — story 45,
+  confirming (and pinning with a new regression test) that scheduled-
+  workout metrics — adherence, streaks, weeksTrained, sessions/week —
+  never fold in Additional Activity, since `progress.ts` never queries it
+  at all.
