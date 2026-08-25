@@ -6,7 +6,9 @@ import {
   availableRanges,
   describeWeightRate,
   filterByRange,
+  formatDateRangeLabel,
   formatMetricValue,
+  formatWeekRange,
   metricDefinition,
   metricLabel,
   weekStartOf,
@@ -45,12 +47,18 @@ function formatDate(localDate: string): string {
   });
 }
 
-function formatWeek(weekStart: string): string {
-  return formatDate(weekStart);
-}
-
 function daysBetween(from: string, to: string): number {
   return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
+}
+
+/** Sunday of a Monday-anchored week, as a `YYYY-MM-DD` string. */
+function weekEndOf(weekStart: string): string {
+  const end = new Date(`${weekStart}T12:00:00`);
+  end.setDate(end.getDate() + 6);
+  const year = end.getFullYear();
+  const month = String(end.getMonth() + 1).padStart(2, '0');
+  const day = String(end.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 // Local (not UTC) calendar date — passed to the API so "last N weeks" is
@@ -200,6 +208,12 @@ export function BodyWeightSection({
         </View>
         <RangeSelector ranges={ranges} value={range} onChange={setRange} label="Body weight time range" />
       </View>
+
+      {visibleRaw.length ? (
+        <Helper testID="body-weight-range-context">
+          {formatDateRangeLabel(visibleRaw[0]!.localDate, visibleRaw.at(-1)!.localDate)}
+        </Helper>
+      ) : null}
 
       {bodyWeight.sufficiency === 'establishing' ? (
         <>
@@ -467,6 +481,12 @@ export default function ProgressScreen() {
   const { training, bodyWeight, exercises, recentSessions } = query.data;
   const currentWeek = training.weeks.at(-1);
   const hasAnyVolume = volumeSeries.some((point) => point.value != null);
+  // Story 31: the chart's active period must be stated explicitly — this is
+  // the exact span the two weekly ColumnCharts below render.
+  const trainingWindowRange =
+    training.weeks.length > 0
+      ? formatDateRangeLabel(training.weeks[0]!.weekStart, weekEndOf(training.weeks.at(-1)!.weekStart))
+      : null;
   const hasAnyData = training.totalCompleted > 0 || bodyWeight.checkInCount > 0;
 
   if (!hasAnyData) {
@@ -576,10 +596,11 @@ export default function ProgressScreen() {
               />
             </View>
           </View>
+          {trainingWindowRange ? <Helper testID="sessions-range-context">{trainingWindowRange}</Helper> : null}
           <ColumnChart
             series={sessionSeries}
             formatValue={(value) => `${Math.round(value)}`}
-            formatPeriod={(weekStart) => `Week of ${formatWeek(weekStart)}`}
+            formatPeriod={(weekStart) => formatWeekRange(weekStart)}
             label={`Completed sessions per week over the last ${training.windowWeeks} weeks`}
             emptyLabel="No sessions"
             testID="sessions-chart"
@@ -604,10 +625,11 @@ export default function ProgressScreen() {
                 />
               </View>
             </View>
+            {trainingWindowRange ? <Helper testID="volume-range-context">{trainingWindowRange}</Helper> : null}
             <ColumnChart
               series={volumeSeries}
               formatValue={(value) => `${Math.round(value).toLocaleString()} ${training.volumeUnit}`}
-              formatPeriod={(weekStart) => `Week of ${formatWeek(weekStart)}`}
+              formatPeriod={(weekStart) => formatWeekRange(weekStart)}
               label={`Weekly training volume in ${training.volumeUnit}`}
               emptyLabel="No weighted work"
               testID="volume-chart"

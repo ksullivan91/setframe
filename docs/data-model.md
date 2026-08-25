@@ -149,6 +149,26 @@ workout_session
 - created_at, updated_at
 ```
 
+### 4.1 Week-boundary standard (Story 31)
+
+Every weekly aggregation in Setframe — Sessions per week, Weekly volume,
+Body weight weekly buckets, training streaks, and consistency — uses one
+rule: **weeks start on Monday and run through Sunday**, computed against
+the user's local calendar date, never UTC. This is not configurable per
+metric; a chart or metric that needs to bucket by week must reuse the
+existing week-start function rather than deriving its own boundary.
+
+Canonical implementations (kept in sync, tested independently since they
+predate this doc note):
+- `packages/domain/src/training-trends.ts` — `isoWeekStart()`
+- `packages/domain/src/weight-trend.ts` — `weekStartOf()`
+
+Both compute the Monday of a `YYYY-MM-DD` local date. Chart-facing period
+labels (e.g. "Aug 18–24") are derived from these week-starts via
+`packages/domain/src/progress-format.ts`'s `formatWeekRange()`, so the
+displayed date range can never disagree with which sessions the bar/point
+actually aggregates.
+
 ## 5. Daily manual inputs
 
 ```text
