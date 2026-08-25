@@ -357,3 +357,50 @@ describe('LineChart scrub', () => {
     expect(text).toContain('182 lb');
   });
 });
+
+/**
+ * Story 49 — parity with the web suite of the same name. The smoothed line
+ * carries the actual signal but lived only in the drawing, so VoiceOver was
+ * never told a trend existed, let alone which number was measured and which
+ * was derived.
+ */
+describe('LineChart trend accessibility', () => {
+  const raw: SeriesPoint[] = [
+    { localDate: '2026-01-01', value: 180 },
+    { localDate: '2026-01-02', value: 182 },
+    { localDate: '2026-01-03', value: 181 },
+  ];
+  // Starts a day late, as a real smoothed series does before it has history.
+  const trend: SeriesPoint[] = [
+    { localDate: '2026-01-02', value: 181 },
+    { localDate: '2026-01-03', value: 181.4 },
+  ];
+
+  function summaryOf(trendSeries?: SeriesPoint[]): string {
+    const rendered = renderTree(
+      <LineChart
+        series={raw}
+        trendSeries={trendSeries}
+        formatValue={(v) => `${v.toFixed(1)} lb`}
+        label="Body weight"
+      />,
+    );
+    return hostsByTestId(rendered, 'chart-table')[0]!.props.accessibilityLabel as string;
+  }
+
+  it('names the measured and derived values separately', () => {
+    const summary = summaryOf(trend);
+    expect(summary).toContain('measured 181.0 lb');
+    expect(summary).toContain('trend 181.4 lb');
+  });
+
+  it('says so rather than implying a value where the trend has not started', () => {
+    expect(summaryOf(trend)).toContain('no trend yet');
+  });
+
+  it('does not mention a trend when none is drawn', () => {
+    const summary = summaryOf(undefined);
+    expect(summary).not.toContain('trend');
+    expect(summary).toContain('measured 181.0 lb');
+  });
+});

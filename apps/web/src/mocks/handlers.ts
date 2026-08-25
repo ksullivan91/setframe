@@ -245,6 +245,28 @@ export const handlers = [
       };
     });
 
+    /* Grouped from the same points rather than left empty: `weeks` drives the
+       weekly average and the week-over-week comparison, so an empty array
+       made both invisible under `dev:mock` — un-reviewable in the same way
+       the old body-weight shape was. */
+    const bodyWeightWeeks = Object.entries(
+      bodyWeightPoints.reduce<Record<string, number[]>>((byWeek, point) => {
+        const date = new Date(`${point.localDate}T00:00:00Z`);
+        date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() || 7) - 1));
+        const weekStart = date.toISOString().slice(0, 10);
+        (byWeek[weekStart] ??= []).push(point.raw);
+        return byWeek;
+      }, {}),
+    )
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([weekStart, values]) => ({
+        weekStart,
+        average: Number((values.reduce((sum, v) => sum + v, 0) / values.length).toFixed(1)),
+        low: Math.min(...values),
+        high: Math.max(...values),
+        checkInCount: values.length,
+      }));
+
     return HttpResponse.json({
       training: {
         weeks: Array.from({ length: 12 }, (_, index) => {
@@ -287,7 +309,7 @@ export const handlers = [
         direction: 'falling',
         windowWeeks: 12,
         points: bodyWeightPoints,
-        weeks: [],
+        weeks: bodyWeightWeeks,
       },
       exercises: [
         {

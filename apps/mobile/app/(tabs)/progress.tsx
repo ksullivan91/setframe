@@ -10,8 +10,12 @@ import {
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import {
+  bucketLabel,
   buildOverviewInsights,
   buildProgressSeries,
+  describeBucketValue,
+  formatBucketPeriod,
+  progressRangeLabel,
   describeWeightRate,
   defaultRange,
   rangeOptions,
@@ -21,6 +25,7 @@ import {
   metricDefinition,
   metricLabel,
   weekEndDate,
+  weekOverWeekChange,
   weekStartOf,
   type InsightMetric,
   type ProgressRange,
@@ -164,14 +169,19 @@ export function BodyWeightSection({
 
   /* Body weight averages within a bucket; empty buckets stay `null`, since
      an unweighed day is unknown rather than zero. Same call as web. */
-  const visibleRaw = useMemo(
-    () => buildProgressSeries(rawSeries, { range, endLocalDate: localDate, aggregation: 'mean' }).points,
+  /* The whole series is kept, not just its points: `bucket` is what tells
+     the chart whether a mark is a day or a week, and dropping it is how the
+     readout came to label a weekly mean with a single date. Mirrors web. */
+  const rawSeriesForRange = useMemo(
+    () => buildProgressSeries(rawSeries, { range, endLocalDate: localDate, aggregation: 'mean' }),
     [rawSeries, range, localDate],
   );
-  const visibleTrend = useMemo(
-    () => buildProgressSeries(trendSeries, { range, endLocalDate: localDate, aggregation: 'mean' }).points,
+  const trendSeriesForRange = useMemo(
+    () => buildProgressSeries(trendSeries, { range, endLocalDate: localDate, aggregation: 'mean' }),
     [trendSeries, range, localDate],
   );
+  const visibleRaw = rawSeriesForRange.points;
+  const visibleTrend = trendSeriesForRange.points;
 
   const format = (value: number) => `${value.toFixed(1)} ${bodyWeight.unit}`;
 
@@ -179,6 +189,9 @@ export function BodyWeightSection({
   // entry can be weeks old after a break. Label it honestly rather than
   // calling a fortnight-old average "this week".
   const latestWeek = bodyWeight.weeks.at(-1) ?? null;
+  /* Only offered when the two weeks are adjacent and each has enough
+     check-ins to have a real average — see weekOverWeekChange. */
+  const weekChange = useMemo(() => weekOverWeekChange(bodyWeight.weeks), [bodyWeight.weeks]);
 
   // Story 32 — Start/Current/Change for the selected range, from the raw
   // check-ins actually visible (not the prior period's last value, and not
@@ -314,7 +327,17 @@ export function BodyWeightSection({
           zeroBased={false}
           minimumSpan={4}
           formatValue={format}
-          label={`Body weight in ${bodyWeight.unit} over time`}
+          /* At 3M and longer a mark is a week's mean, not a morning's
+             weigh-in. Naming the bucket's span keeps the readout from
+             claiming a reading on a day that may never have been logged. */
+          formatPeriod={(localDate) => formatBucketPeriod(localDate, rawSeriesForRange.bucket)}
+          describePoint={(index) => {
+            const point = visibleRaw[index];
+            return point ? describeBucketValue(point, rawSeriesForRange.bucket, 'mean') : null;
+          }}
+          label={`Body weight in ${bodyWeight.unit} over time, ${bucketLabel(
+            rawSeriesForRange.bucket,
+          )}, ${progressRangeLabel(range).toLowerCase()}`}
           testID="body-weight-chart"
         />
       ) : null}
@@ -336,6 +359,11 @@ export function BodyWeightSection({
           }: avg ${latestWeek.average.toFixed(1)} · range ${latestWeek.low.toFixed(1)}–${latestWeek.high.toFixed(
             1,
           )} ${bodyWeight.unit}`}
+          {weekChange
+            ? `${' · '}${weekChange.change >= 0 ? '+' : '−'}${Math.abs(weekChange.change).toFixed(
+                1,
+              )} ${bodyWeight.unit} vs previous week`
+            : ''}
         </Text>
       ) : null}
     </Card>

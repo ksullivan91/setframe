@@ -516,6 +516,100 @@ describe('regressions', () => {
     expect(text).toContain('Week of');
     expect(text).not.toContain('This week');
   });
+
+  /*
+   * Story 49 — at 3M a mark is a week's mean, not a morning's weigh-in.
+   * Labelling it with a single date told the user they weighed that value on
+   * a day they may never have logged, so the mark has to name its own span.
+   * Seeded relative to today because the page reads the real clock; the
+   * assertions are on the shape of the label, not on particular dates.
+   */
+  it('labels a bucketed mark with its period and sample count, not a single date', async () => {
+    // Every morning for ~4 months, so 3M is offered and buckets by week.
+    const today = new Date();
+    const daily = Array.from({ length: 120 }, (_, index) => {
+      const day = new Date(
+        Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()) -
+          (119 - index) * 86_400_000,
+      );
+      return {
+        localDate: day.toISOString().slice(0, 10),
+        raw: 180 - index * 0.05,
+        trend: 180 - index * 0.04,
+        rollingAverage: index >= 6 ? 179.5 - index * 0.04 : null,
+      };
+    });
+
+    renderProgress(
+      baseOverview({
+        bodyWeight: {
+          unit: 'lb',
+          sufficiency: 'ready',
+          checkInCount: daily.length,
+          currentAverage: 174.1,
+          latestCheckIn: { localDate: daily.at(-1)!.localDate, weightValue: 174.05 },
+          ratePerWeek: -0.35,
+          direction: 'falling',
+          windowWeeks: 4,
+          points: daily,
+          weeks: [],
+        },
+      }),
+    );
+
+    await waitFor(() => expect(screen.getAllByTestId('chart-range-selector').length).toBeGreaterThan(0));
+    fireEvent.click(screen.getAllByRole('button', { name: '3M' })[0]!);
+
+    // The accessible data table mirrors the marks, so it is the stable
+    // surface for what each mark claims to represent. An en dash means the
+    // label names a span; a bare date would mean it names one morning.
+    await waitFor(() => {
+      const headers = screen.getAllByRole('rowheader').map((cell) => cell.textContent ?? '');
+      expect(headers.length).toBeGreaterThan(0);
+      expect(headers.every((header) => header.includes('\u2013'))).toBe(true);
+    });
+
+    const marks = screen
+      .getAllByRole('button')
+      .map((mark) => mark.getAttribute('aria-label') ?? '')
+      .filter((label) => label.includes('\u2013'));
+    expect(marks.some((label) => /average of \d+ check-ins/.test(label))).toBe(true);
+  });
+
+  /*
+   * Story 49 — "vs previous 7 days" context, but only where the comparison is
+   * real. A gap between the two weeks must not be bridged: three weeks of
+   * drift labelled "vs previous week" attributes it all to seven days.
+   */
+  it('compares this week to the previous one only when the two are adjacent', async () => {
+    const adjacent = {
+      ...twoConsecutiveMornings,
+      weeks: [
+        { weekStart: '2025-06-23', average: 168.2, low: 167.4, high: 169.0, checkInCount: 4 },
+        { weekStart: '2025-06-30', average: 167.7, low: 166.8, high: 168.6, checkInCount: 3 },
+      ],
+    };
+    const { unmount } = renderProgress(baseOverview({ bodyWeight: adjacent }));
+    await waitFor(() => expect(screen.getByTestId('body-weight-week-change')).toBeTruthy());
+    expect(screen.getByTestId('body-weight-week-change')).toHaveTextContent(
+      '\u22120.5 lb vs previous week',
+    );
+    unmount();
+
+    renderProgress(
+      baseOverview({
+        bodyWeight: {
+          ...adjacent,
+          weeks: [
+            { weekStart: '2025-06-02', average: 168.2, low: 167.4, high: 169.0, checkInCount: 4 },
+            { weekStart: '2025-06-30', average: 167.7, low: 166.8, high: 168.6, checkInCount: 3 },
+          ],
+        },
+      }),
+    );
+    await waitFor(() => expect(screen.getByTestId('body-weight-week-range')).toBeTruthy());
+    expect(screen.queryByTestId('body-weight-week-change')).toBeNull();
+  });
 });
 
 describe('API version skew', () => {

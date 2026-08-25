@@ -8,6 +8,8 @@ import {
   daysBetween,
   defaultRange,
   monthStart,
+  describeBucketValue,
+  formatBucketPeriod,
   progressRangeLabel,
   progressRanges,
   rangeOptions,
@@ -311,5 +313,59 @@ describe('ALL spans the data, not the calendar since the data', () => {
       aggregation: 'mean',
     });
     expect(series.window).toEqual({ start: '2025-07-01', end: '2025-07-20' });
+  });
+});
+
+/**
+ * A bucketed mark is keyed by its bucket's *start* date. Rendering that key
+ * with a plain day formatter states something false — at 6M a mark is a
+ * week's mean, so "Aug 19" tells the user they weighed that value on the
+ * 19th, a morning they may not have weighed at all.
+ */
+describe('formatBucketPeriod', () => {
+  it('names a day bucket as the single day it is', () => {
+    expect(formatBucketPeriod('2026-08-19', 'day')).toBe('Aug 19');
+  });
+
+  it('names a week bucket as its Monday-Sunday span, never its start day alone', () => {
+    const label = formatBucketPeriod('2026-08-17', 'week');
+    expect(label).toBe('Aug 17–23');
+    // The precise failure being prevented: a week mark must not render as
+    // the bare date of its first day.
+    expect(label).not.toBe('Aug 17');
+  });
+
+  it('names a month bucket as its full span', () => {
+    // Day-precise rather than "Aug": the span is short enough that
+    // formatDateRangeLabel keeps day numbers, which is strictly more
+    // informative and still true.
+    expect(formatBucketPeriod('2026-08-01', 'month')).toBe('Aug 1–31');
+  });
+
+  it('handles a short February without running into March', () => {
+    expect(formatBucketPeriod('2026-02-01', 'month')).toBe('Feb 1–28');
+  });
+
+  it('spans a week that crosses a month boundary', () => {
+    expect(formatBucketPeriod('2026-08-31', 'week')).toBe('Aug 31 – Sep 6');
+  });
+});
+
+describe('describeBucketValue', () => {
+  it('says nothing for a single daily reading — that mark is the reading', () => {
+    expect(describeBucketValue({ sampleCount: 1 }, 'day', 'mean')).toBeNull();
+  });
+
+  it('reports how many check-ins an averaged mark combines', () => {
+    expect(describeBucketValue({ sampleCount: 5 }, 'week', 'mean')).toBe('average of 5 check-ins');
+  });
+
+  it('distinguishes a lone check-in in a week from a real average', () => {
+    // Identical on the plot, very different confidence.
+    expect(describeBucketValue({ sampleCount: 1 }, 'week', 'mean')).toBe('the only check-in that week');
+  });
+
+  it('says nothing for an empty bucket', () => {
+    expect(describeBucketValue({ sampleCount: 0 }, 'week', 'mean')).toBeNull();
   });
 });

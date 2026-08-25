@@ -59,6 +59,20 @@ export interface LineChartProps {
   zeroBased?: boolean;
   minimumSpan?: number;
   formatValue: (value: number) => string;
+  /**
+   * How a mark's period is named. Defaults to the bare date, which is only
+   * correct when one mark is one day — a bucketed point is keyed by its
+   * bucket's *start*, so at a weekly bucket the bare date claims a reading
+   * on a morning that may never have been logged. Callers that bucket must
+   * pass a bucket-aware formatter (`formatBucketPeriod`).
+   */
+  formatPeriod?: (localDate: string) => string;
+  /**
+   * Optional context for a mark's value — e.g. "average of 5 check-ins".
+   * Rendered beside the readout and in the text equivalent, so a summary
+   * figure is never mistaken for a single measurement.
+   */
+  describePoint?: (index: number) => string | null;
   /** Accessible name for the chart. */
   label: string;
   onSelectPoint?: (point: { localDate: string; value: number; index: number }) => void;
@@ -78,6 +92,8 @@ export function LineChart({
   zeroBased = false,
   minimumSpan,
   formatValue,
+  formatPeriod = formatDate,
+  describePoint,
   label,
   onSelectPoint,
   pointsOnly = false,
@@ -118,6 +134,14 @@ export function LineChart({
   );
 
   const plotted = rawChart.points;
+  /* Keyed by date because the two series are bucketed identically but the
+     trend can start later, once there is enough history to smooth. Memoized
+     above the early return so a scrub, which re-renders once per datum
+     crossed, does not rebuild the map on every frame. */
+  const trendByDate = useMemo(
+    () => new Map((trendChart?.points ?? []).map((point) => [point.localDate, point])),
+    [trendChart],
+  );
   const selectedPoint = selected != null ? plotted.find((point) => point.index === selected) : null;
 
   /* Native has no pointer capture, so the equivalent of the web scrub surface
@@ -155,7 +179,16 @@ export function LineChart({
   };
 
   const tableLabel = `${label}. ${plotted
-    .map((point) => `${formatDate(point.localDate)}: ${formatValue(point.value)}`)
+    .map((point) => {
+      const trendPoint = trendByDate.get(point.localDate);
+      return [
+        `${formatPeriod(point.localDate)}: measured ${formatValue(point.value)}`,
+        describePoint?.(point.index),
+        trendChart ? (trendPoint ? `trend ${formatValue(trendPoint.value)}` : 'no trend yet') : null,
+      ]
+        .filter(Boolean)
+        .join(', ');
+    })
     .join('. ')}`;
 
   return (
@@ -237,7 +270,12 @@ export function LineChart({
               key={`hit-${point.index}`}
               accessible
               accessibilityRole="button"
-              accessibilityLabel={`${formatDate(point.localDate)}: ${formatValue(point.value)}`}
+              accessibilityLabel={[
+                `${formatPeriod(point.localDate)}: ${formatValue(point.value)}`,
+                describePoint?.(point.index),
+              ]
+                .filter(Boolean)
+                .join(', ')}
               testID="chart-point"
               onPress={() => select(point.index)}
               style={[
@@ -255,7 +293,8 @@ export function LineChart({
             <Text style={{ color: theme.text.primary, fontWeight: '700' }}>
               {formatValue(selectedPoint.value)}
             </Text>
-            {`  ${formatDate(selectedPoint.localDate)}`}
+            {`  ${formatPeriod(selectedPoint.localDate)}`}
+            {describePoint?.(selectedPoint.index) ? `  ·  ${describePoint(selectedPoint.index)}` : ''}
           </>
         ) : (
           'Select a point to see its date and value.'

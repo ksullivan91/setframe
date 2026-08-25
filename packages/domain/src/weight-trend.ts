@@ -309,3 +309,46 @@ export function checkInsUntilTrend(
   if (trend.sufficiency === 'ready') return 0;
   return Math.max(minimumCheckInsForTrend - trend.checkInCount, 1);
 }
+
+/**
+ * Minimum check-ins a week needs before its average is worth comparing.
+ * Two mornings is the point where an average stops being one reading with
+ * extra steps; below it a "change" is mostly the noise of which day the
+ * user happened to step on the scale.
+ */
+export const minimumCheckInsForWeekComparison = 2;
+
+export interface WeekOverWeekChange {
+  /** Signed difference in the display unit: current week minus previous. */
+  change: number;
+  current: WeightWeek;
+  previous: WeightWeek;
+}
+
+/**
+ * Change in weekly average against the immediately preceding week.
+ *
+ * `null` unless both weeks are adjacent and each holds enough check-ins to
+ * have a meaningful average. A gap between them is not bridged: comparing
+ * this week to a week three weeks back, labelled "vs previous week", would
+ * attribute three weeks of drift to seven days. The result is unvalenced —
+ * whether a gain or a loss is good depends on a goal this does not know.
+ */
+export function weekOverWeekChange(
+  weeks: WeightWeek[],
+  minimumCheckIns: number = minimumCheckInsForWeekComparison,
+): WeekOverWeekChange | null {
+  const current = weeks.at(-1);
+  const previous = weeks.at(-2);
+  if (!current || !previous) return null;
+  if (
+    current.checkInCount < minimumCheckIns ||
+    previous.checkInCount < minimumCheckIns
+  ) {
+    return null;
+  }
+  // Adjacent ISO weeks are exactly seven days apart.
+  const gapDays = toDayNumber(current.weekStart) - toDayNumber(previous.weekStart);
+  if (gapDays !== 7) return null;
+  return { change: current.average - previous.average, current, previous };
+}

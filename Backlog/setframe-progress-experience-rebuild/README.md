@@ -34,7 +34,7 @@ The first four should be answerable with deterministic analytics and visualizati
 46. Rebuild contextual help / tooltip positioning and interaction  
 47. Charting technology spike and shared visualization architecture  
 48. Universal Progress time-range and interaction model  
-49. Rebuild Body Weight as the reference-quality chart  
+49. ~~Rebuild Body Weight as the reference-quality chart~~ — shipped, see `Backlog/completed/`  
 50. Rebuild Training Frequency and Weekly Volume charts  
 51. Create an insight-ready Progress metric architecture
 

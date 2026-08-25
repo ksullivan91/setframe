@@ -261,6 +261,76 @@ describe('BodyWeightSection regressions', () => {
     expect(text).toContain('Week of');
     expect(text).not.toContain('This week');
   });
+
+  /*
+   * Story 49 — parity with the web assertion of the same name. At 3M a mark
+   * is a week's mean, not a morning's weigh-in, so it must name its own span
+   * rather than claim a reading on a day that may never have been logged.
+   */
+  it('labels a bucketed mark with its period and sample count, not a single date', () => {
+    // Every morning for ~4 months, so 3M is offered and buckets by week.
+    const daily = Array.from({ length: 120 }, (_, index) => {
+      const day = new Date(Date.UTC(2026, 0, 20) - (119 - index) * 86_400_000);
+      return {
+        localDate: day.toISOString().slice(0, 10),
+        raw: 180 - index * 0.05,
+        trend: 180 - index * 0.04,
+        rollingAverage: index >= 6 ? 179.5 - index * 0.04 : null,
+      };
+    });
+
+    const rendered = renderTree(
+      <BodyWeightSection
+        bodyWeight={bodyWeight({ checkInCount: daily.length, points: daily, weeks: [] })}
+        localDate="2026-01-20"
+      />,
+    );
+    press(rendered, 'chart-range-3M');
+
+    // The visually-hidden table mirrors every mark, so it is the stable
+    // surface for what the marks claim to represent.
+    const summary = hostsByTestId(rendered, 'chart-table')[0]!.props.accessibilityLabel as string;
+    // An en dash means the label names a span; a bare date would name one morning.
+    expect(summary).toContain('\u2013');
+    expect(summary).toMatch(/average of \d+ check-ins/);
+  });
+
+  /*
+   * Story 49 — parity with the web assertion of the same name. A gap between
+   * the two weeks must not be bridged: three weeks of drift labelled "vs
+   * previous week" attributes it all to seven days.
+   */
+  it('compares this week to the previous one only when the two are adjacent', () => {
+    const adjacent = renderTree(
+      <BodyWeightSection
+        bodyWeight={{
+          ...twoConsecutiveMornings,
+          weeks: [
+            { weekStart: '2025-06-23', average: 168.2, low: 167.4, high: 169.0, checkInCount: 4 },
+            { weekStart: '2025-06-30', average: 167.7, low: 166.8, high: 168.6, checkInCount: 3 },
+          ],
+        }}
+        localDate="2025-07-02"
+      />,
+    );
+    expect(textOf(adjacent, 'body-weight-week-range')).toContain(
+      '\u22120.5 lb vs previous week',
+    );
+
+    const gapped = renderTree(
+      <BodyWeightSection
+        bodyWeight={{
+          ...twoConsecutiveMornings,
+          weeks: [
+            { weekStart: '2025-06-02', average: 168.2, low: 167.4, high: 169.0, checkInCount: 4 },
+            { weekStart: '2025-06-30', average: 167.7, low: 166.8, high: 168.6, checkInCount: 3 },
+          ],
+        }}
+        localDate="2025-07-02"
+      />,
+    );
+    expect(textOf(gapped, 'body-weight-week-range')).not.toContain('vs previous week');
+  });
 });
 
 describe('BodyWeightSection', () => {

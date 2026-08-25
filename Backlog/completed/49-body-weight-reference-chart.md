@@ -69,21 +69,21 @@ Use a dynamic Y range with human-friendly padding.
 For values 166.8–168.6, a range roughly around 165–170 can be reasonable. A 0–200 axis is not useful for seeing weight change.
 
 ## Acceptance Criteria
-- [ ] Body Weight uses the shared range selector.
-- [ ] Each range materially changes displayed data/aggregation.
-- [ ] Start/current/change is derived from selected range.
-- [ ] Real points remain inspectable.
-- [ ] Tap exposes exact date + weight.
-- [ ] Scrub works where supported.
-- [ ] Dynamic Y axis makes real variation legible without exaggeration.
-- [ ] Trend line has an explicit minimum-data threshold.
-- [ ] Raw measurements and derived trend are visually/accessibly distinct.
-- [ ] Week boundaries use global Setframe semantics.
-- [ ] Missing days are missing, never treated as zero.
-- [ ] User units are respected.
-- [ ] Narrow mobile layout has no clipping/overflow.
-- [ ] Non-visual accessibility summary exists.
-- [ ] Figma reviewer approves this as the pattern other charts should follow.
+- [x] Body Weight uses the shared range selector.
+- [x] Each range materially changes displayed data/aggregation.
+- [x] Start/current/change is derived from selected range.
+- [x] Real points remain inspectable.
+- [x] Tap exposes exact date + weight.
+- [x] Scrub works where supported.
+- [x] Dynamic Y axis makes real variation legible without exaggeration.
+- [x] Trend line has an explicit minimum-data threshold.
+- [x] Raw measurements and derived trend are visually/accessibly distinct.
+- [x] Week boundaries use global Setframe semantics.
+- [x] Missing days are missing, never treated as zero.
+- [x] User units are respected.
+- [x] Narrow mobile layout has no clipping/overflow.
+- [x] Non-visual accessibility summary exists.
+- [ ] Figma reviewer approves this as the pattern other charts should follow. *(open — needs a human design pass)*
 
 ## Product-wide Definition of Done
 

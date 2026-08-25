@@ -4,8 +4,11 @@ import styled from 'styled-components';
 import { useQuery } from '@tanstack/react-query';
 import { spacing } from '@setframe/design-tokens';
 import {
+  bucketLabel,
   buildOverviewInsights,
   buildProgressSeries,
+  describeBucketValue,
+  formatBucketPeriod,
   describeWeightRate,
   defaultRange,
   rangeOptions,
@@ -15,7 +18,9 @@ import {
   isProgressOverview,
   metricDefinition,
   metricLabel,
+  progressRangeLabel,
   weekEndDate,
+  weekOverWeekChange,
   weekStartOf,
   type ProgressRange,
   type ProgressMetricKey,
@@ -419,6 +424,9 @@ function BodyWeightSection({
   // entry can be weeks old after a break. Label it honestly rather than
   // calling a fortnight-old average "this week".
   const latestWeek = bodyWeight.weeks.at(-1) ?? null;
+  /* Only offered when the two weeks are adjacent and each has enough
+     check-ins to have a real average — see weekOverWeekChange. */
+  const weekChange = useMemo(() => weekOverWeekChange(bodyWeight.weeks), [bodyWeight.weeks]);
 
   // Story 32 — Start/Current/Change for the selected range, from the raw
   // check-ins actually visible (not the prior period's last value, and not
@@ -554,7 +562,17 @@ function BodyWeightSection({
             zeroBased={false}
             minimumSpan={4}
             formatValue={format}
-            label={`Body weight in ${bodyWeight.unit} over time`}
+            /* At 3M and longer a mark is a week's mean, not a morning's
+               weigh-in. Naming the bucket's span keeps the readout from
+               claiming a reading on a day that may never have been logged. */
+            formatPeriod={(localDate) => formatBucketPeriod(localDate, rawSeriesForRange.bucket)}
+            describePoint={(index) => {
+              const point = visibleRaw[index];
+              return point ? describeBucketValue(point, rawSeriesForRange.bucket, 'mean') : null;
+            }}
+            label={`Body weight in ${bodyWeight.unit} over time, ${bucketLabel(
+              rawSeriesForRange.bucket,
+            )}, ${progressRangeLabel(range).toLowerCase()}`}
             testId="body-weight-chart"
           />
         ) : null}
@@ -576,6 +594,13 @@ function BodyWeightSection({
             }: avg ${latestWeek.average.toFixed(1)} · range ${latestWeek.low.toFixed(
               1,
             )}–${latestWeek.high.toFixed(1)} ${bodyWeight.unit}`}
+            {weekChange ? (
+              <span data-testid="body-weight-week-change">
+                {` · ${weekChange.change >= 0 ? '+' : '−'}${Math.abs(weekChange.change).toFixed(
+                  1,
+                )} ${bodyWeight.unit} vs previous week`}
+              </span>
+            ) : null}
           </SummaryDetail>
         ) : null}
       </Stack>
