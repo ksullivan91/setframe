@@ -10,6 +10,13 @@ export interface IconButtonProps {
   size?: number;
   accessibilityLabel: string;
   testID?: string;
+  /**
+   * Dims the control and blocks presses, and — importantly — reports the
+   * state to VoiceOver. A reorder arrow at the end of a list still needs to
+   * be announced as present-but-unavailable rather than silently doing
+   * nothing when tapped.
+   */
+  disabled?: boolean;
 }
 
 /**
@@ -25,14 +32,21 @@ export function IconButton({
   size = 32,
   accessibilityLabel,
   testID,
+  disabled = false,
 }: IconButtonProps) {
   const theme = useTheme();
+  /* `disabled` is handed to Pressable rather than used to null `onPress`:
+     Pressable already blocks the press, and removing the handler only made
+     the control harder to find by its role in tests and accessibility
+     tooling. */
   return (
     <Pressable
       testID={testID}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
       hitSlop={8}
       style={({ pressed }) => [
         styles.base,
@@ -41,11 +55,14 @@ export function IconButton({
           height: size,
           borderRadius: size / 2,
           backgroundColor: variant === 'subtle' ? theme.surface.sunken : theme.action.accentSubtle,
-          opacity: pressed ? 0.7 : 1,
+          opacity: disabled ? 0.35 : pressed ? 0.7 : 1,
         },
       ]}
     >
-      <Icon size={Math.round(size * 0.55)} color={theme.action.primary} />
+      <Icon
+        size={Math.round(size * 0.55)}
+        color={disabled ? theme.text.disabled : theme.action.primary}
+      />
     </Pressable>
   );
 }
