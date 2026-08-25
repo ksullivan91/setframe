@@ -7,10 +7,13 @@ import {
   availableRanges,
   describeWeightRate,
   filterByRange,
+  formatDateRangeLabel,
   formatMetricValue,
+  formatWeekRange,
   isProgressOverview,
   metricDefinition,
   metricLabel,
+  weekEndDate,
   weekStartOf,
   type ChartRange,
   type ProgressMetricKey,
@@ -207,6 +210,28 @@ const MetricRow = styled.div`
   gap: ${spacing[16]}px;
 `;
 
+/* Story 32 — Start/Current/Change framing for the selected range. */
+const RangeStatRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: ${spacing[16]}px;
+`;
+
+const RangeStat = styled.div`
+  display: grid;
+  gap: 2px;
+`;
+
+const RangeStatLabel = styled.span`
+  font-size: ${typeScale.caption.fontSize}px;
+  color: ${(p) => p.theme.text.secondary};
+`;
+
+const RangeStatValue = styled.span`
+  font-size: ${typeScale.body.fontSize}px;
+  font-weight: 600;
+`;
+
 const MetricChip = styled.div`
   display: grid;
   gap: 2px;
@@ -275,13 +300,6 @@ function daysBetween(from: string, to: string) {
 
 function formatDate(localDate: string) {
   return new Date(`${localDate}T12:00:00`).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-  });
-}
-
-function formatWeek(weekStart: string) {
-  return new Date(`${weekStart}T12:00:00`).toLocaleDateString(undefined, {
     month: 'short',
     day: 'numeric',
   });
@@ -381,6 +399,20 @@ function BodyWeightSection({
   // calling a fortnight-old average "this week".
   const latestWeek = bodyWeight.weeks.at(-1) ?? null;
 
+  // Story 32 — Start/Current/Change for the selected range, from the raw
+  // check-ins actually visible (not the prior period's last value, and not
+  // the smoothed trend — that stays a separate, deliberately noise-damped
+  // figure below). A single present point shows only Current: a change or
+  // trend computed from one observation would be fabricated.
+  const rangeSummary = useMemo(() => {
+    const present = visibleRaw.filter((point) => point.value != null);
+    if (!present.length) return null;
+    const start = present[0]!;
+    const current = present.at(-1)!;
+    if (present.length === 1) return { start: null, current, change: null };
+    return { start, current, change: current.value! - start.value! };
+  }, [visibleRaw]);
+
   // Deliberately built from the smoothed series and gated on a week of
   // elapsed time: an endpoint-to-endpoint difference between two raw
   // mornings a day apart is the day-over-day delta under another name.
@@ -427,6 +459,41 @@ function BodyWeightSection({
             label="Body weight time range"
           />
         </SectionHeader>
+
+        {visibleRaw.length ? (
+          <HelperText data-testid="body-weight-range-context">
+            {formatDateRangeLabel(visibleRaw[0]!.localDate, visibleRaw.at(-1)!.localDate)}
+          </HelperText>
+        ) : null}
+
+        {rangeSummary ? (
+          <RangeStatRow data-testid="body-weight-range-summary">
+            {rangeSummary.start ? (
+              <RangeStat>
+                <RangeStatLabel>Start</RangeStatLabel>
+                <RangeStatValue data-testid="body-weight-range-start">
+                  {format(rangeSummary.start.value!)}
+                </RangeStatValue>
+              </RangeStat>
+            ) : null}
+            <RangeStat>
+              <RangeStatLabel>Current</RangeStatLabel>
+              <RangeStatValue data-testid="body-weight-range-current">
+                {`${format(rangeSummary.current.value!)} · ${formatDate(rangeSummary.current.localDate)}`}
+              </RangeStatValue>
+            </RangeStat>
+            {rangeSummary.change != null ? (
+              <RangeStat>
+                <RangeStatLabel>Change</RangeStatLabel>
+                <RangeStatValue data-testid="body-weight-range-change">
+                  {`${rangeSummary.change > 0 ? '↑' : rangeSummary.change < 0 ? '↓' : '→'} ${Math.abs(
+                    rangeSummary.change,
+                  ).toFixed(1)} ${bodyWeight.unit}`}
+                </RangeStatValue>
+              </RangeStat>
+            ) : null}
+          </RangeStatRow>
+        ) : null}
 
         {bodyWeight.sufficiency === 'establishing' ? (
           <>
@@ -651,6 +718,14 @@ export function ProgressPage() {
   const { training, bodyWeight, exercises, recentSessions } = overview;
   const currentWeek = training.weeks.at(-1);
   const hasAnyVolume = volumeSeries.some((point) => point.value != null);
+  // Story 31: the chart's active period must be stated explicitly, not left
+  // for the user to infer from bars — this is the exact span the two
+  // weekly ColumnCharts below render, so it can never drift from what the
+  // chart actually shows.
+  const trainingWindowRange =
+    training.weeks.length > 0
+      ? formatDateRangeLabel(training.weeks[0]!.weekStart, weekEndDate(training.weeks.at(-1)!.weekStart))
+      : null;
   const hasAnyData = training.totalCompleted > 0 || bodyWeight.checkInCount > 0;
 
   if (!hasAnyData) {
@@ -765,10 +840,13 @@ export function ProgressPage() {
                   />
                 </SectionTitle>
               </SectionHeader>
+              {trainingWindowRange ? (
+                <HelperText data-testid="sessions-range-context">{trainingWindowRange}</HelperText>
+              ) : null}
               <ColumnChart
                 series={sessionSeries}
                 formatValue={(value) => `${Math.round(value)}`}
-                formatPeriod={(weekStart) => `Week of ${formatWeek(weekStart)}`}
+                formatPeriod={(weekStart) => formatWeekRange(weekStart)}
                 label={`Completed sessions per week over the last ${training.windowWeeks} weeks`}
                 emptyLabel="No sessions"
                 testId="sessions-chart"
@@ -796,12 +874,15 @@ export function ProgressPage() {
                   />
                 </SectionTitle>
               </SectionHeader>
+              {trainingWindowRange ? (
+                <HelperText data-testid="volume-range-context">{trainingWindowRange}</HelperText>
+              ) : null}
               <ColumnChart
                 series={volumeSeries}
                 formatValue={(value) =>
                   `${Math.round(value).toLocaleString()} ${training.volumeUnit}`
                 }
-                formatPeriod={(weekStart) => `Week of ${formatWeek(weekStart)}`}
+                formatPeriod={(weekStart) => formatWeekRange(weekStart)}
                 label={`Weekly training volume in ${training.volumeUnit}`}
                 emptyLabel="No weighted work"
                 testId="volume-chart"

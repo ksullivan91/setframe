@@ -100,6 +100,73 @@ export function metricDefinition(key: string) {
 }
 
 /**
+ * Story 31 — a chart's active period must be stated explicitly rather than
+ * left for the user to infer from axis ticks, and a summary statistic must
+ * describe the same visible span as the chart beneath it. These two
+ * formatters are the single place that turns a date span into that label,
+ * so every chart phrases "the period you are looking at" identically.
+ */
+
+function monthName(date: Date): string {
+  return date.toLocaleDateString(undefined, { month: 'short' });
+}
+
+/** Sunday of a Monday-anchored week, as a `YYYY-MM-DD` string. */
+export function weekEndDate(weekStart: string): string {
+  const end = new Date(`${weekStart}T12:00:00`);
+  end.setDate(end.getDate() + 6);
+  return toLocalDateString(end);
+}
+
+/** Monday–Sunday range for a week-start date, e.g. "Aug 18–24" or, across
+ * a month boundary, "Aug 31 – Sep 6". Setframe's one documented week-start
+ * rule is Monday (see `isoWeekStart`/`weekStartOf` in training-trends.ts
+ * and weight-trend.ts) — every weekly aggregation in the product already
+ * agrees on this; this formatter just makes the boundary visible in copy. */
+export function formatWeekRange(weekStart: string): string {
+  return formatDateRangeLabel(weekStart, weekEndDate(weekStart));
+}
+
+/**
+ * Explicit date-range label for an arbitrary span.
+ *
+ * Spans of roughly a month or less stay day-precise even across a
+ * month/year boundary ("Aug 31 – Sep 6") — collapsing day numbers on a
+ * week-scale range would hide exactly the boundary dates a user most wants
+ * confirmed. Longer spans collapse to month-level granularity ("Mar–Aug"),
+ * spelling the year on each end only when the range crosses a year
+ * ("Dec 2025 – Feb 2026").
+ */
+export function formatDateRangeLabel(startLocalDate: string, endLocalDate: string): string {
+  const start = new Date(`${startLocalDate}T12:00:00`);
+  const end = new Date(`${endLocalDate}T12:00:00`);
+  if (startLocalDate === endLocalDate) return `${monthName(start)} ${start.getDate()}`;
+
+  const spanDays = Math.round((end.getTime() - start.getTime()) / 86_400_000);
+  const sameYear = start.getFullYear() === end.getFullYear();
+  const sameMonth = sameYear && start.getMonth() === end.getMonth();
+
+  if (spanDays <= 31) {
+    if (sameMonth) return `${monthName(start)} ${start.getDate()}–${end.getDate()}`;
+    const startLabel = `${monthName(start)} ${start.getDate()}`;
+    const endLabel = sameYear
+      ? `${monthName(end)} ${end.getDate()}`
+      : `${monthName(end)} ${end.getDate()}, ${end.getFullYear()}`;
+    return `${startLabel} – ${endLabel}`;
+  }
+
+  if (sameYear) return `${monthName(start)}–${monthName(end)}`;
+  return `${monthName(start)} ${start.getFullYear()} – ${monthName(end)} ${end.getFullYear()}`;
+}
+
+function toLocalDateString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
  * Neutral, unvalenced description of a body-weight trend.
  *
  * No "good"/"bad", no "up"/"down is progress", and never a day-over-day

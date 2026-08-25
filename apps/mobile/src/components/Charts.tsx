@@ -349,7 +349,7 @@ export function ColumnChart({
             accessibilityRole="button"
             accessibilityLabel={`${formatPeriod(column.localDate)}: ${
               column.value == null ? emptyLabel : formatValue(column.value)
-            }${column.meta?.isRest === true ? ', rest week' : ''}`}
+            }${column.meta?.isRest === true ? ', rest week' : ''}${column.meta?.isCurrent === true ? ', current week' : ''}`}
             testID="chart-column-hit"
             onPress={() => select(index)}
             style={[
@@ -372,6 +372,11 @@ export function ColumnChart({
               {selectedColumn.value == null ? emptyLabel : formatValue(selectedColumn.value)}
             </Text>
             {`  ${formatPeriod(selectedColumn.localDate)}`}
+            {/* Story 33: current/incomplete period must be labeled
+                semantically, not only by its distinct fill color. */}
+            {selectedColumn.meta?.isCurrent ? (
+              <Text testID="chart-current-label">{'  ·  Current week'}</Text>
+            ) : null}
           </>
         ) : (
           'Select a bar to see its period and value.'
