@@ -23,6 +23,7 @@ import { ColumnChart, LineChart, RangeSelector } from '../../src/components/Char
 import { MetricInfo } from '../../src/components/MetricInfo';
 import { FadeIn, Skeleton, SkeletonStack } from '../../src/components/Skeleton';
 import { useApiClient } from '../../src/lib/api-client';
+import { useScreenTopPadding } from '../../src/lib/useScreenInsets';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { spacing, typeScale } from '../../src/theme/getTheme';
 
@@ -468,6 +469,10 @@ export default function ProgressScreen() {
   const router = useRouter();
   const localDate = todayLocalDate();
   const windowWeeks = 12;
+  const topPadding = useScreenTopPadding();
+  /* Applied to every return path below — the loading and error states are
+     as capable of rendering under the Dynamic Island as the loaded one. */
+  const contentStyle = [styles.content, { paddingTop: topPadding }];
 
   const query = useQuery({
     queryKey: ['progress-overview', localDate, windowWeeks],
@@ -501,7 +506,7 @@ export default function ProgressScreen() {
 
   if (query.isLoading) {
     return (
-      <ScrollView style={background} contentContainerStyle={styles.content}>
+      <ScrollView style={background} contentContainerStyle={contentStyle}>
         <ProgressSkeleton />
       </ScrollView>
     );
@@ -509,7 +514,7 @@ export default function ProgressScreen() {
 
   if (query.isError || !query.data) {
     return (
-      <ScrollView style={background} contentContainerStyle={styles.content}>
+      <ScrollView style={background} contentContainerStyle={contentStyle}>
         <View style={styles.header}>
           <Text style={[styles.title, { color: theme.text.primary }]}>Progress</Text>
         </View>
@@ -533,7 +538,7 @@ export default function ProgressScreen() {
 
   if (!hasAnyData) {
     return (
-      <ScrollView style={background} contentContainerStyle={styles.content}>
+      <ScrollView style={background} contentContainerStyle={contentStyle}>
         <View style={styles.header}>
           <Text style={[styles.title, { color: theme.text.primary }]}>Progress</Text>
           <Helper>Your trends will appear here as you train.</Helper>
@@ -551,7 +556,7 @@ export default function ProgressScreen() {
 
   return (
     <FadeIn>
-      <ScrollView style={background} contentContainerStyle={styles.content}>
+      <ScrollView style={background} contentContainerStyle={contentStyle}>
         <View style={styles.header}>
           <Text style={[styles.title, { color: theme.text.primary }]}>Progress</Text>
           <Helper>How your training, strength and weight are actually moving.</Helper>

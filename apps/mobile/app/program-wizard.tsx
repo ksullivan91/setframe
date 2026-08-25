@@ -15,6 +15,7 @@ import { Select, type SelectOption } from '../src/components/Select';
 import { AddExercisePicker } from '../src/components/AddExercisePicker';
 import { WeekScheduleEditor } from '../src/components/WeekScheduleEditor';
 import { useApiClient } from '../src/lib/api-client';
+import { useScreenTopPadding, useStackBottomPadding } from '../src/lib/useScreenInsets';
 import { restoreExerciseOrder } from '@setframe/domain';
 import { summarizePrescription } from '../src/lib/prescription';
 import { useTheme } from '../src/theme/ThemeProvider';
@@ -65,6 +66,11 @@ export default function ProgramWizardScreen() {
   const router = useRouter();
   const api = useApiClient();
   const queryClient = useQueryClient();
+  /* This screen inherits `headerShown: false` from the root Stack, so
+     unlike session-summary/exercise-history nothing reserves the status
+     bar for it. */
+  const topPadding = useScreenTopPadding();
+  const bottomPadding = useStackBottomPadding();
 
   const [currentStep, setCurrentStep] = useState(0);
   const [programName, setProgramName] = useState('My Training Program');
@@ -374,7 +380,10 @@ export default function ProgramWizardScreen() {
 
   return (
     <>
-    <ScrollView style={{ backgroundColor: theme.surface.canvas }} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={{ backgroundColor: theme.surface.canvas }}
+      contentContainerStyle={[styles.content, { paddingTop: topPadding, paddingBottom: bottomPadding }]}
+    >
       <View style={styles.header}>
         <Text style={[styles.eyebrow, { color: theme.text.secondary }]}>New here?</Text>
         <Text style={[styles.title, { color: theme.text.primary }]}>Guided program setup</Text>
