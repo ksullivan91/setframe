@@ -37,7 +37,7 @@ import { countsTowardVolume, isSessionSetLogged } from '../../src/lib/prescripti
 import { visibleSessionExercises } from '@setframe/domain';
 import { ApiError, useApiClient } from '../../src/lib/api-client';
 import { useLocalDate } from '../../src/lib/useLocalDate';
-import { useScreenTopPadding, useScreenBottomPadding } from '../../src/lib/useScreenInsets';
+import { useScreenTopPadding } from '../../src/lib/useScreenInsets';
 import { healthKit, type DailyHealthMetrics } from '../../src/healthkit/HealthKitAdapter';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { radius, spacing, typeScale } from '../../src/theme/getTheme';
@@ -239,7 +239,6 @@ export default function TodayScreen() {
   const queryClient = useQueryClient();
   const localDate = useLocalDate();
   const topPadding = useScreenTopPadding();
-  const bottomPadding = useScreenBottomPadding();
   const [weight, setWeight] = useState('');
   const [systolic, setSystolic] = useState('');
   const [diastolic, setDiastolic] = useState('');
@@ -536,7 +535,7 @@ export default function TodayScreen() {
   return (
     <ScrollView
       style={{ backgroundColor: theme.surface.canvas }}
-      contentContainerStyle={[styles.content, { paddingTop: topPadding, paddingBottom: bottomPadding }]}
+      contentContainerStyle={[styles.content, { paddingTop: topPadding }]}
     >
       <View style={styles.headerRow}>
         <View style={styles.headerTextWrap}>

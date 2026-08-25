@@ -23,7 +23,7 @@ import { ColumnChart, LineChart, RangeSelector } from '../../src/components/Char
 import { MetricInfo } from '../../src/components/MetricInfo';
 import { FadeIn, Skeleton, SkeletonStack } from '../../src/components/Skeleton';
 import { useApiClient } from '../../src/lib/api-client';
-import { useScreenTopPadding, useScreenBottomPadding } from '../../src/lib/useScreenInsets';
+import { useScreenTopPadding } from '../../src/lib/useScreenInsets';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { spacing, typeScale } from '../../src/theme/getTheme';
 
@@ -470,10 +470,9 @@ export default function ProgressScreen() {
   const localDate = todayLocalDate();
   const windowWeeks = 12;
   const topPadding = useScreenTopPadding();
-  const bottomPadding = useScreenBottomPadding();
   /* Applied to every return path below — the loading and error states are
      as capable of rendering under the Dynamic Island as the loaded one. */
-  const contentStyle = [styles.content, { paddingTop: topPadding, paddingBottom: bottomPadding }];
+  const contentStyle = [styles.content, { paddingTop: topPadding }];
 
   const query = useQuery({
     queryKey: ['progress-overview', localDate, windowWeeks],

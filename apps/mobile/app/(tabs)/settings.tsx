@@ -9,7 +9,7 @@ import { Select } from '../../src/components/Select';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { spacing, typeScale } from '../../src/theme/getTheme';
 import { useApiClient } from '../../src/lib/api-client';
-import { useScreenTopPadding, useScreenBottomPadding } from '../../src/lib/useScreenInsets';
+import { useScreenTopPadding } from '../../src/lib/useScreenInsets';
 
 type PreferredUnits = User['preferredUnits'];
 
@@ -121,12 +121,11 @@ export default function SettingsScreen() {
 
   const syncStatus = useMemo(() => formatSyncStatus(syncState?.status), [syncState?.status]);
   const topPadding = useScreenTopPadding();
-  const bottomPadding = useScreenBottomPadding();
 
   return (
     <ScrollView
       style={{ backgroundColor: theme.surface.canvas }}
-      contentContainerStyle={[styles.content, { paddingTop: topPadding, paddingBottom: bottomPadding }]}
+      contentContainerStyle={[styles.content, { paddingTop: topPadding }]}
     >
       {/* Web's SettingsPage leads with an <h1> and places each section
           heading *above* its card, not inside it. Mobile had neither: it
@@ -238,10 +237,6 @@ const styles = StyleSheet.create({
   content: {
     padding: spacing[16],
     gap: spacing[16],
-  },
-  sectionTitle: {
-    fontSize: typeScale.sectionTitle.fontSize,
-    fontWeight: '600',
   },
   /* Web's SettingsPage opens with an <h1> at pageTitle scale, then labels
      each card with a heading placed above it. */

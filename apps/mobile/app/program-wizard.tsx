@@ -15,7 +15,7 @@ import { Select, type SelectOption } from '../src/components/Select';
 import { AddExercisePicker } from '../src/components/AddExercisePicker';
 import { WeekScheduleEditor } from '../src/components/WeekScheduleEditor';
 import { useApiClient } from '../src/lib/api-client';
-import { useScreenTopPadding, useScreenBottomPadding } from '../src/lib/useScreenInsets';
+import { useScreenTopPadding, useStackBottomPadding } from '../src/lib/useScreenInsets';
 import { restoreExerciseOrder } from '@setframe/domain';
 import { summarizePrescription } from '../src/lib/prescription';
 import { useTheme } from '../src/theme/ThemeProvider';
@@ -70,7 +70,7 @@ export default function ProgramWizardScreen() {
      unlike session-summary/exercise-history nothing reserves the status
      bar for it. */
   const topPadding = useScreenTopPadding();
-  const bottomPadding = useScreenBottomPadding();
+  const bottomPadding = useStackBottomPadding();
 
   const [currentStep, setCurrentStep] = useState(0);
   const [programName, setProgramName] = useState('My Training Program');

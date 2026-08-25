@@ -24,13 +24,18 @@ export function useScreenTopPadding(gutter: number = spacing[16]): number {
 }
 
 /**
- * Bottom padding for a screen's scroll content.
+ * Bottom padding for a screen that is **not** inside the tab shell.
  *
- * The tab bar floats over the content, and on a home-indicator device the
- * indicator sits below it, so the last element in a scroll view is
- * otherwise unreachable behind both.
+ * Only for Stack routes running `headerShown: false`, where nothing sits
+ * between the content and the home indicator.
+ *
+ * Deliberately not for tab screens: `BottomTabBar` already applies
+ * `paddingBottom: insets.bottom` itself and is not absolutely positioned,
+ * so content already ends above both the bar and the indicator. Adding the
+ * inset again there produces roughly 50pt of dead space rather than the
+ * intended gutter.
  */
-export function useScreenBottomPadding(gutter: number = spacing[16]): number {
+export function useStackBottomPadding(gutter: number = spacing[16]): number {
   const insets = useSafeAreaInsets();
   return insets.bottom + gutter;
 }
