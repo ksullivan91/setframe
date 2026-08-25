@@ -18,3 +18,4 @@ export * from './WeekScheduleEditor';
 export * from './ExerciseEditModal';
 export * from './Charts';
 export * from './MetricInfo';
+export * from './TodayAdditionalActivitySection';

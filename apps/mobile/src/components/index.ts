@@ -15,3 +15,5 @@ export * from './WeekScheduleEditor';
 export * from './Skeleton';
 export * from './Charts';
 export * from './MetricInfo';
+export * from './AdditionalActivitySheet';
+export * from './TodayAdditionalActivitySection';

@@ -51,3 +51,25 @@ export const integrationSyncStateStatusEnum = pgEnum('integration_sync_state_sta
   'error',
   'never_synced',
 ]);
+
+/**
+ * Story 40 — supplemental movement outside the formal program schedule
+ * (a walk, yoga, mobility work). Deliberately separate from `set_type`'s
+ * training vocabulary: an Additional Activity is never a scheduled workout.
+ */
+export const additionalActivityTypeEnum = pgEnum('additional_activity_type', [
+  'walk',
+  'yoga',
+  'mobility',
+  'foam_rolling',
+  'outdoor_cycle',
+  'indoor_cycle',
+  'run',
+  'stretching',
+  'other',
+]);
+
+export const additionalActivitySourceEnum = pgEnum('additional_activity_source', [
+  'manual',
+  'apple_health',
+]);
