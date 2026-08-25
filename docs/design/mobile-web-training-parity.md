@@ -14,21 +14,35 @@ been put next to each other, so everything below went unnoticed.
 
 ## What made the comparison impossible before
 
-Two blockers, both now removed, both worth recording because they are the
-reason the divergence survived:
+Two blockers, both worth recording because they are the reason the
+divergence survived unnoticed:
 
 1. **Web's authenticated routes sit behind Clerk's `<SignedIn>` gate**, and
    `dev:mock` only replaces the API, not auth. Reaching `/training` meant
-   signing in through a real 2FA email code. Now: `VITE_DESIGN_REVIEW=true`
-   with mocks renders the app unauthenticated (`env.bypassAuthForDesignReview`,
-   guarded on dev + mocks + explicit opt-in).
+   signing in through a real 2FA email code, so in practice nobody did.
 2. **MSW mocked `/programs/:programId/workouts`**, but Story 25 renamed
    that resource to `day-types` and added `schedule-slots`. Nothing called
    the old path, so Training sat on its loading skeleton forever under
-   `dev:mock` — the screen was literally un-reviewable. Handlers added.
+   `dev:mock` — the screen was literally un-reviewable.
 
-On the mobile side, `EXPO_PUBLIC_DEV_INITIAL_ROUTE` now lands the app on
-any screen directly, since the Simulator has no tap primitive.
+The second is fixed: the handlers now match the real routes, so
+`npm run dev:mock` renders Training.
+
+The first was worked around with a temporary auth bypass, **which has
+since been removed** — an auth bypass is not something to leave in a
+codebase, however tightly guarded. Anyone repeating this comparison needs
+to sign in normally, or reintroduce an equivalent bypass locally and strip
+it again afterwards. That friction is real and is the main reason this
+audit had not happened sooner; if these comparisons become routine, a
+durable answer (a seeded test account, or Clerk's testing tokens) is worth
+building instead.
+
+On the mobile side, the Simulator has no tap primitive — `simctl` cannot
+press a tab, `osascript` needs an Accessibility grant, and `simctl
+openurl` raises an undismissable dialog. Screens other than the default
+were reached by temporarily pointing the entry redirect at them and
+reinstalling to clear expo-router's persisted navigation state. That
+scaffolding has also been removed.
 
 ## Divergences found
 
