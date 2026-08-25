@@ -550,6 +550,44 @@ describe('ProgramEditorScreen workout actions', () => {
 
     expect(mockDel).toHaveBeenCalledWith('/day-types/day-1');
   });
+
+  /**
+   * Removal has to be reversible without leaving the app. Shipping "Remove
+   * from this program" alone made it a one-way door: the day_type survives
+   * on the server exactly as the confirmation promises, but nothing on
+   * mobile listed workouts outside the current program, so it could never
+   * be added back.
+   */
+  it('offers workouts that exist outside this program, and adds one back', async () => {
+    const orphan = { ...upperA, id: 'day-9', name: 'Conditioning' };
+    mockGet = (path: string) => {
+      if (path === '/programs') return Promise.resolve([baseProgram]);
+      if (path === '/programs/program-1/day-types') return Promise.resolve([upperA]);
+      // The unscoped catalogue holds one the program does not have.
+      if (path === '/day-types') return Promise.resolve([upperA, orphan]);
+      if (path === '/day-types/day-1') return Promise.resolve({ ...upperA, exercises: [] });
+      if (path.startsWith('/programs/') && path.endsWith('/schedule-slots')) return Promise.resolve([]);
+      if (path === '/exercises') return Promise.resolve([]);
+      return Promise.resolve([]);
+    };
+    mockPost.mockImplementation(() => Promise.resolve(orphan));
+    const rendered = await renderScreen();
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Add existing workout')[0]!.props.onPress();
+    });
+    await flush();
+
+    // Only the non-member is offered — the one already in the program is not.
+    expect(textNodesContaining(rendered, 'Conditioning').length).toBeGreaterThan(0);
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Add')[0]!.props.onPress();
+    });
+    await flush();
+
+    expect(mockPost).toHaveBeenCalledWith('/programs/program-1/day-types', { dayTypeId: 'day-9' });
+  });
 });
 
 /**
@@ -570,7 +608,7 @@ describe('ProgramEditorScreen exercise reordering', () => {
     await openUpperA(rendered);
 
     await act(async () => {
-      pressablesByLabel(rendered, 'Move Bench Press down')[0]!.props.onPress();
+      pressablesByLabel(rendered, 'Move Bench Press down, position 1 of 2')[0]!.props.onPress();
     });
     await flush();
 
@@ -587,14 +625,14 @@ describe('ProgramEditorScreen exercise reordering', () => {
     // Both arrows are still rendered and labelled — a disabled control has
     // to be announced as present-but-unavailable, not omitted — but neither
     // end one may produce a write.
-    expect(pressablesByLabel(rendered, 'Move Bench Press up').length).toBeGreaterThan(0);
-    expect(pressablesByLabel(rendered, 'Move Row down').length).toBeGreaterThan(0);
+    expect(pressablesByLabel(rendered, 'Move Bench Press up, position 1 of 2').length).toBeGreaterThan(0);
+    expect(pressablesByLabel(rendered, 'Move Row down, position 2 of 2').length).toBeGreaterThan(0);
 
     await act(async () => {
-      pressablesByLabel(rendered, 'Move Bench Press up')[0]!.props.onPress();
+      pressablesByLabel(rendered, 'Move Bench Press up, position 1 of 2')[0]!.props.onPress();
     });
     await act(async () => {
-      pressablesByLabel(rendered, 'Move Row down')[0]!.props.onPress();
+      pressablesByLabel(rendered, 'Move Row down, position 2 of 2')[0]!.props.onPress();
     });
     await flush();
 
