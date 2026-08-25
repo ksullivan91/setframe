@@ -86,4 +86,27 @@ describe('MetricInfo disclosure', () => {
     press(rendered, 'metric-info-trigger');
     expect(allText(rendered)).not.toContain('not a tested max');
   });
+
+  /**
+   * Story 30 — only one metric tooltip should be open at a time, across
+   * every MetricInfo instance on screen.
+   */
+  it('closes a previously open panel when a second MetricInfo opens', () => {
+    const rendered = renderTree(
+      <>
+        <MetricInfo label="Sessions per week" explanation="Weekly training frequency." />
+        <MetricInfo label="Weekly volume" explanation="Total load lifted this week." />
+      </>,
+    );
+
+    const triggers = rendered.root.findAll(
+      (n) => n.props?.testID === 'metric-info-trigger' && typeof n.props?.onPress === 'function',
+    );
+    act(() => triggers[0]!.props.onPress());
+    expect(allText(rendered)).toContain('Weekly training frequency.');
+
+    act(() => triggers[1]!.props.onPress());
+    expect(allText(rendered)).not.toContain('Weekly training frequency.');
+    expect(allText(rendered)).toContain('Total load lifted this week.');
+  });
 });
