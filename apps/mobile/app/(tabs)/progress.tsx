@@ -6,7 +6,6 @@ import {
   Text,
   View,
   type LayoutChangeEvent,
-  type ScrollViewInstance,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -542,7 +541,7 @@ export default function ProgressScreen() {
      scrolls there. Kept in a ref rather than state: these are written on
      every layout pass, and a setState per pass would re-render the screen
      continuously while it settles. */
-  const scrollRef = useRef<ScrollViewInstance>(null);
+  const scrollRef = useRef<ScrollView>(null);
   const sectionOffsets = useRef<Partial<Record<InsightMetric, number>>>({});
   const captureOffset = (metric: InsightMetric) => (event: LayoutChangeEvent) => {
     sectionOffsets.current[metric] = event.nativeEvent.layout.y;
