@@ -37,6 +37,7 @@ import { countsTowardVolume, isSessionSetLogged } from '../../src/lib/prescripti
 import { visibleSessionExercises } from '@setframe/domain';
 import { ApiError, useApiClient } from '../../src/lib/api-client';
 import { useLocalDate } from '../../src/lib/useLocalDate';
+import { useScreenTopPadding } from '../../src/lib/useScreenInsets';
 import { healthKit, type DailyHealthMetrics } from '../../src/healthkit/HealthKitAdapter';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { radius, spacing, typeScale } from '../../src/theme/getTheme';
@@ -237,6 +238,7 @@ export default function TodayScreen() {
   const api = useApiClient();
   const queryClient = useQueryClient();
   const localDate = useLocalDate();
+  const topPadding = useScreenTopPadding();
   const [weight, setWeight] = useState('');
   const [systolic, setSystolic] = useState('');
   const [diastolic, setDiastolic] = useState('');
@@ -531,7 +533,10 @@ export default function TodayScreen() {
     : healthMetrics?.caloriesConsumedKcal ?? null;
 
   return (
-    <ScrollView style={{ backgroundColor: theme.surface.canvas }} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={{ backgroundColor: theme.surface.canvas }}
+      contentContainerStyle={[styles.content, { paddingTop: topPadding }]}
+    >
       <View style={styles.headerRow}>
         <View style={styles.headerTextWrap}>
           <Text style={[styles.eyebrow, { color: theme.text.secondary }]}>{dateLabel}</Text>
