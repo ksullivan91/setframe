@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/clerk-react';
 import { AppShell } from './components/AppShell';
+import { env } from './lib/env';
 import {
   SignInPage,
   SignUpPage,
@@ -39,14 +40,22 @@ export function App() {
       <Route
         path="/*"
         element={
-          <>
-            <SignedIn>
-              <AuthenticatedApp />
-            </SignedIn>
-            <SignedOut>
-              <RedirectToSignIn />
-            </SignedOut>
-          </>
+          /* Design-review mode renders the app unauthenticated so screens
+             can be opened directly for screenshot comparison against
+             mobile. Requires a dev build AND mocks AND an explicit
+             opt-in — see `env.bypassAuthForDesignReview`. */
+          env.bypassAuthForDesignReview ? (
+            <AuthenticatedApp />
+          ) : (
+            <>
+              <SignedIn>
+                <AuthenticatedApp />
+              </SignedIn>
+              <SignedOut>
+                <RedirectToSignIn />
+              </SignedOut>
+            </>
+          )
         }
       />
     </Routes>

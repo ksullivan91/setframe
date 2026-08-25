@@ -76,6 +76,45 @@ const mockPrograms = [
   },
 ];
 
+/* Exercises for a day type, and a weekly schedule assigning those day
+   types to days — both needed for Training to render under `dev:mock`. */
+const mockDayTypeExercises = [
+  {
+    id: '50000000-0000-0000-0000-000000000001',
+    dayTypeId: '30000000-0000-0000-0000-000000000001',
+    exerciseId: '20000000-0000-0000-0000-000000000001',
+    exercise: { id: '20000000-0000-0000-0000-000000000001', name: 'Barbell Bench Press' },
+    sortOrder: 0,
+    prescription: { kind: 'sets_reps', sets: 3, repsMin: 8, repsMax: 10 },
+    notes: null,
+    createdAt: now(),
+    updatedAt: now(),
+  },
+  {
+    id: '50000000-0000-0000-0000-000000000002',
+    dayTypeId: '30000000-0000-0000-0000-000000000001',
+    exerciseId: '20000000-0000-0000-0000-000000000002',
+    exercise: { id: '20000000-0000-0000-0000-000000000002', name: 'Pull-Up' },
+    sortOrder: 1,
+    prescription: { kind: 'bodyweight_reps', sets: 3, repsMin: 6 },
+    notes: null,
+    createdAt: now(),
+    updatedAt: now(),
+  },
+];
+
+const mockScheduleSlots = [
+  {
+    id: '60000000-0000-0000-0000-000000000001',
+    programVersionId: '40000000-0000-0000-0000-000000000001',
+    dayTypeId: '30000000-0000-0000-0000-000000000001',
+    weekIndex: 0,
+    dayOfWeek: 1,
+    createdAt: now(),
+    updatedAt: now(),
+  },
+];
+
 const mockTemplates = [
   {
     id: '30000000-0000-0000-0000-000000000001',
@@ -250,6 +289,19 @@ export const handlers = [
       { status: 201 },
     );
   }),
+
+  /* Story 25 renamed this resource from `workouts` to `day-types` when it
+     introduced explicit program membership, but the mock kept the old path.
+     Nothing called `/workouts` any more, so Training could never resolve
+     its queries under `dev:mock` and sat on its loading skeleton forever —
+     which is why nobody could design-review the screen, and part of why
+     mobile's Training was allowed to diverge from it unnoticed. */
+  http.get('*/v1/programs/:programId/day-types', () => HttpResponse.json(mockTemplates)),
+  http.get('*/v1/day-types/:dayTypeId', ({ params }) => {
+    const dayType = mockTemplates.find((t) => t.id === params.dayTypeId) ?? mockTemplates[0];
+    return HttpResponse.json({ ...dayType, exercises: mockDayTypeExercises });
+  }),
+  http.get('*/v1/programs/:programId/schedule-slots', () => HttpResponse.json(mockScheduleSlots)),
 
   http.get('*/v1/programs/:programId/workouts', () => HttpResponse.json(mockTemplates)),
   http.post('*/v1/programs/:programId/workouts', async ({ request }) => {

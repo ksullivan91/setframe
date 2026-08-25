@@ -15,4 +15,24 @@ export const env = {
   /** When true, `npm run dev:mock` starts an MSW worker (see
    * src/mocks/browser.ts) instead of hitting the real API. */
   useMocks: import.meta.env.VITE_USE_MOCKS === 'true',
+  /**
+   * Renders the authenticated app without a Clerk session, so screens can
+   * be opened directly for design review and screenshot comparison.
+   *
+   * `dev:mock` already replaces the API with MSW, but every authenticated
+   * route still sits behind Clerk's `<SignedIn>` gate — which made
+   * comparing a web screen against its mobile counterpart require signing
+   * in through a real 2FA email code, and in practice meant the comparison
+   * never happened. A mobile Training screen that looked nothing like web
+   * shipped as a result.
+   *
+   * Deliberately gated on THREE conditions, all required: a dev build,
+   * mocks enabled, and an explicit opt-in. It cannot be reached from a
+   * production bundle, and it cannot be pointed at real user data — with
+   * mocks on there is no live API to reach.
+   */
+  bypassAuthForDesignReview:
+    import.meta.env.DEV &&
+    import.meta.env.VITE_USE_MOCKS === 'true' &&
+    import.meta.env.VITE_DESIGN_REVIEW === 'true',
 };
