@@ -73,3 +73,23 @@ Mobile: the Simulator has no tap primitive, so reaching a screen other than
 the default still requires temporarily repointing `app/index.tsx` and
 reinstalling to clear expo-router's persisted navigation state. Revert any
 such change before committing.
+
+## Known limitation: scripting the sign-in
+
+The account and its password are valid — `users.verifyPassword` against
+the Backend API returns `{ verified: true }`. But driving Clerk's
+**multi-step sign-in form** over CDP is not as simple as setting input
+values: Clerk validates against its own internal state, so a synthetic
+`input` event sets the field visually while the form still considers it
+empty, and "Continue" leaves you on `/v3/signin/identifier`.
+
+Making this reliable needs real key events
+(`Input.dispatchKeyEvent` per character, or `Input.insertText`) rather
+than assigning `.value`, plus waiting on Clerk's own step transitions
+instead of fixed timeouts.
+
+Until that is written, **web verification is a manual sign-in**: start
+`dev:mock`, sign in with the credentials above in a real browser, then
+resize to 390px. The account removes the *emailed-code* obstacle, which
+was the genuinely blocking part; it does not by itself make the flow
+scriptable.
