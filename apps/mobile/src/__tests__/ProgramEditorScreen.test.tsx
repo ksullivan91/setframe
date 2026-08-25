@@ -414,3 +414,43 @@ describe('ProgramEditorScreen tabs', () => {
     expect(textNodesContaining(rendered, 'Training').length).toBeGreaterThan(0);
   });
 });
+
+/**
+ * Creating a program was reachable only from the onboarding wizard, and
+ * only while no program existed — the inverse of web, which offers guided
+ * setup in both states. Once a user finished setup they could never make
+ * a second program on mobile at all.
+ */
+describe('ProgramEditorScreen program creation', () => {
+  it('offers both creation paths once a program already exists', async () => {
+    mockGet = getFor([baseProgram]);
+    const rendered = await renderScreen();
+    await switchTab(rendered, 'Programs');
+
+    expect(pressablesByLabel(rendered, 'Create program').length).toBeGreaterThan(0);
+    expect(pressablesByLabel(rendered, 'Start guided setup').length).toBeGreaterThan(0);
+  });
+
+  it('creates a program without activating it', async () => {
+    mockGet = getFor([baseProgram]);
+    mockPost.mockImplementation(() => Promise.resolve({ id: 'program-new', name: 'Off-season block', isActive: false }));
+    const rendered = await renderScreen();
+    await switchTab(rendered, 'Programs');
+
+    const input = rendered.root
+      .findAll((node) => typeof node.props?.onChangeText === 'function')
+      .at(-1)!;
+    await act(async () => {
+      input.props.onChangeText('Off-season block');
+    });
+    await act(async () => {
+      pressablesByLabel(rendered, 'Create program')[0]!.props.onPress();
+    });
+    await flush();
+
+    expect(mockPost).toHaveBeenCalledWith('/programs', { name: 'Off-season block' });
+    // Story 24: creating must never silently change which program Today
+    // follows — no activate call may accompany it.
+    expect(mockPost).not.toHaveBeenCalledWith('/programs/program-new/activate', undefined);
+  });
+});

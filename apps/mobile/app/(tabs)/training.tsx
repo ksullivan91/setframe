@@ -63,6 +63,7 @@ export default function ProgramEditorScreen() {
   const [showCreateWorkout, setShowCreateWorkout] = useState(false);
   const [toast, setToast] = useState<{ variant: 'success' | 'error'; message: string } | null>(null);
   const [newWorkoutName, setNewWorkoutName] = useState('');
+  const [newProgramName, setNewProgramName] = useState('');
   const [showAddExercise, setShowAddExercise] = useState(false);
   const [editingExercise, setEditingExercise] = useState<ExerciseEditState | null>(null);
   /* Which day the schedule is mid-write on, so WeekScheduleEditor can show
@@ -109,6 +110,25 @@ export default function ProgramEditorScreen() {
     const stillExists = programsQuery.data.some((program) => program.id === selectedProgramId);
     if (!stillExists) setSelectedProgramId(activeProgram?.id ?? programsQuery.data[0]?.id ?? null);
   }, [programsQuery.data, selectedProgramId, activeProgram]);
+
+  /* Web has three program-level mutations — create, activate, rename —
+     while mobile had only activate. A program could be created exactly
+     once, inside the onboarding wizard, and never again: the guided-setup
+     entry point below was gated on having *no* program, the inverse of
+     web, which offers it in both states (banner when empty, secondary
+     header button once configured). */
+  const createProgram = useMutation({
+    mutationFn: (body: { name: string }) => api.post<TrainingProgram>('/programs', body),
+    onSuccess: (created) => {
+      queryClient.invalidateQueries({ queryKey: ['programs'] });
+      // Select — deliberately not activate. Story 24: viewing or creating a
+      // program must never silently change which one Today follows.
+      setSelectedProgramId(created.id);
+      setNewProgramName('');
+      setToast({ variant: 'success', message: `${created.name} created.` });
+    },
+    onError: () => setToast({ variant: 'error', message: 'Could not create that program.' }),
+  });
 
   const activateMutation = useMutation({
     mutationFn: (programId: string) => api.post<TrainingProgram>(`/programs/${programId}/activate`),
@@ -421,6 +441,34 @@ export default function ProgramEditorScreen() {
               )}
             </View>
           ))}
+
+          {/* Creating a program was previously reachable only from the
+              wizard, and only while none existed. Both entry points web
+              offers are here: build one from scratch, or run guided setup
+              again for another. */}
+          <View style={[styles.createProgramBlock, { borderTopColor: theme.border.subtle }]}>
+            <Input
+              label="New program"
+              placeholder="e.g. Off-season block"
+              value={newProgramName}
+              onChangeText={setNewProgramName}
+            />
+            <Button
+              label="Create program"
+              variant="secondary"
+              loading={createProgram.isPending}
+              disabled={!newProgramName.trim()}
+              onPress={() => createProgram.mutate({ name: newProgramName.trim() })}
+            />
+            <Text style={[styles.helpText, { color: theme.text.secondary }]}>
+              Or set one up with guided steps — pick your workouts and weekly schedule as you go.
+            </Text>
+            <Button
+              label="Start guided setup"
+              variant="secondary"
+              onPress={() => router.push('/program-wizard')}
+            />
+          </View>
         </Card>
       ) : null}
 
@@ -662,6 +710,15 @@ const styles = StyleSheet.create({
   /* Supporting copy under a section heading — web's `Small`. */
   helpText: {
     fontSize: typeScale.compactBody.fontSize,
+  },
+  /* Separated from the program list by a rule: creating a program is a
+     different act from choosing among the ones that exist, and web keeps
+     the two visually distinct too. */
+  createProgramBlock: {
+    gap: spacing[8],
+    marginTop: spacing[16],
+    paddingTop: spacing[16],
+    borderTopWidth: 1,
   },
   contextLabel: {
     flexDirection: 'row',
