@@ -271,23 +271,20 @@ export default function TrainingScreen() {
     todayQuery.data?.sessions.find((session) => session.status === 'in_progress')?.id ??
     createdSessionId;
 
-  useEffect(() => {
-    if (
-      !routeSessionId &&
-      !todayQuery.isLoading &&
-      !todayQuery.isError &&
-      !resolvedSessionId &&
-      !resumeSessionMutation.isPending &&
-      !resumeSessionMutation.isError
-    ) {
-      resumeSessionMutation.mutate();
-    }
-    // resumeSessionMutation intentionally omitted from deps: it's a stable
-    // mutate/isPending/isError object reference from useMutation, and
-    // including the whole object would re-run this effect on every render
-    // once isError flips, defeating the guard above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolvedSessionId, routeSessionId, todayQuery.isError, todayQuery.isLoading, resumeSessionMutation.isPending, resumeSessionMutation.isError]);
+  /* Deliberately NOT auto-started.
+   *
+   * This screen used to `resumeSessionMutation.mutate()` from an effect on
+   * mount, so merely opening the Training tab created a real
+   * `workout_session` — pre-populated with the day's template sets, with no
+   * user action and no way to decline. Two consequences, both observed in
+   * production: a day that already had a finished workout gained a second,
+   * empty `in_progress` session that shadowed it, and — because
+   * `POST /v1/workout-sessions` deletes that date's `rest_day` so a day
+   * cannot claim both — opening this tab silently destroyed a logged rest
+   * day.
+   *
+   * Starting a workout is a deliberate act. It now requires a press, which
+   * is what Today's screen has always done. */
 
   const sessionQuery = useQuery({
     queryKey: ['mobile-workout-session', resolvedSessionId],
@@ -575,9 +572,51 @@ export default function TrainingScreen() {
     return <SessionSkeleton />;
   }
 
+  /* No session for today yet. Previously unreachable — the mount effect had
+     already created one before this could render. Now it's the honest
+     resting state of the tab: show what today holds and let the user decide. */
+  if (!isError && !resolvedSessionId) {
+    const completedToday = todayQuery.data?.sessions.filter((s) => s.status === 'completed') ?? [];
+    const dayLabel = todayQuery.data?.dayLabel;
+    return (
+      <View style={[styles.centered, { backgroundColor: theme.surface.canvas, padding: spacing[16], gap: spacing[16] }]}>
+        <Text style={[styles.title, { color: theme.text.primary, textAlign: 'center' }]}>
+          {dayLabel ?? 'No workout scheduled'}
+        </Text>
+        {completedToday.length > 0 ? (
+          <Text style={{ color: theme.text.secondary, textAlign: 'center' }}>
+            You already finished {completedToday.length === 1 ? 'a workout' : `${completedToday.length} workouts`} today.
+            Starting another adds a separate session.
+          </Text>
+        ) : (
+          <Text style={{ color: theme.text.secondary, textAlign: 'center' }}>
+            {dayLabel
+              ? 'Start when you are ready — nothing is logged until you do.'
+              : 'Start an ad hoc workout, or pick a workout from Today.'}
+          </Text>
+        )}
+        <Button
+          label={completedToday.length > 0 ? 'Start another workout' : 'Start workout'}
+          fullWidth={false}
+          loading={resumeSessionMutation.isPending}
+          onPress={() => resumeSessionMutation.mutate()}
+        />
+        {completedToday[0] ? (
+          <Text
+            style={{ color: theme.action.primary }}
+            accessibilityRole="button"
+            onPress={() => router.push({ pathname: '/session-summary', params: { sessionId: completedToday[0]!.id } })}
+          >
+            View today&apos;s finished workout
+          </Text>
+        ) : null}
+      </View>
+    );
+  }
+
   if (isError || !sessionQuery.data) {
     return (
-      <View style={[styles.centered, { backgroundColor: theme.surface.canvas, padding: spacing[16], gap: spacing[16] }]}> 
+      <View style={[styles.centered, { backgroundColor: theme.surface.canvas, padding: spacing[16], gap: spacing[16] }]}>
         <Text style={{ color: theme.text.primary, textAlign: 'center' }}>Couldn&apos;t load workout session.</Text>
         <Button
           label="Retry"
