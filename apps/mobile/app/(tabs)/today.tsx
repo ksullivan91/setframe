@@ -329,8 +329,18 @@ export default function TodayScreen() {
         timezone: localTimezone(),
       });
     },
-    onSuccess: () => {
-      router.push('/(tabs)/training');
+    onSuccess: async (session) => {
+      /* Hand the logger the session id explicitly rather than letting it
+         re-derive one. Today and the logger read *different* cache keys
+         (`['today', localDate]` vs `['dashboard-today-mobile-workout']`),
+         so the logger's copy is stale at this moment and cannot see the
+         session that was just created. That staleness is what the logger's
+         old auto-create effect was silently papering over: it could not
+         find the new session, so it made another one — the duplicate-session
+         bug. Passing the id removes the guesswork entirely; the invalidate
+         keeps the logger's own view of today honest for everything else. */
+      await queryClient.invalidateQueries({ queryKey: ['dashboard-today-mobile-workout'] });
+      router.push({ pathname: '/(tabs)/training', params: { sessionId: session.id } });
     },
   });
 
