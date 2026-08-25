@@ -2,6 +2,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
 import { useAuth, useSignUp } from '@clerk/clerk-expo';
 import { useState } from 'react';
+import { describeClerkError, describeIncompleteSignUp } from '../src/lib/clerk-errors';
 import { Card } from '../src/components/Card';
 import { Input } from '../src/components/Input';
 import { Button } from '../src/components/Button';
@@ -34,9 +35,13 @@ export default function SignUpScreen() {
       if (result.status === 'complete') {
         await setActive({ session: result.createdSessionId });
         router.replace('/(tabs)/today');
+        return;
       }
-    } catch {
-      setError('Could not create your account. Please try again.');
+      // Same silent dead-end as sign-in: `missing_requirements` (email
+      // verification pending) resolved here and did nothing visible.
+      setError(describeIncompleteSignUp(result.status));
+    } catch (err) {
+      setError(describeClerkError(err, 'Could not create your account. Please try again.'));
     } finally {
       setSubmitting(false);
     }
