@@ -11,6 +11,7 @@ import {
   formatWeekRange,
   metricDefinition,
   metricLabel,
+  weekEndDate,
   weekStartOf,
   type ChartRange,
   type ProgressMetricKey,
@@ -49,16 +50,6 @@ function formatDate(localDate: string): string {
 
 function daysBetween(from: string, to: string): number {
   return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
-}
-
-/** Sunday of a Monday-anchored week, as a `YYYY-MM-DD` string. */
-function weekEndOf(weekStart: string): string {
-  const end = new Date(`${weekStart}T12:00:00`);
-  end.setDate(end.getDate() + 6);
-  const year = end.getFullYear();
-  const month = String(end.getMonth() + 1).padStart(2, '0');
-  const day = String(end.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
 }
 
 // Local (not UTC) calendar date — passed to the API so "last N weeks" is
@@ -179,7 +170,7 @@ export function BodyWeightSection({
     if (!present.length) return null;
     const start = present[0]!;
     const current = present.at(-1)!;
-    if (present.length === 1 || start === current) return { start: null, current, change: null };
+    if (present.length === 1) return { start: null, current, change: null };
     return { start, current, change: current.value! - start.value! };
   }, [visibleRaw]);
 
@@ -536,7 +527,7 @@ export default function ProgressScreen() {
   // the exact span the two weekly ColumnCharts below render.
   const trainingWindowRange =
     training.weeks.length > 0
-      ? formatDateRangeLabel(training.weeks[0]!.weekStart, weekEndOf(training.weeks.at(-1)!.weekStart))
+      ? formatDateRangeLabel(training.weeks[0]!.weekStart, weekEndDate(training.weeks.at(-1)!.weekStart))
       : null;
   const hasAnyData = training.totalCompleted > 0 || bodyWeight.checkInCount > 0;
 

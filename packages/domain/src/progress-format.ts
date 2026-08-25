@@ -111,16 +111,20 @@ function monthName(date: Date): string {
   return date.toLocaleDateString(undefined, { month: 'short' });
 }
 
+/** Sunday of a Monday-anchored week, as a `YYYY-MM-DD` string. */
+export function weekEndDate(weekStart: string): string {
+  const end = new Date(`${weekStart}T12:00:00`);
+  end.setDate(end.getDate() + 6);
+  return toLocalDateString(end);
+}
+
 /** Monday–Sunday range for a week-start date, e.g. "Aug 18–24" or, across
  * a month boundary, "Aug 31 – Sep 6". Setframe's one documented week-start
  * rule is Monday (see `isoWeekStart`/`weekStartOf` in training-trends.ts
  * and weight-trend.ts) — every weekly aggregation in the product already
  * agrees on this; this formatter just makes the boundary visible in copy. */
 export function formatWeekRange(weekStart: string): string {
-  const start = new Date(`${weekStart}T12:00:00`);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 6);
-  return formatDateRangeLabel(toLocalDateString(start), toLocalDateString(end));
+  return formatDateRangeLabel(weekStart, weekEndDate(weekStart));
 }
 
 /**

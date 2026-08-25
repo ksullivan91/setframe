@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDateRangeLabel, formatWeekRange } from './progress-format';
+import { formatDateRangeLabel, formatWeekRange, weekEndDate } from './progress-format';
 
 describe('formatDateRangeLabel', () => {
   it('collapses to a single date when start equals end', () => {
@@ -33,5 +33,24 @@ describe('formatWeekRange', () => {
   // 2025-12-29 is a Monday; the week ends 2026-01-04, crossing a year.
   it('stays day-precise and spells out the year when a week crosses a year boundary', () => {
     expect(formatWeekRange('2025-12-29')).toBe('Dec 29 – Jan 4, 2026');
+  });
+});
+
+/**
+ * The single shared implementation web and mobile both call to find the
+ * last day of a Monday-anchored week — previously two byte-for-byte
+ * identical copies, one per app.
+ */
+describe('weekEndDate', () => {
+  it('returns the Sunday of a Monday-anchored week', () => {
+    expect(weekEndDate('2026-08-17')).toBe('2026-08-23');
+  });
+
+  it('crosses a month boundary correctly', () => {
+    expect(weekEndDate('2026-08-31')).toBe('2026-09-06');
+  });
+
+  it('crosses a year boundary correctly', () => {
+    expect(weekEndDate('2025-12-29')).toBe('2026-01-04');
   });
 });
