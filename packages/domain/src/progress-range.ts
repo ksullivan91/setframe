@@ -31,6 +31,7 @@
  */
 
 import { isoWeekStart } from './training-trends';
+import { formatDateRangeLabel, formatWeekRange } from './progress-format';
 import type { SeriesPoint } from './chart-geometry';
 
 /** Selectable windows, ordered shortest to longest as the control renders them. */
@@ -398,5 +399,66 @@ export function bucketLabel(bucket: ProgressBucket): string {
       return 'weekly';
     case 'month':
       return 'monthly';
+  }
+}
+
+/**
+ * The period one mark covers, named honestly.
+ *
+ * A bucketed point is keyed by its bucket's *start* date, so rendering that
+ * key with a plain day formatter states something false: at the 6M range a
+ * mark is the mean of a week's check-ins, and labelling it "Aug 19" tells
+ * the user they weighed that value on the 19th — a morning they may not
+ * have stepped on the scale at all. Precision the data does not have is
+ * worse than coarser precision that is true, because the user cannot tell
+ * the difference by looking.
+ *
+ * Day buckets keep the bare date; week and month buckets name their span.
+ */
+export function formatBucketPeriod(localDate: string, bucket: ProgressBucket): string {
+  switch (bucket) {
+    case 'day':
+      return formatDateRangeLabel(localDate, localDate);
+    case 'week':
+      return formatWeekRange(localDate);
+    case 'month': {
+      const date = toUtc(localDate);
+      const monthEnd = new Date(
+        Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0),
+      );
+      return formatDateRangeLabel(localDate, toLocalDate(monthEnd));
+    }
+  }
+}
+
+/**
+ * How a mark's value should be described, given how it was aggregated.
+ *
+ * Returns `null` for a day bucket holding a single observation: that mark
+ * *is* the reading, and calling it an "average of 1" is noise. Everything
+ * else says what was combined, so a summary figure is never mistaken for a
+ * measurement. `sampleCount` distinguishes "the average of 5 check-ins"
+ * from "the only check-in that week", which look identical on the plot but
+ * warrant very different confidence.
+ */
+export function describeBucketValue(
+  point: Pick<ProgressPoint, 'sampleCount'>,
+  bucket: ProgressBucket,
+  aggregation: BucketAggregation,
+): string | null {
+  if (point.sampleCount <= 0) return null;
+  if (bucket === 'day' && point.sampleCount === 1) return null;
+  const noun = point.sampleCount === 1 ? 'check-in' : 'check-ins';
+  switch (aggregation) {
+    case 'mean':
+      return point.sampleCount === 1
+        ? `the only ${noun} that ${bucket}`
+        : `average of ${point.sampleCount} ${noun}`;
+    case 'sum':
+      return `total across ${point.sampleCount} ${noun}`;
+    case 'count':
+      return null;
+    case 'last':
+      return point.sampleCount === 1 ? null : `latest of ${point.sampleCount} ${noun}`;
   }
 }
