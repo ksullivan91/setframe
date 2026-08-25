@@ -10,6 +10,10 @@ export interface ConsistencyWeekInput {
  * grouped per ISO week; this just shapes the response and guards against
  * planned=0 weeks (e.g. before a program existed) reporting misleading
  * ratios.
+ *
+ * Story 45 — `completedCount` is scheduled-workout-only (see the matrix in
+ * training-trends.ts); Additional Activity never contributes here, so
+ * program adherence stays a true read of the scheduled program.
  */
 export function summarizeConsistency(weeks: ConsistencyWeekInput[]) {
   return weeks.map((week) => ({

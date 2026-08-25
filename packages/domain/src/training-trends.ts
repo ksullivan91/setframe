@@ -24,6 +24,27 @@
  * record of the best run even after it ends.
  *
  * See docs/research/progress-metrics-motivation.md.
+ *
+ * Story 45 — metric-inclusion matrix. `TrainingSessionInput` only ever
+ * represents a scheduled `workout_session`; Additional Activity
+ * (packages/schemas' AdditionalActivity — a walk, yoga, mobility work
+ * logged outside the program) has no representation here at all, so a
+ * recovery day with one scheduled workout and three logged activities
+ * still counts as exactly one session, never four:
+ *
+ * | Metric                         | Scheduled workout | Additional activity |
+ * |---------------------------------|:---:|:---:|
+ * | weeksTrained / totalCompleted   | Yes | No  |
+ * | currentStreakWeeks / longest    | Yes | No  |
+ * | averageSessionsPerWeek          | Yes | No  |
+ * | Program adherence (consistency) | Yes | No  |
+ *
+ * `apps/api/src/routes/progress.ts` doesn't import the `additionalActivity`
+ * table at all, so there's no code path for it to reach any of the above —
+ * see apps/api/src/routes/progress.test.ts for a pinned regression case. A
+ * future metric that intentionally combines both (e.g. "total activity
+ * minutes") must use a new, honestly-named field rather than folding into
+ * one of these.
  */
 
 export interface TrainingSessionInput {
