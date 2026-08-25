@@ -138,10 +138,25 @@ function textNodesContaining(rendered: ReactTestRenderer, needle: string) {
   );
 }
 
+// `IconButton` renders a `Pressable` with the same accessibilityLabel/
+// onPress it received, so a plain accessibilityLabel+onPress match finds
+// both the IconButton and Pressable instances for the same control —
+// harmless for `[0]!.props.onPress()` (same handler either way), but a
+// real double-count for `toHaveLength`. Neither instance is a true RN
+// host primitive (Pressable manages presses itself, it doesn't forward
+// onPress to one), so dedupe by the handler's own reference identity —
+// both layers carry the exact same function — rather than guessing which
+// layer counts as "the" match.
 function pressablesByLabel(rendered: ReactTestRenderer, label: string) {
-  return rendered.root.findAll(
+  const matches = rendered.root.findAll(
     (node) => node.props?.accessibilityLabel === label && typeof node.props?.onPress === 'function',
   );
+  const seenHandlers = new Set<unknown>();
+  return matches.filter((node) => {
+    if (seenHandlers.has(node.props.onPress)) return false;
+    seenHandlers.add(node.props.onPress);
+    return true;
+  });
 }
 
 function textInputsByLabel(rendered: ReactTestRenderer, label: string) {
@@ -540,5 +555,80 @@ describe('TrainingScreen exercise completion state', () => {
     await flush();
     expect(textNodesContaining(rendered, 'Complete')).toHaveLength(0);
     expect(textNodesContaining(rendered, 'sets complete')).toHaveLength(0);
+  });
+});
+
+/**
+ * Story 39 — single-active-exercise accordion: at most one exercise
+ * expanded at a time, switching on an intentional interaction (tapping
+ * another exercise's header, focusing a field inside it, or choosing an
+ * action inside it) rather than on blur, which would be fragile given how
+ * often focus moves between controls in the same exercise.
+ */
+describe('TrainingScreen single-active-exercise accordion', () => {
+  function twoExerciseSession(): WorkoutSessionDetail {
+    const base = baseSession({ sets: [baseSet()] });
+    return {
+      ...base,
+      exercises: [
+        base.exercises[0]!,
+        {
+          ...base.exercises[0]!,
+          id: 'log-2',
+          exerciseId: 'exercise-2',
+          sortOrder: 1,
+          exercise: { ...base.exercises[0]!.exercise, id: 'exercise-2', name: 'Indoor Cycle' },
+          sets: [{ ...base.exercises[0]!.sets[0]!, id: 'set-2', exerciseLogId: 'log-2' }],
+        },
+      ],
+    };
+  }
+
+  it('starts with only the first exercise expanded', async () => {
+    mockSessionPayload = twoExerciseSession();
+    const rendered = await renderScreen();
+
+    expect(pressablesByLabel(rendered, 'Collapse Outdoor Cycle')).toHaveLength(1);
+    expect(pressablesByLabel(rendered, 'Expand Indoor Cycle')).toHaveLength(1);
+  });
+
+  it('tapping another exercise header switches which one is expanded', async () => {
+    mockSessionPayload = twoExerciseSession();
+    const rendered = await renderScreen();
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Expand Indoor Cycle')[0]!.props.onPress();
+    });
+
+    expect(pressablesByLabel(rendered, 'Collapse Indoor Cycle')).toHaveLength(1);
+    expect(pressablesByLabel(rendered, 'Expand Outdoor Cycle')).toHaveLength(1);
+  });
+
+  it('focusing a quick-entry field inside a collapsed exercise activates it too', async () => {
+    mockSessionPayload = twoExerciseSession();
+    const rendered = await renderScreen();
+
+    // The quick-entry header stays visible even while collapsed (Story 37)
+    // — focusing it is exactly the "focus lands inside this exercise"
+    // trigger.
+    const secondHeaderDuration = textInputsByLabel(rendered, 'All sets: Duration (min)')[1]!;
+    await act(async () => {
+      secondHeaderDuration.props.onFocus();
+    });
+
+    expect(pressablesByLabel(rendered, 'Collapse Indoor Cycle')).toHaveLength(1);
+    expect(pressablesByLabel(rendered, 'Expand Outdoor Cycle')).toHaveLength(1);
+  });
+
+  it('manually collapsing the active exercise leaves none expanded', async () => {
+    mockSessionPayload = twoExerciseSession();
+    const rendered = await renderScreen();
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Collapse Outdoor Cycle')[0]!.props.onPress();
+    });
+
+    expect(pressablesByLabel(rendered, 'Expand Outdoor Cycle')).toHaveLength(1);
+    expect(pressablesByLabel(rendered, 'Expand Indoor Cycle')).toHaveLength(1);
   });
 });

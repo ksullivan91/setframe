@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -228,9 +228,13 @@ export default function TrainingScreen() {
   // Apply and whenever a set is added, so a stale earlier edit can never
   // silently reapply on a later, unrelated click.
   const [headerTouchedKeys, setHeaderTouchedKeys] = useState<Record<string, ('unit' | SessionField)[]>>({});
-  // Story 37: undefined means expanded — every exercise starts open,
-  // matching the screen's existing pre-collapsible behavior.
-  const [expandedExerciseIds, setExpandedExerciseIds] = useState<Record<string, boolean>>({});
+  // Story 39: single-active-exercise accordion — at most one exercise is
+  // expanded at a time. `null` means none are (every exercise manually
+  // collapsed, or nothing loaded yet); seeded to the first exercise once
+  // the session loads (see the effect below), not left "all expanded",
+  // since only one can be active from the very first render.
+  const [activeExerciseId, setActiveExerciseId] = useState<string | null>(null);
+  const hasSeededActiveExercise = useRef(false);
   const [createdSessionId, setCreatedSessionId] = useState<string | undefined>();
   const [toast, setToast] = useState<{
     variant: 'success' | 'error';
@@ -449,6 +453,20 @@ export default function TrainingScreen() {
     [sessionQuery.data],
   );
 
+  // Story 39: seeds the accordion to the first exercise once the session
+  // has loaded — a bare `useState(null)` would otherwise start with none
+  // active, an odd first impression for a screen whose whole prior
+  // history (through Story 37) opened every exercise by default. Fires
+  // exactly once (the ref gates it, not "is anything active right now")
+  // so a later manual collapse to none — a real, supported state — is
+  // never fought by this effect re-seeding it back open.
+  useEffect(() => {
+    if (!hasSeededActiveExercise.current && visibleExercises.length > 0) {
+      hasSeededActiveExercise.current = true;
+      setActiveExerciseId(visibleExercises[0]!.id);
+    }
+  }, [visibleExercises]);
+
   const totalSetsLogged = useMemo(
     () =>
       visibleExercises.reduce(
@@ -473,8 +491,24 @@ export default function TrainingScreen() {
     );
   }
 
-  function toggleExpanded(exerciseLogId: string) {
-    setExpandedExerciseIds((prev) => ({ ...prev, [exerciseLogId]: !(prev[exerciseLogId] ?? true) }));
+  /**
+   * Story 39: fired by focusing a quick-entry field belonging to this
+   * exercise (the only inputs a *collapsed* exercise still renders) or by
+   * choosing an action inside it (Add set, the actions menu) — always
+   * activates, never toggles, so interacting with the already-active
+   * exercise can't accidentally collapse it.
+   */
+  function activateExercise(exerciseLogId: string) {
+    setActiveExerciseId((prev) => (prev === exerciseLogId ? prev : exerciseLogId));
+  }
+
+  /**
+   * Story 39: the chevron's own press handler — the one place a collapse
+   * can happen, so manual collapse of the currently active exercise stays
+   * available. Tapping any other exercise's header switches to it.
+   */
+  function toggleActiveExercise(exerciseLogId: string) {
+    setActiveExerciseId((prev) => (prev === exerciseLogId ? null : exerciseLogId));
   }
 
   /**
@@ -582,7 +616,7 @@ export default function TrainingScreen() {
         const definition = getPrescriptionDefinition(exerciseLog.prescription);
         const loggedSetCount = exerciseLog.sets.filter((set) => isSessionSetLogged(exerciseLog.prescription, set)).length;
         const isComplete = isExerciseComplete(exerciseLog.prescription, exerciseLog.sets);
-        const isExpanded = expandedExerciseIds[exerciseLog.id] ?? true;
+        const isExpanded = activeExerciseId === exerciseLog.id;
         const headerDraft = headerDrafts[exerciseLog.id] ?? getHeaderDraft(exerciseLog, definition);
         const touchHeaderKey = (key: 'unit' | SessionField) =>
           setHeaderTouchedKeys((prev) => ({
@@ -604,7 +638,7 @@ export default function TrainingScreen() {
                 icon={isExpanded ? ChevronUp : ChevronDown}
                 variant="subtle"
                 accessibilityLabel={isExpanded ? `Collapse ${exerciseLog.exercise.name}` : `Expand ${exerciseLog.exercise.name}`}
-                onPress={() => toggleExpanded(exerciseLog.id)}
+                onPress={() => toggleActiveExercise(exerciseLog.id)}
               />
               <GripVertical size={18} color={theme.text.secondary} />
               <Text style={[styles.exerciseTitle, { color: theme.text.primary }]}>{exerciseLog.exercise.name}</Text>
@@ -615,16 +649,20 @@ export default function TrainingScreen() {
                 variant="secondary"
                 fullWidth={false}
                 disabled={sessionQuery.data.status === 'completed' || addSetMutation.isPending}
-                onPress={() => addSetMutation.mutate({ exerciseLogId: exerciseLog.id, sourceSet: exerciseLog.sets.at(-1) })}
+                onPress={() => {
+                  activateExercise(exerciseLog.id);
+                  addSetMutation.mutate({ exerciseLogId: exerciseLog.id, sourceSet: exerciseLog.sets.at(-1) });
+                }}
               />
               <IconButton
                 icon={MoreVertical}
                 variant="subtle"
                 accessibilityLabel={`${exerciseLog.exercise.name} actions`}
-                onPress={() =>
-                  sessionQuery.data.status !== 'completed' &&
-                  confirmRemoveExercise(exerciseLog.id, exerciseLog.exercise.name, loggedSetCount)
-                }
+                onPress={() => {
+                  if (sessionQuery.data.status === 'completed') return;
+                  activateExercise(exerciseLog.id);
+                  confirmRemoveExercise(exerciseLog.id, exerciseLog.exercise.name, loggedSetCount);
+                }}
               />
             </View>
           </View>
@@ -663,6 +701,7 @@ export default function TrainingScreen() {
                         value={headerDraft.values.distance ?? ''}
                         onChangeText={(value) => updateHeader({ distance: value })}
                         keyboardType="decimal-pad"
+                        onFocus={() => activateExercise(exerciseLog.id)}
                       />
                     </View>
                     <Select
@@ -670,6 +709,7 @@ export default function TrainingScreen() {
                       value={headerDraft.distanceUnit}
                       options={distanceUnitOptions.map((option) => ({ ...option }))}
                       onChange={(value) => {
+                        activateExercise(exerciseLog.id);
                         setHeaderDrafts((prev) => ({ ...prev, [exerciseLog.id]: { ...headerDraft, distanceUnit: value } }));
                         touchHeaderKey('unit');
                       }}
@@ -685,6 +725,7 @@ export default function TrainingScreen() {
                   onChangeText={(value) => updateHeader({ [field]: value })}
                   keyboardType={field === 'reps' ? 'number-pad' : 'decimal-pad'}
                   unit={field === 'weight' ? exerciseLog.sets[0]?.weightUnit ?? 'lb' : undefined}
+                  onFocus={() => activateExercise(exerciseLog.id)}
                 />
               );
             })}

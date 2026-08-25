@@ -30,6 +30,10 @@ export interface InputProps {
   errorMessage?: string;
   numeric?: boolean;
   testID?: string;
+  /** Story 39: lets a consumer (the active-workout accordion) know this
+   * field gained focus, alongside the component's own internal focus
+   * styling — optional, so every existing caller is unaffected. */
+  onFocus?: () => void;
 }
 
 /**
@@ -50,6 +54,7 @@ export function Input({
   errorMessage,
   numeric = false,
   testID,
+  onFocus,
 }: InputProps) {
   const theme = useTheme();
   const [focused, setFocused] = useState(false);
@@ -84,7 +89,10 @@ export function Input({
           placeholderTextColor={theme.text.disabled}
           keyboardType={numeric ? 'decimal-pad' : keyboardType}
           secureTextEntry={secureTextEntry}
-          onFocus={() => setFocused(true)}
+          onFocus={() => {
+            setFocused(true);
+            onFocus?.();
+          }}
           onBlur={() => setFocused(false)}
           style={[
             styles.input,

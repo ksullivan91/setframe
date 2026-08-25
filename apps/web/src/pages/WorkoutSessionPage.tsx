@@ -230,6 +230,14 @@ const ExerciseCard = styled(Card)`
   display: flex;
   flex-direction: column;
   gap: ${spacing[16]}px;
+  /* Story 39: scrollIntoView's target for a newly-active exercise stays
+     clear of the sticky session action bar (Story 36), which only
+     floats over content below tablet width. */
+  scroll-margin-bottom: calc(${BOTTOM_NAV_HEIGHT_PX}px + ${SESSION_ACTION_BAR_HEIGHT_PX}px);
+
+  ${mq.tablet} {
+    scroll-margin-bottom: ${spacing[16]}px;
+  }
 `;
 
 const ExerciseHeader = styled.div`
@@ -579,10 +587,13 @@ export function WorkoutSessionPage() {
   // stale earlier edit can never silently reapply on a later, unrelated
   // click.
   const [headerTouchedKeys, setHeaderTouchedKeys] = useState<Record<string, (keyof DraftValues)[]>>({});
-  // Story 37: undefined means expanded — every exercise starts open,
-  // matching the page's existing pre-collapsible behavior, so shipping
-  // this doesn't hide anything a user was already relying on seeing.
-  const [expandedExerciseIds, setExpandedExerciseIds] = useState<Record<string, boolean>>({});
+  // Story 39: single-active-exercise accordion — at most one exercise is
+  // expanded at a time. `null` means none are (every exercise manually
+  // collapsed, or nothing loaded yet); seeded to the first exercise once
+  // the session loads (see the effect below), not left "all expanded",
+  // since only one can be active from the very first render.
+  const [activeExerciseId, setActiveExerciseId] = useState<string | null>(null);
+  const exerciseCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [elapsedTick, setElapsedTick] = useState(0);
   const [pendingRemoval, setPendingRemoval] = useState<RemovalCandidate | null>(null);
   const [pendingExerciseRemoval, setPendingExerciseRemoval] = useState<ExerciseRemovalCandidate | null>(null);
@@ -726,6 +737,35 @@ export function WorkoutSessionPage() {
   });
 
   const orderedExercises = useMemo(() => visibleSessionExercises(query.data?.exercises ?? []), [query.data]);
+
+  // Story 39: seeds the accordion to the first exercise once the session
+  // has loaded — a bare `useState(null)` would otherwise start with none
+  // active, an odd first impression for a page whose whole prior history
+  // (through Story 37) opened every exercise by default. Fires exactly
+  // once (the ref, not `activeExerciseId == null`, gates it) so a later
+  // manual collapse to none — a real, supported state — is never fought
+  // by this effect re-seeding it back open.
+  const hasSeededActiveExercise = useRef(false);
+  useEffect(() => {
+    if (!hasSeededActiveExercise.current && orderedExercises.length > 0) {
+      hasSeededActiveExercise.current = true;
+      setActiveExerciseId(orderedExercises[0]!.id);
+    }
+  }, [orderedExercises]);
+
+  // Story 39: scrolls a newly-active exercise into view — but only for a
+  // genuine switch between two exercises, never the initial seed above
+  // (null → first) or a manual collapse (→ null), neither of which should
+  // jump the page. `scroll-margin-bottom` on `ExerciseCard` keeps this
+  // clear of the sticky session action bar from Story 36.
+  const previousActiveExerciseId = useRef<string | null>(null);
+  useEffect(() => {
+    if (activeExerciseId != null && previousActiveExerciseId.current != null && previousActiveExerciseId.current !== activeExerciseId) {
+      exerciseCardRefs.current[activeExerciseId]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    previousActiveExerciseId.current = activeExerciseId;
+  }, [activeExerciseId]);
+
   const totalSetsLogged = useMemo(
     () =>
       orderedExercises.reduce(
@@ -749,8 +789,32 @@ export function WorkoutSessionPage() {
     [orderedExercises],
   );
 
-  function toggleExpanded(exerciseLogId: string) {
-    setExpandedExerciseIds((prev) => ({ ...prev, [exerciseLogId]: !(prev[exerciseLogId] ?? true) }));
+  /**
+   * Story 39: fired by focusing anything inside this exercise's card (see
+   * `ExerciseCard`'s `onFocus` below) — always activates, never toggles,
+   * so focus already inside the active exercise can't accidentally
+   * collapse it.
+   */
+  function activateExercise(exerciseLogId: string) {
+    setActiveExerciseId((prev) => (prev === exerciseLogId ? prev : exerciseLogId));
+  }
+
+  /**
+   * Story 39: the chevron's own click handler — the one place a collapse
+   * can happen, so manual collapse of the currently active exercise stays
+   * available. Tapping any other exercise's header switches to it.
+   *
+   * Clicking (or Tab+Enter/Space-ing) a button focuses it first, which
+   * would otherwise reach the card's own `onFocus` before this handler
+   * runs and activate `exerciseLogId` a step early — making this always
+   * see "already active" and collapse on the very first interaction with
+   * a previously-inactive exercise (mouse *and* keyboard, since a
+   * keyboard click has no preceding mousedown to hook a workaround into
+   * either). The chevron's own `onFocus` stops that propagation instead,
+   * so this reads genuinely-live, not-yet-touched state.
+   */
+  function toggleActiveExercise(exerciseLogId: string) {
+    setActiveExerciseId((prev) => (prev === exerciseLogId ? null : exerciseLogId));
   }
 
   /**
@@ -887,7 +951,7 @@ export function WorkoutSessionPage() {
           const definition = getPrescriptionDefinition(exerciseLog.prescription);
           const loggedSetCount = exerciseLog.sets.filter((set) => isSessionSetLogged(exerciseLog.prescription, set)).length;
           const isComplete = isExerciseComplete(exerciseLog.prescription, exerciseLog.sets);
-          const isExpanded = expandedExerciseIds[exerciseLog.id] ?? true;
+          const isExpanded = activeExerciseId === exerciseLog.id;
           const headerDraft = headerDrafts[exerciseLog.id] ?? getHeaderDraft(exerciseLog, definition);
           // Touched keys are derived straight from the patch's own keys, so
           // e.g. changing only the distance unit marks just `distanceUnit`
@@ -901,12 +965,30 @@ export function WorkoutSessionPage() {
             });
           };
           return (
-          <ExerciseCard key={exerciseLog.id}>
+          <ExerciseCard
+            key={exerciseLog.id}
+            ref={(node) => {
+              exerciseCardRefs.current[exerciseLog.id] = node;
+            }}
+            // Story 39: any focus landing inside this card — a quick-entry
+            // field, a per-set input, an action button — means the user is
+            // now working with this exercise, whether or not they touched
+            // the chevron first. A modal opened from within this card
+            // moves focus outside every card (it's rendered via a portal),
+            // so it never triggers this and can't unexpectedly collapse
+            // the exercise it was opened from.
+            onFocus={() => activateExercise(exerciseLog.id)}
+          >
             <ExerciseHeader>
               <ExerciseTitleRow>
                 <IconButton
                   aria-label={isExpanded ? `Collapse ${exerciseLog.exercise.name}` : `Expand ${exerciseLog.exercise.name}`}
-                  onClick={() => toggleExpanded(exerciseLog.id)}
+                  // Stops this button's own focus (from a click, or a Tab
+                  // arriving via keyboard) from reaching the card's
+                  // `onFocus` and activating early — see
+                  // `toggleActiveExercise`'s comment for why that matters.
+                  onFocus={(event) => event.stopPropagation()}
+                  onClick={() => toggleActiveExercise(exerciseLog.id)}
                 >
                   {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                 </IconButton>
@@ -932,7 +1014,13 @@ export function WorkoutSessionPage() {
                 <AddSetButtonWrap>
                   <Button
                     variant="secondary"
-                    onClick={() => addSetMutation.mutate({ exerciseLogId: exerciseLog.id, sourceSet: exerciseLog.sets.at(-1) })}
+                    onClick={() => {
+                      // Story 39: an explicit call, not a reliance on
+                      // click-triggered focus — Safari doesn't always
+                      // focus a <button> on click, unlike Chrome/Firefox.
+                      activateExercise(exerciseLog.id);
+                      addSetMutation.mutate({ exerciseLogId: exerciseLog.id, sourceSet: exerciseLog.sets.at(-1) });
+                    }}
                     disabled={addSetMutation.isPending || query.data.status === 'completed'}
                   >
                     <Plus size={16} /> Add set
@@ -945,8 +1033,10 @@ export function WorkoutSessionPage() {
                       label: 'Remove from today’s workout',
                       destructive: true,
                       disabled: query.data.status === 'completed',
-                      onClick: () =>
-                        setPendingExerciseRemoval({ exerciseLogId: exerciseLog.id, name: exerciseLog.exercise.name, loggedSetCount }),
+                      onClick: () => {
+                        activateExercise(exerciseLog.id);
+                        setPendingExerciseRemoval({ exerciseLogId: exerciseLog.id, name: exerciseLog.exercise.name, loggedSetCount });
+                      },
                     },
                   ]}
                 />

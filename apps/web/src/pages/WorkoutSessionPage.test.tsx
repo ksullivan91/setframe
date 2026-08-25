@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ThemeProvider } from 'styled-components';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -875,5 +875,134 @@ describe('WorkoutSessionPage exercise completion state', () => {
     await screen.findByText('Outdoor Cycle');
     expect(screen.queryByText('Complete')).not.toBeInTheDocument();
     expect(screen.queryByText(/sets complete/)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * Story 39 — single-active-exercise accordion: at most one exercise
+ * expanded at a time, switching on an intentional interaction (tapping
+ * another exercise's header, focusing a field inside it, or choosing an
+ * action inside it) rather than on blur, which would be fragile given how
+ * often focus moves between controls in the same exercise.
+ */
+describe('WorkoutSessionPage single-active-exercise accordion', () => {
+  function renderTwoExercises() {
+    const session = {
+      id: 'session-1',
+      userId: 'user-1',
+      localDate: '2026-08-22',
+      status: 'in_progress' as const,
+      startedAt: '2026-08-22T15:00:00.000Z',
+      completedAt: null,
+      dayTypeId: 'day-1',
+      notes: null,
+      createdAt: '2026-08-22T15:00:00.000Z',
+      updatedAt: '2026-08-22T15:00:00.000Z',
+      exercises: ['log-1', 'log-2'].map((id, index) => ({
+        id,
+        workoutSessionId: 'session-1',
+        exerciseId: `exercise-${index + 1}`,
+        sortOrder: index,
+        skipped: false,
+        notes: null,
+        createdAt: '2026-08-22T15:00:00.000Z',
+        updatedAt: '2026-08-22T15:00:00.000Z',
+        exercise: {
+          id: `exercise-${index + 1}`,
+          name: index === 0 ? 'Bench Press' : 'Barbell Row',
+          isCustom: false,
+          ownerUserId: null,
+          archivedAt: null,
+          createdAt: '2026-08-22T15:00:00.000Z',
+          updatedAt: '2026-08-22T15:00:00.000Z',
+        },
+        prescription: { kind: 'sets_reps', sets: 3, repsMin: 8 },
+        previousSession: null,
+        sets: [
+          {
+            id: `set-${id}`,
+            exerciseLogId: id,
+            clientId: `${index}1111111-1111-4111-8111-111111111111`,
+            sortOrder: 0,
+            setType: 'working',
+            weightValue: null,
+            weightUnit: null,
+            reps: null,
+            durationSeconds: null,
+            distanceValue: null,
+            distanceUnit: null,
+            rpe: null,
+            isPrWeight: false,
+            isPrReps: false,
+            createdAt: '2026-08-22T15:00:00.000Z',
+            updatedAt: '2026-08-22T15:00:00.000Z',
+          },
+        ],
+      })),
+    };
+
+    mockGet = (path: string) => {
+      if (path.startsWith('/workout-sessions/')) return Promise.resolve(session);
+      if (path === '/exercises') return Promise.resolve([]);
+      return Promise.resolve(null);
+    };
+    return renderPage();
+  }
+
+  it('starts with only the first exercise expanded', async () => {
+    renderTwoExercises();
+
+    await screen.findByRole('button', { name: 'Collapse Bench Press' });
+    expect(screen.getByRole('button', { name: 'Expand Barbell Row' })).toBeInTheDocument();
+  });
+
+  it('tapping another exercise header switches which one is expanded', async () => {
+    const user = userEvent.setup();
+    renderTwoExercises();
+
+    await screen.findByRole('button', { name: 'Collapse Bench Press' });
+    await user.click(screen.getByRole('button', { name: 'Expand Barbell Row' }));
+
+    expect(await screen.findByRole('button', { name: 'Collapse Barbell Row' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Expand Bench Press' })).toBeInTheDocument();
+  });
+
+  it('expands via keyboard activation (focus with no preceding mousedown, then a synthesized click)', async () => {
+    renderTwoExercises();
+
+    await screen.findByRole('button', { name: 'Collapse Bench Press' });
+    const barbellRowChevron = screen.getByRole('button', { name: 'Expand Barbell Row' });
+    // A real Tab-to-focus has no mousedown before it, unlike userEvent's
+    // .click() (which always synthesizes one) — this is exactly the path
+    // a keyboard/screen-reader user takes, and Enter/Space then dispatch
+    // a click with nothing new before it either.
+    fireEvent.focus(barbellRowChevron);
+    fireEvent.click(barbellRowChevron);
+
+    expect(await screen.findByRole('button', { name: 'Collapse Barbell Row' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Expand Bench Press' })).toBeInTheDocument();
+  });
+
+  it('focusing a field inside a collapsed exercise activates it too', async () => {
+    const user = userEvent.setup();
+    renderTwoExercises();
+
+    await screen.findByRole('button', { name: 'Collapse Bench Press' });
+    // The quick-entry header stays visible even while collapsed (Story 37) —
+    // focusing it is exactly the "focus lands inside this exercise" trigger.
+    await user.click(screen.getAllByLabelText('All sets: Reps')[1]!);
+
+    expect(await screen.findByRole('button', { name: 'Collapse Barbell Row' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Expand Bench Press' })).toBeInTheDocument();
+  });
+
+  it('manually collapsing the active exercise leaves none expanded', async () => {
+    const user = userEvent.setup();
+    renderTwoExercises();
+
+    await user.click(await screen.findByRole('button', { name: 'Collapse Bench Press' }));
+
+    expect(screen.getByRole('button', { name: 'Expand Bench Press' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Expand Barbell Row' })).toBeInTheDocument();
   });
 });
