@@ -9,9 +9,6 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
-- `setframe-workout-quick-entry-accordion-stories/` — stories 37–39, a
-  collapsible single-active-exercise accordion with cascading quick-entry
-  values and derived completion state.
 - `setframe-additional-activity-feature/` — stories 43–44 remain (40–42,
   45 shipped): reusable quick-add shortcuts for repeated activities, and
   Apple Health detect-and-suggest discovery (safest now that the entity
@@ -107,3 +104,15 @@ alongside their stories, named `README-{range}-{review}.md`.
   workout metrics — adherence, streaks, weeksTrained, sessions/week —
   never fold in Additional Activity, since `progress.ts` never queries it
   at all.
+- `completed/37-collapsible-exercise-quick-entry.md` — story 37,
+  collapsible exercise sections with a quick-entry header that applies
+  only the specific field(s) the user actually touched to every set
+  (fixed a real bug a review pass caught: the first pass bundled every
+  quick-entry field together, silently overwriting sets' untouched values).
+- `completed/38-exercise-completion-state.md` — story 38, exercise-level
+  completion derived from valid required set data.
+- `completed/39-single-active-exercise-accordion.md` — story 39,
+  single-active-exercise accordion behavior (expand on entering an
+  exercise, collapse on moving to another — never on blur within one).
+- `completed/README-37-39-quick-entry-accordion-review.md` — the original
+  pack README for stories 37–39, archived once all three shipped.
