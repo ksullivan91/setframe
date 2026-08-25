@@ -1,5 +1,16 @@
 # Story 44 — Detect Apple Health Workouts and Suggest Adding Them as Additional Activity
 
+> **Status:** Deferred / holstered. Captured so it is not lost. Not part of the
+> current active phase — do not start without explicit sign-off.
+>
+> The mobile app isn't deployed to a real device/TestFlight yet, so there's no
+> way to exercise a live HealthKit connection to build or verify this against.
+> Revisit once the mobile app has an actual deployment. Stories 40–42/45 (the
+> `AdditionalActivity` entity, Today section, manual add flow, and metric
+> separation) are unaffected and already shipped — this only holds back the
+> Apple Health *detection* layer, which explicitly depends on that entity
+> already existing (see its own steering doc).
+
 ## User Story
 As a user whose Apple Watch or Apple Health already captured a walk, yoga session, cycle, or other workout, I want Setframe to recognize it and offer to add it to my day so that I do not manually duplicate data my devices already recorded.
 

@@ -9,16 +9,18 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
-- `setframe-additional-activity-feature/` — stories 43–44 remain (40–42,
-  45 shipped): reusable quick-add shortcuts for repeated activities, and
-  Apple Health detect-and-suggest discovery (safest now that the entity
-  and dedupe behavior already exist).
+- `setframe-additional-activity-feature/` — story 43 remains (40–42, 45
+  shipped): reusable quick-add shortcuts for repeated activities.
 - `WAIT-automated-visual-and-e2e-testing.md` — deferred by request. Filed so the
   gap is tracked, deliberately not started.
 - `WAIT-figma-accentsubtle-token-fix.md` — deferred by request. Fixes
   `Semantic/Action/AccentSubtle` and other `Semantic/*` alias mismatches
   found during the 2026-08-23 color-token reconciliation (see
   `docs/design/setframe-figma-style-guide.md` §23).
+- `WAIT-apple-health-activity-discovery.md` — story 44, deferred by
+  request: the mobile app isn't deployed to a real device/TestFlight yet,
+  so there's no way to exercise a live HealthKit connection. Revisit once
+  the mobile app has an actual deployment.
 
 ## Shipped
 
