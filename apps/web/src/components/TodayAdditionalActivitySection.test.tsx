@@ -161,3 +161,87 @@ describe('TodayAdditionalActivitySection', () => {
     await waitFor(() => expect(mockDel).toHaveBeenCalledWith('/additional-activities/activity-1'));
   });
 });
+
+/**
+ * Story 42 — the add/edit form shows only the fields relevant to the
+ * selected activity type, instead of Story 41's generic every-field form.
+ */
+describe('TodayAdditionalActivitySection activity-type-driven fields', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('hides distance for a stationary activity like Yoga', async () => {
+    const user = userEvent.setup();
+    mockGet = () => Promise.resolve({ items: [] });
+    renderSection();
+
+    await user.click(await screen.findByRole('button', { name: 'Add activity' }));
+    expect(screen.getByLabelText(/^Distance/)).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText('Activity'), 'yoga');
+    expect(screen.queryByLabelText(/^Distance/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Start time')).toBeInTheDocument();
+  });
+
+  it('shows an Activity name field only for "Other", and requires it to save', async () => {
+    const user = userEvent.setup();
+    mockGet = () => Promise.resolve({ items: [] });
+    renderSection();
+
+    await user.click(await screen.findByRole('button', { name: 'Add activity' }));
+    expect(screen.queryByLabelText('Activity name')).not.toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText('Activity'), 'other');
+    expect(screen.getByLabelText('Activity name')).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('Duration (min)'), '10');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+
+    await user.type(screen.getByLabelText('Activity name'), 'Jump rope');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+  });
+
+  it('requires only duration to save an ordinary activity', async () => {
+    const user = userEvent.setup();
+    mockGet = () => Promise.resolve({ items: [] });
+    renderSection();
+
+    await user.click(await screen.findByRole('button', { name: 'Add activity' }));
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+
+    await user.type(screen.getByLabelText('Duration (min)'), '20');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+  });
+
+  it("defaults the distance unit to the user's metric preference", async () => {
+    const user = userEvent.setup();
+    mockGet = (path: string) => {
+      if (path === '/me') return Promise.resolve({ preferredUnits: 'metric' });
+      return Promise.resolve({ items: [] });
+    };
+    renderSection();
+
+    await user.click(await screen.findByRole('button', { name: 'Add activity' }));
+    await waitFor(() => expect(screen.getByLabelText(/^Distance/)).toHaveAccessibleName('Distance (km)'));
+  });
+
+  // Regression: buildBody() used to force `null` for any field the current
+  // type's field list excludes — for an edit, that silently wiped a value
+  // the record already had in a field the form never even showed, rather
+  // than leaving it untouched.
+  it('does not wipe a title the record already has when editing a type that has no name field', async () => {
+    const user = userEvent.setup();
+    mockGet = () =>
+      Promise.resolve({ items: [walkActivity({ title: 'Morning stroll' })] });
+    renderSection();
+
+    await user.click(await screen.findByRole('button', { name: 'Edit Walk' }));
+    expect(screen.queryByLabelText('Activity name')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(mockPatch).toHaveBeenCalled());
+    const [, body] = mockPatch.mock.calls[0]!;
+    expect(body as object).not.toHaveProperty('title', null);
+  });
+});

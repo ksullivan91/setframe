@@ -13,3 +13,4 @@ export * from './training-trends';
 export * from './chart-geometry';
 export * from './progress-contract';
 export * from './progress-format';
+export * from './additional-activity-fields';

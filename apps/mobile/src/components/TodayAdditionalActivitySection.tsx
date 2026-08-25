@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, Alert } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Pencil, Trash2 } from 'lucide-react-native';
 import { spacing, radius } from '@setframe/design-tokens';
-import type { AdditionalActivity } from '@setframe/schemas';
+import type { AdditionalActivity, User } from '@setframe/schemas';
+import { getAdditionalActivityFields } from '@setframe/domain';
 import { useTheme } from '../theme/ThemeProvider';
 import { typeScale } from '../theme/getTheme';
 import { useApiClient } from '../lib/api-client';
@@ -31,16 +32,26 @@ function formatActivityTime(startedAt: string | null): string | null {
 }
 
 function buildBody(localDate: string, draft: ActivityDraft) {
+  // A field the current activity type doesn't show is omitted entirely
+  // (undefined, dropped by JSON.stringify) rather than forced to null. On
+  // create that's equivalent — an absent column still inserts null — but
+  // on update it's essential: the PATCH route only touches a field when
+  // its key is present at all, so sending an explicit `null` for an
+  // excluded-but-currently-populated field (e.g. editing a `walk` that
+  // already has a `title` from when it was created as `other`) would
+  // silently wipe data the user never asked to change.
+  const fields = new Set(getAdditionalActivityFields(draft.activityType));
   return {
     activityType: draft.activityType,
-    durationSeconds: draft.durationMinutes ? Math.round(Number(draft.durationMinutes) * 60) : null,
-    distanceValue: draft.distanceValue ? Number(draft.distanceValue) : null,
-    distanceUnit: draft.distanceValue ? draft.distanceUnit : null,
+    title: fields.has('title') ? draft.title || null : undefined,
+    durationSeconds: fields.has('duration') && draft.durationMinutes ? Math.round(Number(draft.durationMinutes) * 60) : undefined,
+    distanceValue: fields.has('distance') && draft.distanceValue ? Number(draft.distanceValue) : undefined,
+    distanceUnit: fields.has('distance') && draft.distanceValue ? draft.distanceUnit : undefined,
     // `${localDate}T${startTime}:00` (no offset) parses as local wall-clock
     // time on-device; converting to an ISO string is both what the API's
     // z.string().datetime() requires and the correct UTC instant.
-    startedAt: draft.startTime ? new Date(`${localDate}T${draft.startTime}:00`).toISOString() : null,
-    notes: draft.notes || null,
+    startedAt: fields.has('startTime') && draft.startTime ? new Date(`${localDate}T${draft.startTime}:00`).toISOString() : undefined,
+    notes: fields.has('notes') ? draft.notes || null : undefined,
   };
 }
 
@@ -64,11 +75,17 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
     queryFn: () => api.get<{ items: AdditionalActivity[] }>(`/additional-activities?localDate=${localDate}`),
   });
 
+  // Story 42 — a new activity's distance unit defaults to the user's
+  // preference; editing an existing one still preserves its own stored
+  // unit (see draftFromActivity).
+  const meQuery = useQuery({ queryKey: ['me'], queryFn: () => api.get<User>('/me') });
+  const preferredDistanceUnit = meQuery.data?.preferredUnits === 'metric' ? 'km' : 'mi';
+
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['additional-activities', localDate] });
 
   function openAdd() {
     setEditTarget(null);
-    setDraft(emptyActivityDraft());
+    setDraft(emptyActivityDraft(preferredDistanceUnit));
     setSheetOpen(true);
   }
 
@@ -158,7 +175,7 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
           <View key={activity.id} style={[styles.row, { backgroundColor: theme.surface.raised }]}>
             <View style={styles.rowMeta}>
               <Text style={{ color: theme.text.primary, fontSize: typeScale.compactBody.fontSize }}>
-                {activityTypeLabels[activity.activityType]}
+                {activity.title || activityTypeLabels[activity.activityType]}
               </Text>
               {detailBits.length ? (
                 <Text style={{ color: theme.text.secondary, fontSize: typeScale.helper.fontSize }}>{detailBits.join(' · ')}</Text>

@@ -2,7 +2,8 @@ import { useState } from 'react';
 import styled from 'styled-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2, Pencil } from 'lucide-react';
-import type { AdditionalActivity, AdditionalActivityType } from '@setframe/schemas';
+import type { AdditionalActivity, AdditionalActivityType, User } from '@setframe/schemas';
+import { getAdditionalActivityFields } from '@setframe/domain';
 import { radius, spacing } from '@setframe/design-tokens';
 import { Button } from './Button';
 import { Card } from './Card';
@@ -45,6 +46,7 @@ function formatActivityTime(startedAt: string | null): string | null {
 
 interface ActivityDraft {
   activityType: AdditionalActivityType;
+  title: string;
   durationMinutes: string;
   distanceValue: string;
   distanceUnit: 'm' | 'km' | 'mi';
@@ -52,8 +54,8 @@ interface ActivityDraft {
   notes: string;
 }
 
-function emptyDraft(): ActivityDraft {
-  return { activityType: 'walk', durationMinutes: '', distanceValue: '', distanceUnit: 'mi', startTime: '', notes: '' };
+function emptyDraft(preferredDistanceUnit: 'km' | 'mi'): ActivityDraft {
+  return { activityType: 'walk', title: '', durationMinutes: '', distanceValue: '', distanceUnit: preferredDistanceUnit, startTime: '', notes: '' };
 }
 
 // The <input type="time"> field works in local wall-clock time, but
@@ -64,6 +66,7 @@ function draftFromActivity(activity: AdditionalActivity): ActivityDraft {
   const local = activity.startedAt ? new Date(activity.startedAt) : null;
   return {
     activityType: activity.activityType,
+    title: activity.title ?? '',
     durationMinutes: activity.durationSeconds != null ? String(Math.round(activity.durationSeconds / 60)) : '',
     distanceValue: activity.distanceValue != null ? String(activity.distanceValue) : '',
     distanceUnit: activity.distanceUnit ?? 'mi',
@@ -169,9 +172,11 @@ const ErrorRow = styled.div`
  * request degrades this section alone and never blocks the scheduled
  * workout from rendering (per the story's steering doc).
  *
- * The add/edit form here is intentionally generic (every field, always
- * visible) — Story 42 replaces it with type-driven "relevant fields only"
- * inputs. Edit/delete on existing rows is this story's own scope.
+ * Story 42 — the add/edit form shows only the fields relevant to the
+ * selected activity type (packages/domain's additionalActivityFieldsByType
+ * — one shared mapping, not a duplicated form per platform), defaults the
+ * distance unit to the user's stated preference, and requires only
+ * duration (plus a name for "Other") to save.
  */
 export function TodayAdditionalActivitySection({ localDate }: { localDate: string }) {
   const api = useApiClient();
@@ -179,7 +184,7 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
   const queryClient = useQueryClient();
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<AdditionalActivity | null>(null);
-  const [draft, setDraft] = useState<ActivityDraft>(emptyDraft());
+  const [draft, setDraft] = useState<ActivityDraft>(emptyDraft('mi'));
   const [pendingDelete, setPendingDelete] = useState<AdditionalActivity | null>(null);
 
   const query = useQuery({
@@ -187,11 +192,17 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
     queryFn: () => api.get<{ items: AdditionalActivity[] }>(`/additional-activities?localDate=${localDate}`),
   });
 
+  // Story 42 — a new activity's distance unit defaults to the user's
+  // preference; editing an existing one still preserves its own stored
+  // unit (see draftFromActivity).
+  const meQuery = useQuery({ queryKey: ['me'], queryFn: () => api.get<User>('/me') });
+  const preferredDistanceUnit = meQuery.data?.preferredUnits === 'metric' ? 'km' : 'mi';
+
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['additional-activities', localDate] });
 
   function openAdd() {
     setEditTarget(null);
-    setDraft(emptyDraft());
+    setDraft(emptyDraft(preferredDistanceUnit));
     setFormOpen(true);
   }
 
@@ -202,16 +213,26 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
   }
 
   function buildBody() {
+    // A field the current activity type doesn't show is omitted entirely
+    // (undefined, dropped by JSON.stringify) rather than forced to null.
+    // On create that's equivalent — an absent column still inserts null —
+    // but on update it's essential: the PATCH route only touches a field
+    // when its key is present at all, so sending an explicit `null` for an
+    // excluded-but-currently-populated field (e.g. editing a `walk` that
+    // already has a `title` from when it was created as `other`) would
+    // silently wipe data the user never asked to change.
+    const fields = new Set(getAdditionalActivityFields(draft.activityType));
     return {
       activityType: draft.activityType,
-      durationSeconds: draft.durationMinutes ? Math.round(Number(draft.durationMinutes) * 60) : null,
-      distanceValue: draft.distanceValue ? Number(draft.distanceValue) : null,
-      distanceUnit: draft.distanceValue ? draft.distanceUnit : null,
+      title: fields.has('title') ? draft.title || null : undefined,
+      durationSeconds: fields.has('duration') && draft.durationMinutes ? Math.round(Number(draft.durationMinutes) * 60) : undefined,
+      distanceValue: fields.has('distance') && draft.distanceValue ? Number(draft.distanceValue) : undefined,
+      distanceUnit: fields.has('distance') && draft.distanceValue ? draft.distanceUnit : undefined,
       // `${localDate}T${startTime}:00` (no offset) parses as local wall-clock
       // time in the browser; converting to an ISO string is both what the
       // API's z.string().datetime() requires and the correct UTC instant.
-      startedAt: draft.startTime ? new Date(`${localDate}T${draft.startTime}:00`).toISOString() : null,
-      notes: draft.notes || null,
+      startedAt: fields.has('startTime') && draft.startTime ? new Date(`${localDate}T${draft.startTime}:00`).toISOString() : undefined,
+      notes: fields.has('notes') ? draft.notes || null : undefined,
     };
   }
 
@@ -246,6 +267,11 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
   });
 
   const items = query.data?.items ?? [];
+  const visibleFields = new Set(getAdditionalActivityFields(draft.activityType));
+  // Conservative minimum, per the story's steering doc: duration alone is
+  // enough for most activities; "Other" additionally needs a name since an
+  // unnamed custom activity is meaningless.
+  const canSave = draft.durationMinutes.trim() !== '' && (!visibleFields.has('title') || draft.title.trim() !== '');
 
   return (
     <SectionCard aria-label="Additional activity">
@@ -290,7 +316,7 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
             return (
               <Row key={activity.id}>
                 <RowMeta>
-                  <RowTitle>{activityTypeLabels[activity.activityType]}</RowTitle>
+                  <RowTitle>{activity.title || activityTypeLabels[activity.activityType]}</RowTitle>
                   {detailBits.length ? <RowDetail>{detailBits.join(' · ')}</RowDetail> : null}
                 </RowMeta>
                 <RowActions>
@@ -319,40 +345,55 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
             value={draft.activityType}
             onChange={(event) => setDraft((prev) => ({ ...prev, activityType: event.target.value as AdditionalActivityType }))}
           />
-          <Input
-            label="Duration"
-            unit="min"
-            type="number"
-            inputMode="numeric"
-            value={draft.durationMinutes}
-            onChange={(event) => setDraft((prev) => ({ ...prev, durationMinutes: event.target.value }))}
-          />
-          <Input
-            label="Distance"
-            unit="mi"
-            type="number"
-            inputMode="decimal"
-            value={draft.distanceValue}
-            onChange={(event) => setDraft((prev) => ({ ...prev, distanceValue: event.target.value }))}
-          />
-          <Input
-            label="Start time"
-            type="time"
-            value={draft.startTime}
-            onChange={(event) => setDraft((prev) => ({ ...prev, startTime: event.target.value }))}
-          />
-          <Input
-            label="Notes"
-            value={draft.notes}
-            onChange={(event) => setDraft((prev) => ({ ...prev, notes: event.target.value }))}
-          />
+          {visibleFields.has('title') ? (
+            <Input
+              label="Activity name"
+              value={draft.title}
+              onChange={(event) => setDraft((prev) => ({ ...prev, title: event.target.value }))}
+            />
+          ) : null}
+          {visibleFields.has('duration') ? (
+            <Input
+              label="Duration"
+              unit="min"
+              type="number"
+              inputMode="numeric"
+              value={draft.durationMinutes}
+              onChange={(event) => setDraft((prev) => ({ ...prev, durationMinutes: event.target.value }))}
+            />
+          ) : null}
+          {visibleFields.has('distance') ? (
+            <Input
+              label="Distance"
+              unit={draft.distanceUnit}
+              type="number"
+              inputMode="decimal"
+              value={draft.distanceValue}
+              onChange={(event) => setDraft((prev) => ({ ...prev, distanceValue: event.target.value }))}
+            />
+          ) : null}
+          {visibleFields.has('startTime') ? (
+            <Input
+              label="Start time"
+              type="time"
+              value={draft.startTime}
+              onChange={(event) => setDraft((prev) => ({ ...prev, startTime: event.target.value }))}
+            />
+          ) : null}
+          {visibleFields.has('notes') ? (
+            <Input
+              label="Notes"
+              value={draft.notes}
+              onChange={(event) => setDraft((prev) => ({ ...prev, notes: event.target.value }))}
+            />
+          ) : null}
           <Actions>
             <Button variant="secondary" onClick={() => setFormOpen(false)}>
               Cancel
             </Button>
             <Button
               onClick={() => (editTarget ? updateMutation.mutate() : createMutation.mutate())}
-              disabled={createMutation.isPending || updateMutation.isPending}
+              disabled={!canSave || createMutation.isPending || updateMutation.isPending}
               status={createMutation.isPending || updateMutation.isPending ? 'loading' : 'idle'}
             >
               Save

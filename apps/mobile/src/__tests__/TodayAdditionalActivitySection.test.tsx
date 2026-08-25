@@ -8,6 +8,7 @@ import type { AdditionalActivity } from '@setframe/schemas';
 
 let mockItems: AdditionalActivity[] = [];
 let mockGetError = false;
+let mockPreferredUnits: 'imperial' | 'metric' = 'imperial';
 const mockPost = jest.fn((_path: string, body?: unknown) => Promise.resolve(body));
 const mockPatch = jest.fn((_path: string, body?: unknown) => Promise.resolve(body));
 const mockDel = jest.fn((_path: string) => Promise.resolve(undefined));
@@ -24,7 +25,11 @@ jest.mock('../lib/api-client', () => {
   return {
     ApiError,
     useApiClient: () => ({
-      get: () => (mockGetError ? Promise.reject(new Error('network error')) : Promise.resolve({ items: mockItems })),
+      get: (path: string) => {
+        if (mockGetError) return Promise.reject(new Error('network error'));
+        if (path === '/me') return Promise.resolve({ preferredUnits: mockPreferredUnits });
+        return Promise.resolve({ items: mockItems });
+      },
       post: (path: string, body?: unknown) => mockPost(path, body),
       patch: (path: string, body?: unknown) => mockPatch(path, body),
       del: (path: string) => mockDel(path),
@@ -100,6 +105,7 @@ afterEach(() => {
   tree = null;
   mockItems = [];
   mockGetError = false;
+  mockPreferredUnits = 'imperial';
   jest.clearAllMocks();
 });
 
@@ -205,5 +211,117 @@ describe('TodayAdditionalActivitySection', () => {
     await flush();
 
     expect(mockDel).toHaveBeenCalledWith('/additional-activities/activity-1');
+  });
+});
+
+function selectActivityType(rendered: ReactTestRenderer, value: string) {
+  const select = rendered.root.findAll(
+    (node) => node.props?.label === 'Activity' && typeof node.props?.onChange === 'function' && node.props?.options,
+  )[0];
+  select!.props.onChange(value);
+}
+
+function fieldLabels(rendered: ReactTestRenderer) {
+  return rendered.root
+    .findAll((node) => typeof node.props?.label === 'string' && (node.props?.onChangeText || node.props?.onChange))
+    .map((node) => node.props.label as string);
+}
+
+/**
+ * Story 42 — the add/edit sheet shows only the fields relevant to the
+ * selected activity type, instead of Story 41's generic every-field form.
+ */
+describe('TodayAdditionalActivitySection activity-type-driven fields', () => {
+  it('hides distance for a stationary activity like Yoga', async () => {
+    const rendered = await renderSection();
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Add activity')[0]!.props.onPress();
+    });
+    await flush();
+    expect(fieldLabels(rendered)).toContain('Distance');
+
+    await act(async () => {
+      selectActivityType(rendered, 'yoga');
+    });
+    await flush();
+
+    expect(fieldLabels(rendered)).not.toContain('Distance');
+    expect(fieldLabels(rendered)).toContain('Start time');
+  });
+
+  it('shows an Activity name field only for "Other", and requires it to save', async () => {
+    const rendered = await renderSection();
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Add activity')[0]!.props.onPress();
+    });
+    await flush();
+    expect(fieldLabels(rendered)).not.toContain('Activity name');
+
+    await act(async () => {
+      selectActivityType(rendered, 'other');
+    });
+    await flush();
+    expect(fieldLabels(rendered)).toContain('Activity name');
+
+    const durationField = rendered.root.findAll(
+      (node) => node.props?.label === 'Duration' && typeof node.props?.onChangeText === 'function',
+    )[0];
+    await act(async () => {
+      durationField!.props.onChangeText('10');
+    });
+    await flush();
+    const saveButton = rendered.root.findAll((node) => node.props?.label === 'Save' && node.props?.onPress)[0];
+    expect(saveButton!.props.disabled).toBe(true);
+
+    const titleField = rendered.root.findAll(
+      (node) => node.props?.label === 'Activity name' && typeof node.props?.onChangeText === 'function',
+    )[0];
+    await act(async () => {
+      titleField!.props.onChangeText('Jump rope');
+    });
+    await flush();
+    const saveButtonAfter = rendered.root.findAll((node) => node.props?.label === 'Save' && node.props?.onPress)[0];
+    expect(saveButtonAfter!.props.disabled).toBe(false);
+  });
+
+  it("defaults the distance unit to the user's metric preference", async () => {
+    mockPreferredUnits = 'metric';
+    const rendered = await renderSection();
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Add activity')[0]!.props.onPress();
+    });
+    await flush();
+
+    const distanceField = rendered.root.findAll(
+      (node) => node.props?.label === 'Distance' && typeof node.props?.onChangeText === 'function',
+    )[0];
+    expect(distanceField!.props.unit).toBe('km');
+  });
+
+  // Regression: buildBody() used to force `null` for any field the current
+  // type's field list excludes — for an edit, that silently wiped a value
+  // the record already had in a field the sheet never even showed, rather
+  // than leaving it untouched.
+  it('does not wipe a title the record already has when editing a type that has no name field', async () => {
+    mockItems = [walkActivity({ title: 'Morning stroll' })];
+    const rendered = await renderSection();
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Edit Walk')[0]!.props.onPress();
+    });
+    await flush();
+    expect(rendered.root.findAll((node) => node.props?.label === 'Activity name')).toHaveLength(0);
+
+    await act(async () => {
+      rendered.root.findAll((node) => node.props?.label === 'Save' && node.props?.onPress)[0]!.props.onPress();
+    });
+    await flush();
+
+    expect(mockPatch).toHaveBeenCalled();
+    const [, body] = mockPatch.mock.calls[0]!;
+    expect(body as object).not.toHaveProperty('title', null);
   });
 });
