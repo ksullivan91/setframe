@@ -4,9 +4,10 @@ import styled from 'styled-components';
 import { useQuery } from '@tanstack/react-query';
 import { spacing } from '@setframe/design-tokens';
 import {
-  availableRanges,
+  buildProgressSeries,
   describeWeightRate,
-  filterByRange,
+  defaultRange,
+  rangeOptions,
   formatDateRangeLabel,
   formatMetricValue,
   formatWeekRange,
@@ -15,7 +16,7 @@ import {
   metricLabel,
   weekEndDate,
   weekStartOf,
-  type ChartRange,
+  type ProgressRange,
   type ProgressMetricKey,
   type SeriesPoint,
 } from '@setframe/domain';
@@ -380,17 +381,25 @@ function BodyWeightSection({
     [bodyWeight.points],
   );
 
-  const ranges = useMemo(() => availableRanges(rawSeries, localDate), [rawSeries, localDate]);
-  const [range, setRange] = useState<ChartRange>('ALL');
+  const ranges = useMemo(() => rangeOptions(rawSeries, localDate), [rawSeries, localDate]);
+  /* Opens on the tightest window that still shows every check-in, rather
+     than always on ALL — and is held in state so it survives selection and
+     re-render, per the story's "range state does not unexpectedly reset". */
+  const [range, setRange] = useState<ProgressRange>(() => defaultRange(rawSeries, localDate));
 
-  const visibleRaw = useMemo(
-    () => filterByRange(rawSeries, range, localDate),
+  /* Body weight averages within a bucket: a week is represented by the mean
+     of its check-ins, not their sum. Empty buckets stay `null` — an
+     unweighed day is unknown, never zero. */
+  const rawSeriesForRange = useMemo(
+    () => buildProgressSeries(rawSeries, { range, endLocalDate: localDate, aggregation: 'mean' }),
     [rawSeries, range, localDate],
   );
-  const visibleTrend = useMemo(
-    () => filterByRange(trendSeries, range, localDate),
+  const trendSeriesForRange = useMemo(
+    () => buildProgressSeries(trendSeries, { range, endLocalDate: localDate, aggregation: 'mean' }),
     [trendSeries, range, localDate],
   );
+  const visibleRaw = rawSeriesForRange.points;
+  const visibleTrend = trendSeriesForRange.points;
 
   const format = (value: number) => `${value.toFixed(1)} ${bodyWeight.unit}`;
 
@@ -453,7 +462,7 @@ function BodyWeightSection({
             />
           </SectionTitle>
           <RangeSelector
-            ranges={ranges}
+            options={ranges}
             value={range}
             onChange={setRange}
             label="Body weight time range"
@@ -571,8 +580,6 @@ function ExerciseCard({
 }) {
   const navigate = useNavigate();
   const headlineKey = exercise.metricKeys[0];
-  const [range, setRange] = useState<ChartRange>('ALL');
-
   const series = useMemo<SeriesPoint<{ sessionId: string }>[]>(
     () =>
       exercise.points.map((point) => ({
@@ -583,8 +590,18 @@ function ExerciseCard({
     [exercise.points, headlineKey],
   );
 
-  const ranges = useMemo(() => availableRanges(series, localDate), [series, localDate]);
-  const visible = useMemo(() => filterByRange(series, range, localDate), [series, range, localDate]);
+  /* Every chart on this screen opens on the tightest range that still shows
+     every observation. Hardcoding 'ALL' here made one card follow a different
+     rule than body weight directly above it. */
+  const [range, setRange] = useState<ProgressRange>(() => defaultRange(series, localDate));
+  const ranges = useMemo(() => rangeOptions(series, localDate), [series, localDate]);
+  /* Per-exercise strength metrics are a "best of the session" reading, so a
+     bucket takes its last observation rather than averaging two sessions
+     into a number the user never actually lifted. */
+  const visible = useMemo(
+    () => buildProgressSeries(series, { range, endLocalDate: localDate, aggregation: 'last' }).points,
+    [series, range, localDate],
+  );
 
   const latest = exercise.points.at(-1);
   const definition = headlineKey ? metricDefinition(headlineKey) : null;
@@ -598,7 +615,7 @@ function ExerciseCard({
         <SectionHeader>
           <SectionTitle>{exercise.exerciseName}</SectionTitle>
           <RangeSelector
-            ranges={ranges}
+            options={ranges}
             value={range}
             onChange={setRange}
             label={`${exercise.exerciseName} time range`}

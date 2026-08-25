@@ -220,55 +220,101 @@ export const handlers = [
     }),
   ),
 
-  http.get('*/v1/progress/overview', () =>
-    HttpResponse.json({
-      cards: [
-        { key: 'weekly-sessions', label: 'Sessions this week', value: '3', detail: '+1 vs last week', trend: [4, 4, 3, 4, 4, 2, 3, 3], status: 'positive' },
-        { key: 'consistency-streak', label: 'Current streak', value: '8 weeks', detail: 'Longest streak: 8 weeks', trend: [1, 1, 1, 1, 1, 1, 1, 1], status: 'positive' },
-        { key: 'weekly-volume', label: 'Weekly volume', value: '13,540 lb', detail: '14,210 lb avg', trend: [12800, 13120, 11900, 14010, 14620, 10120, 13330, 13540], status: 'informational' },
-        { key: 'body-weight', label: 'Body weight', value: '182.4 lb', detail: '-1.6 lb over 5 check-ins', trend: [184, 183.5, 183.2, 182.8, 182.4], status: 'neutral' },
-        { key: 'strength-trend', label: 'Back Squat est. 1RM', value: '232 lb', detail: '+12 lb over 4 sessions', trend: [220, 226, 230, 232], status: 'positive' },
-      ],
-      consistency: {
-        weeks: [
-          { weekStart: '2026-06-22', plannedCount: 4, completedCount: 4, completionRatio: 1 },
-          { weekStart: '2026-06-29', plannedCount: 4, completedCount: 4, completionRatio: 1 },
-          { weekStart: '2026-07-06', plannedCount: 3, completedCount: 3, completionRatio: 1 },
-          { weekStart: '2026-07-13', plannedCount: 4, completedCount: 4, completionRatio: 1 },
-          { weekStart: '2026-07-20', plannedCount: 4, completedCount: 4, completionRatio: 1 },
-          { weekStart: '2026-07-27', plannedCount: 2, completedCount: 2, completionRatio: 1 },
-          { weekStart: '2026-08-03', plannedCount: 3, completedCount: 3, completionRatio: 1 },
-          { weekStart: '2026-08-10', plannedCount: 3, completedCount: 3, completionRatio: 1 },
-        ],
-        summary: { currentStreakWeeks: 8, longestStreakWeeks: 8, totalCompleted: 27, totalPlanned: 27 },
+  /* Shaped to `progressOverviewResponseSchema`, not to whatever the page
+     happened to read when this was written. The previous fixture returned
+     `cards`/`consistency` and body-weight points of `{ weightValue,
+     weightUnit }` — a shape the contract has not used for some time — so
+     `isProgressOverview` rejected it and Progress rendered its error state
+     under `dev:mock`. The screen was un-reviewable, which is the same
+     failure that let Training drift.
+
+     Spans ~5 months of daily check-ins so every time range has something
+     real to show, and each renders a visibly different picture. */
+  http.get('*/v1/progress/overview', () => {
+    const end = new Date();
+    const bodyWeightPoints = Array.from({ length: 150 }, (_, index) => {
+      const date = new Date(end.getTime() - (149 - index) * 86_400_000);
+      // A gentle cut with day-to-day water noise, so smoothing has something
+      // to smooth and a week bucket differs from a day bucket.
+      const raw = 186 - index * 0.035 + Math.sin(index / 2.4) * 0.9;
+      return {
+        localDate: date.toISOString().slice(0, 10),
+        raw: Number(raw.toFixed(1)),
+        trend: Number((186 - index * 0.035).toFixed(1)),
+        rollingAverage: index >= 6 ? Number((186 - index * 0.035).toFixed(1)) : null,
+      };
+    });
+
+    return HttpResponse.json({
+      training: {
+        weeks: Array.from({ length: 12 }, (_, index) => {
+          const monday = new Date(end.getTime() - (11 - index) * 7 * 86_400_000);
+          monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() || 7) - 1));
+          // One deliberate rest week, so the chart shows a real zero that is
+          // not a gap — the two must look different.
+          const isRestWeek = index === 4;
+          const completedCount = isRestWeek ? 0 : 3 + (index % 2);
+          return {
+            weekStart: monday.toISOString().slice(0, 10),
+            completedCount,
+            plannedCount: 4,
+            completionRatio: completedCount / 4,
+            volume: isRestWeek ? null : 11_000 + index * 320,
+            restCount: isRestWeek ? 5 : 1,
+            isRestWeek,
+            isCurrent: index === 11,
+          };
+        }),
+        weeksTrained: 11,
+        windowWeeks: 12,
+        currentStreakWeeks: 7,
+        longestStreakWeeks: 8,
+        totalCompleted: 38,
+        totalRestDays: 16,
+        averageSessionsPerWeek: 3.4,
+        volumeUnit: 'lb',
       },
       bodyWeight: {
-        points: [
-          { localDate: '2026-07-20', weightValue: 184, weightUnit: 'lb' },
-          { localDate: '2026-07-27', weightValue: 183.5, weightUnit: 'lb' },
-          { localDate: '2026-08-03', weightValue: 183.2, weightUnit: 'lb' },
-          { localDate: '2026-08-10', weightValue: 182.8, weightUnit: 'lb' },
-          { localDate: '2026-08-17', weightValue: 182.4, weightUnit: 'lb' },
-        ],
-        trendLabel: '-1.6 lb over 5 check-ins',
+        unit: 'lb',
+        sufficiency: 'ready',
+        checkInCount: bodyWeightPoints.length,
+        currentAverage: bodyWeightPoints.at(-1)!.trend,
+        latestCheckIn: {
+          localDate: bodyWeightPoints.at(-1)!.localDate,
+          weightValue: bodyWeightPoints.at(-1)!.raw,
+        },
+        ratePerWeek: -0.25,
+        direction: 'falling',
+        windowWeeks: 12,
+        points: bodyWeightPoints,
+        weeks: [],
       },
-      featuredExercise: {
-        exerciseId: mockExercises[0]!.id,
-        exerciseName: mockExercises[0]!.name,
-        trendLabel: '+12 lb over 4 sessions',
-        points: [
-          { sessionId: 's1', localDate: '2026-07-01', sessionName: 'Lower A', topWeight: 205, topReps: 4, estimatedOneRepMax: 220, volume: 4200, isWeightPr: false, isRepPr: false },
-          { sessionId: 's2', localDate: '2026-07-15', sessionName: 'Lower A', topWeight: 210, topReps: 4, estimatedOneRepMax: 226, volume: 4350, isWeightPr: true, isRepPr: false },
-          { sessionId: 's3', localDate: '2026-08-01', sessionName: 'Lower A', topWeight: 215, topReps: 4, estimatedOneRepMax: 230, volume: 4480, isWeightPr: false, isRepPr: true },
-          { sessionId: 's4', localDate: '2026-08-18', sessionName: 'Lower A', topWeight: 217.5, topReps: 4, estimatedOneRepMax: 232, volume: 4510, isWeightPr: true, isRepPr: false },
-        ],
-      },
-      recentSessions: [
-        { sessionId: 's4', localDate: '2026-08-18', completedAt: now(), sessionName: 'Lower A', exerciseCount: 5, setCount: 18, volume: 4510, prCount: 1 },
-        { sessionId: 's3', localDate: '2026-08-15', completedAt: now(), sessionName: 'Upper A', exerciseCount: 4, setCount: 16, volume: 3720, prCount: 0 },
+      exercises: [
+        {
+          exerciseId: mockExercises[0]!.id,
+          exerciseName: mockExercises[0]!.name,
+          sessionCount: 12,
+          metricKeys: ['estimatedOneRepMax'],
+          points: Array.from({ length: 12 }, (_, index) => {
+            const date = new Date(end.getTime() - (11 - index) * 7 * 86_400_000);
+            return {
+              sessionId: `sess-${index}`,
+              localDate: date.toISOString().slice(0, 10),
+              sessionName: 'Lower A',
+              metrics: [
+                { key: 'estimatedOneRepMax', value: 210 + index * 2, loadUnit: 'lb' },
+              ],
+              isWeightPr: index === 11,
+              isRepPr: false,
+            };
+          }),
+        },
       ],
-    }),
-  ),
+      recentSessions: [
+        { sessionId: '11111111-1111-4111-8111-111111111111', localDate: today(), completedAt: now(), sessionName: 'Lower A', exerciseCount: 5, setCount: 18, volume: 4510, prCount: 1 },
+      ],
+    });
+  }),
 
   http.get('*/v1/programs', () => HttpResponse.json(mockPrograms)),
   http.post('*/v1/programs', async ({ request }) => {

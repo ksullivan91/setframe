@@ -3,7 +3,8 @@ import styled, { useTheme } from 'styled-components';
 import {
   buildColumnChart,
   buildLineChart,
-  type ChartRange,
+  nearestPointIndex,
+  type ProgressRange,
   type SeriesPoint,
 } from '@setframe/domain';
 import { spacing } from '@setframe/design-tokens';
@@ -129,6 +130,8 @@ export function LineChart({
   const theme = useTheme();
   const [ref, width] = useElementWidth(320);
   const [selected, setSelected] = useState<number | null>(null);
+  const lastSelected = useRef<number | null>(null);
+  const scrubbing = useRef(false);
 
   const layout = useMemo(
     () => ({ width, height, padding: { top: 10, right: 10, bottom: 22, left: 40 } }),
@@ -164,9 +167,26 @@ export function LineChart({
   if (!plotted.length) return null;
 
   function select(index: number) {
+    lastSelected.current = index;
     setSelected(index);
     const point = plotted.find((entry) => entry.index === index);
     if (point) onSelectPoint?.({ localDate: point.localDate, value: point.value, index: point.index });
+  }
+
+  function scrubTo(clientX: number, surface: SVGRectElement) {
+    const box = surface.getBoundingClientRect();
+    if (!box.width) return;
+    const plotX =
+      domainChart.plot.x + ((clientX - box.left) / box.width) * domainChart.plot.width;
+    const index = nearestPointIndex(plotted, plotX);
+    /* pointermove fires per pixel; re-rendering per pixel is what makes a
+       scrub feel bad. Only commit when the nearest datum actually changes.
+       Compared against a ref rather than `selected` because pointermove is
+       continuous-priority in React: several moves can be batched before a
+       commit, leaving the closed-over `selected` stale. Note the jsdom tests
+       cannot demonstrate this — fireEvent flushes a render between every
+       event — so the ref is reasoned, not test-proven. */
+    if (index != null && index !== lastSelected.current) select(index);
   }
 
   return (
@@ -243,7 +263,14 @@ export function LineChart({
                   role="button"
                   aria-label={`${formatDate(point.localDate)}: ${formatValue(point.value)}`}
                   data-testid="chart-point"
-                  style={{ cursor: onSelectPoint ? 'pointer' : 'default', outline: 'none' }}
+                  /* Keyboard and assistive tech reach selection through these
+                     circles; live pointer input belongs to the scrub surface
+                     below, so one element owns both tap and drag. */
+                  style={{
+                    cursor: onSelectPoint ? 'pointer' : 'default',
+                    outline: 'none',
+                    pointerEvents: 'none',
+                  }}
                   onClick={() => select(point.index)}
                   onFocus={() => setSelected(point.index)}
                   onKeyDown={(event) => {
@@ -256,6 +283,40 @@ export function LineChart({
               </g>
             );
           })}
+
+          {/* ADR 0008's sharp edge: whatever holds pointer capture must not be
+              re-created mid-drag, or the browser silently ends the gesture.
+              None of this rect's props depend on `selected`, and it is always
+              the last child, so React reuses the same DOM node across every
+              selection change and the capture survives the whole scrub. */}
+          <rect
+            x={domainChart.plot.x}
+            y={domainChart.plot.y}
+            width={domainChart.plot.width}
+            height={domainChart.plot.height}
+            fill="transparent"
+            data-testid="chart-scrub-surface"
+            /* pan-y so the page still scrolls vertically past a chart that
+               fills most of a 390px screen; horizontal movement is ours. */
+            style={{ touchAction: 'pan-y', cursor: onSelectPoint ? 'crosshair' : 'default' }}
+            onPointerDown={(event) => {
+              event.currentTarget.setPointerCapture(event.pointerId);
+              scrubbing.current = true;
+              scrubTo(event.clientX, event.currentTarget);
+            }}
+            onPointerMove={(event) => {
+              if (scrubbing.current) scrubTo(event.clientX, event.currentTarget);
+            }}
+            onPointerUp={(event) => {
+              scrubbing.current = false;
+              if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                event.currentTarget.releasePointerCapture(event.pointerId);
+              }
+            }}
+            onPointerCancel={() => {
+              scrubbing.current = false;
+            }}
+          />
         </svg>
       </Frame>
 
@@ -464,27 +525,39 @@ const RangeButton = styled.button<{ $active: boolean }>`
   font-size: ${typeScale.caption.fontSize}px;
   font-weight: 600;
   cursor: pointer;
+
+  /* A range with no data behind it stays visible and dimmed rather than
+     disappearing. The previous control hid unavailable ranges and rendered
+     nothing at all below two options, so a new user saw no time-range
+     control and reasonably concluded it did not exist. Dimmed-but-present
+     says "this unlocks as you log more". */
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
 `;
 
 export interface RangeSelectorProps {
-  ranges: ChartRange[];
-  value: ChartRange;
-  onChange: (range: ChartRange) => void;
+  /** Every range, each flagged if the data cannot fill it. Never filtered. */
+  options: Array<{ range: ProgressRange; disabled: boolean }>;
+  value: ProgressRange;
+  onChange: (range: ProgressRange) => void;
   label: string;
 }
 
-export function RangeSelector({ ranges, value, onChange, label }: RangeSelectorProps) {
-  // Offering a single range is offering no choice; the caller decides which
-  // ranges the data can actually support.
-  if (ranges.length < 2) return null;
+export function RangeSelector({ options, value, onChange, label }: RangeSelectorProps) {
   return (
     <RangeRow role="group" aria-label={label} data-testid="chart-range-selector">
-      {ranges.map((range) => (
+      {options.map(({ range, disabled }) => (
         <RangeButton
           key={range}
           type="button"
           $active={range === value}
           aria-pressed={range === value}
+          disabled={disabled}
+          /* Disabled rather than removed, so the reason is legible to a
+             screen reader too instead of the option silently not existing. */
+          title={disabled ? 'Not enough history for this range yet' : undefined}
           onClick={() => onChange(range)}
         >
           {range}

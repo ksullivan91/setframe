@@ -3,9 +3,10 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import {
-  availableRanges,
+  buildProgressSeries,
   describeWeightRate,
-  filterByRange,
+  defaultRange,
+  rangeOptions,
   formatDateRangeLabel,
   formatMetricValue,
   formatWeekRange,
@@ -13,7 +14,7 @@ import {
   metricLabel,
   weekEndDate,
   weekStartOf,
-  type ChartRange,
+  type ProgressRange,
   type ProgressMetricKey,
   type SeriesPoint,
 } from '@setframe/domain';
@@ -146,12 +147,19 @@ export function BodyWeightSection({
     [bodyWeight.points],
   );
 
-  const ranges = useMemo(() => availableRanges(rawSeries, localDate), [rawSeries, localDate]);
-  const [range, setRange] = useState<ChartRange>('ALL');
+  const ranges = useMemo(() => rangeOptions(rawSeries, localDate), [rawSeries, localDate]);
+  /* Opens on the tightest window that still shows every check-in, and is
+     held in state so it survives selection and re-render. Identical to web. */
+  const [range, setRange] = useState<ProgressRange>(() => defaultRange(rawSeries, localDate));
 
-  const visibleRaw = useMemo(() => filterByRange(rawSeries, range, localDate), [rawSeries, range, localDate]);
+  /* Body weight averages within a bucket; empty buckets stay `null`, since
+     an unweighed day is unknown rather than zero. Same call as web. */
+  const visibleRaw = useMemo(
+    () => buildProgressSeries(rawSeries, { range, endLocalDate: localDate, aggregation: 'mean' }).points,
+    [rawSeries, range, localDate],
+  );
   const visibleTrend = useMemo(
-    () => filterByRange(trendSeries, range, localDate),
+    () => buildProgressSeries(trendSeries, { range, endLocalDate: localDate, aggregation: 'mean' }).points,
     [trendSeries, range, localDate],
   );
 
@@ -211,7 +219,7 @@ export function BodyWeightSection({
             limitation="Weight swings by several pounds day to day from water, food and salt. Whether the trend going up or down is good depends entirely on what you are training for, so we do not assume."
           />
         </View>
-        <RangeSelector ranges={ranges} value={range} onChange={setRange} label="Body weight time range" />
+        <RangeSelector options={ranges} value={range} onChange={setRange} label="Body weight time range" />
       </View>
 
       {visibleRaw.length ? (
@@ -334,8 +342,6 @@ export function ExerciseCard({
   const theme = useTheme();
   const router = useRouter();
   const headlineKey = exercise.metricKeys[0];
-  const [range, setRange] = useState<ChartRange>('ALL');
-
   const series = useMemo<SeriesPoint<{ sessionId: string }>[]>(
     () =>
       exercise.points.map((point) => ({
@@ -346,8 +352,17 @@ export function ExerciseCard({
     [exercise.points, headlineKey],
   );
 
-  const ranges = useMemo(() => availableRanges(series, localDate), [series, localDate]);
-  const visible = useMemo(() => filterByRange(series, range, localDate), [series, range, localDate]);
+  /* Every chart on this screen opens on the tightest range that still shows
+     every observation. Hardcoding 'ALL' here made one card follow a different
+     rule than body weight directly above it. */
+  const [range, setRange] = useState<ProgressRange>(() => defaultRange(series, localDate));
+  const ranges = useMemo(() => rangeOptions(series, localDate), [series, localDate]);
+  /* "Best of the session" reading, so a bucket takes its last observation
+     rather than averaging two sessions into a number never actually lifted. */
+  const visible = useMemo(
+    () => buildProgressSeries(series, { range, endLocalDate: localDate, aggregation: 'last' }).points,
+    [series, range, localDate],
+  );
 
   const latest = exercise.points.at(-1);
   const definition = headlineKey ? metricDefinition(headlineKey) : null;
@@ -360,7 +375,7 @@ export function ExerciseCard({
       <View style={styles.sectionHeader}>
         <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>{exercise.exerciseName}</Text>
         <RangeSelector
-          ranges={ranges}
+          options={ranges}
           value={range}
           onChange={setRange}
           label={`${exercise.exerciseName} time range`}

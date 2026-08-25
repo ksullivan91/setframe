@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
-  availableRanges,
   buildColumnChart,
   buildLineChart,
-  filterByRange,
+  nearestPointIndex,
   niceScale,
-  rangeLabel,
+  shouldClaimScrub,
   type SeriesPoint,
 } from './chart-geometry';
 
@@ -188,43 +187,6 @@ describe('column chart', () => {
   });
 });
 
-describe('ranges', () => {
-  const series = points(
-    Array.from({ length: 200 }, (_, index) => [
-      new Date(Date.UTC(2025, 0, 1) + index * 86_400_000).toISOString().slice(0, 10),
-      180,
-    ]),
-  );
-
-  it('trims to the trailing window', () => {
-    const trimmed = filterByRange(series, '1M', '2025-07-19');
-    expect(trimmed.length).toBeLessThan(series.length);
-    expect(trimmed.length).toBeGreaterThan(25);
-  });
-
-  it('returns everything for ALL', () => {
-    expect(filterByRange(series, 'ALL', '2025-07-19')).toHaveLength(series.length);
-  });
-
-  it('offers no ranges when there is nothing to range over', () => {
-    expect(availableRanges(points([['2025-08-01', 180]]), '2025-08-01')).toEqual([]);
-    expect(availableRanges([], '2025-08-01')).toEqual([]);
-  });
-
-  it('offers only ranges the data actually spans', () => {
-    const short = points([['2025-08-01', 180], ['2025-08-20', 178]]);
-    const ranges = availableRanges(short, '2025-08-22');
-    expect(ranges).toContain('1W');
-    expect(ranges).not.toContain('1Y');
-  });
-
-  it('labels every range', () => {
-    for (const range of ['1W', '1M', '3M', '6M', '1Y', 'ALL'] as const) {
-      expect(rangeLabel(range).length).toBeGreaterThan(0);
-    }
-  });
-});
-
 describe('shared domains for overlaid series', () => {
   const layout = { width: 320, height: 160, padding: { top: 10, right: 10, bottom: 22, left: 40 } };
 
@@ -276,5 +238,68 @@ describe('shared domains for overlaid series', () => {
       { layout },
     );
     expect(chart.dayBounds.last - chart.dayBounds.first).toBe(7);
+  });
+});
+
+/**
+ * Story 48 — scrub resolution. Both renderers call these, so the web SVG and
+ * the native PanResponder land on the same datum for the same gesture by
+ * construction rather than by two implementations happening to agree.
+ */
+describe('nearestPointIndex', () => {
+  const points = [
+    { x: 40, index: 0 },
+    { x: 140, index: 1 },
+    { x: 240, index: 2 },
+  ];
+
+  it('resolves an x to the closest point', () => {
+    expect(nearestPointIndex(points, 40)).toBe(0);
+    expect(nearestPointIndex(points, 139)).toBe(1);
+    expect(nearestPointIndex(points, 1000)).toBe(2);
+  });
+
+  it('clamps to the ends rather than reporting nothing outside the plot', () => {
+    /* A finger dragged past the left edge should hold the first datum, not
+       blank the readout mid-gesture. */
+    expect(nearestPointIndex(points, -50)).toBe(0);
+  });
+
+  it('breaks a tie towards the earlier point', () => {
+    expect(nearestPointIndex(points, 90)).toBe(0);
+  });
+
+  it('returns null for an empty plot', () => {
+    expect(nearestPointIndex([], 100)).toBeNull();
+  });
+
+  it('reports the point index, not the position in the array', () => {
+    /* Missing days are dropped from the plotted array but keep their index
+       in the underlying series; returning the array position would select
+       the wrong day on any series with a gap. */
+    const withGap = [
+      { x: 40, index: 0 },
+      { x: 240, index: 5 },
+    ];
+    expect(nearestPointIndex(withGap, 230)).toBe(5);
+  });
+});
+
+describe('shouldClaimScrub', () => {
+  it('claims a clearly horizontal drag', () => {
+    expect(shouldClaimScrub(30, 2)).toBe(true);
+    expect(shouldClaimScrub(-30, 2)).toBe(true);
+  });
+
+  it('leaves a vertical drag to the surrounding scroll view', () => {
+    /* Getting this wrong traps the page: a chart fills most of a 390px
+       screen, and a chart that swallows vertical drags cannot be scrolled past. */
+    expect(shouldClaimScrub(2, 30)).toBe(false);
+    expect(shouldClaimScrub(20, 25)).toBe(false);
+  });
+
+  it('ignores the jitter of a tap', () => {
+    expect(shouldClaimScrub(1, 0)).toBe(false);
+    expect(shouldClaimScrub(0, 0)).toBe(false);
   });
 });

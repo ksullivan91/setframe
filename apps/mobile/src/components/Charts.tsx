@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   LayoutChangeEvent,
+  PanResponder,
   Pressable,
   StyleSheet,
   Text,
@@ -11,7 +12,9 @@ import Svg, { Circle, G, Line, Path, Rect, Text as SvgText } from 'react-native-
 import {
   buildColumnChart,
   buildLineChart,
-  type ChartRange,
+  nearestPointIndex,
+  shouldClaimScrub,
+  type ProgressRange,
   type SeriesPoint,
 } from '@setframe/domain';
 import { useTheme } from '../theme/ThemeProvider';
@@ -117,13 +120,39 @@ export function LineChart({
   const plotted = rawChart.points;
   const selectedPoint = selected != null ? plotted.find((point) => point.index === selected) : null;
 
+  /* Native has no pointer capture, so the equivalent of the web scrub surface
+     is a responder on the container. Claiming only on a clearly horizontal
+     move means a plain tap still reaches the per-point Pressables underneath
+     (and with them VoiceOver), and a vertical drag still scrolls the page. */
+  const scrub = useRef<(x: number) => void>(() => {});
+  const lastSelected = useRef<number | null>(null);
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_event, gesture) => shouldClaimScrub(gesture.dx, gesture.dy),
+        onPanResponderGrant: (event) => scrub.current(event.nativeEvent.locationX),
+        onPanResponderMove: (event) => scrub.current(event.nativeEvent.locationX),
+      }),
+    [],
+  );
+
   if (!plotted.length) return null;
 
   function select(index: number) {
+    lastSelected.current = index;
     setSelected(index);
     const point = plotted.find((entry) => entry.index === index);
     if (point) onSelectPoint?.({ localDate: point.localDate, value: point.value, index: point.index });
   }
+
+  /* locationX is relative to the container, and the Svg fills it from the
+     same origin, so touch x and plotted x share one coordinate space. */
+  scrub.current = (x: number) => {
+    const best = nearestPointIndex(plotted, x);
+    /* Commit only when the nearest datum changes: a move fires continuously,
+       and re-rendering per event is what makes a native scrub feel bad. */
+    if (best != null && best !== lastSelected.current) select(best);
+  };
 
   const tableLabel = `${label}. ${plotted
     .map((point) => `${formatDate(point.localDate)}: ${formatValue(point.value)}`)
@@ -131,7 +160,12 @@ export function LineChart({
 
   return (
     <View style={styles.figure} testID={testID}>
-      <View style={{ width: '100%', height }} onLayout={onLayout}>
+      <View
+        style={{ width: '100%', height }}
+        onLayout={onLayout}
+        testID="chart-scrub-surface"
+        {...panResponder.panHandlers}
+      >
         <Svg width={width} height={height} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           {domainChart.ticks.map((tick) => (
             <G key={tick.value}>
@@ -394,17 +428,15 @@ export function ColumnChart({
 }
 
 export interface RangeSelectorProps {
-  ranges: ChartRange[];
-  value: ChartRange;
-  onChange: (range: ChartRange) => void;
+  /** Every range, each flagged if the data cannot fill it. Never filtered. */
+  options: Array<{ range: ProgressRange; disabled: boolean }>;
+  value: ProgressRange;
+  onChange: (range: ProgressRange) => void;
   label: string;
 }
 
-export function RangeSelector({ ranges, value, onChange, label }: RangeSelectorProps) {
+export function RangeSelector({ options, value, onChange, label }: RangeSelectorProps) {
   const theme = useTheme();
-  // Offering a single range is offering no choice; the caller decides which
-  // ranges the data can actually support.
-  if (ranges.length < 2) return null;
   return (
     <View
       style={styles.rangeRow}
@@ -412,22 +444,29 @@ export function RangeSelector({ ranges, value, onChange, label }: RangeSelectorP
       accessibilityLabel={label}
       testID="chart-range-selector"
     >
-      {ranges.map((range) => {
+      {options.map(({ range, disabled }) => {
         const active = range === value;
         return (
           <Pressable
             key={range}
             accessible
             accessibilityRole="radio"
-            accessibilityState={{ selected: active }}
+            /* Reported disabled rather than omitted, so VoiceOver announces
+               the range as present-but-unavailable. The previous control
+               hid unfillable ranges and rendered nothing below two options,
+               which made the whole feature invisible on sparse data. */
+            accessibilityState={{ selected: active, disabled }}
             accessibilityLabel={range}
+            accessibilityHint={disabled ? 'Not enough history for this range yet' : undefined}
             testID={`chart-range-${range}`}
+            disabled={disabled}
             onPress={() => onChange(range)}
             style={[
               styles.rangeButton,
               {
                 borderColor: active ? 'transparent' : theme.border.default,
                 backgroundColor: active ? theme.action.primary : 'transparent',
+                opacity: disabled ? 0.4 : 1,
               },
             ]}
           >

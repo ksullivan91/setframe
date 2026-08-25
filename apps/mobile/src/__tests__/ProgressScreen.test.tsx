@@ -184,7 +184,7 @@ describe('ExerciseCard', () => {
     );
 
     // Narrow to the last month, which leaves only the three July sessions.
-    press(rendered, 'chart-range-1M');
+    press(rendered, 'chart-range-M');
     // Tapping the first visible point must open the first *July* session,
     // not the first of the unfiltered series.
     press(rendered, 'chart-point');
