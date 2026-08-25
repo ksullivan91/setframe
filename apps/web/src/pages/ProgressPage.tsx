@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { useQuery } from '@tanstack/react-query';
 import { spacing } from '@setframe/design-tokens';
 import {
+  buildOverviewInsights,
   buildProgressSeries,
   describeWeightRate,
   defaultRange,
@@ -26,6 +27,7 @@ import {
   FadeIn,
   LineChart,
   MetricInfo,
+  ProgressInsights,
   RangeSelector,
   Skeleton,
   SkeletonStack,
@@ -52,6 +54,16 @@ import { useApiClient } from '../lib/api-client';
  *    streak's cliff punishes one missed week with total loss. See
  *    docs/research/progress-metrics-motivation.md.
  */
+
+/**
+ * Where each insight's supporting chart lives, so "what's changed" can send
+ * you to the evidence for it. Story 51: an insight links to its chart.
+ */
+const INSIGHT_ANCHOR = {
+  training_frequency: 'progress-sessions-per-week',
+  training_volume: 'progress-training-volume',
+  body_weight: 'progress-body-weight',
+} as const;
 
 interface ProgressMetric {
   key: string;
@@ -437,7 +449,7 @@ function BodyWeightSection({
 
   if (bodyWeight.sufficiency === 'none') {
     return (
-      <Card>
+      <Card id={INSIGHT_ANCHOR.body_weight}>
         <Stack>
           <SectionTitle>Body weight</SectionTitle>
           <HelperText>
@@ -449,7 +461,7 @@ function BodyWeightSection({
   }
 
   return (
-    <Card>
+    <Card id={INSIGHT_ANCHOR.body_weight}>
       <Stack>
         <SectionHeader>
           <SectionTitle>
@@ -717,6 +729,15 @@ export function ProgressPage() {
     [overview],
   );
 
+  /* Story 51. Fixed to the week rather than a page-level range: the strip
+     answers "what's changed lately", and week-over-week is the span a user
+     actually acts on. `insight.focus.range` still carries the period, so
+     following a page-level range once one exists is a one-line change. */
+  const insights = useMemo(
+    () => (overview ? buildOverviewInsights(overview, { endLocalDate: localDate }) : []),
+    [overview, localDate],
+  );
+
   if (query.isLoading) return <ProgressSkeleton />;
 
   if (query.isError || !overview) {
@@ -772,6 +793,18 @@ export function ProgressPage() {
           <h1>Progress</h1>
           <HelperText>How your training, strength and weight are actually moving.</HelperText>
         </div>
+
+        <ProgressInsights
+          insights={insights}
+          onFocus={(item) => {
+            const target = document.getElementById(INSIGHT_ANCHOR[item.metric]);
+            /* `smooth` is honoured against the user's motion preference by the
+               browser only for CSS scrolling, not for this API, so reduced
+               motion is checked explicitly. */
+            const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+            target?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+          }}
+        />
 
         <SummaryGrid>
           <SummaryCard $accent="green">
@@ -844,7 +877,7 @@ export function ProgressPage() {
         </SummaryGrid>
 
         <TwoColumn>
-          <Card>
+          <Card id={INSIGHT_ANCHOR.training_frequency}>
             <Stack>
               <SectionHeader>
                 <SectionTitle>
@@ -878,7 +911,7 @@ export function ProgressPage() {
         </TwoColumn>
 
         {hasAnyVolume ? (
-          <Card>
+          <Card id={INSIGHT_ANCHOR.training_volume}>
             <Stack>
               <SectionHeader>
                 <SectionTitle>

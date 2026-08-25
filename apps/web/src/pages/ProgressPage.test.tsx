@@ -540,3 +540,70 @@ describe('API version skew', () => {
     await waitFor(() => expect(screen.getByText(/could not load your progress/)).toBeTruthy());
   });
 });
+
+/**
+ * Story 51 — the insight strip, wired into the real page rather than tested
+ * only in isolation. The fixtures above are dated to 2025, so the current
+ * week's window is empty and no insight can be stated; these date their weeks
+ * relative to today so the strip has something to compare.
+ */
+describe('insight strip', () => {
+  /** Monday of the week `weeksAgo` weeks before today, as `YYYY-MM-DD`. */
+  function mondayWeeksAgo(weeksAgo: number): string {
+    const date = new Date();
+    const isoDay = date.getUTCDay() || 7;
+    date.setUTCDate(date.getUTCDate() - (isoDay - 1) - weeksAgo * 7);
+    return date.toISOString().slice(0, 10);
+  }
+
+  function recentWeeks(counts: number[]) {
+    return counts.map((completedCount, index) => ({
+      weekStart: mondayWeeksAgo(counts.length - 1 - index),
+      completedCount,
+      plannedCount: null,
+      completionRatio: null,
+      volume: null,
+      isCurrent: index === counts.length - 1,
+    }));
+  }
+
+  function withRecentWeeks(counts: number[]) {
+    return baseOverview({
+      training: {
+        ...(baseOverview().training as Record<string, unknown>),
+        weeks: recentWeeks(counts),
+      },
+    });
+  }
+
+  it('states a week-over-week comparison above the charts', async () => {
+    renderProgress(withRecentWeeks([3, 3, 1]));
+
+    await waitFor(() => expect(screen.getByTestId('progress-insights')).toBeTruthy());
+    expect(screen.getByTestId('progress-insight-training_frequency')).toHaveTextContent(
+      /1 session so far, compared with 3 last week\./,
+    );
+  });
+
+  /**
+   * The story's premise. With no previous week to compare against there is
+   * nothing to say, and the strip must be absent rather than empty.
+   */
+  it('renders no strip at all when nothing can be compared', async () => {
+    renderProgress(baseOverview());
+    await waitFor(() => expect(screen.getByTestId('weeks-trained')).toBeTruthy());
+    expect(screen.queryByTestId('progress-insights')).toBeNull();
+  });
+
+  it('scrolls to the supporting chart when an insight is followed', async () => {
+    const scrollIntoView = vi.fn();
+    window.HTMLElement.prototype.scrollIntoView = scrollIntoView;
+
+    renderProgress(withRecentWeeks([3, 3, 1]));
+
+    await waitFor(() => expect(screen.getByTestId('progress-insights')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: /1 session so far/ }));
+
+    expect(scrollIntoView).toHaveBeenCalled();
+  });
+});

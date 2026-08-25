@@ -16,3 +16,5 @@ export * from './progress-format';
 export * from './additional-activity-fields';
 export * from './additional-activity-recents';
 export * from './progress-range';
+export * from './progress-insight';
+export * from './progress-overview-insights';
