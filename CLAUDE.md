@@ -52,11 +52,48 @@ Other per-workspace commands:
 ```bash
 apps/api:      npm run dev --workspace=@setframe/api    # tsx watch, needs .env (DATABASE_URL, CLERK_*)
 apps/web:      npm run dev:mock --workspace=@setframe/web  # Vite + MSW mocks, no live API needed
+apps/mobile:   npm run ios --workspace=@setframe/mobile    # dev build on the iOS Simulator
+               npm run web --workspace=@setframe/mobile    # react-native-web preview, no Xcode needed
 packages/database: npm run db:migrate --workspace=@setframe/database   # requires real DATABASE_URL
                     # NOTE: db:generate is currently unusable — drizzle-kit reads the
                     # hand-written migrations as drift and hangs on an interactive
                     # prompt. Write migration SQL by hand; see docs/handoff.md §2.
 ```
+
+### Running the mobile app locally (iOS)
+
+**Expo Go does not work here.** `@kingstinct/react-native-healthkit` and
+`react-native-nitro-modules` are native modules with a config plugin, so the
+app needs a *development build*. `ios/` and `android/` are gitignored
+Continuous Native Generation output — `app.json` is the source of truth, and
+anything hand-edited under `ios/` is discarded by the next prebuild.
+
+First-time setup on a clean Mac (Command Line Tools alone are **not** enough —
+`xcode-select -p` must point at `Xcode.app`, not `/Library/Developer/CommandLineTools`):
+
+```bash
+brew install cocoapods aria2          # aria2 makes the Xcode download 3-5x faster
+xcodes install 26.6 --select --experimental-unxip   # needs an Apple ID; run in a
+                                      # real terminal — it cannot read a password
+                                      # through a piped stdin. Free account is fine;
+                                      # this is Apple's direct download, not the App Store.
+sudo xcodebuild -license accept && sudo xcodebuild -runFirstLaunch && sudo xcodebuild -downloadPlatform iOS
+```
+
+That last `-downloadPlatform iOS` is the step people miss: Xcode 26 ships with
+**no** simulator runtimes, so `xcrun simctl list runtimes` is empty and
+`expo run:ios` cannot find a device until it is run.
+
+Then `npx expo prebuild --platform ios` (generates `ios/`, runs `pod install`)
+and `npm run ios --workspace=@setframe/mobile`.
+
+`apps/mobile/.env` needs `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` and
+`EXPO_PUBLIC_API_BASE_URL`. The Simulator shares the host network, so
+`http://localhost:3000/v1` reaches a local `apps/api`; a *physical device*
+cannot resolve `localhost` and needs the Mac's LAN IP or the production URL.
+
+HealthKit is effectively unusable on the Simulator (no real health data) — that
+work needs a physical device.
 
 Git hooks (Copilot-based pre-commit review) are opt-in per clone:
 ```bash
