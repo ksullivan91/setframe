@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@clerk/clerk-react": "5.61.3",
+    "@floating-ui/react": "0.27.20",
     "@setframe/design-tokens": "0.0.0",
     "@setframe/domain": "0.0.0",
     "@setframe/schemas": "0.0.0",
