@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, GripVertical, MoreVertical } from 'lucide-react-native';
+import { GripVertical, MoreVertical } from 'lucide-react-native';
 import { calculateVolume, estimateOneRepMax, visibleSessionExercises } from '@setframe/domain';
 import type {
   Exercise,
@@ -408,6 +408,30 @@ export default function TrainingScreen() {
     [sessionQuery.data],
   );
 
+  const totalSetsLogged = useMemo(
+    () =>
+      visibleExercises.reduce(
+        (sum, exerciseLog) =>
+          sum + exerciseLog.sets.filter((set) => isSessionSetLogged(exerciseLog.prescription, set)).length,
+        0,
+      ),
+    [visibleExercises],
+  );
+
+  /* Story 36: Finish workout became persistently reachable via the sticky
+     action bar below, so a stray tap must not end the session outright —
+     the button previously completed immediately with no confirmation. */
+  function confirmFinishWorkout() {
+    Alert.alert(
+      'Finish workout?',
+      `You logged ${visibleExercises.length} exercise${visibleExercises.length === 1 ? '' : 's'} and ${totalSetsLogged} set${totalSetsLogged === 1 ? '' : 's'}. You can review the workout after finishing.`,
+      [
+        { text: 'Keep training', style: 'cancel' },
+        { text: 'Finish workout', onPress: () => finishMutation.mutate() },
+      ],
+    );
+  }
+
   // Timed, distance and bodyweight work carries no weight, so including it
   // would contribute nothing while making the total look authoritative.
   const totalVolume = useMemo(
@@ -460,31 +484,14 @@ export default function TrainingScreen() {
     // as a transition rather than a pop.
     <FadeIn>
     <ScrollView style={{ backgroundColor: theme.surface.canvas }} contentContainerStyle={styles.content}>
-      <View style={styles.headerRow}>
-        <View style={styles.headerMeta}>
-          <Text style={[styles.title, { color: theme.text.primary }]}>{todayQuery.data?.dayLabel ?? 'Workout session'}</Text>
-          <Text style={[styles.subtitle, { color: theme.text.secondary }]}>Elapsed {elapsedLabel}</Text>
-        </View>
-        <Button
-          label="Finish"
-          variant="secondary"
-          fullWidth={false}
-          loading={finishMutation.isPending}
-          disabled={sessionQuery.data.status === 'completed'}
-          onPress={() => finishMutation.mutate()}
-        />
+      <View style={styles.headerMeta}>
+        <Text style={[styles.title, { color: theme.text.primary }]}>{todayQuery.data?.dayLabel ?? 'Workout session'}</Text>
+        <Text style={[styles.subtitle, { color: theme.text.secondary }]}>Elapsed {elapsedLabel}</Text>
       </View>
 
       <Card>
         <View style={styles.summaryRow}>
-          <Stat
-            label="Sets"
-            value={`${visibleExercises.reduce(
-              (sum, exerciseLog) =>
-                sum + exerciseLog.sets.filter((set) => isSessionSetLogged(exerciseLog.prescription, set)).length,
-              0,
-            )}`}
-          />
+          <Stat label="Sets" value={`${totalSetsLogged}`} />
           <Stat label="Volume" value={totalVolume ? `${totalVolume.toLocaleString()} lb` : '—'} />
           <Stat label="Best 1RM" value={bestEstimated1rm} />
         </View>
@@ -603,30 +610,6 @@ export default function TrainingScreen() {
         );
       })}
 
-      {/* Story 08: one self-contained flow — search the canonical catalog,
-          create a custom exercise, configure it, add it, all without leaving
-          the session. */}
-      <Card>
-        <Text style={[styles.sectionLabel, { color: theme.text.primary }]}>Add exercise</Text>
-        <Text style={[styles.helperNote, { color: theme.text.secondary }]}>
-          Search the catalog or create something new without leaving this workout.
-        </Text>
-        <View style={styles.addSetRow}>
-          <IconButton
-            icon={Plus}
-            accessibilityLabel="Add exercise to this workout"
-            onPress={() => sessionQuery.data.status !== 'completed' && setShowAddExercise(true)}
-          />
-          <Text
-            style={{ color: theme.action.primary }}
-            accessibilityRole="button"
-            onPress={() => sessionQuery.data.status !== 'completed' && setShowAddExercise(true)}
-          >
-            Add exercise
-          </Text>
-        </View>
-      </Card>
-
       {toast ? (
         <Toast
           variant={toast.variant}
@@ -650,6 +633,34 @@ export default function TrainingScreen() {
         isAddingExercise={addExerciseMutation.isPending}
       />
     </ScrollView>
+
+    {/* Story 36: Add exercise / Finish workout stay reachable during a long
+        workout instead of living only at the top of the screen (Finish) or
+        the bottom of the scroll (Add exercise, previously its own Card
+        below the last exercise). Positioned absolutely within this screen's
+        own content area, which Expo Router's tab navigator already sizes to
+        exclude the bottom tab bar — no extra height/inset math needed to
+        clear it. Disappears once the workout is completed (AC). */}
+    {sessionQuery.data.status !== 'completed' ? (
+      <View
+        style={[styles.sessionActionBar, { backgroundColor: theme.surface.raised, borderTopColor: theme.border.subtle }]}
+      >
+        <View style={styles.sessionActionBarButton}>
+          <Button
+            label="Add exercise"
+            variant="secondary"
+            onPress={() => setShowAddExercise(true)}
+          />
+        </View>
+        <View style={styles.sessionActionBarButton}>
+          <Button
+            label="Finish workout"
+            loading={finishMutation.isPending}
+            onPress={confirmFinishWorkout}
+          />
+        </View>
+      </View>
+    ) : null}
     </FadeIn>
   );
 }
@@ -733,6 +744,11 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: spacing[16],
+    // Story 36: clears the sticky session action bar below, which floats
+    // over this scroll content — sized to roughly its own rendered height
+    // (two 44px buttons + padding) rather than a rounder, less-motivated
+    // number.
+    paddingBottom: spacing[16] + 44 + spacing[16] * 2,
     gap: spacing[16],
   },
   headerRow: {
@@ -827,9 +843,17 @@ const styles = StyleSheet.create({
     fontSize: typeScale.sectionTitle.fontSize,
     fontWeight: '600',
   },
-  addSetRow: {
+  sessionActionBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
     flexDirection: 'row',
-    alignItems: 'center',
     gap: spacing[8],
+    padding: spacing[16],
+    borderTopWidth: 1,
+  },
+  sessionActionBarButton: {
+    flex: 1,
   },
 });

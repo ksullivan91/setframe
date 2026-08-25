@@ -55,18 +55,40 @@ interface ExerciseRemovalCandidate {
   loggedSetCount: number;
 }
 
+/**
+ * Story 36: no shared height token exists for AppShell's bottom nav (it's
+ * sized by its own intrinsic content, not a fixed value) — this
+ * approximates its rendered height on mobile, already relied on by
+ * `Page`'s own padding-bottom below. Reused for `SessionActionBar` so the
+ * new sticky action bar sits directly above the nav, and by `Page` again
+ * so scrolled content clears both. Safe-area is handled separately via
+ * `env()`, so this deliberately excludes it.
+ */
+const BOTTOM_NAV_HEIGHT_PX = 72;
+/** Approximate rendered height of `SessionActionBar` on mobile (padding +
+ * one row of 44px buttons) — `Page` needs this on top of the nav height
+ * above so the last exercise card can scroll fully clear of both. */
+const SESSION_ACTION_BAR_HEIGHT_PX = 68;
+
 const Page = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${spacing[16]}px;
-  padding-bottom: calc(${spacing[24]}px + 72px + env(safe-area-inset-bottom));
+  padding-bottom: calc(
+    ${spacing[24]}px + ${BOTTOM_NAV_HEIGHT_PX}px + ${SESSION_ACTION_BAR_HEIGHT_PX}px + env(safe-area-inset-bottom)
+  );
+
+  ${mq.tablet} {
+    /* AppShell's nav is the static side sidebar from here up — no bottom
+       bar left to clear, and SessionActionBar switches to sticky-in-flow. */
+    padding-bottom: ${spacing[24]}px;
+  }
 
   ${mq.desktop} {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
     align-items: start;
     gap: ${spacing[24]}px;
-    padding-bottom: ${spacing[24]}px;
   }
 `;
 
@@ -101,6 +123,66 @@ const Actions = styled.div`
   gap: ${spacing[8]}px;
   align-items: center;
   justify-content: flex-end;
+`;
+
+/**
+ * Story 36: session-level actions (Add exercise / Finish workout) stay
+ * reachable during a long workout instead of requiring a scroll back to
+ * the header. Mobile: a compact bar fixed above AppShell's bottom nav.
+ * From `tablet` width up, AppShell's nav is the static side sidebar (no
+ * bottom bar left to clear), so this switches to a sticky-in-flow header
+ * row instead — same markup, same handlers, just a different container
+ * (per the story's "persistent reachability, not identical geometry").
+ */
+const SessionActionBar = styled.div`
+  position: fixed;
+  left: 0;
+  right: 0;
+  /* The nav's own height already grows by env(safe-area-inset-bottom) on
+     notched iPhones (AppShell.tsx's Sidebar), so this has to add that same
+     term back on top of BOTTOM_NAV_HEIGHT_PX's non-safe-area estimate —
+     without it, the bar sits low enough to overlap the top of the nav. */
+  bottom: calc(${BOTTOM_NAV_HEIGHT_PX}px + env(safe-area-inset-bottom));
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: ${spacing[8]}px;
+  /* No extra safe-area padding needed here, unlike the nav bar itself —
+     this bar sits above the nav (via the bottom offset above), not at
+     the true screen edge, so the nav already clears the home indicator. */
+  padding: ${spacing[8]}px ${spacing[16]}px;
+  background: ${(p) => p.theme.surface.raised};
+  border-top: 1px solid ${(p) => p.theme.border.subtle};
+  grid-column: 1 / -1;
+
+  ${mq.tablet} {
+    position: sticky;
+    top: ${spacing[16]}px;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    z-index: 5;
+    justify-content: flex-end;
+    padding: ${spacing[12]}px ${spacing[16]}px;
+    border: 1px solid ${(p) => p.theme.border.subtle};
+    border-radius: ${radius.small}px;
+  }
+`;
+
+const SessionActionBarButton = styled.div`
+  flex: 1;
+
+  ${mq.tablet} {
+    flex: initial;
+  }
+`;
+
+const FullWidthButton = styled(Button)`
+  width: 100%;
+
+  ${mq.tablet} {
+    width: auto;
+  }
 `;
 
 const SummaryCard = styled(Card)`
@@ -440,6 +522,7 @@ export function WorkoutSessionPage() {
   const [pendingRemoval, setPendingRemoval] = useState<RemovalCandidate | null>(null);
   const [pendingExerciseRemoval, setPendingExerciseRemoval] = useState<ExerciseRemovalCandidate | null>(null);
   const [addExerciseOpen, setAddExerciseOpen] = useState(false);
+  const [finishConfirmOpen, setFinishConfirmOpen] = useState(false);
   const lastMutationRef = useRef<(() => Promise<unknown>) | null>(null);
   const inlineStatus = useAsyncStatus();
 
@@ -565,6 +648,7 @@ export function WorkoutSessionPage() {
   const finishWorkoutMutation = useMutation({
     mutationFn: () => api.post(`/workout-sessions/${sessionId}/complete`),
     onSuccess: async () => {
+      setFinishConfirmOpen(false);
       await refreshSession();
       toast.show({ variant: 'success', message: 'Workout finished.' });
       navigate('/today');
@@ -647,18 +731,31 @@ export function WorkoutSessionPage() {
             status={inlineStatus.status}
             onRetry={lastMutationRef.current ? () => void inlineStatus.run(lastMutationRef.current!) : undefined}
           />
-          <Button variant="secondary" onClick={() => setAddExerciseOpen(true)} disabled={query.data.status === 'completed'}>
-            Add exercise
-          </Button>
-          <Button
-            onClick={() => finishWorkoutMutation.mutate()}
-            disabled={finishWorkoutMutation.isPending || query.data.status === 'completed'}
-            status={finishWorkoutMutation.isPending ? 'loading' : 'idle'}
-          >
-            Finish workout
-          </Button>
         </Actions>
       </Header>
+
+      {/* Story 36: session-level actions stay reachable throughout a long
+          workout instead of living only in the header above — see
+          SessionActionBar's own comment for the mobile/tablet split. They
+          disappear once the workout is completed (AC), matching the
+          Header's own title change above. */}
+      {query.data.status !== 'completed' ? (
+        <SessionActionBar aria-label="Workout session actions">
+          <SessionActionBarButton>
+            <FullWidthButton variant="secondary" onClick={() => setAddExerciseOpen(true)}>
+              Add exercise
+            </FullWidthButton>
+          </SessionActionBarButton>
+          <SessionActionBarButton>
+            <FullWidthButton
+              onClick={() => setFinishConfirmOpen(true)}
+              disabled={finishWorkoutMutation.isPending || finishConfirmOpen}
+            >
+              Finish workout
+            </FullWidthButton>
+          </SessionActionBarButton>
+        </SessionActionBar>
+      ) : null}
 
       <SummaryCard aria-label="Session summary">
         <SummaryTitle>Session summary</SummaryTitle>
@@ -960,6 +1057,29 @@ export function WorkoutSessionPage() {
             disabled={removeExerciseMutation.isPending}
           >
             Remove exercise
+          </Button>
+        </Actions>
+      </Modal>
+
+      {/* Story 36: Finish workout became persistently reachable, so a stray
+          tap must not end the session outright — this is a new
+          confirmation, since the button previously completed immediately. */}
+      <Modal
+        open={finishConfirmOpen}
+        onClose={() => setFinishConfirmOpen(false)}
+        title="Finish workout?"
+        description={`You logged ${orderedExercises.length} exercise${orderedExercises.length === 1 ? '' : 's'} and ${totalSetsLogged} set${totalSetsLogged === 1 ? '' : 's'}. You can review the workout after finishing.`}
+      >
+        <Actions>
+          <Button variant="secondary" onClick={() => setFinishConfirmOpen(false)}>
+            Keep training
+          </Button>
+          <Button
+            onClick={() => finishWorkoutMutation.mutate()}
+            disabled={finishWorkoutMutation.isPending}
+            status={finishWorkoutMutation.isPending ? 'loading' : 'idle'}
+          >
+            Finish workout
           </Button>
         </Actions>
       </Modal>
