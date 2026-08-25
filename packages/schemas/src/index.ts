@@ -3,3 +3,4 @@ export * from './program';
 export * from './workout';
 export * from './exercise';
 export * from './daily';
+export * from './additional-activity';
