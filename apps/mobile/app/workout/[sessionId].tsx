@@ -284,9 +284,18 @@ export default function WorkoutSessionScreen() {
     ]);
   };
 
+  /* Every write below reports its own failure.
+   *
+   * These mutations previously had no `onError` at all, so a request that
+   * failed — the ordinary case on gym wifi — was pixel-identical to one
+   * that succeeded. The most costly was `saveSetMutation`: a user logs a
+   * set, sees no change because the screen already shows what they typed,
+   * and moves on. The set is gone and nothing ever said so. Web has
+   * carried these toasts since Story 08; mobile never did. */
   const deleteSetMutation = useMutation({
     mutationFn: (setId: string) => api.del(`/workout-sets/${setId}`),
     onSuccess: refreshSession,
+    onError: () => setToast({ variant: 'error', message: 'Could not remove that set.' }),
   });
 
   const addSetMutation = useMutation({
@@ -309,6 +318,7 @@ export default function WorkoutSessionScreen() {
       // it (and every other set) on the next unrelated Apply click.
       setHeaderTouchedKeys((prev) => ({ ...prev, [variables.exerciseLogId]: [] }));
     },
+    onError: () => setToast({ variant: 'error', message: 'Could not add that set.' }),
   });
 
   const saveSetMutation = useMutation({
@@ -326,6 +336,15 @@ export default function WorkoutSessionScreen() {
       definition: PrescriptionDefinition;
     }) => api.patch<WorkoutSet>(`/workout-sets/${setId}`, buildSetPatch(set, draft, visible, definition)),
     onSuccess: refreshSession,
+    /* The most important one on the screen: the inputs still show what the
+       user typed after a failed save, so without this the set looks logged
+       when it is not. Names the set so a user mid-workout knows which one
+       to re-enter. */
+    onError: (_err, variables) =>
+      setToast({
+        variant: 'error',
+        message: `Set ${variables.set.sortOrder + 1} did not save. Check your connection and save it again.`,
+      }),
   });
 
   /* The session carries its own prescription snapshot, because an exercise
@@ -337,11 +356,15 @@ export default function WorkoutSessionScreen() {
       setShowAddExercise(false);
       await refreshSession();
     },
+    /* Deliberately leaves the picker open on failure, matching web: closing
+       it would discard the prescription the user just configured. */
+    onError: () => setToast({ variant: 'error', message: 'Could not add that exercise.' }),
   });
 
   const createExerciseMutation = useMutation({
     mutationFn: (name: string) => api.post<Exercise>('/exercises', { name }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['exercises'] }),
+    onError: () => setToast({ variant: 'error', message: 'Could not create that exercise.' }),
   });
 
   /* Story 34: removal is session-scoped, so it flips the existing `skipped`
@@ -397,6 +420,11 @@ export default function WorkoutSessionScreen() {
       await refreshSession();
       router.replace({ pathname: '/session-summary', params: { sessionId: resolvedSessionId! } });
     },
+    /* A silent failure here left the session `in_progress` indefinitely
+       while the user believed they had finished — and Today would keep
+       offering to resume a workout they considered done. */
+    onError: () =>
+      setToast({ variant: 'error', message: 'Could not finish your workout. Check your connection and try again.' }),
   });
 
   const visibleExercises = useMemo(

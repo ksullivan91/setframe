@@ -666,3 +666,43 @@ describe('WorkoutSessionScreen single-active-exercise accordion', () => {
     expect(pressablesByLabel(rendered, 'Expand Indoor Cycle')).toHaveLength(1);
   });
 });
+
+/**
+ * Six of this screen's mutations had no `onError` at all, so a request
+ * that failed — the ordinary case on gym wifi — was pixel-identical to
+ * one that succeeded. Saving a set is the costly one: the inputs still
+ * show what the user typed afterwards, so the set looks logged when it
+ * is not.
+ */
+describe('WorkoutSessionScreen write failures', () => {
+  it('tells the user when a set fails to save', async () => {
+    mockSessionPayload = baseSession({ sets: [baseSet()] });
+    mockPatch.mockImplementationOnce(() => Promise.reject(new Error('offline')));
+    const rendered = await renderScreen();
+
+    await act(async () => {
+      pressableForText(rendered, 'Save')?.props.onPress();
+    });
+    await flush(40);
+
+    expect(textNodesContaining(rendered, 'did not save').length).toBeGreaterThan(0);
+  });
+
+  it('tells the user when finishing the workout fails', async () => {
+    mockSessionPayload = baseSession({ sets: [baseSet()] });
+    mockPost.mockImplementationOnce(() => Promise.reject(new Error('offline')));
+    // Story 36 put Finish behind a confirmation, so the mutation fires from
+    // the Alert's own button rather than the sticky one.
+    jest.spyOn(Alert, 'alert').mockImplementation((_title, _msg, buttons) => {
+      buttons?.find((b) => b.text === 'Finish workout')?.onPress?.();
+    });
+    const rendered = await renderScreen();
+
+    await act(async () => {
+      pressableForText(rendered, 'Finish')?.props.onPress();
+    });
+    await flush(40);
+
+    expect(textNodesContaining(rendered, 'Could not finish your workout').length).toBeGreaterThan(0);
+  });
+});
