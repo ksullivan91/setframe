@@ -299,6 +299,51 @@ describe('ProgramEditorScreen editing', () => {
     expect(rendered.root.findAll((node) => typeof node.props?.onChangeText === 'function')).toHaveLength(0);
   });
 
+  /**
+   * The created workout has to actually show up. `onSuccess` used to
+   * invalidate ['day-types'], but this screen's list is keyed
+   * ['program-day-types', programId] — so the invalidation matched no
+   * query and the new row appeared only after a remount. Asserting the
+   * POST fired is not enough to catch that; assert the refetch.
+   */
+  it('refetches the program’s workout list after creating one', async () => {
+    // Deliberately not "Upper A" — the empty-state copy names that as an
+    // example, which would make the pre-create assertion below vacuous.
+    const created = { id: 'day-9', userId: 'user-1', name: 'Zercher Day', description: null, estimatedDurationMinutes: null, createdAt: '', updatedAt: '' };
+    let listed: unknown[] = [];
+    mockGet = (path: string) => {
+      if (path === '/programs') return Promise.resolve([baseProgram]);
+      if (path === '/programs/program-1/day-types') return Promise.resolve(listed);
+      if (path === '/day-types/day-9') return Promise.resolve({ ...created, exercises: [] });
+      return Promise.resolve([]);
+    };
+    mockPost.mockImplementation((path: string) => {
+      if (path === '/day-types') {
+        listed = [created];
+        return Promise.resolve(created);
+      }
+      return Promise.resolve({});
+    });
+
+    const rendered = await renderScreen();
+    // Target the list *row* by its accessibility label, not any text node:
+    // the success toast also says "Zercher Day added.", so a text search
+    // passes even when the list never refetches.
+    expect(pressablesByLabel(rendered, 'Zercher Day')).toHaveLength(0);
+
+    await openCreateForm(rendered);
+    const input = rendered.root.findAll((node) => typeof node.props?.onChangeText === 'function')[0]!;
+    await act(async () => {
+      input.props.onChangeText('Zercher Day');
+    });
+    await act(async () => {
+      pressablesByText(rendered, 'Create')[0]!.props.onPress();
+    });
+    await flush();
+
+    expect(pressablesByLabel(rendered, 'Zercher Day').length).toBeGreaterThan(0);
+  });
+
   it('refuses to create a workout with no name, without calling the API', async () => {
     mockGet = getFor([baseProgram]);
     const rendered = await renderScreen();
@@ -339,8 +384,9 @@ describe('ProgramEditorScreen tabs', () => {
     mockGet = getFor([baseProgram]);
     const rendered = await renderScreen();
 
-    // Workouts is live; the other two panels are not mounted.
-    expect(textNodesContaining(rendered, 'Workouts').length).toBeGreaterThan(0);
+    // Assert on panel-only copy: "Workouts" is also the tab's own label,
+    // which `Tabs` renders whether or not that panel is mounted.
+    expect(textNodesContaining(rendered, 'No workouts yet').length).toBeGreaterThan(0);
     expect(textNodesContaining(rendered, 'Your programs').length).toBe(0);
     expect(textNodesContaining(rendered, 'Program schedule').length).toBe(0);
   });

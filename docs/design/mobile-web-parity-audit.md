@@ -76,9 +76,17 @@ bar and the home indicator. Adding the inset again produced roughly 50pt
 of dead space. The hook is named `useStackBottomPadding` to make the
 applicable case explicit.
 
-**Not covered:** `(tabs)/training.tsx` and `app/workout/[sessionId].tsx`
-were owned by a concurrent worktree. Training was confirmed to have the
-same defect and should adopt the same hook.
+**Not covered at the time:** `(tabs)/training.tsx` and
+`app/workout/[sessionId].tsx` were owned by a concurrent worktree.
+Training was confirmed to have the same defect and should adopt the same
+hook. Training has since adopted `useScreenTopPadding` as part of its
+rebuild (top only — it is a tab screen). `app/workout/[sessionId].tsx`
+is still outstanding.
+
+Training's three early-return states (loading, error, no-program) do not
+take the padding: they are `flex: 1` + `justifyContent: 'center'`, so
+their content is centred in the viewport and never reaches the island.
+The hook belongs on top-aligned scroll content, not on every screen root.
 
 ### 2. Settings restructured to match web — fixed
 
@@ -166,9 +174,18 @@ specific question but is not a substitute for looking at them.
 
 ## Recommended follow-ups
 
-1. Apply `useScreenTopPadding` to `(tabs)/training.tsx` once the
-   concurrent rebuild lands — same defect, different owner.
+1. ~~Apply `useScreenTopPadding` to `(tabs)/training.tsx` once the
+   concurrent rebuild lands~~ — done as part of that rebuild. The workout
+   logger (`app/workout/[sessionId].tsx`) is a Stack route, not a tab
+   screen, so it is the one place `useStackBottomPadding` may also apply.
 2. Reach the four unverified screens. Either grant Accessibility
    permission for tap automation, or add a debug-only initial-route
-   override so any screen can be launched directly.
+   override so any screen can be launched directly. **Strongly
+   recommended** — the Training rebuild independently lost significant
+   time to exactly this and still could not capture the screen it
+   changed. Every workaround fails: `simctl` has no tap primitive,
+   `osascript` needs Accessibility, deep links raise an undismissable
+   "Open in …?" dialog, and `initialRouteName` / entry-route redirects
+   are all overridden by expo-router's restored navigation state. A
+   debug-only override is the only reliable fix.
 3. Consider adopting Progress's subtitle on web.

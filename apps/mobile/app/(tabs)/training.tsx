@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight } from 'lucide-react-native';
 import type { DayType, DayTypeExercise, Exercise, Prescription, ProgramScheduleSlot, TrainingProgram } from '@setframe/schemas';
+import { useScreenTopPadding } from '../../src/lib/useScreenInsets';
 import { Card } from '../../src/components/Card';
 import { Badge } from '../../src/components/Badge';
 import { Tabs } from '../../src/components/Tabs';
@@ -48,6 +49,9 @@ export default function ProgramEditorScreen() {
   /* Story 07: a tab left mounted across midnight must not keep querying
      yesterday — useLocalDate re-renders on the rollover. */
   const localDate = useLocalDate();
+  /* Tab screens take top padding only — `BottomTabBar` already applies
+     the bottom inset itself. See `useScreenInsets.ts`. */
+  const topPadding = useScreenTopPadding();
   /* Mirrors web's Training tabs exactly, including its default of
      'workouts' — the thing a returning user most often came to change. */
   const [activeTab, setActiveTab] = useState<'programs' | 'workouts' | 'schedule'>('workouts');
@@ -91,11 +95,6 @@ export default function ProgramEditorScreen() {
     () => programsQuery.data?.find((program) => program.isActive) ?? programsQuery.data?.[0] ?? null,
     [programsQuery.data],
   );
-  // Distinct from `activeProgram`'s fallback-to-first behavior above (kept
-  // so there's always something to view/select) — this is specifically
-  // "does any program actually have isActive: true", so the switcher below
-  // can surface a single non-active program too, not just >1 programs.
-  const hasActiveProgram = programsQuery.data?.some((program) => program.isActive) ?? false;
   const selectedProgram = useMemo(
     () => programsQuery.data?.find((program) => program.id === selectedProgramId) ?? activeProgram,
     [programsQuery.data, selectedProgramId, activeProgram],
@@ -161,7 +160,11 @@ export default function ProgramEditorScreen() {
     mutationFn: (name: string) =>
       api.post<DayType>('/day-types', { name, programId: selectedProgram?.id }),
     onSuccess: async (created) => {
-      await queryClient.invalidateQueries({ queryKey: ['day-types'] });
+      // The list this screen renders is keyed ['program-day-types', id] —
+      // invalidating ['day-types'] matched no query at all, so a created
+      // workout never appeared until the screen remounted. Prefix-matches
+      // every program, which is what we want after a create.
+      await queryClient.invalidateQueries({ queryKey: ['program-day-types'] });
       setSelectedDayTypeId(created.id);
       setNewWorkoutName('');
       // Dismiss the form too, not just its contents — leaving an empty
@@ -316,8 +319,27 @@ export default function ProgramEditorScreen() {
     );
   }
 
+  /* Ports web's `programContextLabel`. With the header no longer naming
+     the program, the Workouts and Schedule tabs would otherwise give no
+     clue which program their mutations land on — and "View" deliberately
+     selects a program without activating it (Story 24), so that can be a
+     program Today does not follow. Web shows the name; mobile also flags
+     the not-active case, which is the state that actually misleads. */
+  const programContext =
+    (programsQuery.data?.length ?? 0) > 1 && selectedProgram ? (
+      <View style={styles.contextLabel}>
+        <Text style={[styles.helpText, { color: theme.text.secondary }]} numberOfLines={2}>
+          Editing <Text style={{ fontWeight: '600' }}>{selectedProgram.name}</Text>
+        </Text>
+        {selectedProgram.isActive ? null : <Badge label="Not active" tone="neutral" />}
+      </View>
+    ) : null;
+
   return (
-    <ScrollView style={{ backgroundColor: theme.surface.canvas }} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={{ backgroundColor: theme.surface.canvas }}
+      contentContainerStyle={[styles.content, { paddingTop: topPadding }]}
+    >
       {/* Web's header is the static word "Training" with a one-line
           description — not the program name. Mobile used the program name
           at page-title size, so "3 lower 2 upper strength split" wrapped
@@ -408,6 +430,7 @@ export default function ProgramEditorScreen() {
       {activeTab === 'workouts' ? (
         <Card>
           <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Workouts</Text>
+          {programContext}
           {programWorkouts.length === 0 ? (
             <Text style={[styles.helpText, { color: theme.text.secondary }]}>
               No workouts yet. Create reusable training days like &quot;Upper A&quot; or &quot;Recovery&quot;.
@@ -480,6 +503,7 @@ export default function ProgramEditorScreen() {
       {activeTab === 'schedule' ? (
         <Card>
           <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Program schedule</Text>
+          {programContext}
           <WeekScheduleEditor
           workouts={programWorkouts.map((workout) => ({ id: workout.id, name: workout.name }))}
           assignmentsByDay={assignmentsByDay}
@@ -487,7 +511,8 @@ export default function ProgramEditorScreen() {
           onSelectWorkout={setHeldWorkoutId}
           isLoading={scheduleSlotsQuery.isLoading}
           pendingDayIndex={pendingDayIndex}
-          emptyMessage="Add a workout above before scheduling your week."
+          // Not "above" any more — the workout list is a different tab now.
+          emptyMessage="Add a workout in the Workouts tab before scheduling your week."
           errorMessage={scheduleSlotsQuery.isError ? "Couldn't load your schedule." : null}
           onRetry={() => scheduleSlotsQuery.refetch()}
           onAssignDay={(dayIndex, dayTypeId) => {
@@ -637,6 +662,11 @@ const styles = StyleSheet.create({
   /* Supporting copy under a section heading — web's `Small`. */
   helpText: {
     fontSize: typeScale.compactBody.fontSize,
+  },
+  contextLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[8],
   },
   createForm: {
     gap: spacing[8],
