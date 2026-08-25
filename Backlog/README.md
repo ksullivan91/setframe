@@ -9,12 +9,12 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
-- `setframe-progress-experience-rebuild/` — stories 46–51, the Progress
-  page rebuilt as a core product experience rather than static reporting.
+- `setframe-progress-experience-rebuild/` — stories 46, 48–51 remain (47
+  shipped), the Progress page rebuilt as a core product experience rather
+  than static reporting.
   46: re-anchor contextual help to its trigger (the current mobile path
   centers a card in the viewport, decoupled from the `?` that opened it).
-  47: charting-technology spike + shared visualization architecture,
-  delivering an ADR and a recommendation. 48: a universal time-range and
+  48: a universal time-range and
   interaction model with *real* per-range aggregation (today's
   `filterByRange` only trims a trailing window — every range renders the
   same bucket size). 49: Body Weight rebuilt as the reference-quality
@@ -122,6 +122,15 @@ alongside their stories, named `README-{range}-{review}.md`.
 - `completed/43-quick-activity-shortcuts.md` — story 43, saved presets
   (new `additional_activity_preset` table) plus recency-deduped
   suggestions, tap-to-prefill only — never auto-logs.
+- `completed/47-charting-technology-spike.md` — story 47, the charting
+  decision spike. Outcome: **keep the hand-rolled SVG architecture and
+  extend it** (ADR 0008). Scrub — the capability that looked like it
+  justified a rewrite — was demonstrated over the existing shared geometry
+  with zero new dependencies, while the remaining gaps (per-range
+  aggregation, calendar-week semantics) are domain problems no vendor
+  would fix. Victory Native XL forfeits web/mobile parity by construction;
+  both alternatives regress accessibility from today's baseline. Evidence
+  and prototypes in `docs/spikes/047-charting/`.
 - `completed/README-40-45-additional-activity-feature-review.md` — the
   original pack README for stories 40–45, archived once 40, 41, 42, 43,
   and 45 shipped (44 was deferred — see
