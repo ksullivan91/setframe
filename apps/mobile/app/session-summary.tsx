@@ -85,12 +85,11 @@ export default function SessionSummaryScreen() {
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['mobile-session-summary', sessionId] }),
-        // Training's tab screen can stay mounted with this same session's id
-        // cached under its own key (it invalidates both on every set
-        // mutation it makes itself, for the same reason) — without this, an
-        // edit made here wouldn't show up if the user switches back there.
+        // The logger route can stay mounted with this same session's id
+        // cached under its own key (it invalidates the same pair on every
+        // set mutation it makes itself, for the same reason) — without
+        // this, an edit made here wouldn't show up if the user goes back.
         queryClient.invalidateQueries({ queryKey: ['mobile-workout-session', sessionId] }),
-        queryClient.invalidateQueries({ queryKey: ['dashboard-today-mobile-workout'] }),
         queryClient.invalidateQueries({ queryKey: ['today'] }),
         queryClient.invalidateQueries({ queryKey: ['exercise-history'] }),
         queryClient.invalidateQueries({ queryKey: ['exercise-progress'] }),

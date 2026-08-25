@@ -329,18 +329,14 @@ export default function TodayScreen() {
         timezone: localTimezone(),
       });
     },
-    onSuccess: async (session) => {
+    onSuccess: (session) => {
       /* Hand the logger the session id explicitly rather than letting it
-         re-derive one. Today and the logger read *different* cache keys
-         (`['today', localDate]` vs `['dashboard-today-mobile-workout']`),
-         so the logger's copy is stale at this moment and cannot see the
-         session that was just created. That staleness is what the logger's
-         old auto-create effect was silently papering over: it could not
-         find the new session, so it made another one — the duplicate-session
-         bug. Passing the id removes the guesswork entirely; the invalidate
-         keeps the logger's own view of today honest for everything else. */
-      await queryClient.invalidateQueries({ queryKey: ['dashboard-today-mobile-workout'] });
-      router.push({ pathname: '/(tabs)/training', params: { sessionId: session.id } });
+         re-derive one. A session-scoped screen working out its own subject
+         is what produced both the duplicate-session bug (it guessed wrong
+         and created another) and the dead-end that followed (it guessed
+         nothing and showed an empty state). The logger now requires this
+         id and cannot create a session at all. */
+      router.push({ pathname: '/workout/[sessionId]', params: { sessionId: session.id } });
     },
   });
 
@@ -623,7 +619,7 @@ export default function TodayScreen() {
                 hasNoProgram ? (
                   <Button label="Start guided setup" onPress={() => router.push('/program-wizard')} />
                 ) : (
-                  <Button label="Choose a program" onPress={() => router.push('/program-editor')} />
+                  <Button label="Choose a program" onPress={() => router.push('/(tabs)/training')} />
                 )
               ) : null}
               {todayWorkoutState === 'in-progress' ? <Button label="Resume workout" loading={startWorkoutMutation.isPending} onPress={() => startWorkoutMutation.mutate()} /> : null}
@@ -646,7 +642,7 @@ export default function TodayScreen() {
             {todayWorkoutState === 'scheduled' ? (
               <View style={styles.ctaStack}>
                 <Button label="Start workout" loading={startWorkoutMutation.isPending} onPress={() => startWorkoutMutation.mutate()} />
-                <Button label="Preview program" variant="secondary" onPress={() => router.push('/program-editor')} />
+                <Button label="Preview program" variant="secondary" onPress={() => router.push('/(tabs)/training')} />
                 <View style={[styles.restSection, { borderTopColor: theme.border.subtle }]}>
                   <Text style={[styles.restSectionTitle, { color: theme.text.primary }]}>Need a day off?</Text>
                   <Text style={[styles.restSectionBody, { color: theme.text.secondary }]}>
@@ -664,7 +660,7 @@ export default function TodayScreen() {
             ) : null}
             {todayWorkoutState === 'unscheduled' ? (
               <View style={styles.ctaStack}>
-                <Button label="Choose workout" testID="choose-workout" onPress={() => router.push('/program-editor')} />
+                <Button label="Choose workout" testID="choose-workout" onPress={() => router.push('/(tabs)/training')} />
                 <View style={[styles.restSection, { borderTopColor: theme.border.subtle }]}>
                   <Text style={[styles.restSectionTitle, { color: theme.text.primary }]}>Need a day off?</Text>
                   <Text style={[styles.restSectionBody, { color: theme.text.secondary }]}>
