@@ -68,8 +68,13 @@ this is not a blanket change:
   content vertically (`flex: 1, justifyContent: 'center'`), so they
   never reach the notch.
 
-Bottom padding was added alongside, because the tab bar floats over
-content and the home indicator sits below it.
+Bottom padding applies **only** to `program-wizard`. A first pass added
+it to the tab screens too, which was wrong and caught in review:
+`BottomTabBar` already applies `paddingBottom: insets.bottom` itself and
+is not absolutely positioned, so tab content already ends above both the
+bar and the home indicator. Adding the inset again produced roughly 50pt
+of dead space. The hook is named `useStackBottomPadding` to make the
+applicable case explicit.
 
 **Not covered:** `(tabs)/training.tsx` and `app/workout/[sessionId].tsx`
 were owned by a concurrent worktree. Training was confirmed to have the
