@@ -1,878 +1,509 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, ScrollView, View, Text, Pressable, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, ChevronUp, GripVertical, MoreVertical } from 'lucide-react-native';
-import { calculateVolume, estimateOneRepMax, isExerciseComplete, quickEntryFields, visibleSessionExercises } from '@setframe/domain';
-import type {
-  Exercise,
-  Prescription,
-  WorkoutSession,
-  WorkoutSessionDetail,
-  WorkoutSet,
-  WorkoutSetPreviousPerformance,
-} from '@setframe/schemas';
-
-/** The performance fields shared by a logged set and a previous-session set. */
-type WorkoutSetLike = Pick<
-  WorkoutSetPreviousPerformance,
-  'weightValue' | 'weightUnit' | 'reps' | 'durationSeconds' | 'distanceValue' | 'distanceUnit' | 'rpe'
->;
+import { ChevronRight } from 'lucide-react-native';
+import type { DayType, DayTypeExercise, Exercise, Prescription, ProgramScheduleSlot, TrainingProgram } from '@setframe/schemas';
 import { Card } from '../../src/components/Card';
 import { Badge } from '../../src/components/Badge';
 import { Button } from '../../src/components/Button';
 import { Input } from '../../src/components/Input';
-import { Select } from '../../src/components/Select';
-import { SetRowEditable, distanceUnitOptions } from '../../src/components/SetRow';
-import { IconButton } from '../../src/components/IconButton';
-import { AddExercisePicker } from '../../src/components/AddExercisePicker';
-import { FadeIn, Skeleton, SkeletonStack } from '../../src/components/Skeleton';
 import { Toast } from '../../src/components/Toast';
+import { WeekScheduleEditor } from '../../src/components/WeekScheduleEditor';
+import { AddExercisePicker } from '../../src/components/AddExercisePicker';
+import { ExerciseEditSheet, type ExerciseEditState } from '../../src/components/ExerciseEditSheet';
 import { useApiClient } from '../../src/lib/api-client';
-import {
-  countsTowardVolume,
-  formatSessionSet,
-  getPrescriptionDefinition,
-  getSessionFieldLabel,
-  isSessionSetLogged,
-  resolveSessionFields,
-  summarizePrescription,
-  validateSessionSet,
-  type PrescriptionDefinition,
-  type SessionField,
-} from '../../src/lib/prescription';
+import { useLocalDate } from '../../src/lib/useLocalDate';
+import { summarizePrescription } from '../../src/lib/prescription';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { spacing, typeScale } from '../../src/theme/getTheme';
 
-interface DashboardSessionSummary {
-  id: string;
-  status: 'in_progress' | 'completed' | 'abandoned';
+interface DayTypeDetail extends DayType {
+  exercises: DayTypeExercise[];
 }
 
-interface DashboardTodayResponse {
-  localDate: string;
-  sessions: DashboardSessionSummary[];
-  dayLabel: string | null;
-  dayTypeId: string | null;
-}
-
-interface ExerciseHistoryItem {
-  sessionId: string;
-  weightValue: number | null;
-  reps: number | null;
-}
-
-interface ExerciseHistoryResponse {
-  items: ExerciseHistoryItem[];
-  nextCursor: string | null;
-}
-
-/** Draft values keyed by the shared `SessionField` identifiers, so the same
- *  prescription definition drives mobile and web identically. */
-interface SetDraft {
-  values: Partial<Record<SessionField, string>>;
-  distanceUnit: string;
-  completed: boolean;
-}
-
-function localDateString() {
-  const now = new Date();
-  const month = `${now.getMonth() + 1}`.padStart(2, '0');
-  const day = `${now.getDate()}`.padStart(2, '0');
-  return `${now.getFullYear()}-${month}-${day}`;
-}
-
-function localTimezone() {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone;
-}
-
-function formatElapsed(startedAt: string | null | undefined, completedAt?: string | null): string {
-  if (!startedAt) return '—';
-  const start = new Date(startedAt).getTime();
-  const end = completedAt ? new Date(completedAt).getTime() : Date.now();
-  const totalSeconds = Math.max(0, Math.round((end - start) / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  const hours = Math.floor(minutes / 60);
-  if (hours > 0) return `${hours}:${`${minutes % 60}`.padStart(2, '0')}:${`${seconds}`.padStart(2, '0')}`;
-  return `${minutes}:${`${seconds}`.padStart(2, '0')}`;
-}
-
-function parseNumber(value: string) {
-  if (!value.trim()) return undefined;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-/* Duration is persisted in seconds; continuous efforts read far better in
-   minutes, so the draft holds the displayed unit and converts either way. */
-function secondsToDisplay(seconds: number | null | undefined, definition: PrescriptionDefinition): string {
-  if (seconds == null) return '';
-  if (definition.units.duration !== 'minutes') return `${seconds}`;
-  const minutes = seconds / 60;
-  return `${Number.isInteger(minutes) ? minutes : Number(minutes.toFixed(2))}`;
-}
-
-function displayToSeconds(value: string | undefined, definition: PrescriptionDefinition): number | undefined {
-  const parsed = parseNumber(value ?? '');
-  if (parsed == null) return undefined;
-  return definition.units.duration === 'minutes' ? Math.round(parsed * 60) : parsed;
-}
-
-function buildDraft(set: WorkoutSet, definition: PrescriptionDefinition, prescription: Prescription | null): SetDraft {
-  return {
-    values: {
-      setType: set.setType,
-      weight: set.weightValue?.toString() ?? '',
-      reps: set.reps?.toString() ?? '',
-      duration: secondsToDisplay(set.durationSeconds, definition),
-      distance: set.distanceValue?.toString() ?? '',
-      rpe: set.rpe?.toString() ?? '',
-    },
-    distanceUnit: set.distanceUnit ?? definition.units.distance,
-    completed: isSessionSetLogged(prescription, set),
-  };
-}
+const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /**
- * Story 37: the quick-entry header's starting point. The first set already
- * carries the template's prefill (session-start expands the prescription
- * onto every set — weight left blank, everything else pre-populated), so
- * reusing it here means the header never has to re-derive prescription
- * defaults on its own. An exercise with no sets yet just starts blank.
+ * The Training tab: where a program is built — programs, workouts,
+ * exercises and the weekly schedule.
+ *
+ * This tab used to hold the active workout *logger*, which was wrong in
+ * both directions: there was no way to build a program on mobile at all
+ * (this screen existed only as a buried, read-only preview telling the
+ * user to go use the web app), and a session-scoped screen sitting in a
+ * tab had to invent a session to have something to render — which
+ * created duplicate workouts and destroyed rest days. The logger now
+ * lives at `app/workout/[sessionId].tsx`, reached with an explicit id.
+ *
+ * Training's only remaining relationship to a session is the resume
+ * banner below: a way back, never a way to start or log one.
  */
-function getHeaderDraft(exerciseLog: WorkoutSessionDetail['exercises'][number], definition: PrescriptionDefinition): SetDraft {
-  const firstSet = exerciseLog.sets[0];
-  return firstSet
-    ? buildDraft(firstSet, definition, exerciseLog.prescription)
-    : { values: { setType: 'working' }, distanceUnit: definition.units.distance, completed: false };
-}
-
-function draftToValues(draft: SetDraft, definition: PrescriptionDefinition) {
-  return {
-    setType: draft.values.setType ?? 'working',
-    weightValue: parseNumber(draft.values.weight ?? '') ?? null,
-    reps: parseNumber(draft.values.reps ?? '') ?? null,
-    durationSeconds: displayToSeconds(draft.values.duration, definition) ?? null,
-    distanceValue: parseNumber(draft.values.distance ?? '') ?? null,
-    rpe: parseNumber(draft.values.rpe ?? '') ?? null,
-  };
-}
-
-/* Only visible fields are submitted. A hidden field is omitted from the patch
-   entirely rather than sent as null, so nothing the user cannot see is
-   silently wiped. */
-function buildSetPatch(set: WorkoutSet, draft: SetDraft, visible: SessionField[], definition: PrescriptionDefinition) {
-  const patch: Record<string, unknown> = {};
-  if (visible.includes('setType')) patch.setType = draft.values.setType ?? set.setType;
-  if (visible.includes('weight')) {
-    const weightValue = parseNumber(draft.values.weight ?? '');
-    patch.weightValue = weightValue;
-    patch.weightUnit = weightValue != null ? set.weightUnit ?? 'lb' : undefined;
-  }
-  if (visible.includes('reps')) patch.reps = parseNumber(draft.values.reps ?? '');
-  if (visible.includes('duration')) patch.durationSeconds = displayToSeconds(draft.values.duration, definition);
-  if (visible.includes('distance')) {
-    const distanceValue = parseNumber(draft.values.distance ?? '');
-    patch.distanceValue = distanceValue;
-    patch.distanceUnit = distanceValue != null ? draft.distanceUnit : undefined;
-  }
-  if (visible.includes('rpe')) patch.rpe = parseNumber(draft.values.rpe ?? '');
-  patch.completed = draft.completed;
-  return patch;
-}
-
-function getPreviousLabels(
-  set: WorkoutSetLike | undefined,
-  definition: PrescriptionDefinition,
-): Partial<Record<SessionField, string>> {
-  if (!set) return {};
-  return {
-    weight: set.weightValue != null ? `${set.weightValue}` : undefined,
-    reps: set.reps != null ? `${set.reps}` : undefined,
-    duration: set.durationSeconds != null ? secondsToDisplay(set.durationSeconds, definition) : undefined,
-    distance: set.distanceValue != null ? `${set.distanceValue}` : undefined,
-    rpe: set.rpe != null ? `${set.rpe}` : undefined,
-  };
-}
-
-function createClientId() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
-    const random = Math.floor(Math.random() * 16);
-    const value = char === 'x' ? random : (random & 0x3) | 0x8;
-    return value.toString(16);
-  });
-}
-
-export default function TrainingScreen() {
+export default function ProgramEditorScreen() {
   const theme = useTheme();
   const router = useRouter();
   const api = useApiClient();
   const queryClient = useQueryClient();
-  const { sessionId: rawSessionId } = useLocalSearchParams<{ sessionId?: string | string[] }>();
-  const routeSessionId = Array.isArray(rawSessionId) ? rawSessionId[0] : rawSessionId;
-  const [elapsedLabel, setElapsedLabel] = useState('—');
+  /* Story 07: a tab left mounted across midnight must not keep querying
+     yesterday — useLocalDate re-renders on the rollover. */
+  const localDate = useLocalDate();
+  const [selectedDayTypeId, setSelectedDayTypeId] = useState<string | null>(null);
+  const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ variant: 'success' | 'error'; message: string } | null>(null);
+  const [newWorkoutName, setNewWorkoutName] = useState('');
   const [showAddExercise, setShowAddExercise] = useState(false);
-  const [drafts, setDrafts] = useState<Record<string, SetDraft>>({});
-  // Story 37: a separate, exercise-level draft for the quick-entry header —
-  // distinct from any one set's own draft, since it's a value to apply,
-  // not a value that's itself logged.
-  const [headerDrafts, setHeaderDrafts] = useState<Record<string, SetDraft>>({});
-  // Story 37: which header keys the user has actually edited since the
-  // header was last reset — Apply to all sets must only ever patch these,
-  // not every quick-entry field, or changing just reps would silently
-  // blow away a sibling set's own distinct weight/duration/etc. `'unit'`
-  // is tracked separately from `'distance'` (the value) so touching only
-  // the unit dropdown doesn't also drag the distance value along — they're
-  // one field, but two independent draft keys. Cleared after a successful
-  // Apply and whenever a set is added, so a stale earlier edit can never
-  // silently reapply on a later, unrelated click.
-  const [headerTouchedKeys, setHeaderTouchedKeys] = useState<Record<string, ('unit' | SessionField)[]>>({});
-  // Story 39: single-active-exercise accordion — at most one exercise is
-  // expanded at a time. `null` means none are (every exercise manually
-  // collapsed, or nothing loaded yet); seeded to the first exercise once
-  // the session loads (see the effect below), not left "all expanded",
-  // since only one can be active from the very first render.
-  const [activeExerciseId, setActiveExerciseId] = useState<string | null>(null);
-  const hasSeededActiveExercise = useRef(false);
-  const [createdSessionId, setCreatedSessionId] = useState<string | undefined>();
-  const [toast, setToast] = useState<{
-    variant: 'success' | 'error';
-    message: string;
-    actionLabel?: string;
-    onAction?: () => void;
-  } | null>(null);
+  const [editingExercise, setEditingExercise] = useState<ExerciseEditState | null>(null);
+  /* Which day the schedule is mid-write on, so WeekScheduleEditor can show
+     an inline spinner on that row rather than blocking the whole grid. */
+  const [pendingDayIndex, setPendingDayIndex] = useState<number | null>(null);
+  /* The workout "held" for assignment — tapping a day assigns this one. */
+  const [heldWorkoutId, setHeldWorkoutId] = useState<string | null>(null);
 
+  const programsQuery = useQuery({
+    queryKey: ['programs'],
+    queryFn: () => api.get<TrainingProgram[]>('/programs'),
+  });
+
+  /* Training is where a program is built; it does not log workouts. Its only
+     relationship to an active session is offering a way back to one, so a
+     user who wandered here mid-workout is not stranded. Read-only — this
+     screen never starts, resumes or mutates a session. */
   const todayQuery = useQuery({
-    queryKey: ['dashboard-today-mobile-workout'],
-    queryFn: () => api.get<DashboardTodayResponse>(`/dashboard/today?localDate=${localDateString()}`),
-    enabled: !routeSessionId,
+    queryKey: ['today', localDate],
+    queryFn: () => api.get<{ sessions: { id: string; status: string }[] }>(
+      `/dashboard/today?localDate=${localDate}`,
+    ),
   });
+  /* `sessions` is optional-chained rather than assumed: a client can outrun
+     the API and receive an older payload shape, and a resume banner is not
+     worth taking the whole Training tab down for. Same reasoning as
+     `isProgressOverview` in packages/domain. */
+  const activeSessionId = todayQuery.data?.sessions?.find((s) => s.status === 'in_progress')?.id ?? null;
+  const activeProgram = useMemo(
+    () => programsQuery.data?.find((program) => program.isActive) ?? programsQuery.data?.[0] ?? null,
+    [programsQuery.data],
+  );
+  // Distinct from `activeProgram`'s fallback-to-first behavior above (kept
+  // so there's always something to view/select) — this is specifically
+  // "does any program actually have isActive: true", so the switcher below
+  // can surface a single non-active program too, not just >1 programs.
+  const hasActiveProgram = programsQuery.data?.some((program) => program.isActive) ?? false;
+  const selectedProgram = useMemo(
+    () => programsQuery.data?.find((program) => program.id === selectedProgramId) ?? activeProgram,
+    [programsQuery.data, selectedProgramId, activeProgram],
+  );
 
-  const resumeSessionMutation = useMutation({
-    mutationFn: async () => {
-      const active = todayQuery.data?.sessions.find((session) => session.status === 'in_progress');
-      if (active) return { id: active.id } as Pick<WorkoutSession, 'id'>;
-      return api.post<WorkoutSession>('/workout-sessions', {
-        templateId: todayQuery.data?.dayTypeId ?? undefined,
-        localDate: todayQuery.data?.localDate ?? localDateString(),
-        timezone: localTimezone(),
-      });
+  // Same fix as web (Story 24): viewing a non-active program must never
+  // implicitly activate it. This only ever picks a *default* selection —
+  // once on load, or if the previous selection stopped existing — and
+  // never overwrites a manual selection.
+  useEffect(() => {
+    if (!programsQuery.data) return;
+    const stillExists = programsQuery.data.some((program) => program.id === selectedProgramId);
+    if (!stillExists) setSelectedProgramId(activeProgram?.id ?? programsQuery.data[0]?.id ?? null);
+  }, [programsQuery.data, selectedProgramId, activeProgram]);
+
+  const activateMutation = useMutation({
+    mutationFn: (programId: string) => api.post<TrainingProgram>(`/programs/${programId}/activate`),
+    onSuccess: (activated) => {
+      queryClient.invalidateQueries({ queryKey: ['programs'] });
+      setToast({ variant: 'success', message: `${activated.name} is now your active program.` });
     },
-    // Persist the resolved id in local state (not just mutation.data) so a
-    // later mutation.reset() (e.g. from the error screen's Retry action)
-    // can't make resolvedSessionId fall back to undefined and re-trigger
-    // session creation, which would create a duplicate in-progress session.
-    onSuccess: (data) => setCreatedSessionId(data.id),
+    onError: () => setToast({ variant: 'error', message: 'Could not switch your active program.' }),
   });
 
-  const resolvedSessionId =
-    routeSessionId ??
-    todayQuery.data?.sessions.find((session) => session.status === 'in_progress')?.id ??
-    createdSessionId;
+  const scheduleSlotsQuery = useQuery({
+    queryKey: ['schedule-slots', selectedProgram?.id],
+    queryFn: () => api.get<ProgramScheduleSlot[]>(`/programs/${selectedProgram?.id}/schedule-slots`),
+    enabled: Boolean(selectedProgram?.id),
+  });
 
-  /* Deliberately NOT auto-started.
-   *
-   * This screen used to `resumeSessionMutation.mutate()` from an effect on
-   * mount, so merely opening the Training tab created a real
-   * `workout_session` — pre-populated with the day's template sets, with no
-   * user action and no way to decline. Two consequences, both observed in
-   * production: a day that already had a finished workout gained a second,
-   * empty `in_progress` session that shadowed it, and — because
-   * `POST /v1/workout-sessions` deletes that date's `rest_day` so a day
-   * cannot claim both — opening this tab silently destroyed a logged rest
-   * day.
-   *
-   * Starting a workout is a deliberate act. It now requires a press, which
-   * is what Today's screen has always done. */
-
-  const sessionQuery = useQuery({
-    queryKey: ['mobile-workout-session', resolvedSessionId],
-    queryFn: () => api.get<WorkoutSessionDetail>(`/workout-sessions/${resolvedSessionId}`),
-    enabled: Boolean(resolvedSessionId),
+  /* Story 25 scoped workouts to their owning program through an explicit
+     `program_day_type` membership rather than a column on `day_type`, so
+     the program-scoped endpoint is the only correct source here — a flat
+     `/day-types` would offer another program's workouts for scheduling. */
+  const dayTypesQuery = useQuery({
+    queryKey: ['program-day-types', selectedProgram?.id],
+    queryFn: () => api.get<DayType[]>(`/programs/${selectedProgram?.id}/day-types`),
+    enabled: Boolean(selectedProgram?.id),
   });
 
   const exercisesQuery = useQuery({
-    queryKey: ['mobile-exercises'],
+    queryKey: ['exercises'],
     queryFn: () => api.get<Exercise[]>('/exercises'),
   });
 
-  useEffect(() => {
-    if (!sessionQuery.data) return;
-    setElapsedLabel(formatElapsed(sessionQuery.data.startedAt, sessionQuery.data.completedAt));
-    if (sessionQuery.data.status === 'completed' || !sessionQuery.data.startedAt) return;
-    const interval = setInterval(() => {
-      setElapsedLabel(formatElapsed(sessionQuery.data.startedAt, sessionQuery.data.completedAt));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [sessionQuery.data]);
+  /* Editing mutations.
+   *
+   * Every one of these already existed on mobile — inside `program-wizard`,
+   * reachable exactly once during onboarding and never again. The wizard
+   * carried 13 mutations while this screen carried one (`activate`), which
+   * is how mobile ended up able to *create* a program but never to change
+   * it. These reuse the wizard's proven request shapes rather than
+   * inventing new ones; ADR 0005's intent/fact split is preserved because
+   * they only ever touch `day_type`, `day_type_exercise` and
+   * `program_schedule_slot` — never a `workout_session`. */
 
-  useEffect(() => {
-    if (!sessionQuery.data) return;
-    setDrafts((prev) => {
-      const next = { ...prev };
-      for (const exerciseLog of sessionQuery.data.exercises) {
-        const definition = getPrescriptionDefinition(exerciseLog.prescription);
-        for (const set of exerciseLog.sets) {
-          if (!next[set.id]) {
-            next[set.id] = buildDraft(set, definition, exerciseLog.prescription);
-          }
-        }
-      }
-      return next;
-    });
-  }, [sessionQuery.data]);
-
-  const refreshSession = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['mobile-workout-session', resolvedSessionId] }),
-      queryClient.invalidateQueries({ queryKey: ['dashboard-today-mobile-workout'] }),
-    ]);
-  };
-
-  const deleteSetMutation = useMutation({
-    mutationFn: (setId: string) => api.del(`/workout-sets/${setId}`),
-    onSuccess: refreshSession,
-  });
-
-  const addSetMutation = useMutation({
-    mutationFn: ({ exerciseLogId, sourceSet }: { exerciseLogId: string; sourceSet?: WorkoutSet }) =>
-      api.post<WorkoutSet>(`/workout-exercise-logs/${exerciseLogId}/sets`, {
-        clientId: createClientId(),
-        setType: sourceSet?.setType ?? 'working',
-        weightValue: sourceSet?.weightValue ?? undefined,
-        weightUnit: sourceSet?.weightValue != null ? sourceSet.weightUnit ?? 'lb' : undefined,
-        reps: sourceSet?.reps ?? undefined,
-        durationSeconds: sourceSet?.durationSeconds ?? undefined,
-        distanceValue: sourceSet?.distanceValue ?? undefined,
-        distanceUnit: sourceSet?.distanceValue != null ? sourceSet.distanceUnit ?? undefined : undefined,
-        rpe: sourceSet?.rpe ?? undefined,
-      }),
-    onSuccess: async (_, variables) => {
-      await refreshSession();
-      // Story 37: a newly added set didn't exist when any header field was
-      // marked touched, so a stale touched key could otherwise reapply to
-      // it (and every other set) on the next unrelated Apply click.
-      setHeaderTouchedKeys((prev) => ({ ...prev, [variables.exerciseLogId]: [] }));
-    },
-  });
-
-  const saveSetMutation = useMutation({
-    mutationFn: ({
-      setId,
-      draft,
-      set,
-      visible,
-      definition,
-    }: {
-      setId: string;
-      draft: SetDraft;
-      set: WorkoutSet;
-      visible: SessionField[];
-      definition: PrescriptionDefinition;
-    }) => api.patch<WorkoutSet>(`/workout-sets/${setId}`, buildSetPatch(set, draft, visible, definition)),
-    onSuccess: refreshSession,
-  });
-
-  /* The session carries its own prescription snapshot, because an exercise
-     added mid-session has no day-type row to inherit one from. */
-  const addExerciseMutation = useMutation({
-    mutationFn: ({ exerciseId, prescription }: { exerciseId: string; prescription: Prescription }) =>
-      api.post(`/workout-sessions/${resolvedSessionId}/exercises`, { exerciseId, prescription }),
-    onSuccess: async () => {
-      setShowAddExercise(false);
-      await refreshSession();
-    },
-  });
-
-  const createExerciseMutation = useMutation({
+  const createExercise = useMutation({
     mutationFn: (name: string) => api.post<Exercise>('/exercises', { name }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['exercises'] }),
   });
 
-  /* Story 34: removal is session-scoped, so it flips the existing `skipped`
-     flag on the exercise log rather than deleting it — the underlying rows
-     (and any sets already logged) are untouched, the workout template and
-     program are never involved, and undo is just flipping the flag back. */
-  const removeExerciseMutation = useMutation({
-    mutationFn: ({ exerciseLogId }: { exerciseLogId: string; name: string }) =>
-      api.patch(`/workout-exercise-logs/${exerciseLogId}`, { skipped: true }),
-    onSuccess: async (_, { exerciseLogId, name }) => {
-      await refreshSession();
-      setToast({
-        variant: 'success',
-        message: `${name} removed from today's workout.`,
-        actionLabel: 'Undo',
-        onAction: () => restoreExerciseMutation.mutate(exerciseLogId),
-      });
+  const createWorkout = useMutation({
+    mutationFn: (name: string) =>
+      api.post<DayType>('/day-types', { name, programId: selectedProgram?.id }),
+    onSuccess: async (created) => {
+      await queryClient.invalidateQueries({ queryKey: ['day-types'] });
+      setSelectedDayTypeId(created.id);
+      setNewWorkoutName('');
+      setToast({ variant: 'success', message: `${created.name} added.` });
     },
-    onError: () => setToast({ variant: 'error', message: 'Could not remove exercise.' }),
+    onError: () => setToast({ variant: 'error', message: 'Could not add that workout.' }),
   });
 
-  const restoreExerciseMutation = useMutation({
-    mutationFn: (exerciseLogId: string) => api.patch(`/workout-exercise-logs/${exerciseLogId}`, { skipped: false }),
+  const addExerciseToWorkout = useMutation({
+    mutationFn: ({ dayTypeId, exerciseId, prescription }: { dayTypeId: string; exerciseId: string; prescription: Prescription }) =>
+      api.post(`/day-types/${dayTypeId}/exercises`, { exerciseId, prescription }),
     onSuccess: async () => {
-      await refreshSession();
-      setToast({ variant: 'success', message: "Exercise restored to today's workout." });
+      await queryClient.invalidateQueries({ queryKey: ['day-type', selectedDayTypeId] });
+      setShowAddExercise(false);
+      setToast({ variant: 'success', message: 'Exercise added.' });
     },
-    onError: () => setToast({ variant: 'error', message: 'Could not undo.' }),
+    onError: () => setToast({ variant: 'error', message: 'Could not add that exercise.' }),
   });
 
-  function confirmRemoveExercise(exerciseLogId: string, name: string, loggedSetCount: number) {
-    Alert.alert(
-      loggedSetCount > 0
-        ? `Remove ${name} and its ${loggedSetCount} logged set${loggedSetCount === 1 ? '' : 's'} from today's workout?`
-        : `Remove ${name} from today's workout?`,
-      loggedSetCount > 0
-        ? `This only changes today's session — the sets you've already logged stay on record, and ${name} will stay in the workout template.`
-        : `This only changes today's session. ${name} will stay in the workout template.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: () => removeExerciseMutation.mutate({ exerciseLogId, name }),
-        },
-      ],
-    );
-  }
-
-  const finishMutation = useMutation({
-    mutationFn: () => api.post(`/workout-sessions/${resolvedSessionId}/complete`),
+  const updateExercise = useMutation({
+    // `notes` travels with the prescription: ExerciseEditSheet edits both,
+    // and sending only the prescription silently discarded a note the user
+    // had just typed and been told was saved.
+    mutationFn: ({ dayTypeId, exerciseId, prescription, notes }: { dayTypeId: string; exerciseId: string; prescription: Prescription; notes: string }) =>
+      api.patch(`/day-types/${dayTypeId}/exercises/${exerciseId}`, { prescription, notes: notes || null }),
     onSuccess: async () => {
-      await refreshSession();
-      router.replace({ pathname: '/session-summary', params: { sessionId: resolvedSessionId! } });
+      await queryClient.invalidateQueries({ queryKey: ['day-type', selectedDayTypeId] });
+      setEditingExercise(null);
+      setToast({ variant: 'success', message: 'Exercise updated.' });
+    },
+    onError: () => setToast({ variant: 'error', message: 'Could not update that exercise.' }),
+  });
+
+  const removeExercise = useMutation({
+    mutationFn: ({ dayTypeId, exerciseId }: { dayTypeId: string; exerciseId: string }) =>
+      api.del(`/day-types/${dayTypeId}/exercises/${exerciseId}`),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['day-type', selectedDayTypeId] });
+      setEditingExercise(null);
+      setToast({ variant: 'success', message: 'Exercise removed.' });
+    },
+    onError: () => setToast({ variant: 'error', message: 'Could not remove that exercise.' }),
+  });
+
+  const upsertSlot = useMutation({
+    mutationFn: (body: { id?: string; dayTypeId: string; weekNumber: number | null; dayIndex: number; sortOrder: number }) =>
+      body.id
+        ? api.patch(`/programs/${selectedProgram?.id}/schedule-slots/${body.id}`, body)
+        : api.post(`/programs/${selectedProgram?.id}/schedule-slots`, body),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['schedule-slots', selectedProgram?.id] });
+      setPendingDayIndex(null);
+    },
+    onError: () => {
+      setPendingDayIndex(null);
+      setToast({ variant: 'error', message: 'Could not update your schedule.' });
     },
   });
 
-  const visibleExercises = useMemo(
-    () => visibleSessionExercises(sessionQuery.data?.exercises ?? []),
-    [sessionQuery.data],
-  );
+  const removeSlot = useMutation({
+    mutationFn: (slotId: string) => api.del(`/programs/${selectedProgram?.id}/schedule-slots/${slotId}`),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['schedule-slots', selectedProgram?.id] });
+      setPendingDayIndex(null);
+    },
+    onError: () => {
+      setPendingDayIndex(null);
+      setToast({ variant: 'error', message: 'Could not clear that day.' });
+    },
+  });
 
-  // Story 39: seeds the accordion to the first exercise once the session
-  // has loaded — a bare `useState(null)` would otherwise start with none
-  // active, an odd first impression for a screen whose whole prior
-  // history (through Story 37) opened every exercise by default. Fires
-  // exactly once (the ref gates it, not "is anything active right now")
-  // so a later manual collapse to none — a real, supported state — is
-  // never fought by this effect re-seeding it back open.
-  useEffect(() => {
-    if (!hasSeededActiveExercise.current && visibleExercises.length > 0) {
-      hasSeededActiveExercise.current = true;
-      setActiveExerciseId(visibleExercises[0]!.id);
-    }
-  }, [visibleExercises]);
-
-  const totalSetsLogged = useMemo(
+  const weekOneSlots = useMemo(
     () =>
-      visibleExercises.reduce(
-        (sum, exerciseLog) =>
-          sum + exerciseLog.sets.filter((set) => isSessionSetLogged(exerciseLog.prescription, set)).length,
-        0,
-      ),
-    [visibleExercises],
+      (scheduleSlotsQuery.data ?? [])
+        .filter((slot) => slot.weekNumber === null || slot.weekNumber === 1)
+        .sort((a, b) => a.dayIndex - b.dayIndex),
+    [scheduleSlotsQuery.data],
   );
 
-  /* Story 36: Finish workout became persistently reachable via the sticky
-     action bar below, so a stray tap must not end the session outright —
-     the button previously completed immediately with no confirmation. */
-  function confirmFinishWorkout() {
-    Alert.alert(
-      'Finish workout?',
-      `You logged ${visibleExercises.length} exercise${visibleExercises.length === 1 ? '' : 's'} and ${totalSetsLogged} set${totalSetsLogged === 1 ? '' : 's'}. You can review the workout after finishing.`,
-      [
-        { text: 'Keep training', style: 'cancel' },
-        { text: 'Finish workout', onPress: () => finishMutation.mutate() },
-      ],
-    );
-  }
+  const dayTypeById = useMemo(() => {
+    const map = new Map<string, DayType>();
+    (dayTypesQuery.data ?? []).forEach((dayType) => map.set(dayType.id, dayType));
+    return map;
+  }, [dayTypesQuery.data]);
 
-  /**
-   * Story 39: fired by focusing a quick-entry field belonging to this
-   * exercise (the only inputs a *collapsed* exercise still renders) or by
-   * choosing an action inside it (Add set, the actions menu) — always
-   * activates, never toggles, so interacting with the already-active
-   * exercise can't accidentally collapse it.
-   */
-  function activateExercise(exerciseLogId: string) {
-    setActiveExerciseId((prev) => (prev === exerciseLogId ? prev : exerciseLogId));
-  }
+  const exerciseNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    (exercisesQuery.data ?? []).forEach((exercise) => map.set(exercise.id, exercise.name));
+    return map;
+  }, [exercisesQuery.data]);
 
-  /**
-   * Story 39: the chevron's own press handler — the one place a collapse
-   * can happen, so manual collapse of the currently active exercise stays
-   * available. Tapping any other exercise's header switches to it.
-   */
-  function toggleActiveExercise(exerciseLogId: string) {
-    setActiveExerciseId((prev) => (prev === exerciseLogId ? null : exerciseLogId));
-  }
+  const programWorkouts = dayTypesQuery.data ?? [];
 
-  /**
-   * Story 37: applies the header's quick-entry values onto every set's own
-   * draft. Explicit and only ever fired by this button — the cascade never
-   * runs on its own, so a set the user already edited by hand is never
-   * silently overwritten; the user has to knowingly re-apply over it.
-   *
-   * Only the exact keys the user actually edited in the header are
-   * copied — not every key belonging to the same quick-entry field. That
-   * distinction matters for distance specifically: touching only the unit
-   * dropdown must not also drag the (untouched) distance value along.
-   */
-  function applyHeaderToAllSets(exerciseLog: WorkoutSessionDetail['exercises'][number], definition: PrescriptionDefinition) {
-    const header = headerDrafts[exerciseLog.id] ?? getHeaderDraft(exerciseLog, definition);
-    const touchedKeys = headerTouchedKeys[exerciseLog.id] ?? [];
-    setDrafts((prev) => {
-      const next = { ...prev };
-      for (const set of exerciseLog.sets) {
-        const current = next[set.id] ?? buildDraft(set, definition, exerciseLog.prescription);
-        const patch: Partial<Record<SessionField, string>> = {};
-        for (const key of touchedKeys) {
-          if (key !== 'unit') patch[key] = header.values[key];
-        }
-        next[set.id] = {
-          ...current,
-          values: { ...current.values, ...patch },
-          distanceUnit: touchedKeys.includes('unit') ? header.distanceUnit : current.distanceUnit,
-        };
-      }
-      return next;
+  /* WeekScheduleEditor wants dayIndex → assigned workout id, with absent
+     meaning "rest". */
+  const assignmentsByDay = useMemo(() => {
+    const map: Record<number, string | null> = {};
+    weekOneSlots.forEach((slot) => {
+      map[slot.dayIndex] = slot.dayTypeId;
     });
-    // Cleared so a later, unrelated Apply click can't silently reapply a
-    // stale edit — the next click only ever acts on what's touched after
-    // this point.
-    setHeaderTouchedKeys((prev) => ({ ...prev, [exerciseLog.id]: [] }));
-  }
+    return map;
+  }, [weekOneSlots]);
 
-  // Timed, distance and bodyweight work carries no weight, so including it
-  // would contribute nothing while making the total look authoritative.
-  const totalVolume = useMemo(
-    () =>
-      calculateVolume(
-        visibleExercises
-          .filter((exerciseLog) => countsTowardVolume(exerciseLog.prescription))
-          .flatMap((exerciseLog) => exerciseLog.sets),
-      ),
-    [visibleExercises],
-  );
+  // Switching the viewed program must not leave a day selected from the
+  // previous one's schedule (Story 26's "no leaking selection" rule
+  // applies here too, even though this screen is read-only).
+  useEffect(() => {
+    setSelectedDayTypeId(null);
+  }, [selectedProgram?.id]);
 
-  const bestEstimated1rm = useMemo(() => {
-    const values = visibleExercises
-      .filter((exerciseLog) => countsTowardVolume(exerciseLog.prescription))
-      .flatMap((exerciseLog) => exerciseLog.sets)
-      .filter((set) => set.weightValue != null && set.reps != null)
-      .map((set) => estimateOneRepMax(set.weightValue!, set.reps!));
-    return values.length ? `${Math.round(Math.max(...values))} lb` : '—';
-  }, [visibleExercises]);
+  useEffect(() => {
+    if (!selectedDayTypeId && weekOneSlots.length > 0) {
+      setSelectedDayTypeId(weekOneSlots[0]!.dayTypeId);
+    }
+  }, [selectedDayTypeId, weekOneSlots]);
 
-  const isLoading = todayQuery.isLoading || resumeSessionMutation.isPending || sessionQuery.isLoading || exercisesQuery.isLoading;
-  const isError = todayQuery.isError || resumeSessionMutation.isError || sessionQuery.isError || exercisesQuery.isError;
+  const selectedDayTypeDetailQuery = useQuery({
+    queryKey: ['day-type', selectedDayTypeId],
+    queryFn: () => api.get<DayTypeDetail>(`/day-types/${selectedDayTypeId}`),
+    enabled: Boolean(selectedDayTypeId),
+  });
+
+  const isLoading = programsQuery.isLoading || dayTypesQuery.isLoading;
 
   if (isLoading) {
-    return <SessionSkeleton />;
-  }
-
-  /* No session for today yet. Previously unreachable — the mount effect had
-     already created one before this could render. Now it's the honest
-     resting state of the tab: show what today holds and let the user decide. */
-  if (!isError && !resolvedSessionId) {
-    const completedToday = todayQuery.data?.sessions.filter((s) => s.status === 'completed') ?? [];
-    const dayLabel = todayQuery.data?.dayLabel;
     return (
-      <View style={[styles.centered, { backgroundColor: theme.surface.canvas, padding: spacing[16], gap: spacing[16] }]}>
-        <Text style={[styles.title, { color: theme.text.primary, textAlign: 'center' }]}>
-          {dayLabel ?? 'No workout scheduled'}
-        </Text>
-        {completedToday.length > 0 ? (
-          <Text style={{ color: theme.text.secondary, textAlign: 'center' }}>
-            You already finished {completedToday.length === 1 ? 'a workout' : `${completedToday.length} workouts`} today.
-            Starting another adds a separate session.
-          </Text>
-        ) : (
-          <Text style={{ color: theme.text.secondary, textAlign: 'center' }}>
-            {dayLabel
-              ? 'Start when you are ready — nothing is logged until you do.'
-              : 'Start an ad hoc workout, or pick a workout from Today.'}
-          </Text>
-        )}
-        <Button
-          label={completedToday.length > 0 ? 'Start another workout' : 'Start workout'}
-          fullWidth={false}
-          loading={resumeSessionMutation.isPending}
-          onPress={() => resumeSessionMutation.mutate()}
-        />
-        {completedToday[0] ? (
-          <Text
-            style={{ color: theme.action.primary }}
-            accessibilityRole="button"
-            onPress={() => router.push({ pathname: '/session-summary', params: { sessionId: completedToday[0]!.id } })}
-          >
-            View today&apos;s finished workout
-          </Text>
-        ) : null}
+      <View style={[styles.centered, { backgroundColor: theme.surface.canvas }]}>
+        <ActivityIndicator color={theme.action.primary} />
       </View>
     );
   }
 
-  if (isError || !sessionQuery.data) {
+  if (programsQuery.isError || dayTypesQuery.isError) {
+    return (
+      <View style={[styles.centered, { backgroundColor: theme.surface.canvas, padding: spacing[16] }]}>
+        <Text style={{ color: theme.text.primary, textAlign: 'center' }}>Couldn&apos;t load your training program.</Text>
+      </View>
+    );
+  }
+
+  if (!activeProgram) {
     return (
       <View style={[styles.centered, { backgroundColor: theme.surface.canvas, padding: spacing[16], gap: spacing[16] }]}>
-        <Text style={{ color: theme.text.primary, textAlign: 'center' }}>Couldn&apos;t load workout session.</Text>
-        <Button
-          label="Retry"
-          variant="secondary"
-          fullWidth={false}
-          onPress={() => {
-            resumeSessionMutation.reset();
-            todayQuery.refetch();
-            sessionQuery.refetch();
-            exercisesQuery.refetch();
-          }}
-        />
+        <Text style={{ color: theme.text.primary, textAlign: 'center', fontWeight: '600' }}>No training program yet</Text>
+        <Text style={{ color: theme.text.secondary, textAlign: 'center' }}>
+          Set up your first program with a few guided steps.
+        </Text>
+        <Button label="Start guided setup" onPress={() => router.push('/program-wizard')} />
       </View>
     );
   }
 
   return (
-    // Fades the session in over the skeleton it replaces, so the swap reads
-    // as a transition rather than a pop.
-    <FadeIn>
     <ScrollView style={{ backgroundColor: theme.surface.canvas }} contentContainerStyle={styles.content}>
-      <View style={styles.headerMeta}>
-        <Text style={[styles.title, { color: theme.text.primary }]}>{todayQuery.data?.dayLabel ?? 'Workout session'}</Text>
-        <Text style={[styles.subtitle, { color: theme.text.secondary }]}>Elapsed {elapsedLabel}</Text>
+      {/* The one place Training acknowledges a live workout: a way back to
+          it. Logging happens on the session's own screen, not here. */}
+      {activeSessionId ? (
+        <Card style={{ backgroundColor: theme.action.accentSubtle }}>
+          <Text style={{ color: theme.text.primary, fontWeight: '600' }}>Workout in progress</Text>
+          <Text style={{ color: theme.text.secondary }}>You have a workout started today.</Text>
+          <Button
+            label="Resume workout"
+            onPress={() => router.push({ pathname: '/workout/[sessionId]', params: { sessionId: activeSessionId } })}
+          />
+        </Card>
+      ) : null}
+
+      <View style={styles.headerRow}>
+        <Text style={[styles.title, { color: theme.text.primary }]}>{selectedProgram?.name ?? activeProgram.name}</Text>
+        <Badge
+          label={selectedProgram?.isActive ? 'Active' : 'Inactive'}
+          tone={selectedProgram?.isActive ? 'success' : 'neutral'}
+        />
       </View>
 
-      <Card>
-        <View style={styles.summaryRow}>
-          <Stat label="Sets" value={`${totalSetsLogged}`} />
-          <Stat label="Volume" value={totalVolume ? `${totalVolume.toLocaleString()} lb` : '—'} />
-          <Stat label="Best 1RM" value={bestEstimated1rm} />
-        </View>
-      </Card>
-
-      {visibleExercises.map((exerciseLog) => {
-        const definition = getPrescriptionDefinition(exerciseLog.prescription);
-        const loggedSetCount = exerciseLog.sets.filter((set) => isSessionSetLogged(exerciseLog.prescription, set)).length;
-        const isComplete = isExerciseComplete(exerciseLog.prescription, exerciseLog.sets);
-        const isExpanded = activeExerciseId === exerciseLog.id;
-        const headerDraft = headerDrafts[exerciseLog.id] ?? getHeaderDraft(exerciseLog, definition);
-        const touchHeaderKey = (key: 'unit' | SessionField) =>
-          setHeaderTouchedKeys((prev) => ({
-            ...prev,
-            [exerciseLog.id]: prev[exerciseLog.id]?.includes(key) ? prev[exerciseLog.id]! : [...(prev[exerciseLog.id] ?? []), key],
-          }));
-        // Touched keys are derived straight from the patch's own keys, so
-        // e.g. changing only the distance value marks just `distance`
-        // touched, never the (separately tracked) unit alongside it.
-        const updateHeader = (patch: Partial<Record<SessionField, string>>) => {
-          setHeaderDrafts((prev) => ({ ...prev, [exerciseLog.id]: { ...headerDraft, values: { ...headerDraft.values, ...patch } } }));
-          for (const key of Object.keys(patch) as SessionField[]) touchHeaderKey(key);
-        };
-        return (
-        <Card key={exerciseLog.id}>
-          <View style={styles.exerciseHeader}>
-            <View style={styles.exerciseTitleRow}>
-              <IconButton
-                icon={isExpanded ? ChevronUp : ChevronDown}
-                variant="subtle"
-                accessibilityLabel={isExpanded ? `Collapse ${exerciseLog.exercise.name}` : `Expand ${exerciseLog.exercise.name}`}
-                onPress={() => toggleActiveExercise(exerciseLog.id)}
-              />
-              <GripVertical size={18} color={theme.text.secondary} />
-              <Text style={[styles.exerciseTitle, { color: theme.text.primary }]}>{exerciseLog.exercise.name}</Text>
-            </View>
-            <View style={styles.exerciseHeaderActions}>
+      {/* Story 24 — only shown once there's an actual choice to make; the
+          header above already makes the single-program case clear. */}
+      {programsQuery.data && (programsQuery.data.length > 1 || !hasActiveProgram) ? (
+        <Card>
+          <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Your programs</Text>
+          {programsQuery.data.map((program) => (
+            <View key={program.id} style={styles.programRow}>
+              <Pressable
+                onPress={() => setSelectedProgramId(program.id)}
+                accessibilityRole="button"
+                accessibilityLabel={`View ${program.name}`}
+                style={styles.programRowName}
+              >
+                <Text
+                  style={[
+                    styles.bodyText,
+                    { color: theme.text.primary, fontWeight: program.id === selectedProgram?.id ? '600' : '400' },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {program.name}
+                </Text>
+                {program.isActive ? <Badge label="Active" tone="success" /> : null}
+              </Pressable>
               <Button
-                label="Add set"
+                label={program.isActive ? 'Active' : 'Set active'}
                 variant="secondary"
                 fullWidth={false}
-                disabled={sessionQuery.data.status === 'completed' || addSetMutation.isPending}
-                onPress={() => {
-                  activateExercise(exerciseLog.id);
-                  addSetMutation.mutate({ exerciseLogId: exerciseLog.id, sourceSet: exerciseLog.sets.at(-1) });
-                }}
-              />
-              <IconButton
-                icon={MoreVertical}
-                variant="subtle"
-                accessibilityLabel={`${exerciseLog.exercise.name} actions`}
-                onPress={() => {
-                  if (sessionQuery.data.status === 'completed') return;
-                  activateExercise(exerciseLog.id);
-                  confirmRemoveExercise(exerciseLog.id, exerciseLog.exercise.name, loggedSetCount);
-                }}
+                disabled={program.isActive}
+                loading={activateMutation.isPending && activateMutation.variables === program.id}
+                onPress={() => activateMutation.mutate(program.id)}
               />
             </View>
-          </View>
+          ))}
+        </Card>
+      ) : null}
 
-          <Text style={[styles.prescription, { color: theme.text.secondary }]}>{summarizePrescription(exerciseLog.prescription)}</Text>
-
-          {/* Story 38: completion is derived from every set's own
-              required-field completeness (isExerciseComplete), never a UI
-              flag toggled on collapse — text always accompanies the color
-              so it isn't the only signal. */}
-          {isComplete ? (
-            <Badge label="Complete" tone="success" />
-          ) : exerciseLog.sets.length > 0 ? (
-            <Text style={[styles.prescription, { color: theme.text.secondary }]}>
-              {`${loggedSetCount} of ${exerciseLog.sets.length} sets complete`}
-            </Text>
-          ) : null}
-
-          {/* Story 37: quick-entry — set a common value once here and apply
-              it to every set instead of repeating it per row. Visible
-              regardless of expand state, matching the collapsed header's
-              own content per the story's UX intent. */}
-          <View style={styles.quickEntryGrid}>
-            {quickEntryFields(definition).map((field) => {
-              // Distinct from the per-set field labels below (not just
-              // "Weight"/"Reps") — two identically-labeled inputs in the
-              // same section would be genuinely ambiguous for a
-              // screen-reader user navigating by label, not only in tests.
-              const label = `All sets: ${getSessionFieldLabel(field, definition)}`;
-              if (field === 'distance') {
-                return (
-                  <View key={field} style={styles.quickEntryDistanceRow}>
-                    <View style={styles.quickEntryDistanceValue}>
-                      <Input
-                        label={label}
-                        value={headerDraft.values.distance ?? ''}
-                        onChangeText={(value) => updateHeader({ distance: value })}
-                        keyboardType="decimal-pad"
-                        onFocus={() => activateExercise(exerciseLog.id)}
-                      />
-                    </View>
-                    <Select
-                      label="All sets: Distance unit"
-                      value={headerDraft.distanceUnit}
-                      options={distanceUnitOptions.map((option) => ({ ...option }))}
-                      onChange={(value) => {
-                        activateExercise(exerciseLog.id);
-                        setHeaderDrafts((prev) => ({ ...prev, [exerciseLog.id]: { ...headerDraft, distanceUnit: value } }));
-                        touchHeaderKey('unit');
-                      }}
-                    />
-                  </View>
-                );
-              }
-              return (
-                <Input
-                  key={field}
-                  label={label}
-                  value={headerDraft.values[field] ?? ''}
-                  onChangeText={(value) => updateHeader({ [field]: value })}
-                  keyboardType={field === 'reps' ? 'number-pad' : 'decimal-pad'}
-                  unit={field === 'weight' ? exerciseLog.sets[0]?.weightUnit ?? 'lb' : undefined}
-                  onFocus={() => activateExercise(exerciseLog.id)}
-                />
-              );
-            })}
-          </View>
-          <View style={styles.quickEntryFooter}>
-            <Button
-              label="Apply to all sets"
-              variant="secondary"
-              fullWidth={false}
-              disabled={!exerciseLog.sets.length || sessionQuery.data.status === 'completed'}
-              onPress={() => applyHeaderToAllSets(exerciseLog, definition)}
+      {/* Workouts — creating one used to be possible only inside the
+          onboarding wizard, so a user who finished setup could never add
+          another without switching to the web app. */}
+      <Card>
+        <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Workouts</Text>
+        {programWorkouts.length === 0 ? (
+          <Text style={{ color: theme.text.secondary }}>
+            No workouts yet. Add one — a reusable training day like &quot;Upper A&quot;.
+          </Text>
+        ) : (
+          programWorkouts.map((workout) => (
+            <Pressable
+              key={workout.id}
+              onPress={() => setSelectedDayTypeId(workout.id)}
+              style={[
+                styles.dayRow,
+                workout.id === selectedDayTypeId
+                  ? { backgroundColor: theme.action.accentSubtle, borderRadius: spacing[8] }
+                  : null,
+              ]}
+            >
+              <Text style={{ color: theme.text.primary, flex: 1 }}>{workout.name}</Text>
+              <ChevronRight size={16} color={theme.text.secondary} />
+            </Pressable>
+          ))
+        )}
+        <View style={styles.addWorkoutRow}>
+          <View style={{ flex: 1 }}>
+            <Input
+              label="New workout"
+              value={newWorkoutName}
+              onChangeText={setNewWorkoutName}
+              placeholder="e.g. Upper A"
             />
           </View>
-
-          {isExpanded ? (
-          <>
-          {exerciseLog.previousSession ? (
-            <Card style={[styles.previousCard, { backgroundColor: theme.surface.sunken }]}>
-              <Text style={[styles.previousTitle, { color: theme.text.secondary }]}>Previous session</Text>
-              {exerciseLog.previousSession.sets.map((set, index) => (
-                <Text key={`${exerciseLog.previousSession?.sessionId}-${index}`} style={{ color: theme.text.primary }}>
-                  Set {index + 1} · {formatSessionSet(exerciseLog.prescription, set, { includeRpe: true }) || '—'}
-                </Text>
-              ))}
-            </Card>
-          ) : null}
-
-          {exerciseLog.sets.map((set, index) => {
-            const draft = drafts[set.id] ?? buildDraft(set, definition, exerciseLog.prescription);
-            const draftValues = draftToValues(draft, definition);
-            // Union of the prescription's fields and anything this set already
-            // stores, so legacy values stay visible and editable.
-            const visibleFields = resolveSessionFields(exerciseLog.prescription, { ...set, ...draftValues });
-            const fieldErrors = validateSessionSet(exerciseLog.prescription, draftValues);
-            const previous = getPreviousLabels(exerciseLog.previousSession?.sets[index], definition);
-            // PR flags come straight from the server, which resolves them
-            // against all-time history for the whole exercise log after every
-            // save. Guessing on the client used a different, narrower baseline
-            // and produced badges that contradicted the persisted state.
-            const isPr = set.isPrWeight || set.isPrReps;
-            const planned = summarizePrescription(exerciseLog.prescription).replace(/^Planned:\s*/, '');
-
-            return (
-              <View key={set.id} style={styles.setBlock}>
-                <View style={styles.setBlockHeader}>
-                  <Text style={[styles.setMeta, { color: theme.text.secondary }]}>Set {index + 1}</Text>
-                  <Text style={[styles.setMeta, { color: theme.text.secondary }]}>Target {planned}</Text>
-                </View>
-                <SetRowEditable
-                  setLabel={`Set ${index + 1}`}
-                  fields={visibleFields}
-                  definition={definition}
-                  values={draft.values}
-                  errors={fieldErrors}
-                  weightUnit={set.weightUnit ?? 'lb'}
-                  distanceUnit={draft.distanceUnit}
-                  onChangeDistanceUnit={(value) =>
-                    setDrafts((prev) => ({ ...prev, [set.id]: { ...draft, distanceUnit: value } }))
-                  }
-                  onChangeField={(field, value) =>
-                    setDrafts((prev) => ({
-                      ...prev,
-                      [set.id]: { ...draft, values: { ...draft.values, [field]: value } },
-                    }))
-                  }
-                  completed={draft.completed}
-                  onToggleCompleted={(completed) => setDrafts((prev) => ({ ...prev, [set.id]: { ...draft, completed } }))}
-                  previous={previous}
-                  isPr={isPr}
-                  onDuplicate={() => addSetMutation.mutate({ exerciseLogId: exerciseLog.id, sourceSet: set })}
-                  onRemove={() =>
-                    Alert.alert('Remove set', `Remove Set ${index + 1}?`, [
-                      { text: 'Cancel', style: 'cancel' },
-                      { text: 'Remove', style: 'destructive', onPress: () => deleteSetMutation.mutate(set.id) },
-                    ])
-                  }
-                />
-                <View style={styles.saveRow}>
-                  <Text style={[styles.helperNote, { color: theme.text.secondary }]}>Log actual performance, then save to sync the session.</Text>
-                  <Button
-                    label="Save"
-                    variant="secondary"
-                    fullWidth={false}
-                    loading={saveSetMutation.isPending}
-                    disabled={sessionQuery.data.status === 'completed' || Object.keys(fieldErrors).length > 0}
-                    onPress={() =>
-                      saveSetMutation.mutate({ setId: set.id, draft, set, visible: visibleFields, definition })
-                    }
-                  />
-                </View>
-              </View>
-            );
-          })}
-          </>
-          ) : null}
-        </Card>
-        );
-      })}
-
-      {toast ? (
-        <Toast
-          variant={toast.variant}
-          message={toast.message}
-          actionLabel={toast.actionLabel}
-          onAction={toast.onAction}
-          onDismiss={() => setToast(null)}
+        </View>
+        <Button
+          label="Add workout"
+          variant="secondary"
+          loading={createWorkout.isPending}
+          onPress={() => {
+            const name = newWorkoutName.trim();
+            if (!name) {
+              setToast({ variant: 'error', message: 'Give the workout a name first.' });
+              return;
+            }
+            createWorkout.mutate(name);
+          }}
         />
+      </Card>
+
+      {/* Schedule — assigning days was previously web-only. Reuses the same
+          WeekScheduleEditor the onboarding wizard already drives. */}
+      <Card>
+        <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Weekly schedule</Text>
+        <WeekScheduleEditor
+          workouts={programWorkouts.map((workout) => ({ id: workout.id, name: workout.name }))}
+          assignmentsByDay={assignmentsByDay}
+          selectedWorkoutId={heldWorkoutId}
+          onSelectWorkout={setHeldWorkoutId}
+          isLoading={scheduleSlotsQuery.isLoading}
+          pendingDayIndex={pendingDayIndex}
+          emptyMessage="Add a workout above before scheduling your week."
+          errorMessage={scheduleSlotsQuery.isError ? "Couldn't load your schedule." : null}
+          onRetry={() => scheduleSlotsQuery.refetch()}
+          onAssignDay={(dayIndex, dayTypeId) => {
+            setPendingDayIndex(dayIndex);
+            const existing = weekOneSlots.find((slot) => slot.dayIndex === dayIndex);
+            upsertSlot.mutate({
+              id: existing?.id,
+              dayTypeId,
+              weekNumber: existing?.weekNumber ?? null,
+              dayIndex,
+              sortOrder: 0,
+            });
+          }}
+          onClearDay={(dayIndex) => {
+            const existing = weekOneSlots.find((slot) => slot.dayIndex === dayIndex);
+            if (!existing) return;
+            setPendingDayIndex(dayIndex);
+            removeSlot.mutate(existing.id);
+          }}
+        />
+      </Card>
+
+      {selectedDayTypeId ? (
+        <Card>
+          <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>
+            {dayTypeById.get(selectedDayTypeId)?.name ?? 'Workout'}
+          </Text>
+          {selectedDayTypeDetailQuery.isLoading ? (
+            <ActivityIndicator color={theme.action.primary} />
+          ) : selectedDayTypeDetailQuery.isError ? (
+            <Text style={{ color: theme.text.secondary }}>Couldn&apos;t load this workout&apos;s exercises.</Text>
+          ) : (selectedDayTypeDetailQuery.data?.exercises.length ?? 0) === 0 ? (
+            <Text style={{ color: theme.text.secondary }}>No exercises added to this workout yet.</Text>
+          ) : (
+            selectedDayTypeDetailQuery.data!.exercises
+              .slice()
+              .sort((a, b) => a.sortOrder - b.sortOrder)
+              .map((exercise) => (
+                <Pressable
+                  key={exercise.id}
+                  style={styles.exerciseRow}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Edit ${exerciseNameById.get(exercise.exerciseId) ?? 'exercise'}`}
+                  onPress={() =>
+                    setEditingExercise({
+                      dayTypeId: selectedDayTypeId,
+                      // The join row's id, not the catalog exercise's — this
+                      // is what `/day-types/:id/exercises/:id` addresses.
+                      exerciseId: exercise.id,
+                      exerciseName: exerciseNameById.get(exercise.exerciseId) ?? 'Exercise',
+                      prescription: exercise.prescription,
+                      notes: exercise.notes ?? '',
+                    })
+                  }
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: theme.text.primary }}>
+                      {exerciseNameById.get(exercise.exerciseId) ?? 'Exercise'}
+                    </Text>
+                    <Text style={{ color: theme.text.secondary, fontSize: typeScale.caption.fontSize }}>
+                      {summarizePrescription(exercise.prescription)}
+                    </Text>
+                  </View>
+                  <ChevronRight size={16} color={theme.text.secondary} />
+                </Pressable>
+              ))
+          )}
+          <Button
+            label="Add exercise"
+            variant="secondary"
+            onPress={() => setShowAddExercise(true)}
+          />
+        </Card>
       ) : null}
+
+      {toast ? <Toast variant={toast.variant} message={toast.message} onDismiss={() => setToast(null)} /> : null}
 
       <AddExercisePicker
         open={showAddExercise}
@@ -881,250 +512,95 @@ export default function TrainingScreen() {
         exercisesError={exercisesQuery.isError}
         onRetryExercises={() => void exercisesQuery.refetch()}
         onClose={() => setShowAddExercise(false)}
-        onCreateExercise={(name) => createExerciseMutation.mutateAsync(name)}
-        isCreatingExercise={createExerciseMutation.isPending}
-        onAddExercise={(exerciseId, prescription) => addExerciseMutation.mutateAsync({ exerciseId, prescription })}
-        isAddingExercise={addExerciseMutation.isPending}
+        onCreateExercise={(name) => createExercise.mutateAsync(name)}
+        isCreatingExercise={createExercise.isPending}
+        onAddExercise={(exerciseId, prescription) =>
+          addExerciseToWorkout.mutateAsync({ dayTypeId: selectedDayTypeId!, exerciseId, prescription })
+        }
+        isAddingExercise={addExerciseToWorkout.isPending}
       />
+
+      {editingExercise ? (
+        <ExerciseEditSheet
+          state={editingExercise}
+          onClose={() => setEditingExercise(null)}
+          isSaving={updateExercise.isPending || removeExercise.isPending}
+          onSave={(next) =>
+            updateExercise.mutate({
+              dayTypeId: next.dayTypeId,
+              exerciseId: next.exerciseId,
+              prescription: next.prescription,
+              notes: next.notes,
+            })
+          }
+          onRemove={() =>
+            removeExercise.mutate({
+              dayTypeId: editingExercise.dayTypeId,
+              exerciseId: editingExercise.exerciseId,
+            })
+          }
+        />
+      ) : null}
     </ScrollView>
-
-    {/* Story 36: Add exercise / Finish workout stay reachable during a long
-        workout instead of living only at the top of the screen (Finish) or
-        the bottom of the scroll (Add exercise, previously its own Card
-        below the last exercise). Positioned absolutely within this screen's
-        own content area, which Expo Router's tab navigator already sizes to
-        exclude the bottom tab bar — no extra height/inset math needed to
-        clear it. Disappears once the workout is completed (AC). */}
-    {sessionQuery.data.status !== 'completed' ? (
-      <View
-        style={[styles.sessionActionBar, { backgroundColor: theme.surface.raised, borderTopColor: theme.border.subtle }]}
-      >
-        <View style={styles.sessionActionBarButton}>
-          <Button
-            label="Add exercise"
-            variant="secondary"
-            onPress={() => setShowAddExercise(true)}
-          />
-        </View>
-        <View style={styles.sessionActionBarButton}>
-          <Button
-            label="Finish workout"
-            loading={finishMutation.isPending}
-            onPress={confirmFinishWorkout}
-          />
-        </View>
-      </View>
-    ) : null}
-    </FadeIn>
-  );
-}
-
-/**
- * Mirrors the real session layout — header, summary stats card and exercise
- * blocks — so the screen keeps its shape while loading. It previously showed
- * a bare spinner on an empty canvas, which meant the whole page blanked and
- * then snapped to full content.
- */
-function SessionSkeleton() {
-  const theme = useTheme();
-  return (
-    <ScrollView
-      style={{ backgroundColor: theme.surface.canvas }}
-      contentContainerStyle={styles.content}
-      /* Every skeleton bar is removed from the accessibility tree, so
-         without `accessible` this container is not exposed as an element on
-         iOS and VoiceOver would announce nothing at all here. */
-      accessible
-      accessibilityRole="progressbar"
-      accessibilityLabel="Loading workout session"
-      accessibilityState={{ busy: true }}
-      testID="session-skeleton"
-    >
-      <View style={styles.headerRow}>
-        <SkeletonStack gap={spacing[8]} style={{ flex: 1 }}>
-          <Skeleton height={26} width="60%" />
-          <Skeleton height={14} width="35%" />
-        </SkeletonStack>
-        <Skeleton height={40} width={92} />
-      </View>
-
-      <Card>
-        <View style={styles.summaryRow}>
-          {[0, 1, 2].map((index) => (
-            <SkeletonStack key={index} gap={spacing[8]} style={styles.stat}>
-              <Skeleton height={28} width="70%" />
-              <Skeleton height={12} width="50%" />
-            </SkeletonStack>
-          ))}
-        </View>
-      </Card>
-
-      {[0, 1].map((index) => (
-        <Card key={index}>
-          <View style={styles.exerciseHeader}>
-            <Skeleton height={20} width="55%" />
-            <Skeleton height={36} width={84} />
-          </View>
-          <Skeleton height={56} />
-          <Skeleton height={56} />
-        </Card>
-      ))}
-    </ScrollView>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  const theme = useTheme();
-  return (
-    <View style={styles.stat}>
-      <Text
-        style={[
-          styles.statValue,
-          { color: theme.text.primary, fontSize: typeScale.numericMetric.fontSize, lineHeight: typeScale.numericMetric.lineHeight },
-        ]}
-      >
-        {value}
-      </Text>
-      <Text style={[styles.statLabel, { color: theme.text.secondary }]}>{label}</Text>
-    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  content: {
+    padding: spacing[16],
+    gap: spacing[16],
+  },
   centered: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  content: {
-    padding: spacing[16],
-    // Story 36: clears the sticky session action bar below, which floats
-    // over this scroll content — sized to roughly its own rendered height
-    // (two 44px buttons + padding) rather than a rounder, less-motivated
-    // number.
-    paddingBottom: spacing[16] + 44 + spacing[16] * 2,
-    gap: spacing[16],
-  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: spacing[12],
-  },
-  headerMeta: {
-    flex: 1,
-    gap: spacing[4],
   },
   title: {
     fontSize: typeScale.pageTitle.fontSize,
     fontWeight: '600',
   },
-  subtitle: {
-    fontSize: typeScale.compactBody.fontSize,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: spacing[8],
-  },
-  stat: {
-    alignItems: 'center',
-    gap: spacing[4],
-    flex: 1,
-  },
-  statValue: {
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  statLabel: {
-    fontSize: typeScale.label.fontSize,
-  },
-  exerciseHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: spacing[8],
-  },
-  exerciseTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[8],
-    flex: 1,
-  },
-  exerciseHeaderActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[8],
-  },
-  exerciseTitle: {
-    fontSize: typeScale.sectionTitle.fontSize,
-    fontWeight: '600',
-    flexShrink: 1,
-  },
-  quickEntryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing[8],
-  },
-  quickEntryDistanceRow: {
-    flexDirection: 'row',
-    gap: spacing[8],
-    flex: 1,
-  },
-  quickEntryDistanceValue: {
-    flex: 1,
-  },
-  quickEntryFooter: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  prescription: {
-    fontSize: typeScale.compactBody.fontSize,
-  },
-  previousCard: {
-    borderWidth: 0,
-  },
-  previousTitle: {
-    fontSize: typeScale.label.fontSize,
-    fontWeight: '600',
-  },
-  setBlock: {
-    gap: spacing[8],
-  },
-  setBlockHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: spacing[8],
-    flexWrap: 'wrap',
-  },
-  setMeta: {
-    fontSize: typeScale.caption.fontSize,
-  },
-  saveRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing[8],
-  },
-  helperNote: {
-    fontSize: typeScale.caption.fontSize,
-    flex: 1,
-  },
-  sectionLabel: {
+  sectionTitle: {
     fontSize: typeScale.sectionTitle.fontSize,
     fontWeight: '600',
   },
-  sessionActionBar: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
+  dayRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing[8],
-    padding: spacing[16],
-    borderTopWidth: 1,
+    paddingVertical: spacing[8],
+    paddingHorizontal: spacing[4],
   },
-  sessionActionBarButton: {
+  exerciseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[8],
+    paddingVertical: spacing[8],
+  },
+  addWorkoutRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: spacing[8],
+  },
+  bodyText: {
+    fontSize: typeScale.compactBody.fontSize,
+  },
+  programRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing[8],
+    paddingVertical: spacing[8],
+  },
+  programRowName: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[8],
     flex: 1,
+    minWidth: 0,
   },
 });

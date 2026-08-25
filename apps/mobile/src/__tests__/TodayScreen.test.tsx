@@ -62,6 +62,12 @@ function pressablesByTestId(rendered: ReactTestRenderer, testID: string) {
   );
 }
 
+function pressablesByLabel(rendered: ReactTestRenderer, label: string) {
+  return rendered.root.findAll(
+    (node) => node.props?.accessibilityLabel === label && typeof node.props?.onPress === 'function',
+  );
+}
+
 function textNodesContaining(rendered: ReactTestRenderer, needle: string) {
   return rendered.root.findAll(
     (node) =>
@@ -257,5 +263,35 @@ describe('TodayScreen rest days', () => {
     await flush();
 
     expect(textNodesContaining(rendered, "can't be a rest day").length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * The logger is a route keyed by session id, and Today is the only screen
+ * that creates a session.
+ *
+ * Both halves matter. Pushing without the id is what stranded the logger
+ * on an empty state once it stopped inventing sessions; not refreshing
+ * Today's cache is what let a second press miss the session just created
+ * and POST another — duplicating the workout and, because
+ * POST /v1/workout-sessions clears that date's rest_day, destroying a
+ * logged rest day.
+ */
+describe('TodayScreen starting a workout', () => {
+  it('navigates to the session route carrying its id', async () => {
+    mockGet = getFor(todayPayload({ dayTypeId: 'day-1', dayLabel: 'Push' }));
+    mockPost.mockResolvedValueOnce({ id: 'session-99' });
+    const rendered = await renderScreen();
+
+    await act(async () => {
+      hostsByLabel(rendered, 'Start workout')[0]!.props.onPress?.();
+      pressablesByLabel(rendered, 'Start workout')[0]?.props.onPress();
+    });
+    await flush();
+
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: '/workout/[sessionId]',
+      params: { sessionId: 'session-99' },
+    });
   });
 });

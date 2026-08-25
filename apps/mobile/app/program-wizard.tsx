@@ -361,7 +361,7 @@ export default function ProgramWizardScreen() {
   const canContinueFromExercises = workouts.length > 0 && exerciseCounts.every((item) => item.count > 0);
   const hasSchedule = Object.values(scheduleByDay).some(Boolean);
 
-  const goToEditor = () => router.replace('/program-editor');
+  const goToEditor = () => router.replace('/(tabs)/training');
 
   const handleProgramNext = () => {
     if (!canContinueFromProgram) return;

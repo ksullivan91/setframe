@@ -2,7 +2,7 @@ import React from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '../theme/ThemeProvider';
-import ProgramEditorScreen from '../../app/program-editor';
+import ProgramEditorScreen from '../../app/(tabs)/training';
 
 const mockPush = jest.fn();
 let mockGet: (path: string) => Promise<unknown> = () => Promise.resolve([]);
@@ -48,7 +48,7 @@ function getFor(programs: unknown[]): (path: string) => Promise<unknown> {
   return (path: string) => {
     if (path === '/programs') return Promise.resolve(programs);
     if (path.startsWith('/programs/') && path.endsWith('/schedule-slots')) return Promise.resolve([]);
-    if (path === '/day-types') return Promise.resolve([]);
+    if (path.startsWith('/programs/') && path.endsWith('/day-types')) return Promise.resolve([]);
     if (path === '/exercises') return Promise.resolve([]);
     return Promise.resolve([]);
   };
@@ -182,7 +182,12 @@ describe('ProgramEditorScreen program-aware schedule', () => {
       if (path === '/programs/program-2/schedule-slots') {
         return Promise.resolve([{ id: 'slot-2', programVersionId: 'v2', dayTypeId: 'day-2', weekNumber: null, dayIndex: 1, sortOrder: 0, createdAt: '' }]);
       }
-      if (path === '/day-types') return Promise.resolve([upperA, lowerB]);
+      // Story 25 made program→workout membership explicit, so each program
+      // serves only its own workouts rather than the client filtering a
+      // flat list — the scoping this test asserts is now enforced by the
+      // endpoint itself.
+      if (path === '/programs/program-1/day-types') return Promise.resolve([upperA]);
+      if (path === '/programs/program-2/day-types') return Promise.resolve([lowerB]);
       if (path === '/day-types/day-1') return Promise.resolve({ ...upperA, exercises: [] });
       if (path === '/day-types/day-2') return Promise.resolve({ ...lowerB, exercises: [] });
       if (path === '/exercises') return Promise.resolve([]);
@@ -200,5 +205,52 @@ describe('ProgramEditorScreen program-aware schedule', () => {
 
     expect(textNodesContaining(rendered, 'Lower B').length).toBeGreaterThan(0);
     expect(textNodesContaining(rendered, 'Upper A').length).toBe(0);
+  });
+});
+
+/**
+ * Training is where a program is built.
+ *
+ * This screen previously carried exactly one mutation — switching the
+ * active program — and told the user to "edit on web" for everything else.
+ * Every operation below already existed on mobile, but only inside the
+ * onboarding wizard: reachable once, and never again. These pin that they
+ * are now reachable from the tab.
+ */
+describe('ProgramEditorScreen editing', () => {
+  it('creates a workout in the selected program', async () => {
+    mockGet = getFor([baseProgram]);
+    const rendered = await renderScreen();
+
+    const input = rendered.root.findAll((node) => typeof node.props?.onChangeText === 'function')[0]!;
+    await act(async () => {
+      input.props.onChangeText('Upper A');
+    });
+    await act(async () => {
+      pressablesByText(rendered, 'Add workout')[0]!.props.onPress();
+    });
+    await flush();
+
+    expect(mockPost).toHaveBeenCalledWith('/day-types', { name: 'Upper A', programId: 'program-1' });
+  });
+
+  it('refuses to create a workout with no name, without calling the API', async () => {
+    mockGet = getFor([baseProgram]);
+    const rendered = await renderScreen();
+
+    await act(async () => {
+      pressablesByText(rendered, 'Add workout')[0]!.props.onPress();
+    });
+    await flush();
+
+    expect(mockPost).not.toHaveBeenCalledWith('/day-types', expect.anything());
+    expect(textNodesContaining(rendered, 'Give the workout a name first').length).toBeGreaterThan(0);
+  });
+
+  it('no longer tells the user to go to the web app', async () => {
+    mockGet = getFor([baseProgram]);
+    const rendered = await renderScreen();
+
+    expect(textNodesContaining(rendered, 'Edit on web').length).toBe(0);
   });
 });

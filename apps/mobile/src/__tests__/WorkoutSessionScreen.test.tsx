@@ -3,7 +3,7 @@ import { Alert } from 'react-native';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '../theme/ThemeProvider';
-import TrainingScreen from '../../app/(tabs)/training';
+import WorkoutSessionScreen from '../../app/workout/[sessionId]';
 import type { WorkoutSessionDetail } from '@setframe/schemas';
 
 const mockReplace = jest.fn();
@@ -27,8 +27,12 @@ const mockPatch = jest.fn((path: string, body?: Record<string, unknown>) => {
   return Promise.resolve({ ...body });
 });
 
+/* Mutable so a test can render the screen with no session id — the case
+   that used to make this screen create a workout out of thin air. */
+let mockRouteSessionId: string | undefined = 'session-1';
+
 jest.mock('expo-router', () => ({
-  useLocalSearchParams: () => ({ sessionId: 'session-1' }),
+  useLocalSearchParams: () => ({ sessionId: mockRouteSessionId }),
   useRouter: () => ({ replace: mockReplace }),
 }));
 
@@ -200,7 +204,7 @@ async function renderScreen(): Promise<ReactTestRenderer> {
     tree = create(
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
-          <TrainingScreen />
+          <WorkoutSessionScreen />
         </ThemeProvider>
       </QueryClientProvider>,
     );
@@ -214,11 +218,41 @@ afterEach(() => {
     tree?.unmount();
   });
   tree = null;
+  mockRouteSessionId = 'session-1';
   jest.clearAllMocks();
 });
 
+/**
+ * The screen is keyed to one session and cannot conjure another.
+ *
+ * As the Training *tab* it had to answer "what do I show when opened with
+ * no active session?", and the implemented answer was to POST one from a
+ * mount effect — creating duplicate empty sessions that shadowed finished
+ * workouts, and destroying that date's `rest_day` as a side effect of
+ * `POST /v1/workout-sessions`. Keying it to a route param deletes the
+ * question; these tests pin that it stays deleted.
+ */
+describe('WorkoutSessionScreen never creates a session', () => {
+  it('does not POST a workout session when it has one', async () => {
+    mockSessionPayload = baseSession({ sets: [] });
+    await renderScreen();
+
+    expect(mockPost).not.toHaveBeenCalledWith('/workout-sessions', expect.anything());
+  });
+
+  it('reports a missing session id instead of creating one', async () => {
+    mockRouteSessionId = undefined;
+    mockSessionPayload = baseSession({ sets: [] });
+    const rendered = await renderScreen();
+
+    expect(textNodesContaining(rendered, 'No workout session was specified').length).toBeGreaterThan(0);
+    // The whole point: no id must mean an error, never an invitation.
+    expect(mockPost).not.toHaveBeenCalledWith('/workout-sessions', expect.anything());
+  });
+});
+
 /** Story 34 — session-only exercise removal. */
-describe('TrainingScreen exercise removal', () => {
+describe('WorkoutSessionScreen exercise removal', () => {
   it('confirms with lightweight copy and removes an exercise with no logged sets', async () => {
     mockSessionPayload = baseSession({ sets: [] });
     const alertSpy = jest.spyOn(Alert, 'alert');
@@ -291,7 +325,7 @@ describe('TrainingScreen exercise removal', () => {
 });
 
 /** Story 36 — persistent Add exercise / Finish workout actions. */
-describe('TrainingScreen persistent session actions', () => {
+describe('WorkoutSessionScreen persistent session actions', () => {
   it('shows Add exercise and Finish workout while the session is active', async () => {
     mockSessionPayload = baseSession({ sets: [] });
     const rendered = await renderScreen();
@@ -363,7 +397,7 @@ describe('TrainingScreen persistent session actions', () => {
  * sets" rather than automatic cascade, so a manually-edited set is never
  * silently overwritten (only ever by the user's own next click).
  */
-describe('TrainingScreen collapsible quick-entry', () => {
+describe('WorkoutSessionScreen collapsible quick-entry', () => {
   it('pre-fills the quick-entry header from the first set, matching what session-start already templated', async () => {
     mockSessionPayload = baseSession({ sets: [baseSet(), baseSet({ id: 'set-2', sortOrder: 1 })] });
     const rendered = await renderScreen();
@@ -527,7 +561,7 @@ describe('TrainingScreen collapsible quick-entry', () => {
  * own required-field completeness (packages/domain's isExerciseComplete),
  * never a UI flag toggled on accordion close.
  */
-describe('TrainingScreen exercise completion state', () => {
+describe('WorkoutSessionScreen exercise completion state', () => {
   it('shows Complete once every set has its required fields', async () => {
     mockSessionPayload = baseSession({
       sets: [baseSet(), baseSet({ id: 'set-2', sortOrder: 1 })],
@@ -565,7 +599,7 @@ describe('TrainingScreen exercise completion state', () => {
  * action inside it) rather than on blur, which would be fragile given how
  * often focus moves between controls in the same exercise.
  */
-describe('TrainingScreen single-active-exercise accordion', () => {
+describe('WorkoutSessionScreen single-active-exercise accordion', () => {
   function twoExerciseSession(): WorkoutSessionDetail {
     const base = baseSession({ sets: [baseSet()] });
     return {
