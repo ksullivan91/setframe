@@ -123,7 +123,7 @@ function Helper({ children, testID }: { children: React.ReactNode; testID?: stri
  * shared outright via packages/domain, so the two cannot drift on what a
  * bucket means or when a comparison is honest.
  */
-function TrainingSeriesSection({
+export function TrainingSeriesSection({
   title,
   metricInfo,
   days,

@@ -2,7 +2,7 @@ import React from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import type { ProgressOverviewResponse } from '@setframe/schemas';
 import { ThemeProvider } from '../theme/ThemeProvider';
-import { BodyWeightSection, ExerciseCard } from '../../app/(tabs)/progress';
+import { BodyWeightSection, ExerciseCard, TrainingSeriesSection } from '../../app/(tabs)/progress';
 
 const mockPush = jest.fn();
 
@@ -370,5 +370,137 @@ describe('BodyWeightSection', () => {
     expect(hostsByTestId(establishing, 'body-weight-chart')).toHaveLength(1);
     expect(hostsByTestId(establishing, 'chart-trend-line')).toHaveLength(0);
     expect(hostsByTestId(establishing, 'body-weight-establishing')).toHaveLength(1);
+  });
+});
+
+/**
+ * Story 50 — the mobile half of training frequency and volume. These mirror
+ * the web assertions in apps/web/src/pages/ProgressPage.test.tsx so a
+ * divergence between the platforms shows up as a failing test rather than as
+ * a screenshot nobody compared.
+ */
+describe('TrainingSeriesSection', () => {
+  /** Monday of the week `weeksAgo` before END, as `YYYY-MM-DD`. */
+  const END = '2026-08-27'; // a Thursday, so the current week is half-elapsed
+
+  function mondayWeeksAgo(weeksAgo: number): Date {
+    const date = new Date(`${END}T00:00:00Z`);
+    date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() || 7) - 1) - weeksAgo * 7);
+    return date;
+  }
+
+  /* Days and weeks from one set of counts, so the fixture cannot claim a
+     history the two disagree about — the property the API guarantees. */
+  function fixture(counts: number[], volumes: (number | null)[] = []) {
+    const days: { localDate: string; completedCount: number; volume: number | null }[] = [];
+    const weeks = counts.map((completedCount, index) => {
+      const monday = mondayWeeksAgo(counts.length - 1 - index);
+      const weekVolume = volumes[index] ?? null;
+      for (let session = 0; session < completedCount; session += 1) {
+        const date = new Date(monday);
+        date.setUTCDate(date.getUTCDate() + session);
+        days.push({
+          localDate: date.toISOString().slice(0, 10),
+          completedCount: 1,
+          volume: weekVolume == null ? null : Math.round(weekVolume / completedCount),
+        });
+      }
+      return {
+        weekStart: monday.toISOString().slice(0, 10),
+        completedCount,
+        plannedCount: null,
+        completionRatio: null,
+        volume: weekVolume,
+        restCount: 0,
+        isRestWeek: completedCount === 0,
+        isCurrent: index === counts.length - 1,
+      };
+    });
+    return { days, weeks, firstActivityDate: days[0]?.localDate ?? null };
+  }
+
+  function renderSessions(counts: number[], volumes: (number | null)[] = []) {
+    const { days, weeks, firstActivityDate } = fixture(counts, volumes);
+    return renderTree(
+      <TrainingSeriesSection
+        title="Training frequency"
+        metricInfo={null}
+        days={days}
+        weeks={weeks}
+        firstActivityDate={firstActivityDate}
+        localDate={END}
+        valueOf={(day) => day.completedCount}
+        formatValue={(value) => `${Math.round(value)}`}
+        formatCompact={(value) => `${Math.round(value)}`}
+        emptyLabel="No sessions"
+        unitNoun={(value) => (Math.round(value) === 1 ? 'session' : 'sessions')}
+        testIDPrefix="sessions"
+      />,
+    );
+  }
+
+  function textOf(rendered: ReactTestRenderer, testID: string): string {
+    const node = rendered.root.findAll((candidate) => candidate.props?.testID === testID)[0];
+    const collect = (child: unknown): string =>
+      typeof child === 'string'
+        ? child
+        : Array.isArray(child)
+          ? child.map(collect).join('')
+          : child && typeof child === 'object' && 'props' in (child as never)
+            ? collect(((child as { props: { children: unknown } }).props ?? {}).children)
+            : '';
+    return collect(node?.props?.children ?? '');
+  }
+
+  afterEach(() => {
+    act(() => {
+      tree?.unmount();
+    });
+    tree = null;
+  });
+
+  it('offers the same range selector the rest of Progress uses', () => {
+    const rendered = renderSessions([3, 2, 4, 3]);
+    expect(hostsByTestId(rendered, 'chart-range-selector')).toHaveLength(1);
+    // Every range stays present; unavailable ones are dimmed, never hidden.
+    const options = rendered.root.findAll(
+      (node) =>
+        typeof node.props?.testID === 'string' &&
+        node.props.testID.startsWith('chart-range-') &&
+        typeof node.props?.onPress === 'function',
+    );
+    expect(options).toHaveLength(6);
+  });
+
+  it('buckets a week by day and a month by week', () => {
+    const rendered = renderSessions([3, 2, 4, 3]);
+    press(rendered, 'chart-range-W');
+    // A Monday-Sunday week is seven daily marks, never one weekly one.
+    expect(textOf(rendered, 'sessions-range-context')).toContain('one bar per day');
+
+    /* ...but a month is weekly. A daily session count is almost always 0 or
+       1, so thirty daily bars carry no shape; weekly totals show the rhythm.
+       This is the documented divergence from body weight, which stays daily
+       at M because each of its marks is a real reading. */
+    press(rendered, 'chart-range-M');
+    expect(textOf(rendered, 'sessions-range-context')).toContain('one bar per week');
+  });
+
+  it('names the current period in words, never by bar colour alone', () => {
+    const rendered = renderSessions([3, 2, 4, 3]);
+    // Story 33 fixed colour-only current styling once; it must not regress.
+    expect(textOf(rendered, 'sessions-partial-note')).toMatch(/still in progress/i);
+    expect(textOf(rendered, 'sessions-current')).toMatch(/so far/);
+  });
+
+  it('compares against the previous period', () => {
+    const rendered = renderSessions([3, 2, 4, 3]);
+    expect(textOf(rendered, 'sessions-previous')).toBe('4');
+    expect(textOf(rendered, 'sessions-change')).toMatch(/↓\s*1/);
+  });
+
+  it('counts only completed sessions', () => {
+    const rendered = renderSessions([3, 2, 4, 3]);
+    expect(textOf(rendered, 'sessions-total')).toMatch(/12 sessions/);
   });
 });
