@@ -11,14 +11,21 @@ import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import {
   bucketLabel,
+  bucketStart,
   buildOverviewInsights,
   buildProgressSeries,
+  comparePeriods,
+  countBucketForRange,
+  currentPeriodLabel,
+  daysBetween,
   describeBucketValue,
   formatBucketPeriod,
   progressRangeLabel,
   describeWeightRate,
   defaultRange,
   rangeOptions,
+  windowForRange,
+  formatCompactNumber,
   formatDateRangeLabel,
   formatMetricValue,
   formatWeekRange,
@@ -65,10 +72,6 @@ function formatDate(localDate: string): string {
   });
 }
 
-function daysBetween(from: string, to: string): number {
-  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
-}
-
 // Local (not UTC) calendar date — passed to the API so "last N weeks" is
 // computed relative to the user's actual today, not the server's UTC clock.
 function todayLocalDate(): string {
@@ -107,6 +110,184 @@ function Helper({ children, testID }: { children: React.ReactNode; testID?: stri
     <Text style={[styles.helper, { color: theme.text.secondary }]} testID={testID}>
       {children}
     </Text>
+  );
+}
+
+/**
+ * Sessions and Volume — the same chart with different arithmetic.
+ *
+ * The web counterpart is `TrainingSeriesSection` in
+ * apps/web/src/pages/ProgressPage.tsx. Same information architecture, same
+ * bucketing, same copy; only the primitives differ, which is the parity rule
+ * this repo works under (CLAUDE.md, "Frontend structure"). The arithmetic is
+ * shared outright via packages/domain, so the two cannot drift on what a
+ * bucket means or when a comparison is honest.
+ */
+function TrainingSeriesSection({
+  title,
+  metricInfo,
+  days,
+  weeks,
+  firstActivityDate,
+  localDate,
+  valueOf,
+  formatValue,
+  formatCompact,
+  emptyLabel,
+  unitNoun,
+  testIDPrefix,
+}: {
+  title: string;
+  metricInfo: React.ReactNode;
+  days: ProgressOverviewResponse['training']['days'];
+  weeks: ProgressOverviewResponse['training']['weeks'];
+  firstActivityDate: string | null;
+  localDate: string;
+  valueOf: (day: { completedCount: number; volume: number | null }) => number | null;
+  formatValue: (value: number) => string;
+  formatCompact: (value: number) => string;
+  emptyLabel: string;
+  unitNoun: (value: number) => string;
+  testIDPrefix: string;
+}) {
+  const theme = useTheme();
+  const raw = useMemo<SeriesPoint[]>(
+    () => days.map((day) => ({ localDate: day.localDate, value: valueOf(day) })),
+    [days, valueOf],
+  );
+
+  const [range, setRange] = useState<ProgressRange>(() => defaultRange(raw, localDate));
+  const ranges = useMemo(() => rangeOptions(raw, localDate), [raw, localDate]);
+
+  const series = useMemo(() => {
+    const span = Math.max(daysBetween(windowForRange(range, localDate).start, localDate), 0);
+    return buildProgressSeries(raw, {
+      range,
+      endLocalDate: localDate,
+      aggregation: 'sum',
+      bucket: countBucketForRange(range, span),
+      emptyIsZero: true,
+      zeroFrom: firstActivityDate,
+    });
+  }, [raw, range, localDate, firstActivityDate]);
+
+  /* A rest week is a fact about a week and the payload only carries it at
+     that grain, so it is applied only when a mark *is* a week. */
+  const restWeeks = useMemo(
+    () => new Set(weeks.filter((week) => week.isRestWeek).map((week) => week.weekStart)),
+    [weeks],
+  );
+
+  const currentBucket = bucketStart(localDate, series.bucket);
+  const columns = useMemo<SeriesPoint<{ isCurrent?: boolean; isRest?: boolean }>[]>(
+    () =>
+      series.points.map((point) => ({
+        localDate: point.localDate,
+        value: point.value,
+        meta: {
+          isCurrent: point.localDate === currentBucket,
+          isRest: series.bucket === 'week' && point.value === 0 && restWeeks.has(point.localDate),
+        },
+      })),
+    [series, currentBucket, restWeeks],
+  );
+
+  const comparison = comparePeriods(series, localDate);
+  const periodLabel = currentPeriodLabel(series.bucket);
+  const bucketNoun = series.bucket === 'day' ? 'day' : series.bucket;
+  const total = series.points.reduce((sum, point) => sum + (point.value ?? 0), 0);
+  const counted = series.points.filter((point) => point.value != null).length;
+
+  return (
+    <Card>
+      <View style={styles.sectionHeader}>
+        <View style={styles.sectionTitleRow}>
+          <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>{title}</Text>
+          {metricInfo}
+        </View>
+        <RangeSelector options={ranges} value={range} onChange={setRange} label={`${title} time range`} />
+      </View>
+
+      <Helper testID={`${testIDPrefix}-range-context`}>
+        {`${formatDateRangeLabel(series.window.start, series.window.end)} · one bar per ${bucketNoun}`}
+      </Helper>
+
+      {comparison && comparison.current.value != null ? (
+        <View style={styles.rangeStatRow} testID={`${testIDPrefix}-comparison`}>
+          <View>
+            <Text style={[styles.rangeStatLabel, { color: theme.text.secondary }]}>
+              {/* Story 33/50: an in-progress period says so in words, never
+                  by its bar colour alone. */}
+              {comparison.isPartial
+                ? periodLabel
+                : formatBucketPeriod(comparison.current.localDate, series.bucket)}
+            </Text>
+            <Text
+              style={[styles.rangeStatValue, { color: theme.text.primary }]}
+              testID={`${testIDPrefix}-current`}
+            >
+              {comparison.isPartial
+                ? `${formatValue(comparison.current.value)} so far`
+                : formatValue(comparison.current.value)}
+            </Text>
+          </View>
+
+          {/* Only when the previous period is genuinely known. A null one
+              predates the user's first session, and comparing against it
+              would invent a baseline they were never there for. */}
+          {comparison.previous?.value != null ? (
+            <View>
+              <Text style={[styles.rangeStatLabel, { color: theme.text.secondary }]}>
+                {`Previous ${bucketNoun}`}
+              </Text>
+              <Text
+                style={[styles.rangeStatValue, { color: theme.text.primary }]}
+                testID={`${testIDPrefix}-previous`}
+              >
+                {formatValue(comparison.previous.value)}
+              </Text>
+            </View>
+          ) : null}
+
+          {comparison.change != null ? (
+            <View>
+              <Text style={[styles.rangeStatLabel, { color: theme.text.secondary }]}>Change</Text>
+              <Text
+                style={[styles.rangeStatValue, { color: theme.text.primary }]}
+                testID={`${testIDPrefix}-change`}
+              >
+                {`${comparison.change > 0 ? '↑' : comparison.change < 0 ? '↓' : '→'} ${formatValue(
+                  Math.abs(comparison.change),
+                )}`}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+
+      <ColumnChart
+        series={columns}
+        formatValue={formatValue}
+        formatTick={formatCompact}
+        formatPeriod={(start) => formatBucketPeriod(start, series.bucket)}
+        currentLabel={periodLabel}
+        label={`${title}, ${bucketLabel(series.bucket)}, ${progressRangeLabel(range).toLowerCase()}`}
+        emptyLabel={emptyLabel}
+        testID={`${testIDPrefix}-chart`}
+      />
+
+      {comparison?.isPartial ? (
+        <Helper testID={`${testIDPrefix}-partial-note`}>
+          {`${periodLabel} is still in progress, so its bar is not yet comparable to a finished ${bucketNoun}.`}
+        </Helper>
+      ) : null}
+
+      <Helper testID={`${testIDPrefix}-total`}>
+        {`${formatValue(total)} ${unitNoun(total)} across ${counted} ${
+          counted === 1 ? bucketNoun : `${bucketNoun}s`
+        }.`}
+      </Helper>
+    </Card>
   );
 }
 
@@ -533,28 +714,6 @@ export default function ProgressScreen() {
       api.get<ProgressOverviewResponse>(`/progress/overview?weeks=${windowWeeks}&localDate=${localDate}`),
   });
 
-  const sessionSeries = useMemo<SeriesPoint<{ isCurrent?: boolean; isRest?: boolean }>[]>(
-    () =>
-      (query.data?.training.weeks ?? []).map((week) => ({
-        localDate: week.weekStart,
-        // Zero is a real, meaningful value for a week count, so it is plotted
-        // rather than nulled — a missed week has to be visible.
-        value: week.completedCount,
-        meta: { isCurrent: week.isCurrent, isRest: week.isRestWeek },
-      })),
-    [query.data],
-  );
-
-  const volumeSeries = useMemo<SeriesPoint<{ isCurrent?: boolean }>[]>(
-    () =>
-      (query.data?.training.weeks ?? []).map((week) => ({
-        localDate: week.weekStart,
-        value: week.volume,
-        meta: { isCurrent: week.isCurrent },
-      })),
-    [query.data],
-  );
-
   /* Story 51. Fixed to the week rather than a page-level range: the strip
      answers "what's changed lately", and week-over-week is the span a user
      actually acts on. Identical to the web screen's call, so both platforms
@@ -604,13 +763,10 @@ export default function ProgressScreen() {
 
   const { training, bodyWeight, exercises, recentSessions } = query.data;
   const currentWeek = training.weeks.at(-1);
-  const hasAnyVolume = volumeSeries.some((point) => point.value != null);
-  // Story 31: the chart's active period must be stated explicitly — this is
-  // the exact span the two weekly ColumnCharts below render.
-  const trainingWindowRange =
-    training.weeks.length > 0
-      ? formatDateRangeLabel(training.weeks[0]!.weekStart, weekEndDate(training.weeks.at(-1)!.weekStart))
-      : null;
+  /* Only offered when some weighted work exists. A user who only ever walks
+     has no volume to chart, and an all-zero axis would read as a verdict on
+     their training rather than as a metric that does not apply. */
+  const hasAnyVolume = training.days.some((day) => day.volume != null);
   const hasAnyData = training.totalCompleted > 0 || bodyWeight.checkInCount > 0;
 
   if (!hasAnyData) {
@@ -710,59 +866,60 @@ export default function ProgressScreen() {
           />
         </View>
 
-        <Card onLayout={captureOffset('training_frequency')}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleRow}>
-              <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Sessions per week</Text>
+        <View onLayout={captureOffset('training_frequency')}>
+          <TrainingSeriesSection
+            title="Training frequency"
+            metricInfo={
               <MetricInfo
-                label="Sessions per week"
-                explanation="How many workouts you completed in each of the last few weeks."
-                calculation="One bar per week, Monday to Sunday. Weeks with no training are shown as empty slots so gaps stay visible."
-                limitation="The current week is still in progress, so its bar will usually be shorter."
+                label="Training frequency"
+                explanation="How many workouts you completed in each period."
+                calculation="One completed workout counts once, whether it was scheduled or added on the day. Walks and other Additional Activity are not counted here — they are movement, but they are not the session you planned."
+                limitation="A period you had not signed up for yet is left blank rather than drawn as a zero, so early ranges can start part-way along."
               />
-            </View>
-          </View>
-          {trainingWindowRange ? <Helper testID="sessions-range-context">{trainingWindowRange}</Helper> : null}
-          <ColumnChart
-            series={sessionSeries}
+            }
+            days={training.days}
+            weeks={training.weeks}
+            firstActivityDate={training.firstActivityDate}
+            localDate={localDate}
+            valueOf={(day) => day.completedCount}
             formatValue={(value) => `${Math.round(value)}`}
-            formatPeriod={(weekStart) => formatWeekRange(weekStart)}
-            label={`Completed sessions per week over the last ${training.windowWeeks} weeks`}
+            formatCompact={(value) => `${Math.round(value)}`}
             emptyLabel="No sessions"
-            testID="sessions-chart"
+            unitNoun={(value) => (Math.round(value) === 1 ? 'session' : 'sessions')}
+            testIDPrefix="sessions"
           />
-          <Helper>
-            {`${training.totalCompleted} sessions across ${training.windowWeeks} weeks. This week is highlighted in green.`}
-          </Helper>
-        </Card>
+        </View>
 
         <View onLayout={captureOffset('body_weight')}>
           <BodyWeightSection bodyWeight={bodyWeight} localDate={localDate} />
         </View>
 
         {hasAnyVolume ? (
-          <Card onLayout={captureOffset('training_volume')}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionTitleRow}>
-                <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Weekly volume</Text>
+          <View onLayout={captureOffset('training_volume')}>
+            <TrainingSeriesSection
+              title="Training volume"
+              metricInfo={
                 <MetricInfo
-                  label="Weekly volume"
-                  explanation="The total weight you moved each week, across weighted lifts only."
-                  calculation="Weight × reps summed over every completed set of a weighted exercise. Cardio and bodyweight work are excluded because they carry no load to total."
+                  label="Training volume"
+                  explanation="The total weight you moved in each period, across weighted lifts only."
+                  calculation="Weight × reps, summed over every completed set of a weighted exercise. A set you did not save does not count. Cardio, timed and distance work carry no load to total, so they are left out rather than counted as zero."
                   limitation="Volume measures work done, not strength. It normally falls when you train heavier for fewer reps or take a deload week, and that is not a step backwards."
                 />
-              </View>
-            </View>
-            {trainingWindowRange ? <Helper testID="volume-range-context">{trainingWindowRange}</Helper> : null}
-            <ColumnChart
-              series={volumeSeries}
+              }
+              days={training.days}
+              weeks={training.weeks}
+              firstActivityDate={training.firstActivityDate}
+              localDate={localDate}
+              valueOf={(day) => day.volume}
               formatValue={(value) => `${Math.round(value).toLocaleString()} ${training.volumeUnit}`}
-              formatPeriod={(weekStart) => formatWeekRange(weekStart)}
-              label={`Weekly training volume in ${training.volumeUnit}`}
+              /* Axis labels only: 12,420 lb does not fit under a bar at
+                 390pt, and the exact figure is still one tap away. */
+              formatCompact={(value) => formatCompactNumber(value)}
               emptyLabel="No weighted work"
-              testID="volume-chart"
+              unitNoun={() => 'total'}
+              testIDPrefix="volume"
             />
-          </Card>
+          </View>
         ) : null}
 
         {exercises.length ? (
