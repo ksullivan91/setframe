@@ -35,7 +35,16 @@ npm run build        # turbo run build
 npm run lint          # turbo run lint (web + mobile only; no root eslint config)
 npm run test           # turbo run test
 npm run typecheck       # turbo run typecheck
+npm run check:deps       # missing *required* peer dependencies (story 56)
 ```
+
+`check:deps` runs in ~70ms and needs no network. It fails only on a peer the
+dependency imports at runtime, because that is the case that crashes at
+launch — `@clerk/clerk-expo`'s missing `expo-web-browser` was invisible to
+typecheck, tests and the production build, and surfaced only when the app was
+first run on a simulator. Peers referenced solely from `.d.ts` are reported
+as warnings, not failures. **There is no CI in this repo**, so nothing runs
+this automatically yet; run it after any dependency change.
 
 Single test file / single test, per workspace (vitest projects use `run`,
 not watch, by default — add `--watch` for TDD):

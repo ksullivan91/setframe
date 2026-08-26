@@ -1,5 +1,10 @@
 # Progress visualization rebuild — 2026-08-25
 
+*(Deliberately unnumbered. This came from direct feedback rather than a
+numbered review pack, and an earlier draft of this file was filed as
+"52-54", which collides with the real stories 52-54 in the mobile parity
+audit.)*
+
 ## Where this came from
 
 Direct feedback after stories 46–51 shipped:

@@ -161,7 +161,15 @@ alongside their stories, named `README-{range}-{review}.md`.
   real 1 lb move, and a 2-day weight average that is exactly the
   water-weight noise `body-weight-display-psychology.md` exists to
   suppress.
-- `completed/README-52-54-progress-visualization-rebuild.md` — the
+- `completed/56-dependency-integrity-guard.md` — story 56, `npm run
+  check:deps`: a dependency-free ~130-line guard that fails when a required
+  peer is missing. It distinguishes runtime peers from type-only ones
+  automatically rather than through an allowlist, because the first run
+  surfaced two type-only peers of `fastify-type-provider-zod` and failing on
+  those would have made the check a false alarm on day one. Proven by hiding
+  `expo-web-browser` (fails, naming the package and requirer) and hiding the
+  optional `expo-secure-store` (passes).
+- `completed/README-progress-visualization-rebuild.md` — the
   Progress visualization rebuild (2026-08-25), after the 46–51 charts were
   judged "barely better than what we had before". Adopts d3's headless maths
   in `packages/domain` (ADR 0010, amending 0008 — component libraries stay
