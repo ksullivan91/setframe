@@ -115,7 +115,7 @@ export function CompositionSection({
   composition,
   localDate,
 }: {
-  composition: ProgressOverviewResponse['composition'];
+  composition: ProgressOverviewResponse['composition'] | undefined;
   localDate: string;
 }) {
   const theme = useTheme();
@@ -123,13 +123,20 @@ export function CompositionSection({
   /* Driven by the same range helpers every other section uses, so which
      ranges are offered — and which is chosen first — stays consistent across
      the screen rather than being decided twice with different rules. */
+  /* Tolerates an API that predates this field. Web and the API deploy
+     separately and nothing deploys on push, so a client is briefly newer
+     than the service it talks to on every release — this exact ordering
+     already broke production once in this rebuild. The guard is on the data,
+     not wrapped around the hooks, so hook order stays unconditional. */
+  const weeks = composition?.weeks ?? [];
+
   const weekSeries = useMemo<SeriesPoint[]>(
     () =>
-      composition.weeks.map((week) => ({
+      weeks.map((week) => ({
         localDate: week.weekStart,
         value: week.total > 0 ? week.total : null,
       })),
-    [composition.weeks],
+    [weeks],
   );
 
   const [range, setRange] = useState<ProgressRange>(() => defaultRange(weekSeries, localDate));
@@ -141,8 +148,8 @@ export function CompositionSection({
      than the range claims whenever those two disagree. */
   const windowed = useMemo(() => {
     const { start, end } = windowForRange(range, localDate);
-    return composition.weeks.filter((week) => week.weekStart >= start && week.weekStart <= end);
-  }, [composition.weeks, range, localDate]);
+    return weeks.filter((week) => week.weekStart >= start && week.weekStart <= end);
+  }, [weeks, range, localDate]);
 
   const buckets = useMemo(
     () =>
@@ -170,13 +177,14 @@ export function CompositionSection({
   );
 
   const total = windowTotals.reduce((sum, entry) => sum + entry.total, 0);
+  const unit = composition?.unit ?? 'lb';
   const formatValue = (value: number) =>
-    `${Math.round(value).toLocaleString()} ${composition.unit}`;
+    `${Math.round(value).toLocaleString()} ${unit}`;
 
   // Nothing classified means nothing to compose. Saying so beats an empty
   // axis, and names the reason, which is fixable by the user.
   if (total <= 0) {
-    if (composition.unclassifiedTotal <= 0) return null;
+    if (!composition || composition.unclassifiedTotal <= 0) return null;
     return (
       <Card>
         <SectionTitle>Training composition</SectionTitle>
@@ -190,7 +198,7 @@ export function CompositionSection({
   }
 
   const disclosure =
-    composition.unclassifiedTotal > 0
+    composition && composition.unclassifiedTotal > 0
       ? `${formatValue(composition.unclassifiedTotal)} from ${
           composition.unclassifiedExerciseCount
         } ${composition.unclassifiedExerciseCount === 1 ? 'exercise' : 'exercises'} without a movement pattern is not shown above.`

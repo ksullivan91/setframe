@@ -679,6 +679,17 @@ describe('CompositionSection', () => {
     expect(table.props.accessibilityLabel).toContain('Pull 3,800 lb');
   });
 
+  it('survives an API response that predates the composition field', () => {
+    // Same deploy-ordering guard as web; see ProgressPage.test.tsx.
+    const rendered = renderTree(
+      <CompositionSection
+        composition={undefined as unknown as ProgressOverviewResponse['composition']}
+        localDate={localDate}
+      />,
+    );
+    expect(rendered.toJSON()).toBeNull();
+  });
+
   it('reports the breakdown when a bar is selected', () => {
     const rendered = renderComposition(compositionFixture([{ ...legDay, ...pushDay }]));
     press(rendered, 'stacked-column-hit', 0);

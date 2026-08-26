@@ -1038,6 +1038,18 @@ describe('ProgressPage training composition', () => {
     expect(within(table).getByRole('columnheader', { name: 'Total' })).toBeInTheDocument();
   });
 
+  it('survives an API response that predates the composition field', async () => {
+    /* Web and the API deploy separately and nothing deploys on push, so a
+       client is briefly newer than the service it talks to on every release.
+       This exact ordering already broke production once in this rebuild. */
+    const overview = baseOverview();
+    delete (overview as Record<string, unknown>).composition;
+    renderProgress(overview);
+    // The rest of the page must still render rather than white-screening.
+    expect(await screen.findByTestId('sessions-chart')).toBeInTheDocument();
+    expect(screen.queryByTestId('composition-chart')).not.toBeInTheDocument();
+  });
+
   it('reports the breakdown when a bar is selected', async () => {
     renderProgress(
       baseOverview({ composition: compositionFixture([{ ...legDay, ...pushDay }]) }),
