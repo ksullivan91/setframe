@@ -28,11 +28,15 @@ import {
   formatDateRangeLabel,
   formatMetricValue,
   formatWeekRange,
+  groupPatternValues,
   metricDefinition,
   metricLabel,
+  movementPatternGroupLabel,
+  orderMovementPatternGroups,
   weekEndDate,
   weekOverWeekChange,
   weekStartOf,
+  windowForRange,
   type InsightMetric,
   type ProgressRange,
   type ProgressMetricKey,
@@ -40,7 +44,7 @@ import {
 } from '@setframe/domain';
 import type { ProgressOverviewResponse } from '@setframe/schemas';
 import { Card } from '../../src/components/Card';
-import { ColumnChart, LineChart, RangeSelector } from '../../src/components/Charts';
+import { ColumnChart, LineChart, RangeSelector, StackedChart } from '../../src/components/Charts';
 import { MetricInfo } from '../../src/components/MetricInfo';
 import { ProgressInsights } from '../../src/components/ProgressInsights';
 import { FadeIn, Skeleton, SkeletonStack } from '../../src/components/Skeleton';
@@ -91,6 +95,156 @@ function MetricInfoFor({ metricKey }: { metricKey: string }) {
       calculation={definition.calculation}
       limitation={definition.limitation}
     />
+  );
+}
+
+/**
+ * Training composition — the mobile counterpart of web's `CompositionSection`.
+ *
+ * The volume section above answers "how much"; this answers "of what", which
+ * a single total structurally cannot. Grouped into the five planning
+ * categories rather than drawn per detailed pattern: capping the patterns at
+ * a palette-sized limit was tried on web and rendered badly, with a grey
+ * "Other" band becoming one of the largest things on the chart.
+ *
+ * Weekly only, deliberately. A day's movement mix describes one workout, not
+ * a trend, and a monthly bucket would blur the very alternation (push day,
+ * pull day, leg day) the chart exists to show.
+ */
+export function CompositionSection({
+  composition,
+  localDate,
+}: {
+  composition: ProgressOverviewResponse['composition'];
+  localDate: string;
+}) {
+  const theme = useTheme();
+
+  /* Driven by the same range helpers every other section uses, so which
+     ranges are offered — and which is chosen first — stays consistent across
+     the screen rather than being decided twice with different rules. */
+  const weekSeries = useMemo<SeriesPoint[]>(
+    () =>
+      composition.weeks.map((week) => ({
+        localDate: week.weekStart,
+        value: week.total > 0 ? week.total : null,
+      })),
+    [composition.weeks],
+  );
+
+  const [range, setRange] = useState<ProgressRange>(() => defaultRange(weekSeries, localDate));
+  const ranges = useMemo(() => rangeOptions(weekSeries, localDate), [weekSeries, localDate]);
+
+  /* Windowed by date rather than by slicing a fixed count off the tail: the
+     payload's week list is bounded by whatever `weeks` the screen requested,
+     so counting backwards from its end would silently show a different span
+     than the range claims whenever those two disagree. */
+  const windowed = useMemo(() => {
+    const { start, end } = windowForRange(range, localDate);
+    return composition.weeks.filter((week) => week.weekStart >= start && week.weekStart <= end);
+  }, [composition.weeks, range, localDate]);
+
+  const buckets = useMemo(
+    () =>
+      windowed.map((week) => ({
+        localDate: week.weekStart,
+        values: groupPatternValues(week.values),
+        meta: { isCurrent: week.isCurrent },
+      })),
+    [windowed],
+  );
+
+  const windowTotals = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const bucket of buckets) {
+      for (const [key, value] of Object.entries(bucket.values)) {
+        totals.set(key, (totals.get(key) ?? 0) + value);
+      }
+    }
+    return [...totals.entries()].map(([key, total]) => ({ key, total }));
+  }, [buckets]);
+
+  const stackKeys = useMemo(
+    () => orderMovementPatternGroups(windowTotals.map((entry) => entry.key)),
+    [windowTotals],
+  );
+
+  const total = windowTotals.reduce((sum, entry) => sum + entry.total, 0);
+  const formatValue = (value: number) =>
+    `${Math.round(value).toLocaleString()} ${composition.unit}`;
+
+  // Nothing classified means nothing to compose. Saying so beats an empty
+  // axis, and names the reason, which is fixable by the user.
+  if (total <= 0) {
+    if (composition.unclassifiedTotal <= 0) return null;
+    return (
+      <Card>
+        <SectionTitle>Training composition</SectionTitle>
+        <Helper testID="composition-unclassified-only">
+          {`None of your exercises has a movement pattern set yet, so there is nothing to break your ${formatValue(
+            composition.unclassifiedTotal,
+          )} of volume down by. Setting a pattern on an exercise groups its work here.`}
+        </Helper>
+      </Card>
+    );
+  }
+
+  const disclosure =
+    composition.unclassifiedTotal > 0
+      ? `${formatValue(composition.unclassifiedTotal)} from ${
+          composition.unclassifiedExerciseCount
+        } ${composition.unclassifiedExerciseCount === 1 ? 'exercise' : 'exercises'} without a movement pattern is not shown above.`
+      : undefined;
+
+  const leader = [...windowTotals].sort((a, b) => b.total - a.total)[0];
+
+  return (
+    <Card>
+      <View style={styles.sectionHeader}>
+        <View style={styles.sectionTitleRow}>
+          <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>
+            Training composition
+          </Text>
+          <MetricInfo
+            label="Training composition"
+            explanation="What your training volume was actually made of, by movement pattern."
+            calculation="The same weight × reps that makes up Training volume, grouped by what each exercise trains — squats and hinges are Legs, presses are Push, rows and pull-ups are Pull. The bands in a bar always add up to that week's total."
+            limitation="Only exercises with a movement pattern set can be grouped. Anything without one is reported below the chart rather than hidden, so the total you see here can be smaller than your full volume."
+          />
+        </View>
+        <RangeSelector
+          options={ranges}
+          value={range}
+          onChange={setRange}
+          label="Training composition time range"
+        />
+      </View>
+
+      <Helper testID="composition-range-context">
+        {`${windowed.length} ${windowed.length === 1 ? 'week' : 'weeks'} · one bar per week`}
+      </Helper>
+
+      <StackedChart
+        buckets={buckets}
+        keys={stackKeys}
+        labelForKey={movementPatternGroupLabel}
+        formatValue={formatValue}
+        formatTick={(value) => formatCompactNumber(value)}
+        formatPeriod={(weekStart) => formatWeekRange(weekStart)}
+        label={`Training composition by movement pattern, weekly, ${progressRangeLabel(range).toLowerCase()}`}
+        emptyLabel="No weighted work"
+        disclosure={disclosure}
+        testID="composition-chart"
+      />
+
+      {leader && total > 0 ? (
+        <Helper testID="composition-summary">
+          {`${movementPatternGroupLabel(leader.key)} was your largest share at ${Math.round(
+            (leader.total / total) * 100,
+          )}% of ${formatValue(total)}.`}
+        </Helper>
+      ) : null}
+    </Card>
   );
 }
 
@@ -782,7 +936,7 @@ export default function ProgressScreen() {
     );
   }
 
-  const { training, bodyWeight, exercises, recentSessions } = query.data;
+  const { training, bodyWeight, composition, exercises, recentSessions } = query.data;
   const currentWeek = training.weeks.at(-1);
   /* Only offered when some weighted work exists. A user who only ever walks
      has no volume to chart, and an all-zero axis would read as a verdict on
@@ -944,6 +1098,8 @@ export default function ProgressScreen() {
             />
           </View>
         ) : null}
+
+        <CompositionSection composition={composition} localDate={localDate} />
 
         {exercises.length ? (
           <View style={styles.stack}>

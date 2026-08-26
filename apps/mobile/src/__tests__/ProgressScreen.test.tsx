@@ -2,7 +2,12 @@ import React from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import type { ProgressOverviewResponse } from '@setframe/schemas';
 import { ThemeProvider } from '../theme/ThemeProvider';
-import { BodyWeightSection, ExerciseCard, TrainingSeriesSection } from '../../app/(tabs)/progress';
+import {
+  BodyWeightSection,
+  CompositionSection,
+  ExerciseCard,
+  TrainingSeriesSection,
+} from '../../app/(tabs)/progress';
 
 const mockPush = jest.fn();
 
@@ -71,6 +76,40 @@ function tapAt(pressables: ReturnType<typeof pressablesByTestId>, x: number) {
 function textOf(rendered: ReactTestRenderer, testID: string): string {
   const node = hostsByTestId(rendered, testID)[0]!;
   return JSON.stringify(node.props.children);
+}
+
+
+/**
+ * Flattens every string inside a testID'd subtree.
+ *
+ * `textOf` stringifies raw props, which throws on a circular structure the
+ * moment a readout nests elements rather than holding plain strings. This
+ * walks the rendered output instead, so it keeps working as a component's
+ * internals get richer.
+ */
+function renderedTextOf(rendered: ReactTestRenderer, testID: string): string {
+  const collect = (node: unknown): string => {
+    if (node == null || node === false) return '';
+    if (typeof node === 'string' || typeof node === 'number') return String(node);
+    if (Array.isArray(node)) return node.map(collect).join('');
+    const children = (node as { children?: unknown }).children;
+    return children === undefined ? '' : collect(children);
+  };
+  const find = (node: unknown): unknown => {
+    if (node == null || typeof node !== 'object') return null;
+    if (Array.isArray(node)) {
+      for (const child of node) {
+        const hit = find(child);
+        if (hit) return hit;
+      }
+      return null;
+    }
+    const typed = node as { props?: { testID?: string }; children?: unknown };
+    if (typed.props?.testID === testID) return node;
+    return find(typed.children ?? null);
+  };
+  const node = find(rendered.toJSON());
+  return node ? collect(node) : '';
 }
 
 afterEach(() => {
@@ -502,5 +541,149 @@ describe('TrainingSeriesSection', () => {
   it('counts only completed sessions', () => {
     const rendered = renderSessions([3, 2, 4, 3]);
     expect(textOf(rendered, 'sessions-total')).toMatch(/12 sessions/);
+  });
+});
+
+/**
+ * Training composition — the mobile half of a chart that must be identical to
+ * web. These mirror `ProgressPage.test.tsx`'s composition suite case for case,
+ * so parity is *tested* rather than intended: a change on one platform that is
+ * not made on the other breaks a named assertion here.
+ */
+describe('CompositionSection', () => {
+  const legDay = { squat: 4000, hinge: 3000 };
+  const pushDay = { 'horizontal-push': 2500, 'vertical-push': 1500 };
+  const pullDay = { 'horizontal-pull': 2000, 'vertical-pull': 1800 };
+
+  function mondayOffsetWeeks(weeksAgo: number) {
+    const date = new Date();
+    date.setUTCHours(0, 0, 0, 0);
+    date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() || 7) - 1) - weeksAgo * 7);
+    return date;
+  }
+
+  function compositionFixture(
+    perWeek: (Record<string, number> | null)[],
+    extras: { unclassifiedTotal?: number; unclassifiedExerciseCount?: number } = {},
+  ): ProgressOverviewResponse['composition'] {
+    const weekRows = perWeek.map((values, index) => ({
+      weekStart: mondayOffsetWeeks(perWeek.length - 1 - index).toISOString().slice(0, 10),
+      values: values ?? {},
+      total: Object.values(values ?? {}).reduce((sum, value) => sum + value, 0),
+      isCurrent: index === perWeek.length - 1,
+    }));
+    const totals = new Map<string, number>();
+    for (const week of weekRows) {
+      for (const [key, value] of Object.entries(week.values)) {
+        totals.set(key, (totals.get(key) ?? 0) + value);
+      }
+    }
+    const classified = [...totals.values()].reduce((sum, value) => sum + value, 0);
+    return {
+      unit: 'lb',
+      patterns: [...totals.entries()]
+        .map(([key, total]) => ({ key, total, share: classified > 0 ? total / classified : 0 }))
+        .sort((a, b) => b.total - a.total),
+      weeks: weekRows,
+      unclassifiedTotal: extras.unclassifiedTotal ?? 0,
+      unclassifiedExerciseCount: extras.unclassifiedExerciseCount ?? 0,
+    };
+  }
+
+  const localDate = new Date().toISOString().slice(0, 10);
+
+  function renderComposition(composition: ProgressOverviewResponse['composition']) {
+    return renderTree(<CompositionSection composition={composition} localDate={localDate} />);
+  }
+
+  function allText(rendered: ReactTestRenderer): string {
+    return JSON.stringify(rendered.toJSON());
+  }
+
+  it('rolls detailed patterns up into the planning groups', () => {
+    const rendered = renderComposition(
+      compositionFixture([
+        { ...legDay, ...pushDay },
+        { ...pullDay, core: 500 },
+        { ...legDay, ...pullDay },
+        { ...pushDay, 'isolation-arm': 400 },
+      ]),
+    );
+    const legend = allText(rendered);
+    expect(legend).toContain('Legs');
+    expect(legend).toContain('Push');
+    expect(legend).toContain('Pull');
+    // Raw pattern slugs must never reach the user.
+    expect(legend).not.toContain('Vertical push');
+    expect(legend).not.toContain('Squat');
+  });
+
+  it('stacks segments that sum to the week total', () => {
+    const rendered = renderComposition(compositionFixture([{ ...legDay, ...pushDay }]));
+    const hit = pressablesByTestId(rendered, 'stacked-column-hit')[0]!;
+    // 4000 + 3000 legs, 2500 + 1500 push = 11,000 lb.
+    expect(hit.props.accessibilityLabel).toContain('11,000 lb total');
+    expect(hit.props.accessibilityLabel).toContain('Legs 7,000 lb');
+    expect(hit.props.accessibilityLabel).toContain('Push 4,000 lb');
+  });
+
+  it('names the largest group and its share', () => {
+    const rendered = renderComposition(
+      compositionFixture([{ squat: 8000, 'horizontal-push': 2000 }]),
+    );
+    expect(renderedTextOf(rendered, 'composition-summary')).toContain(
+      'Legs was your largest share at 80% of 10,000 lb',
+    );
+  });
+
+  it('discloses volume it could not group rather than hiding it', () => {
+    const rendered = renderComposition(
+      compositionFixture([{ squat: 5000 }], {
+        unclassifiedTotal: 2400,
+        unclassifiedExerciseCount: 3,
+      }),
+    );
+    expect(renderedTextOf(rendered, 'stacked-disclosure')).toContain(
+      '2,400 lb from 3 exercises without a movement pattern is not shown',
+    );
+  });
+
+  it('explains the fixable cause when nothing is classified at all', () => {
+    const rendered = renderComposition(
+      compositionFixture([], { unclassifiedTotal: 9000, unclassifiedExerciseCount: 4 }),
+    );
+    expect(renderedTextOf(rendered, 'composition-unclassified-only')).toContain(
+      'None of your exercises has a movement pattern set',
+    );
+    expect(hostsByTestId(rendered, 'composition-chart')).toHaveLength(0);
+  });
+
+  it('renders nothing at all when there is no volume of any kind', () => {
+    const rendered = renderComposition(compositionFixture([]));
+    expect(rendered.toJSON()).toBeNull();
+  });
+
+  it('draws an untrained week as a visible zero, not as a gap', () => {
+    const rendered = renderComposition(
+      compositionFixture([{ ...legDay }, null, { ...pushDay }]),
+    );
+    expect(hostsByTestId(rendered, 'stacked-empty').length).toBeGreaterThan(0);
+  });
+
+  it('gives VoiceOver the composition, not just the totals', () => {
+    const rendered = renderComposition(compositionFixture([{ ...legDay, ...pullDay }]));
+    const table = rendered.root.findAll(
+      (node) => node.props?.testID === 'stacked-table',
+    )[0]!;
+    expect(table.props.accessibilityLabel).toContain('Legs 7,000 lb');
+    expect(table.props.accessibilityLabel).toContain('Pull 3,800 lb');
+  });
+
+  it('reports the breakdown when a bar is selected', () => {
+    const rendered = renderComposition(compositionFixture([{ ...legDay, ...pushDay }]));
+    press(rendered, 'stacked-column-hit', 0);
+    const readout = renderedTextOf(rendered, 'stacked-readout');
+    expect(readout).toContain('11,000 lb');
+    expect(readout).toContain('Legs 7,000 lb');
   });
 });

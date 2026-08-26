@@ -12,10 +12,14 @@ import Svg, { Circle, G, Line, Path, Rect, Text as SvgText } from 'react-native-
 import {
   buildColumnChart,
   buildLineChart,
+  buildStackedChart,
   nearestPointIndex,
+  plotRect,
+  remainderPatternKey,
   shouldClaimScrub,
   type ProgressRange,
   type SeriesPoint,
+  type StackedBucket,
 } from '@setframe/domain';
 import { useTheme } from '../theme/ThemeProvider';
 import { spacing, typeScale } from '../theme/getTheme';
@@ -575,6 +579,25 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: spacing[4],
   },
+  legend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: spacing[12],
+    rowGap: spacing[4],
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[4],
+  },
+  legendLabel: {
+    fontSize: typeScale.caption.fontSize,
+  },
+  swatch: {
+    width: 10,
+    height: 10,
+    borderRadius: 3,
+  },
   rangeButton: {
     minHeight: 44,
     minWidth: 44,
@@ -585,3 +608,233 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 });
+
+export interface StackedChartProps {
+  buckets: StackedBucket[];
+  /** Stack order, bottom first. */
+  keys: string[];
+  labelForKey: (key: string) => string;
+  height?: number;
+  formatValue: (value: number) => string;
+  formatTick?: (value: number) => string;
+  formatPeriod?: (localDate: string) => string;
+  label: string;
+  emptyLabel?: string;
+  currentLabel?: string;
+  /** Rendered under the legend, e.g. the unclassified-volume disclosure. */
+  disclosure?: string;
+  testID?: string;
+}
+
+/**
+ * Stacked columns — the `react-native-svg` counterpart of the web
+ * `StackedChart`, drawing the identical `buildStackedChart` geometry.
+ *
+ * As on web the hit target is the whole column, not the segment. That matters
+ * more here: the thinnest band in a stack can be two or three pixels tall,
+ * which is not a touch target at all, and tapping a week to read its whole
+ * breakdown is the useful interaction anyway.
+ */
+export function StackedChart({
+  buckets,
+  keys,
+  labelForKey,
+  height = 168,
+  formatValue,
+  formatTick,
+  formatPeriod = formatDate,
+  label,
+  emptyLabel = 'Nothing logged',
+  currentLabel = 'Current week',
+  disclosure,
+  testID,
+}: StackedChartProps) {
+  const theme = useTheme();
+  const [width, onLayout] = useMeasuredWidth(320);
+  const [selected, setSelected] = useState<number | null>(null);
+
+  const colorFor = useMemo(() => {
+    const palette = theme.chart.series;
+    const map = new Map<string, string>();
+    let next = 0;
+    for (const key of keys) {
+      if (key === remainderPatternKey) {
+        map.set(key, theme.chart.seriesRemainder);
+        continue;
+      }
+      map.set(key, palette[next % palette.length] ?? theme.chart.raw);
+      next += 1;
+    }
+    return (key: string) => map.get(key) ?? theme.chart.raw;
+  }, [keys, theme]);
+
+  const chart = useMemo(
+    () =>
+      buildStackedChart(
+        buckets,
+        plotRect({ width, height, insets: { top: 10, right: 8, bottom: 22, left: 40 } }),
+        { keys, format: formatTick ?? formatValue },
+      ),
+    [buckets, keys, width, height, formatValue, formatTick],
+  );
+
+  const selectedColumn = selected != null ? chart.columns[selected] : null;
+
+  /** Descending by value, so the readout leads with what dominated the week. */
+  const breakdown = (column: (typeof chart.columns)[number]) =>
+    [...column.segments].sort((a, b) => b.value - a.value);
+
+  const describe = (column: (typeof chart.columns)[number]) =>
+    column.total === 0
+      ? emptyLabel
+      : `${formatValue(column.total)} total, ${breakdown(column)
+          .map((part) => `${labelForKey(part.key)} ${formatValue(part.value)}`)
+          .join(', ')}`;
+
+  const tableLabel = `${label}. ${chart.columns
+    .map(
+      (column) =>
+        `${formatPeriod(column.localDate)}${
+          (column.meta as { isCurrent?: boolean } | undefined)?.isCurrent
+            ? ` (${currentLabel}, still in progress)`
+            : ''
+        }: ${describe(column)}`,
+    )
+    .join('. ')}`;
+
+  return (
+    <View style={styles.figure} testID={testID}>
+      <View style={{ width: '100%', height }} onLayout={onLayout}>
+        <Svg
+          width={width}
+          height={height}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          {chart.ticks.map((tick) => (
+            <G key={tick.value}>
+              <Line
+                x1={chart.plot.x}
+                x2={chart.plot.x + chart.plot.width}
+                y1={tick.position}
+                y2={tick.position}
+                stroke={theme.chart.gridline}
+                strokeWidth={1}
+              />
+              <SvgText x={0} y={tick.position + 3} fontSize={10} fill={theme.chart.axis}>
+                {tick.label}
+              </SvgText>
+            </G>
+          ))}
+
+          {chart.columns.map((column, index) =>
+            /* An empty period is drawn as a flat stub rather than nothing at
+               all, so a missed week reads as a real, visible zero. */
+            column.segments.length === 0 ? (
+              <Rect
+                key={`empty-${column.localDate}-${index}`}
+                x={column.x}
+                y={chart.plot.y + chart.plot.height - 2}
+                width={column.width}
+                height={2}
+                rx={1}
+                fill={theme.chart.empty}
+                testID="stacked-empty"
+              />
+            ) : (
+              column.segments.map((segment) => (
+                <Rect
+                  key={`${segment.key}-${column.localDate}-${index}`}
+                  x={segment.x}
+                  y={segment.y}
+                  width={segment.width}
+                  height={segment.height}
+                  fill={colorFor(segment.key)}
+                  opacity={selected == null || index === selected ? 1 : 0.55}
+                  testID={`stacked-segment-${segment.key}`}
+                />
+              ))
+            ),
+          )}
+        </Svg>
+
+        {chart.columns.map((column, index) => (
+          <Pressable
+            key={`hit-${index}`}
+            accessible
+            accessibilityRole="button"
+            accessibilityLabel={`${formatPeriod(column.localDate)}: ${describe(column)}${
+              (column.meta as { isCurrent?: boolean } | undefined)?.isCurrent
+                ? `, ${currentLabel.toLowerCase()}, still in progress`
+                : ''
+            }`}
+            testID="stacked-column-hit"
+            onPress={() => setSelected(index)}
+            style={[
+              styles.columnHit,
+              {
+                left: chart.plot.x + chart.slotWidth * index,
+                width: chart.slotWidth,
+                top: chart.plot.y,
+                height: chart.plot.height,
+              },
+            ]}
+          />
+        ))}
+      </View>
+
+      <Text style={[styles.readout, { color: theme.text.secondary }]} testID="stacked-readout">
+        {selectedColumn ? (
+          selectedColumn.total === 0 ? (
+            <>
+              <Text style={{ color: theme.text.primary, fontWeight: '700' }}>{emptyLabel}</Text>
+              {`  ${formatPeriod(selectedColumn.localDate)}`}
+            </>
+          ) : (
+            <>
+              <Text style={{ color: theme.text.primary, fontWeight: '700' }}>
+                {formatValue(selectedColumn.total)}
+              </Text>
+              {`  ${formatPeriod(selectedColumn.localDate)}`}
+              {breakdown(selectedColumn).map((part) => (
+                <Text key={part.key}>{`  ·  ${labelForKey(part.key)} ${formatValue(part.value)}`}</Text>
+              ))}
+              {(selectedColumn.meta as { isCurrent?: boolean } | undefined)?.isCurrent ? (
+                <Text testID="stacked-current-label">{`  ·  ${currentLabel} · still in progress`}</Text>
+              ) : null}
+            </>
+          )
+        ) : (
+          'Select a bar to see what you trained that period.'
+        )}
+      </Text>
+
+      <View style={styles.legend} testID="stacked-legend">
+        {chart.keys.map((key) => (
+          <View key={key} style={styles.legendItem}>
+            <View style={[styles.swatch, { backgroundColor: colorFor(key) }]} />
+            <Text style={[styles.legendLabel, { color: theme.text.secondary }]}>
+              {labelForKey(key)}
+            </Text>
+          </View>
+        ))}
+      </View>
+
+      {disclosure ? (
+        <Text
+          style={[styles.legendLabel, { color: theme.text.secondary }]}
+          testID="stacked-disclosure"
+        >
+          {disclosure}
+        </Text>
+      ) : null}
+
+      <View
+        accessible
+        accessibilityLabel={tableLabel}
+        style={styles.visuallyHidden}
+        testID="stacked-table"
+      />
+    </View>
+  );
+}
