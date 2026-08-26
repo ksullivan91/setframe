@@ -38,6 +38,19 @@ npm run typecheck       # turbo run typecheck
 npm run check:deps       # missing *required* peer dependencies (story 56)
 ```
 
+```bash
+npm run test:e2e --workspace=@setframe/web   # Playwright modal contract (story 67)
+```
+
+Two projects, because the contract genuinely splits: `mobile-webkit` asserts
+the viewport, scrolling and overflow behaviour on a real iPhone WebKit profile
+— the defect that prompted this would not reproduce on desktop Chromium — and
+`desktop-keyboard` asserts focus trapping on Chromium, because macOS Safari
+ships with "Press Tab to highlight each item" off and tabs to `<body>` rather
+than cycling buttons. Needs browsers once: `npx playwright install webkit
+chromium`. **There is no CI**, so nothing runs this automatically; run it
+after touching `Modal` or anything that opens one.
+
 `check:deps` runs in ~70ms and needs no network. It fails only on a peer the
 dependency imports at runtime, because that is the case that crashes at
 launch — `@clerk/clerk-expo`'s missing `expo-web-browser` was invisible to

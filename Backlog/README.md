@@ -157,6 +157,14 @@ alongside their stories, named `README-{range}-{review}.md`.
   real 1 lb move, and a 2-day weight average that is exactly the
   water-weight noise `body-weight-display-psychology.md` exists to
   suppress.
+- `completed/README-64-67-mobile-web-modal-rework.md` — the mobile-web modal
+  rework (stories 64-67). The reported "two sheets" was never two dialogs:
+  below 640px the primitive presented *every* dialog as a bottom sheet, so a
+  form that did not fill 85% of the viewport left the app's own white cards
+  showing above it. Presentation now follows the task, not the breakpoint, and
+  the rule is recorded in `docs/design/web-modal-standard.md`. Story 67 adds
+  Playwright — which `WAIT-automated-visual-and-e2e-testing.md` had deferred
+  pending sign-off — scoped narrowly to the modal contract.
 - `completed/README-58-62-workout-input-flow-redesign.md` — the workout input
   flow rebuild (stories 58-62), renumbered on intake from 52-56. Quick Log
   replaces the populate-only "Apply to all sets" header: it persists in one

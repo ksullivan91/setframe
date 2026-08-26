@@ -10,3 +10,7 @@ build/
 .turbo/
 .copilot-reviews/
 /screenshots/
+
+# Playwright (story 67)
+test-results/
+playwright-report/
