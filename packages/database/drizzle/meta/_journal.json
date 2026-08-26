@@ -57,6 +57,13 @@
       "when": 1787700000000,
       "tag": "0007_additional_activity_preset",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787800000000,
+      "tag": "0008_movement_pattern_backfill",
+      "breakpoints": true
     }
   ]
 }

@@ -54,11 +54,15 @@ fix for it.
 
 ## Scope
 
-1. **Backfill** the exercises above (a hand-written migration, per
-   `docs/handoff.md` §2 — `db:generate` is broken). Classification is a
-   judgement call in a couple of cases; `Dumbbell incline press` is filed as
-   `horizontal-push` by convention, and that convention should be written
-   down wherever the taxonomy lives.
+1. ~~**Backfill** the exercises above.~~ **Done** 2026-08-25 —
+   `packages/database/drizzle/0008_movement_pattern_backfill.sql`, written by
+   hand per `docs/handoff.md` §2 and applied to production. Ungrouped volume
+   went from 15,725 lb to **0**; 21 of 22 exercises are now classified.
+   "Mobility" is deliberately left NULL — it is not a loading pattern, and
+   inventing one would be the same category error as reporting cardio as 0 lb
+   of volume. The two judgement calls are recorded in the migration's own
+   header: incline presses are `horizontal-push` (only overhead work is
+   `vertical-push`), and dips are `vertical-push`.
 2. **Expose the field** so an exercise can be classified in the app —
    minimally on the exercise edit surface, as a select over the known
    patterns, with "not set" a legitimate value rather than a forced choice.
@@ -73,7 +77,8 @@ should not be bundled into fixing pattern coverage.
 
 ## Definition of done
 
-- Every exercise with logged volume in production carries a movement pattern.
+- ~~Every exercise with logged volume in production carries a movement
+  pattern.~~ Done — see above.
 - A user can set or change an exercise's movement pattern in the app, on both
   web and mobile.
 - The composition chart's ungrouped disclosure reads as an exception rather
