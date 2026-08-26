@@ -9,9 +9,6 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
-- `setframe-progress-experience-rebuild/` — story 50 remains (46, 47, 48,
-  49, 51 shipped): Training Frequency and Weekly Volume rebuilt on the
-  interaction grammar story 49 established.
 - `WAIT-automated-visual-and-e2e-testing.md` — deferred by request. Filed so the
   gap is tracked, deliberately not started.
 - `WAIT-figma-accentsubtle-token-fix.md` — deferred by request. Fixes
@@ -119,6 +116,22 @@ alongside their stories, named `README-{range}-{review}.md`.
   deliberately: that is this story's own sanctioned escalation for narrow
   screens, and the reported breakage was mobile *web*, which is what got
   anchored.
+- `completed/50-training-frequency-volume-charts.md` — story 50, Training
+  Frequency and Weekly Volume on story 49's grammar, with encodings that
+  differ because the metrics do: a count and an additive workload both get
+  zero baselines where body weight gets a dynamic one. Volume counts
+  `weight x reps` over completed sets of weighted work only — cardio stays
+  `null` rather than reading as `0 lb`, and the chart is withheld entirely
+  from a user with no weighted work, since an all-zero axis reads as a
+  verdict rather than an inapplicable metric. Partial weeks say
+  "2 so far" in text, never colour alone. Three defects were found by
+  looking at rendered pixels with a green suite: ALL drew 181 daily bars
+  at 390px, the y-axis read "0, 1, 1" because 0.5 rounds to 1, and both
+  clients requested 12 weeks while offering 6M/Y/ALL — so every long range
+  silently showed a quarter of what it claimed, invisible because the MSW
+  fixture ignores the `weeks` param.
+- `completed/README-46-51-progress-experience-rebuild.md` — the pack
+  README for stories 46-51, archived once all six shipped.
 - `completed/48-progress-time-range-interaction-foundation.md` — story 48,
   the temporal model. A range now carries a *window* and a *bucket*, not
   just a trailing day count: `filterByRange` trimmed and stopped, so every
