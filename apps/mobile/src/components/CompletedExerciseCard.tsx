@@ -28,7 +28,19 @@ export interface CompletedExerciseCardProps {
   readout: CompletedExerciseReadout;
   setCountLabel: string;
   onReopen: () => void;
-  /** The overflow control, rendered demoted in the corner. */
+  /**
+   * Whether the exercise is currently expanded beneath this card.
+   *
+   * Story 42A — once the parent workout is complete the card stays put in
+   * both states rather than handing over to the editing header, so this
+   * drives the disclosure's announced state.
+   */
+  expanded?: boolean;
+  /**
+   * The right-hand slot: the overflow control during an active workout, the
+   * disclosure chevron once the workout is complete. One fixed position, so
+   * status (the check, on the left) and navigation never trade places.
+   */
   actions?: ReactNode;
   testID?: string;
 }
@@ -38,6 +50,7 @@ export function CompletedExerciseCard({
   readout,
   setCountLabel,
   onReopen,
+  expanded = false,
   actions,
   testID,
 }: CompletedExerciseCardProps) {
@@ -88,8 +101,8 @@ export function CompletedExerciseCard({
         /* Completion is carried by an icon and a colour, so it is spelled out
            here — and the label says the card does something, since a summary
            that happens to be tappable is not discoverable otherwise. */
-        accessibilityLabel={`${name}, completed, ${setCountLabel}. Reopen to edit sets.`}
-        accessibilityState={{ expanded: false }}
+        accessibilityLabel={`${name}, completed, ${setCountLabel}. ${expanded ? 'Collapse' : 'Reopen to see sets'}.`}
+        accessibilityState={{ expanded }}
         style={styles.reopen}
       >
         <View style={[styles.checkCircle, { backgroundColor: theme.status.success, borderColor: theme.status.successSubtle }]}>

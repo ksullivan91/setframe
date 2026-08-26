@@ -446,12 +446,30 @@ const Chips = styled.div`
   align-items: center;
 `;
 
+/**
+ * The planned target, as a pill.
+ *
+ * Story 42C. This was a grey chip on `surface.sunken`, which put the plan in
+ * the same visual register as every other passive label and left it competing
+ * with the actual logged values beside it. It now uses the accent purple —
+ * the product's one "this is Setframe telling you something" colour — with
+ * white text.
+ *
+ * Deliberately state-independent: it never turns green when the set or the
+ * workout completes. The pill means *planned target*, not *done*, and a
+ * plan that changes colour on completion reads as a second status signal
+ * competing with the real one.
+ */
 const CuePill = styled.span`
   padding: ${spacing[4]}px ${spacing[8]}px;
   border-radius: 999px;
-  background: ${(p) => p.theme.surface.sunken};
-  color: ${(p) => p.theme.text.secondary};
+  background: ${(p) => p.theme.action.primary};
+  color: ${(p) => p.theme.action.primaryText};
   font-size: ${typeScale.helper.fontSize}px;
+  font-weight: 600;
+  /* A long representation-aware target ("3 mi · 30 min") must wrap inside the
+     pill rather than push the set card into horizontal overflow. */
+  overflow-wrap: anywhere;
 `;
 
 const SetGrid = styled.div`
@@ -1195,6 +1213,17 @@ export function WorkoutSessionPage() {
              that same effect and never read before its first commit, so this
              settles to the real value immediately. */
           const isCollapsed = hasSeededActiveExercise.current && !isExpanded;
+          /* Story 42A/42B — the review boundary is the *workout* being marked
+             complete, never an exercise finishing inside an active one. A
+             completed exercise mid-workout still needs its editing controls
+             when reopened; a completed workout has no mutations left to
+             offer, so controls that would only render disabled are removed
+             rather than greyed out. */
+          const sessionComplete = query.data.status === 'completed';
+          /* Once the workout is complete the summary card stays put whether or
+             not the sets are showing, so the chevron keeps one fixed position
+             instead of the card handing over to the editing header. */
+          const showCompletedCard = completedReadout != null && (sessionComplete || isCollapsed);
           const headerDraft = headerDrafts[exerciseLog.id] ?? getHeaderDraft(exerciseLog, definition);
 
           /* Story 58/59 — what Quick Log would write, and what to call the
@@ -1271,14 +1300,31 @@ export function WorkoutSessionPage() {
                 collapsed it renders as a record of what happened; reopening it
                 returns the ordinary header and the full editor, so completion
                 stays reversible. */}
-            {completedReadout && isCollapsed ? (
+            {showCompletedCard ? (
               <CompletedExerciseCard
                 name={exerciseLog.exercise.name}
                 readout={completedReadout}
                 setCountLabel={completedSetCountLabel(exerciseLog.sets)}
                 onReopen={() => toggleActiveExercise(exerciseLog.id)}
+                expanded={isExpanded}
                 testId={`completed-exercise-${exerciseLog.id}`}
-                actions={renderExerciseMenu()}
+                /* Story 42A — a chevron in review mode, the overflow menu
+                   during an active workout. The ellipsis is dropped once the
+                   workout is complete because every action behind it is
+                   gone; an inert menu is worse than no menu. */
+                actions={
+                  sessionComplete ? (
+                    <IconButton
+                      aria-label={isExpanded ? `Collapse ${exerciseLog.exercise.name}` : `Expand ${exerciseLog.exercise.name}`}
+                      onFocus={(event) => event.stopPropagation()}
+                      onClick={() => toggleActiveExercise(exerciseLog.id)}
+                    >
+                      {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </IconButton>
+                  ) : (
+                    renderExerciseMenu()
+                  )
+                }
               />
             ) : (
             <ExerciseHeader>
@@ -1452,19 +1498,23 @@ export function WorkoutSessionPage() {
                 than in the header competing with the quick path. */}
             <DetailedSetsHeader>
               <SupportingText>Detailed sets</SupportingText>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  // Story 39: an explicit call, not a reliance on
-                  // click-triggered focus — Safari doesn't always focus a
-                  // <button> on click, unlike Chrome/Firefox.
-                  activateExercise(exerciseLog.id);
-                  addSetMutation.mutate({ exerciseLogId: exerciseLog.id, sourceSet: exerciseLog.sets.at(-1) });
-                }}
-                disabled={addSetMutation.isPending || query.data.status === 'completed'}
-              >
-                <Plus size={16} /> Add set
-              </Button>
+              {/* Story 42B — adding a set to a finished workout was already
+                  blocked; the button is gone rather than greyed out. */}
+              {sessionComplete ? null : (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    // Story 39: an explicit call, not a reliance on
+                    // click-triggered focus — Safari doesn't always focus a
+                    // <button> on click, unlike Chrome/Firefox.
+                    activateExercise(exerciseLog.id);
+                    addSetMutation.mutate({ exerciseLogId: exerciseLog.id, sourceSet: exerciseLog.sets.at(-1) });
+                  }}
+                  disabled={addSetMutation.isPending}
+                >
+                  <Plus size={16} /> Add set
+                </Button>
+              )}
             </DetailedSetsHeader>
 
             {exerciseLog.previousSession ? (
@@ -1613,6 +1663,16 @@ export function WorkoutSessionPage() {
                           {plannedValue ? 'Planned beside actual for quick comparison.' : 'Log what you actually did.'}
                         </SupportingText>
                         <SetActions>
+                          {/* Story 42B, reconciled with story 23. Correcting a
+                              logged value after completion is deliberately
+                              still allowed and tested, so Save cannot simply
+                              be removed in review mode. Instead it appears
+                              only once there is an edit to save: no dead
+                              control, no lost capability. During an active
+                              workout it stays put and disables as before, so
+                              the button does not flicker in and out while
+                              someone is typing between sets. */}
+                          {sessionComplete && !hasChanges(set, draft, visibleFields, definition) ? null : (
                           <Button
                             variant="secondary"
                             disabled={
@@ -1636,6 +1696,7 @@ export function WorkoutSessionPage() {
                           >
                             {isSaving(syncMap, set.id) ? 'Saving…' : 'Save'}
                           </Button>
+                          )}
                           {/* Concise and inline, not a modal: a failed set
                               save is recoverable and the user is mid-workout.
                               The entered values are still in the draft. */}
@@ -1644,20 +1705,27 @@ export function WorkoutSessionPage() {
                               Not saved — tap Save to retry.
                             </SupportingText>
                           ) : null}
-                          <IconButton
-                            aria-label={`Duplicate set ${index + 1}`}
-                            onClick={() => addSetMutation.mutate({ exerciseLogId: exerciseLog.id, sourceSet: set })}
-                            disabled={query.data.status === 'completed'}
-                          >
-                            <Copy size={16} />
-                          </IconButton>
-                          <IconButton
-                            aria-label={`Delete set ${index + 1}`}
-                            onClick={() => setPendingRemoval({ setId: set.id, exerciseLogId: exerciseLog.id, label: `Set ${index + 1}` })}
-                            disabled={query.data.status === 'completed'}
-                          >
-                            <Trash2 size={16} />
-                          </IconButton>
+                          {/* Story 42B — restructuring a finished workout was
+                              always blocked (story 23); these used to render
+                              greyed out to say so. A permanently disabled
+                              control communicates nothing except that the
+                              screen has not caught up with its own state. */}
+                          {sessionComplete ? null : (
+                            <>
+                              <IconButton
+                                aria-label={`Duplicate set ${index + 1}`}
+                                onClick={() => addSetMutation.mutate({ exerciseLogId: exerciseLog.id, sourceSet: set })}
+                              >
+                                <Copy size={16} />
+                              </IconButton>
+                              <IconButton
+                                aria-label={`Delete set ${index + 1}`}
+                                onClick={() => setPendingRemoval({ setId: set.id, exerciseLogId: exerciseLog.id, label: `Set ${index + 1}` })}
+                              >
+                                <Trash2 size={16} />
+                              </IconButton>
+                            </>
+                          )}
                         </SetActions>
                       </SetFooter>
                     </SetCard>

@@ -763,6 +763,16 @@ export default function WorkoutSessionScreen() {
            before that `activeExerciseId` is null and treating it as collapsed
            would flash a completed exercise as a summary and snap it back open. */
         const isCollapsed = hasSeededActiveExercise.current && !isExpanded;
+        /* Story 42A/42B — the review boundary is the *workout* being marked
+           complete, never an exercise finishing inside an active one. A
+           completed exercise mid-workout still needs its editing controls when
+           reopened; a completed workout has no mutations left to offer, so
+           controls that would only render disabled are removed instead. */
+        const sessionComplete = sessionQuery.data.status === 'completed';
+        /* Once the workout is complete the summary card stays put whether or
+           not the sets are showing, so the chevron keeps one fixed position
+           instead of the card handing over to the editing header. */
+        const showCompletedCard = completedReadout != null && (sessionComplete || isCollapsed);
         const quickLogValues = draftToValues(headerDraft, definition);
         const quickLogTargets = quickLogTargetsFor(exerciseLog.prescription, exerciseLog.sets);
         /* The denominator excludes warmups, so "Log all 3 sets" counts the
@@ -801,24 +811,37 @@ export default function WorkoutSessionScreen() {
           {/* Story 42 — a finished exercise stops being a form while it is
               collapsed, and returns to the ordinary header the moment it is
               reopened, so completion stays reversible. */}
-          {completedReadout && isCollapsed ? (
+          {showCompletedCard ? (
             <CompletedExerciseCard
               name={exerciseLog.exercise.name}
               readout={completedReadout}
               setCountLabel={completedSetCountLabel(exerciseLog.sets)}
               onReopen={() => toggleActiveExercise(exerciseLog.id)}
               testID={`completed-exercise-${exerciseLog.id}`}
+              expanded={isExpanded}
+              /* Story 42A — a chevron in review mode, the overflow control
+                 during an active workout. The ellipsis is dropped once the
+                 workout is complete because every action behind it is gone;
+                 an inert control is worse than no control. */
               actions={
-                <IconButton
-                  icon={MoreVertical}
-                  variant="subtle"
-                  accessibilityLabel={`${exerciseLog.exercise.name} actions`}
-                  onPress={() => {
-                    if (sessionQuery.data.status === 'completed') return;
-                    activateExercise(exerciseLog.id);
-                    confirmRemoveExercise(exerciseLog.id, exerciseLog.exercise.name, loggedSetCount);
-                  }}
-                />
+                sessionComplete ? (
+                  <IconButton
+                    icon={isExpanded ? ChevronUp : ChevronDown}
+                    variant="subtle"
+                    accessibilityLabel={isExpanded ? `Collapse ${exerciseLog.exercise.name}` : `Expand ${exerciseLog.exercise.name}`}
+                    onPress={() => toggleActiveExercise(exerciseLog.id)}
+                  />
+                ) : (
+                  <IconButton
+                    icon={MoreVertical}
+                    variant="subtle"
+                    accessibilityLabel={`${exerciseLog.exercise.name} actions`}
+                    onPress={() => {
+                      activateExercise(exerciseLog.id);
+                      confirmRemoveExercise(exerciseLog.id, exerciseLog.exercise.name, loggedSetCount);
+                    }}
+                  />
+                )
               }
             />
           ) : (
@@ -837,17 +860,21 @@ export default function WorkoutSessionScreen() {
             <View style={styles.exerciseHeaderActions}>
               {/* Story 58: `Add set` has moved into Detailed Sets. It
                   customises the set list, so it belongs beside the sets
-                  rather than competing with the quick path for the header. */}
-              <IconButton
-                icon={MoreVertical}
-                variant="subtle"
-                accessibilityLabel={`${exerciseLog.exercise.name} actions`}
-                onPress={() => {
-                  if (sessionQuery.data.status === 'completed') return;
-                  activateExercise(exerciseLog.id);
-                  confirmRemoveExercise(exerciseLog.id, exerciseLog.exercise.name, loggedSetCount);
-                }}
-              />
+                  rather than competing with the quick path for the header.
+
+                  Story 42A: gone entirely once the workout is complete — it
+                  already did nothing in that state. */}
+              {sessionComplete ? null : (
+                <IconButton
+                  icon={MoreVertical}
+                  variant="subtle"
+                  accessibilityLabel={`${exerciseLog.exercise.name} actions`}
+                  onPress={() => {
+                    activateExercise(exerciseLog.id);
+                    confirmRemoveExercise(exerciseLog.id, exerciseLog.exercise.name, loggedSetCount);
+                  }}
+                />
+              )}
             </View>
           </View>
 
@@ -954,16 +981,20 @@ export default function WorkoutSessionScreen() {
           {/* Story 58 — Detailed Sets. `Add set` lives here now. */}
           <View style={styles.detailedSetsHeader}>
             <Text style={[styles.prescription, { color: theme.text.secondary }]}>Detailed sets</Text>
+            {/* Story 42B — adding a set to a finished workout was already
+                blocked; the button is gone rather than greyed out. */}
+            {sessionComplete ? null : (
             <Button
               label="Add set"
               variant="secondary"
               fullWidth={false}
-              disabled={sessionQuery.data.status === 'completed' || addSetMutation.isPending}
+              disabled={addSetMutation.isPending}
               onPress={() => {
                 activateExercise(exerciseLog.id);
                 addSetMutation.mutate({ exerciseLogId: exerciseLog.id, sourceSet: exerciseLog.sets.at(-1) });
               }}
             />
+            )}
           </View>
 
           {exerciseLog.previousSession ? (
@@ -996,7 +1027,17 @@ export default function WorkoutSessionScreen() {
               <View key={set.id} style={styles.setBlock}>
                 <View style={styles.setBlockHeader}>
                   <Text style={[styles.setMeta, { color: theme.text.secondary }]}>Set {index + 1}</Text>
-                  <Text style={[styles.setMeta, { color: theme.text.secondary }]}>Target {planned}</Text>
+                  {/* Story 42C — the planned target as a pill, matching web:
+                      accent purple, white text, the same in every state. It
+                      never turns green on completion; it means *planned
+                      target*, not *done*, and a plan that changes colour
+                      would read as a second status signal competing with the
+                      real one. */}
+                  <View style={[styles.plannedPill, { backgroundColor: theme.action.primary }]}>
+                    <Text style={[styles.plannedPillLabel, { color: theme.action.primaryText }]}>
+                      Planned: {planned}
+                    </Text>
+                  </View>
                 </View>
                 <SetRowEditable
                   setLabel={`Set ${index + 1}`}
@@ -1019,14 +1060,29 @@ export default function WorkoutSessionScreen() {
                   onToggleCompleted={(completed) => setDrafts((prev) => ({ ...prev, [set.id]: { ...draft, completed } }))}
                   previous={previous}
                   isPr={isPr}
-                  onDuplicate={() => addSetMutation.mutate({ exerciseLogId: exerciseLog.id, sourceSet: set })}
-                  onRemove={() =>
-                    Alert.alert('Remove set', `Remove Set ${index + 1}?`, [
-                      { text: 'Cancel', style: 'cancel' },
-                      { text: 'Remove', style: 'destructive', onPress: () => deleteSetMutation.mutate(set.id) },
-                    ])
+                  onDuplicate={
+                    sessionComplete
+                      ? undefined
+                      : () => addSetMutation.mutate({ exerciseLogId: exerciseLog.id, sourceSet: set })
+                  }
+                  onRemove={
+                    sessionComplete
+                      ? undefined
+                      : () =>
+                          Alert.alert('Remove set', `Remove Set ${index + 1}?`, [
+                            { text: 'Cancel', style: 'cancel' },
+                            { text: 'Remove', style: 'destructive', onPress: () => deleteSetMutation.mutate(set.id) },
+                          ])
                   }
                 />
+                {/* Story 42B — the whole save row goes once the workout is
+                    complete. Native has always disabled Save outright after
+                    completion, so unlike web there is no post-completion
+                    correction path to preserve here; leaving a permanently
+                    dead button and the instruction to use it would be worse
+                    than removing both. The web/native difference in whether
+                    corrections are possible predates this story. */}
+                {sessionComplete ? null : (
                 <View style={styles.saveRow}>
                   <Text style={[styles.helperNote, { color: theme.text.secondary }]}>Log actual performance, then save to sync the session.</Text>
                   <Button
@@ -1037,7 +1093,6 @@ export default function WorkoutSessionScreen() {
                     // disables it — saving one set never blocks another.
                     loading={isSaving(syncMap, set.id)}
                     disabled={
-                      sessionQuery.data.status === 'completed' ||
                       Object.keys(fieldErrors).length > 0 ||
                       isSaving(syncMap, set.id)
                     }
@@ -1046,6 +1101,7 @@ export default function WorkoutSessionScreen() {
                     }
                   />
                 </View>
+                )}
               </View>
             );
           })}
@@ -1314,6 +1370,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: spacing[8],
     flexWrap: 'wrap',
+  },
+  plannedPill: {
+    paddingHorizontal: spacing[8],
+    paddingVertical: spacing[4],
+    borderRadius: radius.full,
+    // Shrinks rather than pushing the row wide: a representation-aware target
+    // ("3 mi · 30 min") must not force horizontal overflow on a phone.
+    flexShrink: 1,
+  },
+  plannedPillLabel: {
+    fontSize: typeScale.caption.fontSize,
+    fontWeight: '600',
   },
   setMeta: {
     fontSize: typeScale.caption.fontSize,

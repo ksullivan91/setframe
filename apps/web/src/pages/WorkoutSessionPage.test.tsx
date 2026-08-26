@@ -236,7 +236,10 @@ describe('WorkoutSessionPage completed session set editing', () => {
     );
 
     const weight = await screen.findByLabelText(/^Weight/);
-    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    /* Story 42B — Save is absent until there is an edit to save, rather than
+       present-but-disabled. Story 23's capability is unchanged: the moment a
+       value is corrected the button appears and works. */
+    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
 
     await user.clear(weight);
     await user.type(weight, '155');
@@ -258,8 +261,32 @@ describe('WorkoutSessionPage completed session set editing', () => {
     );
 
     await screen.findByLabelText(/^Weight/);
-    expect(screen.getByRole('button', { name: 'Duplicate set 1' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Delete set 1' })).toBeDisabled();
+    /* Story 42B — restructuring stays blocked, but by absence rather than by
+       a greyed-out control. A permanently disabled button says nothing except
+       that the screen has not caught up with its own state. */
+    expect(screen.queryByRole('button', { name: 'Duplicate set 1' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete set 1' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Add set/ })).not.toBeInTheDocument();
+  });
+
+  it('keeps every set control during an active workout', async () => {
+    /* The guard rail for this pack: the removals key on the *workout* being
+       complete, never on an exercise finishing inside an active one. This
+       session's only set is fully logged — so the exercise is complete — and
+       every control must still be there. */
+    renderSession(
+      { kind: 'sets_reps', sets: 3, repsMin: 8, repsMax: 10 },
+      { weightValue: 55, weightUnit: 'lb', reps: 8 },
+      [],
+      'in_progress',
+    );
+
+    await screen.findByLabelText(/^Weight/);
+    expect(screen.getByRole('button', { name: 'Duplicate set 1' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete set 1' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Add set/ })).toBeInTheDocument();
+    // Present but disabled until edited — unchanged active-workout behaviour.
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
   });
 });
 
@@ -1090,6 +1117,87 @@ describe('WorkoutSessionPage per-set save state', () => {
     // The value the user entered is still there to retry with.
     expect(screen.getAllByLabelText('Reps')[0]).toHaveValue('10');
     expect(screen.getAllByRole('button', { name: 'Save' })[0]).toBeEnabled();
+  });
+});
+
+/**
+ * Story 42A — a completed *workout* is a review surface.
+ *
+ * The boundary that matters is the parent session being marked complete, not
+ * an exercise finishing inside an active one. In review mode the overflow
+ * menu holds nothing, so it is gone; the chevron takes one fixed slot and
+ * stays there whether the sets are showing or not, so status (the check) and
+ * navigation (the chevron) never trade places.
+ */
+describe('WorkoutSessionPage completed-workout review header', () => {
+  it('drops the overflow menu once the workout is complete', async () => {
+    renderSession(
+      { kind: 'sets_reps', sets: 1, repsMin: 8 },
+      { weightValue: 55, weightUnit: 'lb', reps: 8 },
+      [],
+      'completed',
+    );
+
+    await screen.findByTestId('exercise-card-complete');
+    expect(screen.queryByRole('button', { name: /actions$/ })).not.toBeInTheDocument();
+  });
+
+  it('keeps the overflow menu during an active workout', async () => {
+    renderSession(
+      { kind: 'sets_reps', sets: 1, repsMin: 8 },
+      { weightValue: 55, weightUnit: 'lb', reps: 8 },
+      [],
+      'in_progress',
+    );
+
+    expect(await screen.findByRole('button', { name: /actions$/ })).toBeInTheDocument();
+  });
+
+  it('keeps the summary card and its chevron in place while expanded', async () => {
+    const user = userEvent.setup();
+    renderSession(
+      { kind: 'sets_reps', sets: 1, repsMin: 8 },
+      { weightValue: 55, weightUnit: 'lb', reps: 8 },
+      [],
+      'completed',
+    );
+
+    /* A finished session opens on its first exercise, so this starts
+       expanded: summary card, sets below, chevron offering to collapse. */
+    await screen.findByTestId('completed-exercise-log-1');
+    expect(await screen.findAllByTestId('set-row')).toHaveLength(1);
+    expect(screen.getByRole('button', { name: /^Collapse/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /^Collapse/ }));
+
+    /* Collapsed: the card is still the card — it never handed over to the
+       editing header — and the chevron is in the same slot, now offering to
+       expand. */
+    expect(screen.getByTestId('completed-exercise-log-1')).toBeInTheDocument();
+    expect(screen.queryAllByTestId('set-row')).toHaveLength(0);
+    expect(screen.getByRole('button', { name: /^Expand/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /^Expand/ }));
+    expect(await screen.findAllByTestId('set-row')).toHaveLength(1);
+  });
+
+  it('hands over to the editing header when the workout is still active', async () => {
+    /* The active-workout contract from story 42 is unchanged: reopening a
+       finished exercise returns the full editor rather than a summary. */
+    const user = userEvent.setup();
+    renderSession(
+      { kind: 'sets_reps', sets: 1, repsMin: 8 },
+      { weightValue: 55, weightUnit: 'lb', reps: 8 },
+      [],
+      'in_progress',
+    );
+
+    await screen.findByLabelText(/^Weight/);
+    await user.click(screen.getByRole('button', { name: /^Collapse/ }));
+    await screen.findByTestId('completed-exercise-log-1');
+
+    await user.click(screen.getByRole('button', { name: /Outdoor Cycle, completed/ }));
+    expect(screen.queryByTestId('completed-exercise-log-1')).not.toBeInTheDocument();
   });
 });
 

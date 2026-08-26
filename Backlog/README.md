@@ -157,6 +157,13 @@ alongside their stories, named `README-{range}-{review}.md`.
   real 1 lb move, and a 2-day weight average that is exactly the
   water-weight noise `body-weight-display-psychology.md` exists to
   suppress.
+- `completed/README-42A-42C-story-42-follow-up.md` — the story 42 follow-up
+  (42A–42C). A completed *workout* is a review surface, so the overflow menu
+  and the disabled Save/Copy/Delete/Add-set controls are removed rather than
+  greyed out, the disclosure chevron takes one fixed slot beside the status
+  check, and the planned-target pill is accent purple in every state. The
+  boundary is the parent session being complete — an exercise finishing
+  inside an active workout keeps all of its editing controls.
 - `completed/42-redesign-exercise-completion.md` — exercise completion as a
   real interaction state rather than success styling on the active card. The
   first attempt kept the header, added a `Complete` badge and a green border

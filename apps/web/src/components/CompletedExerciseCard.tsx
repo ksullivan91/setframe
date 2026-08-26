@@ -225,9 +225,21 @@ export interface CompletedExerciseCardProps {
   name: string;
   readout: CompletedExerciseReadout;
   setCountLabel: string;
-  /** Reopens the exercise for editing. */
+  /** Toggles the exercise open or closed. */
   onReopen: () => void;
-  /** The overflow menu, rendered demoted in the corner. */
+  /**
+   * Whether the exercise is currently expanded beneath this card.
+   *
+   * Story 42A — once the parent workout is complete the card stays put in
+   * both states rather than handing over to the editing header, so this drives
+   * the disclosure's direction and its announced state.
+   */
+  expanded?: boolean;
+  /**
+   * The right-hand slot: the overflow menu during an active workout, the
+   * disclosure chevron once the workout is complete. One fixed position, so
+   * status (the check, on the left) and navigation never trade places.
+   */
   actions?: ReactNode;
   testId?: string;
 }
@@ -237,6 +249,7 @@ export function CompletedExerciseCard({
   readout,
   setCountLabel,
   onReopen,
+  expanded = false,
   actions,
   testId,
 }: CompletedExerciseCardProps) {
@@ -249,11 +262,11 @@ export function CompletedExerciseCard({
       <ReopenButton
         type="button"
         onClick={onReopen}
-        aria-expanded={false}
+        aria-expanded={expanded}
         /* Names the state and the affordance together, so a screen-reader
            user gets the completion — which is otherwise carried by an icon
            and a colour — and knows the card does something. */
-        aria-label={`${name}, completed, ${setCountLabel}. Reopen to edit sets.`}
+        aria-label={`${name}, completed, ${setCountLabel}. ${expanded ? 'Collapse' : 'Reopen to see sets'}.`}
       >
         <CheckCircle aria-hidden="true">
           <Check size={20} strokeWidth={3} />

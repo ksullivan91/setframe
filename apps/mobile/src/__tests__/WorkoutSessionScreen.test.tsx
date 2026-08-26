@@ -704,6 +704,80 @@ describe('WorkoutSessionScreen write failures', () => {
  * Story 61 — the mobile half of the completion experience. Mirrors
  * WorkoutSessionPage.test.tsx so parity is tested rather than intended.
  */
+/**
+ * Story 42A/42B — a completed *workout* is a review surface.
+ *
+ * The boundary is the parent session being marked complete, never an exercise
+ * finishing inside an active one. In review mode the overflow control holds
+ * nothing, so it is gone; the chevron takes one fixed slot and stays there
+ * whether the sets are showing or not; and controls that would only render
+ * disabled are removed rather than greyed out.
+ */
+describe('WorkoutSessionScreen completed-workout review', () => {
+  it('drops the overflow control once the workout is complete', async () => {
+    mockSessionPayload = baseSession({ sets: [baseSet()], status: 'completed' });
+    const rendered = await renderScreen();
+
+    expect(pressablesByLabel(rendered, /Outdoor Cycle actions/)).toHaveLength(0);
+  });
+
+  it('keeps the overflow control during an active workout', async () => {
+    mockSessionPayload = baseSession({ sets: [baseSet()] });
+    const rendered = await renderScreen();
+
+    expect(pressablesByLabel(rendered, /Outdoor Cycle actions/).length).toBeGreaterThan(0);
+  });
+
+  it('keeps the summary card and its chevron in place while expanded', async () => {
+    mockSessionPayload = baseSession({ sets: [baseSet()], status: 'completed' });
+    const rendered = await renderScreen();
+
+    /* A finished session opens on its first exercise, so this starts
+       expanded: summary card, sets below, chevron offering to collapse. */
+    expect(hostsByTestId(rendered, 'completed-exercise-log-1').length).toBeGreaterThan(0);
+    expect(pressablesByLabel(rendered, 'Collapse Outdoor Cycle').length).toBeGreaterThan(0);
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Collapse Outdoor Cycle')[0]!.props.onPress();
+    });
+
+    /* The card never hands over to the editing header, and the chevron is in
+       the same slot — now offering to expand. */
+    expect(hostsByTestId(rendered, 'completed-exercise-log-1').length).toBeGreaterThan(0);
+    expect(pressablesByLabel(rendered, 'Expand Outdoor Cycle').length).toBeGreaterThan(0);
+  });
+
+  it('removes set mutation controls once the workout is complete', async () => {
+    mockSessionPayload = baseSession({ sets: [baseSet()], status: 'completed' });
+    const rendered = await renderScreen();
+
+    expect(pressablesByLabel(rendered, 'Duplicate set')).toHaveLength(0);
+    expect(pressablesByLabel(rendered, 'Remove set')).toHaveLength(0);
+    const labels = rendered.root
+      .findAll((node) => typeof node.type === 'string')
+      .flatMap((node) => ([] as unknown[]).concat(node.props?.children))
+      .filter((child): child is string => typeof child === 'string');
+    expect(labels).not.toContain('Add set');
+    expect(labels).not.toContain('Save');
+  });
+
+  it('keeps every set control during an active workout', async () => {
+    /* The guard rail for this pack: the removals key on the *workout* being
+       complete. This exercise is fully logged — so it is complete — inside an
+       active workout, and every control must still be there. */
+    mockSessionPayload = baseSession({ sets: [baseSet()] });
+    const rendered = await renderScreen();
+
+    expect(pressablesByLabel(rendered, 'Duplicate set').length).toBeGreaterThan(0);
+    expect(pressablesByLabel(rendered, 'Remove set').length).toBeGreaterThan(0);
+    const labels = rendered.root
+      .findAll((node) => typeof node.type === 'string')
+      .flatMap((node) => ([] as unknown[]).concat(node.props?.children))
+      .filter((child): child is string => typeof child === 'string');
+    expect(labels).toContain('Add set');
+  });
+});
+
 describe('WorkoutSessionScreen exercise completion experience', () => {
   it('gives a completed exercise a distinct card, not just a badge', async () => {
     mockSessionPayload = baseSession({ sets: [baseSet()] });

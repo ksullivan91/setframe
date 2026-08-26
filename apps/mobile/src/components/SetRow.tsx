@@ -159,10 +159,21 @@ export function SetRowEditable({
           <View style={styles.fieldGroup} />
         )}
         {isPr ? <PrBadge /> : null}
-        <View style={styles.actions}>
-          <IconButton icon={Copy} accessibilityLabel="Duplicate set" size={28} onPress={onDuplicate} />
-          <IconButton icon={Minus} accessibilityLabel="Remove set" size={28} onPress={onRemove} variant="subtle" />
-        </View>
+        {/* Story 42B — an omitted handler means the action does not exist in
+            this state (a completed workout), so the control is not rendered.
+            Previously these were always drawn and simply did nothing when the
+            handler was absent, which is the same dead-control problem in a
+            quieter form. */}
+        {onDuplicate || onRemove ? (
+          <View style={styles.actions}>
+            {onDuplicate ? (
+              <IconButton icon={Copy} accessibilityLabel="Duplicate set" size={28} onPress={onDuplicate} />
+            ) : null}
+            {onRemove ? (
+              <IconButton icon={Minus} accessibilityLabel="Remove set" size={28} onPress={onRemove} variant="subtle" />
+            ) : null}
+          </View>
+        ) : null}
       </View>
 
       {stackedFields.length ? (
