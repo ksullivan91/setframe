@@ -165,6 +165,30 @@ Two constraints this puts on the work below:
   fired always, a threshold that hid a real move, a 2-day average that was
   pure water-weight noise. A coaching layer multiplies the cost of each.
 
+## What shipped (2026-08-25)
+
+Views 1, 2 and 3 are built on both platforms and deployed.
+
+| View | Status |
+|---|---|
+| 1. Am I getting stronger? | **Shipped** — per-lift estimated 1RM as small multiples over a shared time axis, with PRs as an annotation layer. Panels sort by *proportional* change, since sorting by absolute change ranks the heaviest lift first on every render and says nothing. A lift is withheld below the metric's own `minimumSessionsForTrend`. |
+| 2. Am I training as planned? | **Shipped** — planned vs completed, superposed. `plannedCount` now derives from the active program version's schedule slots, replacing a `null` that had been hardcoded since the route was written. Weeks the program never covered are omitted, never drawn as zeroes. |
+| 3. What am I actually training? | **Shipped** — weekly volume by movement group. `movement_pattern` was backfilled (migration 0008), taking ungrouped volume in production from 15,725 lb to 0. |
+| 4. How is my body responding? | Body weight ships as Story 49 built it. Intake, resting HR and mood remain unwired — they depend on health/nutrition sync being live. |
+| 5. What deserves attention? | Story 51's insights ship and link to their chart anchors. The full observation contract below is not built. |
+
+Two design decisions were changed by *looking at rendered pixels*, not by
+reasoning:
+
+- Composition first drew the detailed patterns and folded the tail past a
+  palette-sized cap. Rendered, the grey "Other" band was one of the largest
+  things on the chart. It now groups into Legs / Push / Pull / Core & carry /
+  Isolation, which cannot overflow the palette.
+- Small multiples first used an absolute minimum domain span. 20 lb is noise
+  on a 400 lb deadlift and the entire range of a 25 lb lateral raise, so one
+  number either failed to damp the heavy lift or flattened the light one. It
+  is now a fraction of each lift's own median.
+
 ## Sequencing
 
 Views 1 and 2 are the highest value and rest only on data that is already

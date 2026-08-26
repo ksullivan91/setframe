@@ -1,6 +1,12 @@
 # ADR 0008: Charting Technology for the Progress Experience
 
-Status: Accepted. Date: 2026-08-25.
+Status: Accepted, **amended by ADR 0010** (2026-08-25). Its rejection of
+chart *component* libraries stands unchanged and should not be re-litigated;
+ADR 0010 narrows this decision to the category it actually examined, and
+adopts d3's headless maths modules inside `packages/domain` — no renderer
+changes, no new runtime dependency in either app.
+
+Date: 2026-08-25.
 
 ## Context
 

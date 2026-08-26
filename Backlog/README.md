@@ -161,6 +161,16 @@ alongside their stories, named `README-{range}-{review}.md`.
   real 1 lb move, and a 2-day weight average that is exactly the
   water-weight noise `body-weight-display-psychology.md` exists to
   suppress.
+- `completed/README-52-54-progress-visualization-rebuild.md` — the
+  Progress visualization rebuild (2026-08-25), after the 46–51 charts were
+  judged "barely better than what we had before". Adopts d3's headless maths
+  in `packages/domain` (ADR 0010, amending 0008 — component libraries stay
+  rejected, headless maths was never examined) and ships three new views on
+  both platforms: strength small multiples with PR annotations, plan-vs-
+  actual adherence, and volume composition by movement group. Also rebuilds
+  the mobile metric tooltips as anchored popovers, fixing the two-tap
+  switching bug that web fixed in Story 46 and mobile had recorded as an
+  accepted trade.
 - `completed/47-charting-technology-spike.md` — story 47, the charting
   decision spike. Outcome: **keep the hand-rolled SVG architecture and
   extend it** (ADR 0008). Scrub — the capability that looked like it
