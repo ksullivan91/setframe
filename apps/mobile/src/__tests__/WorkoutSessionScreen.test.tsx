@@ -715,3 +715,43 @@ describe('WorkoutSessionScreen exercise completion experience', () => {
     expect(JSON.stringify(rendered.toJSON())).toContain('Complete');
   });
 });
+
+/**
+ * Story 62 — the mobile half. Most of this story's criteria are satisfied
+ * structurally by the work in 39, 58, 59 and 61 rather than by new UI; these
+ * pin them so a future change cannot quietly undo one.
+ */
+describe('WorkoutSessionScreen focus and overrides', () => {
+  it('stays complete when actual differs from planned', async () => {
+    /* A plan is guidance; actual performance is the truth of the session.
+       Completion means the required data is present, not that the user
+       matched the prescription. */
+    mockSessionPayload = baseSession({
+      sets: [baseSet(), baseSet({ id: 'set-2', sortOrder: 1, durationSeconds: 1200, distanceValue: 2 })],
+    });
+    const rendered = await renderScreen();
+    expect(hostsByTestId(rendered, 'exercise-card-complete').length).toBeGreaterThan(0);
+  });
+
+  it('never writes to the workout template from the session', async () => {
+    mockSessionPayload = baseSession({
+      sets: [baseSet({ durationSeconds: null, distanceValue: null })],
+    });
+    const rendered = await renderScreen();
+
+    await act(async () => {
+      textInputsByLabel(rendered, 'Quick log: Distance')[0]!.props.onChangeText('5');
+    });
+    await act(async () => {
+      textInputsByLabel(rendered, 'Quick log: Duration (min)')[0]!.props.onChangeText('30');
+    });
+    await act(async () => {
+      pressablesByLabel(rendered, 'Log 1 set')[0]!.props.onPress();
+    });
+
+    // ADR 0005: the session is fact, the day type is intent.
+    const touched = mockPost.mock.calls.map(([path]) => String(path));
+    expect(touched.some((path) => path.includes('/day-types'))).toBe(false);
+    expect(touched.some((path) => path.includes('/programs'))).toBe(false);
+  });
+});

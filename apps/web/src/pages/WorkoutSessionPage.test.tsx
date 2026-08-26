@@ -1218,3 +1218,102 @@ describe('WorkoutSessionPage exercise completion experience', () => {
     expect(await screen.findAllByTestId('set-row')).toHaveLength(1);
   });
 });
+
+/**
+ * Story 62 — focus behaviour and override preservation.
+ *
+ * Most of this story's acceptance criteria are satisfied structurally by the
+ * work in 39, 58, 59 and 61 rather than by new UI. These tests pin them, so
+ * a future change cannot quietly undo one: Quick Log establishes a baseline,
+ * it is not a prison.
+ */
+describe('WorkoutSessionPage focus and overrides', () => {
+  function renderMixed(sets: Array<{ weightValue: number | null; reps: number | null }>) {
+    const session = buildSession({ kind: 'sets_reps', sets: sets.length, repsMin: 8 }) as unknown as {
+      exercises: { sets: unknown[] }[];
+    };
+    session.exercises[0]!.sets = sets.map((set, index) => ({
+      id: `set-${index + 1}`,
+      exerciseLogId: 'log-1',
+      clientId: `6666666${index}-1111-4111-8111-111111111111`,
+      sortOrder: index,
+      setType: 'working',
+      weightUnit: 'lb',
+      durationSeconds: null,
+      distanceValue: null,
+      distanceUnit: null,
+      rpe: null,
+      isPrWeight: false,
+      isPrReps: false,
+      createdAt: '2026-08-22T15:00:00.000Z',
+      updatedAt: '2026-08-22T15:00:00.000Z',
+      ...set,
+    }));
+    mockGet = (path: string) => {
+      if (path.startsWith('/workout-sessions/')) return Promise.resolve(session);
+      if (path === '/exercises') return Promise.resolve([]);
+      return Promise.resolve(null);
+    };
+    return renderPage();
+  }
+
+  it('an override after bulk logging touches only that set', async () => {
+    const user = userEvent.setup();
+    mockPatch.mockReset();
+    mockPatch.mockImplementation((_path: string, body?: unknown) => Promise.resolve(body));
+    renderMixed([
+      { weightValue: 135, reps: 8 },
+      { weightValue: 135, reps: 8 },
+      { weightValue: 135, reps: 8 },
+    ]);
+
+    // Reopen the finished exercise and correct the last set.
+    await screen.findByTestId('exercise-card-complete');
+    await user.click(screen.getByRole('button', { name: /^Collapse/ }));
+    await user.click(screen.getByRole('button', { name: /^Expand/ }));
+
+    const thirdSet = within((await screen.findAllByTestId('set-row'))[2]!);
+    await user.clear(thirdSet.getByLabelText('Reps'));
+    await user.type(thirdSet.getByLabelText('Reps'), '6');
+    await user.click(thirdSet.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(mockPatch).toHaveBeenCalled());
+    // Exactly one write, to set 3. Siblings are untouched.
+    const setWrites = mockPatch.mock.calls.filter(([path]) => String(path).startsWith('/workout-sets/'));
+    expect(setWrites).toHaveLength(1);
+    expect(setWrites[0]![0]).toBe('/workout-sets/set-3');
+  });
+
+  it('an exercise stays complete when actual differs from planned', async () => {
+    /* A workout plan is guidance; actual performance is the truth of the
+       session. Completion means the required data is present and valid, not
+       that the user matched the prescription. */
+    renderMixed([
+      { weightValue: 135, reps: 8 },
+      { weightValue: 135, reps: 8 },
+      { weightValue: 135, reps: 6 },
+    ]);
+    expect(await screen.findByTestId('exercise-card-complete')).toBeInTheDocument();
+  });
+
+  it('never writes to the workout template from the session', async () => {
+    const user = userEvent.setup();
+    mockPatch.mockReset();
+    mockPatch.mockImplementation((_path: string, body?: unknown) => Promise.resolve(body));
+    renderMixed([{ weightValue: null, reps: null }, { weightValue: null, reps: null }]);
+
+    await user.type(await screen.findByLabelText(/^Quick log: Weight/), '135');
+    await user.type(screen.getByLabelText(/^Quick log: Reps/), '8');
+    await user.click(screen.getByRole('button', { name: 'Log all 2 sets' }));
+
+    await waitFor(() => expect(mockPost).toHaveBeenCalled());
+    // ADR 0005: the session is fact, the day type is intent. Nothing here
+    // may reach `day-types` or `programs`.
+    const touched = [...mockPost.mock.calls, ...mockPatch.mock.calls].map(([path]) => String(path));
+    expect(touched.some((path) => path.includes('/day-types'))).toBe(false);
+    expect(touched.some((path) => path.includes('/programs'))).toBe(false);
+  });
+
+  /* "Only one detailed region open at a time" is already pinned by the
+     single-active-exercise accordion suite above; not duplicated here. */
+});
