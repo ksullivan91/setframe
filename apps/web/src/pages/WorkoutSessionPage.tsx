@@ -12,15 +12,21 @@ import type {
   WorkoutSetPreviousPerformance,
 } from '@setframe/schemas';
 import {
+  beginSync,
   calculateVolume,
   describeQuickLogAction,
   estimateOneRepMax,
   isExerciseComplete,
   isQuickLogComplete,
   quickLogFields,
+  hasSyncError,
+  isCurrentAttempt,
+  isSaving,
   quickLogTargets as quickLogTargetsFor,
+  settleSync,
   supportsQuickLog,
   visibleSessionExercises,
+  type SyncMap,
 } from '@setframe/domain';
 import { radius, spacing } from '@setframe/design-tokens';
 import { AsyncStatusIndicator, Badge, Button, Card, IconButton, Input, Menu, Modal, PRBadge, Select, Skeleton, SkeletonStack, useAsyncStatus, useToast } from '../components';
@@ -751,9 +757,39 @@ export function WorkoutSessionPage() {
     onError: () => toast.show({ variant: 'error', message: 'Could not add set.' }),
   });
 
+  /**
+   * Story 60 — saving one set must not block any other.
+   *
+   * A single `useMutation` exposes one `isPending` for every set that uses
+   * it, so the previous Save button was disabled across the whole page while
+   * any one set was in flight. The mutation stays shared; what is now
+   * per-record is the *state*, keyed by set id in `syncMap`.
+   *
+   * Responses are settled by sequence number rather than by arrival, so a
+   * slow first save cannot overwrite a fast second one — see `sync-status`.
+   */
+  const [syncMap, setSyncMap] = useState<SyncMap>({});
+  /* A ref alongside the state, because sequence numbers must be allocated
+     *synchronously*. Reading them from a `setState` updater does not work:
+     the updater has not run by the time the request starts, so every response
+     arrived carrying seq 0 and `settleSync` discarded all of them as stale —
+     the error state never appeared at all. The ref is the source of truth;
+     the state exists to render from. */
+  const syncRef = useRef<SyncMap>({});
+  const applySync = (update: (current: SyncMap) => SyncMap) => {
+    syncRef.current = update(syncRef.current);
+    setSyncMap(syncRef.current);
+  };
+
   const saveSetMutation = useMutation({
-    mutationFn: ({ setId, body }: { setId: string; body: ReturnType<typeof buildPatch> }) => api.patch<WorkoutSet>(`/workout-sets/${setId}`, body),
+    mutationFn: ({ setId, body }: { setId: string; body: ReturnType<typeof buildPatch>; seq: number }) =>
+      api.patch<WorkoutSet>(`/workout-sets/${setId}`, body),
     onSuccess: async (_, variables) => {
+      const current = isCurrentAttempt(syncRef.current, variables.setId, variables.seq);
+      applySync((prev) => settleSync(prev, variables.setId, variables.seq, 'success'));
+      /* A superseded response must not refetch over the newer edit, and must
+         not clear the draft the user is still typing into. */
+      if (!current) return;
       await refreshSession();
       setDrafts((prev) => {
         const next = { ...prev };
@@ -761,7 +797,20 @@ export function WorkoutSessionPage() {
         return next;
       });
     },
+    onError: (_error, variables) => {
+      // Values are deliberately left in `drafts` — a failed save must not
+      // discard what the user entered.
+      applySync((prev) => settleSync(prev, variables.setId, variables.seq, 'error'));
+    },
   });
+
+  /** Starts a save and hands the mutation its attempt number. */
+  function saveSet(setId: string, body: ReturnType<typeof buildPatch>) {
+    const begun = beginSync(syncRef.current, setId);
+    syncRef.current = begun.map;
+    setSyncMap(begun.map);
+    return saveSetMutation.mutateAsync({ setId, body, seq: begun.seq });
+  }
 
   const deleteSetMutation = useMutation({
     mutationFn: (setId: string) => api.del(`/workout-sets/${setId}`),
@@ -1444,7 +1493,9 @@ export function WorkoutSessionPage() {
                             disabled={
                               !hasChanges(set, draft, visibleFields, definition) ||
                               Object.keys(fieldErrors).length > 0 ||
-                              saveSetMutation.isPending
+                              // Only *this* set's own in-flight write disables
+                              // it — saving one set never blocks another.
+                              isSaving(syncMap, set.id)
                               // Story 23: correcting a logged set's values is
                               // allowed after completion — "completed" is not
                               // "immutable." Add/duplicate/delete stay gated
@@ -1453,13 +1504,21 @@ export function WorkoutSessionPage() {
                             }
                             onClick={() => {
                               const action = () =>
-                                saveSetMutation.mutateAsync({ setId: set.id, body: buildPatch(set, draft, visibleFields, definition) });
+                                saveSet(set.id, buildPatch(set, draft, visibleFields, definition));
                               lastMutationRef.current = action;
                               void inlineStatus.run(action);
                             }}
                           >
-                            Save
+                            {isSaving(syncMap, set.id) ? 'Saving…' : 'Save'}
                           </Button>
+                          {/* Concise and inline, not a modal: a failed set
+                              save is recoverable and the user is mid-workout.
+                              The entered values are still in the draft. */}
+                          {hasSyncError(syncMap, set.id) ? (
+                            <SupportingText role="alert" data-testid={`sync-error-${set.id}`}>
+                              Not saved — tap Save to retry.
+                            </SupportingText>
+                          ) : null}
                           <IconButton
                             aria-label={`Duplicate set ${index + 1}`}
                             onClick={() => addSetMutation.mutate({ exerciseLogId: exerciseLog.id, sourceSet: set })}

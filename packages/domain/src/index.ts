@@ -25,3 +25,4 @@ export * from './planned-schedule';
 export * from './week';
 export * from './duration';
 export * from './quick-log';
+export * from './sync-status';

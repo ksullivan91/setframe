@@ -1004,3 +1004,83 @@ describe('WorkoutSessionPage single-active-exercise accordion', () => {
     expect(screen.getByRole('button', { name: 'Expand Barbell Row' })).toBeInTheDocument();
   });
 });
+
+/**
+ * Story 60 — saving one set must not block any other.
+ *
+ * A single `useMutation` exposes one `isPending` shared by every set that
+ * uses it, so the previous Save button was disabled page-wide while any one
+ * set was in flight. The user was serialised behind the network in the one
+ * place that least tolerates it.
+ */
+describe('WorkoutSessionPage per-set save state', () => {
+  function renderTwoSets() {
+    const session = buildSession({ kind: 'sets_reps', sets: 2, repsMin: 8 }) as unknown as {
+      exercises: { sets: unknown[] }[];
+    };
+    session.exercises[0]!.sets = [0, 1].map((index) => ({
+      id: `set-${index + 1}`,
+      exerciseLogId: 'log-1',
+      clientId: `4444444${index}-1111-4111-8111-111111111111`,
+      sortOrder: index,
+      setType: 'working',
+      weightValue: 135,
+      weightUnit: 'lb',
+      reps: 8,
+      durationSeconds: null,
+      distanceValue: null,
+      distanceUnit: null,
+      rpe: null,
+      isPrWeight: false,
+      isPrReps: false,
+      createdAt: '2026-08-22T15:00:00.000Z',
+      updatedAt: '2026-08-22T15:00:00.000Z',
+    }));
+    mockGet = (path: string) => {
+      if (path.startsWith('/workout-sessions/')) return Promise.resolve(session);
+      if (path === '/exercises') return Promise.resolve([]);
+      return Promise.resolve(null);
+    };
+    return renderPage();
+  }
+
+  it('leaves another set saveable while one is in flight', async () => {
+    const user = userEvent.setup();
+    // A save that never resolves, so the first set stays in flight.
+    mockPatch.mockImplementation(() => new Promise(() => {}));
+    renderTwoSets();
+
+    await screen.findAllByTestId('set-row');
+    const reps = screen.getAllByLabelText('Reps');
+
+    // Dirty both sets so both Save buttons are otherwise enabled.
+    await user.clear(reps[0]!);
+    await user.type(reps[0]!, '10');
+    await user.clear(reps[1]!);
+    await user.type(reps[1]!, '9');
+
+    const saves = screen.getAllByRole('button', { name: /^Sav/ });
+    await user.click(saves[0]!);
+
+    // Set 1 shows its own progress; set 2 is untouched and still saveable.
+    expect(screen.getAllByRole('button', { name: 'Saving…' })).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+  });
+
+  it('keeps the entered values and offers a retry when a save fails', async () => {
+    const user = userEvent.setup();
+    mockPatch.mockImplementation(() => Promise.reject(new Error('offline')));
+    renderTwoSets();
+
+    await screen.findAllByTestId('set-row');
+    const reps = screen.getAllByLabelText('Reps');
+    await user.clear(reps[0]!);
+    await user.type(reps[0]!, '10');
+    await user.click(screen.getAllByRole('button', { name: 'Save' })[0]!);
+
+    expect(await screen.findByTestId('sync-error-set-1')).toBeInTheDocument();
+    // The value the user entered is still there to retry with.
+    expect(screen.getAllByLabelText('Reps')[0]).toHaveValue('10');
+    expect(screen.getAllByRole('button', { name: 'Save' })[0]).toBeEnabled();
+  });
+});

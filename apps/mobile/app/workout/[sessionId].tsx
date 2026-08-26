@@ -4,15 +4,20 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown, ChevronUp, GripVertical, MoreVertical } from 'lucide-react-native';
 import {
+  beginSync,
   calculateVolume,
   describeQuickLogAction,
   estimateOneRepMax,
   isExerciseComplete,
   isQuickLogComplete,
   quickLogFields,
+  isCurrentAttempt,
+  isSaving,
   quickLogTargets as quickLogTargetsFor,
+  settleSync,
   supportsQuickLog,
   visibleSessionExercises,
+  type SyncMap,
 } from '@setframe/domain';
 import type {
   Exercise,
@@ -365,6 +370,25 @@ export default function WorkoutSessionScreen() {
     onError: () => setToast({ variant: 'error', message: 'Could not add that set.' }),
   });
 
+  /**
+   * Story 60 — saving one set must not block any other.
+   *
+   * A single `useMutation` exposes one `isPending` for every set that uses
+   * it, so the Save button showed a spinner on every set at once while any
+   * one was in flight. The mutation stays shared; the *state* is now keyed by
+   * set id in `syncMap`, and responses settle by sequence number so a slow
+   * first save cannot overwrite a fast second one.
+   */
+  const [syncMap, setSyncMap] = useState<SyncMap>({});
+  /* A ref alongside the state, because sequence numbers must be allocated
+     synchronously — reading them from a `setState` updater does not work, as
+     the updater has not run by the time the request starts. */
+  const syncRef = useRef<SyncMap>({});
+  const applySync = (update: (current: SyncMap) => SyncMap) => {
+    syncRef.current = update(syncRef.current);
+    setSyncMap(syncRef.current);
+  };
+
   const saveSetMutation = useMutation({
     mutationFn: ({
       setId,
@@ -378,18 +402,40 @@ export default function WorkoutSessionScreen() {
       set: WorkoutSet;
       visible: SessionField[];
       definition: PrescriptionDefinition;
+      seq: number;
     }) => api.patch<WorkoutSet>(`/workout-sets/${setId}`, buildSetPatch(set, draft, visible, definition)),
-    onSuccess: refreshSession,
+    onSuccess: async (_result, variables) => {
+      const current = isCurrentAttempt(syncRef.current, variables.setId, variables.seq);
+      applySync((prev) => settleSync(prev, variables.setId, variables.seq, 'success'));
+      // A superseded response must not refetch over the newer edit.
+      if (current) await refreshSession();
+    },
     /* The most important one on the screen: the inputs still show what the
        user typed after a failed save, so without this the set looks logged
        when it is not. Names the set so a user mid-workout knows which one
        to re-enter. */
-    onError: (_err, variables) =>
+    onError: (_err, variables) => {
+      applySync((prev) => settleSync(prev, variables.setId, variables.seq, 'error'));
       setToast({
         variant: 'error',
         message: `Set ${variables.set.sortOrder + 1} did not save. Check your connection and save it again.`,
-      }),
+      });
+    },
   });
+
+  /** Starts a save and hands the mutation its attempt number. */
+  function saveSet(args: {
+    setId: string;
+    draft: SetDraft;
+    set: WorkoutSet;
+    visible: SessionField[];
+    definition: PrescriptionDefinition;
+  }) {
+    const begun = beginSync(syncRef.current, args.setId);
+    syncRef.current = begun.map;
+    setSyncMap(begun.map);
+    saveSetMutation.mutate({ ...args, seq: begun.seq });
+  }
 
   /* The session carries its own prescription snapshot, because an exercise
      added mid-session has no day-type row to inherit one from. */
@@ -889,10 +935,16 @@ export default function WorkoutSessionScreen() {
                     label="Save"
                     variant="secondary"
                     fullWidth={false}
-                    loading={saveSetMutation.isPending}
-                    disabled={sessionQuery.data.status === 'completed' || Object.keys(fieldErrors).length > 0}
+                    // Only *this* set's own in-flight write shows progress or
+                    // disables it — saving one set never blocks another.
+                    loading={isSaving(syncMap, set.id)}
+                    disabled={
+                      sessionQuery.data.status === 'completed' ||
+                      Object.keys(fieldErrors).length > 0 ||
+                      isSaving(syncMap, set.id)
+                    }
                     onPress={() =>
-                      saveSetMutation.mutate({ setId: set.id, draft, set, visible: visibleFields, definition })
+                      saveSet({ setId: set.id, draft, set, visible: visibleFields, definition })
                     }
                   />
                 </View>
