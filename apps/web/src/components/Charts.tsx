@@ -3,10 +3,12 @@ import styled, { useTheme } from 'styled-components';
 import {
   buildColumnChart,
   buildLineChart,
+  buildSmallMultiples,
   buildStackedChart,
   nearestPointIndex,
   plotRect,
   remainderPatternKey,
+  type LiftSeries,
   type ProgressRange,
   type SeriesPoint,
   type StackedBucket,
@@ -915,6 +917,278 @@ export function StackedChart({
                   return <td key={key}>{segment ? formatValue(segment.value) : '—'}</td>;
                 })}
                 <td>{column.total === 0 ? emptyLabel : formatValue(column.total)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </VisuallyHidden>
+    </Figure>
+  );
+}
+
+const PanelGrid = styled.div`
+  display: grid;
+  gap: ${spacing[4]}px;
+`;
+
+const PanelRow = styled.div<{ $selected: boolean }>`
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+  padding: ${spacing[8]}px;
+  border-radius: 10px;
+  border: 1px solid ${(p) => (p.$selected ? p.theme.chart.emphasis : 'transparent')};
+  background: ${(p) => (p.$selected ? p.theme.action.accentSubtle : 'transparent')};
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+
+  &:focus-visible {
+    outline: 2px solid ${(p) => p.theme.action.primary};
+    outline-offset: 2px;
+  }
+`;
+
+const PanelHead = styled.div`
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: ${spacing[8]}px;
+`;
+
+const PanelName = styled.span`
+  font-size: ${typeScale.body.fontSize}px;
+  font-weight: 600;
+`;
+
+const PanelValue = styled.span`
+  font-size: ${typeScale.caption.fontSize}px;
+  color: ${(p) => p.theme.text.secondary};
+  white-space: nowrap;
+`;
+
+const PanelChange = styled.strong<{ $direction: 'up' | 'down' | 'flat' }>`
+  color: ${(p) =>
+    p.$direction === 'up'
+      ? p.theme.status.success
+      : p.$direction === 'down'
+        ? p.theme.text.secondary
+        : p.theme.text.secondary};
+`;
+
+const AxisRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: ${(p) => p.theme.chart.axis};
+  padding: 0 ${spacing[8]}px;
+`;
+
+export interface SmallMultiplesProps {
+  lifts: LiftSeries[];
+  /** Height of a single sparkline. */
+  panelHeight?: number;
+  formatValue: (value: number) => string;
+  formatPeriod?: (localDate: string) => string;
+  /** Minimum observations before a panel is drawn at all. */
+  minimumPoints?: number;
+  /** Minimum value-domain height, so a tiny change is not drawn as a climb. */
+  minimumSpan?: number;
+  /** Minimum domain height as a fraction of the lift's own median value. */
+  minimumSpanRatio?: number;
+  label: string;
+  testId?: string;
+}
+
+/**
+ * Small multiples — one sparkline per lift over a **shared time axis**.
+ *
+ * The comparison this exists to enable is vertical: scanning down a column of
+ * panels to see that everything flattened in the same fortnight. That only
+ * works if a given date lands at the same x in every panel, which is why the
+ * time axis is computed once across all lifts and labelled once underneath
+ * rather than per panel.
+ *
+ * Value axes are per panel and deliberately not shared. A deadlift and a
+ * lateral raise differ by an order of magnitude, so one axis would draw every
+ * light lift as a flat line along the bottom. The cost is that panel heights
+ * are not comparable to each other, which is why each panel states its own
+ * range in text — an unlabelled sparkline invites exactly the cross-panel
+ * height comparison that would be meaningless here.
+ */
+export function SmallMultiples({
+  lifts,
+  panelHeight = 44,
+  formatValue,
+  formatPeriod = formatDate,
+  minimumPoints,
+  minimumSpan,
+  minimumSpanRatio,
+  label,
+  testId,
+}: SmallMultiplesProps) {
+  const theme = useTheme();
+  const [ref, width] = useElementWidth(320);
+  const [selected, setSelected] = useState<string | null>(null);
+
+  const result = useMemo(
+    () =>
+      buildSmallMultiples(lifts, {
+        panel: { width, height: panelHeight },
+        // No left gutter: the value range is stated in the header text, so
+        // the sparkline itself needs no axis labels and can use full width.
+        insets: { top: 6, right: 6, bottom: 6, left: 6 },
+        minimumPoints,
+        minimumSpan,
+        minimumSpanRatio,
+        formatValue,
+      }),
+    [lifts, width, panelHeight, minimumPoints, minimumSpan, minimumSpanRatio, formatValue],
+  );
+
+  if (!result.panels.length) return null;
+
+  const axisStart = result.bounds.first
+    ? formatPeriod(new Date(result.bounds.first).toISOString().slice(0, 10))
+    : '';
+  const axisEnd = result.bounds.last
+    ? formatPeriod(new Date(result.bounds.last).toISOString().slice(0, 10))
+    : '';
+
+  return (
+    <Figure data-testid={testId}>
+      <PanelGrid ref={ref}>
+        {result.panels.map((panel) => {
+          const isSelected = panel.id === selected;
+          const direction: 'up' | 'down' | 'flat' =
+            panel.change == null || panel.change === 0 ? 'flat' : panel.change > 0 ? 'up' : 'down';
+          /* Direction is stated with an arrow and a signed number, never by
+             colour alone — and a fall is not painted red. Training load
+             comes down on purpose in a deload, and colouring that as failure
+             is the same mistake the body-weight chart exists to avoid. */
+          const arrow = direction === 'up' ? '↑' : direction === 'down' ? '↓' : '→';
+
+          return (
+            <PanelRow
+              key={panel.id}
+              as="button"
+              type="button"
+              $selected={isSelected}
+              data-testid="lift-panel"
+              onClick={() => setSelected(isSelected ? null : panel.id)}
+              aria-label={`${panel.name}: now ${formatValue(panel.last)}${
+                panel.change != null
+                  ? `, ${direction === 'flat' ? 'unchanged' : direction === 'up' ? 'up' : 'down'} ${formatValue(
+                      Math.abs(panel.change),
+                    )} over this range`
+                  : ''
+              }${
+                panel.personalRecords.length
+                  ? `, ${panel.personalRecords.length} personal record${
+                      panel.personalRecords.length === 1 ? '' : 's'
+                    }`
+                  : ''
+              }`}
+            >
+              <PanelHead>
+                <PanelName>{panel.name}</PanelName>
+                <PanelValue>
+                  {formatValue(panel.last)}
+                  {panel.change != null ? (
+                    <>
+                      {'  '}
+                      <PanelChange $direction={direction}>
+                        {`${arrow} ${formatValue(Math.abs(panel.change))}`}
+                      </PanelChange>
+                    </>
+                  ) : null}
+                </PanelValue>
+              </PanelHead>
+
+              <svg
+                width={width}
+                height={panelHeight}
+                role="img"
+                aria-label={`${panel.name} trend, ${formatValue(panel.domain.min)} to ${formatValue(
+                  panel.domain.max,
+                )}`}
+                style={{ display: 'block', overflow: 'visible' }}
+              >
+                <path
+                  d={panel.path}
+                  fill="none"
+                  stroke={theme.chart.raw}
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                {panel.points.map((point) => (
+                  <circle
+                    key={point.localDate}
+                    cx={point.x}
+                    cy={point.y}
+                    r={point.isPr ? 3.5 : 2}
+                    fill={point.isPr ? theme.chart.trend : theme.chart.raw}
+                    stroke={point.isPr ? theme.surface.raised : 'none'}
+                    strokeWidth={point.isPr ? 1.5 : 0}
+                    data-testid={point.isPr ? 'lift-pr-marker' : 'lift-point'}
+                  />
+                ))}
+              </svg>
+
+              {/* The PR annotation must not be colour-only. */}
+              {panel.personalRecords.length ? (
+                <PanelValue data-testid="lift-pr-note">
+                  {`${panel.personalRecords.length} PR${
+                    panel.personalRecords.length === 1 ? '' : 's'
+                  } · latest ${formatPeriod(panel.personalRecords.at(-1)!.localDate)}`}
+                </PanelValue>
+              ) : null}
+
+              {isSelected ? (
+                <PanelValue data-testid="lift-panel-detail">
+                  {`Range ${formatValue(panel.domain.min)}–${formatValue(panel.domain.max)} · ${
+                    panel.points.length
+                  } sessions · from ${formatValue(panel.first)} on ${formatPeriod(
+                    panel.points[0]!.localDate,
+                  )}`}
+                </PanelValue>
+              ) : null}
+            </PanelRow>
+          );
+        })}
+      </PanelGrid>
+
+      {/* Labelled once, because every panel shares it. */}
+      <AxisRow aria-hidden="true">
+        <span>{axisStart}</span>
+        <span>{axisEnd}</span>
+      </AxisRow>
+
+      <VisuallyHidden>
+        <table>
+          <caption>{label}</caption>
+          <thead>
+            <tr>
+              <th scope="col">Lift</th>
+              <th scope="col">Start</th>
+              <th scope="col">Latest</th>
+              <th scope="col">Change</th>
+              <th scope="col">Sessions</th>
+              <th scope="col">Personal records</th>
+            </tr>
+          </thead>
+          <tbody>
+            {result.panels.map((panel) => (
+              <tr key={panel.id}>
+                <th scope="row">{panel.name}</th>
+                <td>{formatValue(panel.first)}</td>
+                <td>{formatValue(panel.last)}</td>
+                <td>{panel.change == null ? '—' : formatValue(panel.change)}</td>
+                <td>{panel.points.length}</td>
+                <td>{panel.personalRecords.length}</td>
               </tr>
             ))}
           </tbody>

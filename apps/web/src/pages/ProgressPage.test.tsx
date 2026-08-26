@@ -1064,3 +1064,136 @@ describe('ProgressPage training composition', () => {
     expect(readout).toHaveTextContent(/Legs 7,000 lb/);
   });
 });
+
+
+/**
+ * Strength small multiples — "am I getting stronger?", per lift, which
+ * Progress could not answer before.
+ */
+describe('ProgressPage strength panels', () => {
+  function lift(
+    id: string,
+    name: string,
+    values: (number | null)[],
+    options: { metricKeys?: string[]; prAt?: number[] } = {},
+  ) {
+    return {
+      exerciseId: id,
+      exerciseName: name,
+      prescriptionKind: 'sets_reps',
+      metricKeys: options.metricKeys ?? ['estimatedOneRepMax', 'topSetLoad'],
+      sessionCount: values.length,
+      points: values.map((value, index) => ({
+        sessionId: `${id}-${index}`,
+        localDate: mondayOffsetWeeks(values.length - 1 - index).toISOString().slice(0, 10),
+        sessionName: 'Session',
+        metrics: [{ key: 'estimatedOneRepMax', value, loadUnit: 'lb' as const }],
+        isWeightPr: options.prAt?.includes(index) ?? false,
+        isRepPr: false,
+      })),
+    };
+  }
+
+  it('draws one panel per lift with enough history', async () => {
+    renderProgress(
+      baseOverview({
+        exercises: [
+          lift('a', 'Back Squat', [300, 315, 330]),
+          lift('b', 'Bench Press', [200, 205, 210]),
+        ],
+      }),
+    );
+    await screen.findByTestId('strength-panels');
+    expect(screen.getAllByTestId('lift-panel')).toHaveLength(2);
+  });
+
+  it('withholds a lift below the metric\'s own session floor', async () => {
+    renderProgress(baseOverview({ exercises: [lift('a', 'Back Squat', [300, 315])] }));
+    // Two points joined by a line is not a trend; the page says what is
+    // missing rather than drawing it.
+    expect(await screen.findByTestId('strength-pending')).toHaveTextContent(
+      /Back Squat needs 1 more session/,
+    );
+    expect(screen.queryByTestId('strength-panels')).not.toBeInTheDocument();
+  });
+
+  it('marks personal records as an annotation layer', async () => {
+    renderProgress(
+      baseOverview({ exercises: [lift('a', 'Back Squat', [300, 315, 330], { prAt: [1, 2] })] }),
+    );
+    await screen.findByTestId('strength-panels');
+    expect(screen.getAllByTestId('lift-pr-marker')).toHaveLength(2);
+    // PRs must not be conveyed by colour alone.
+    expect(screen.getByTestId('lift-pr-note')).toHaveTextContent(/2 PRs/);
+  });
+
+  it('states direction in words and a number, never colour alone', async () => {
+    renderProgress(baseOverview({ exercises: [lift('a', 'Back Squat', [300, 315, 330])] }));
+    await screen.findByTestId('strength-panels');
+    expect(screen.getByTestId('lift-panel')).toHaveAccessibleName(/up 30 lb over this range/);
+  });
+
+  it('gives every panel the same time axis so lifts can be compared vertically', async () => {
+    renderProgress(
+      baseOverview({
+        exercises: [
+          lift('a', 'Back Squat', [300, 315, 330]),
+          lift('b', 'Bench Press', [200, 205, 210]),
+        ],
+      }),
+    );
+    await screen.findByTestId('strength-panels');
+    const [first, second] = screen.getAllByTestId('lift-panel');
+    const xOf = (panel: HTMLElement) =>
+      Array.from(panel.querySelectorAll('circle')).map((c) => c.getAttribute('cx'));
+    // Identical dates must land on identical x positions across panels.
+    expect(xOf(first!)).toEqual(xOf(second!));
+  });
+
+  it('gives each panel its own vertical scale, and says so', async () => {
+    renderProgress(
+      baseOverview({
+        exercises: [
+          lift('a', 'Back Squat', [300, 315, 330]),
+          lift('b', 'Lateral Raise', [20, 22, 25]),
+        ],
+      }),
+    );
+    await screen.findByTestId('strength-panels');
+    // A light lift must not be flattened against a heavy one — each panel
+    // labels its own range so heights are not read across panels.
+    const squat = screen.getByRole('img', { name: /Back Squat trend/ });
+    const raise = screen.getByRole('img', { name: /Lateral Raise trend/ });
+    expect(squat).toHaveAccessibleName(/300 lb to 340 lb|2[0-9]0 lb to 3[0-9]0 lb/);
+    expect(raise.getAttribute('aria-label')).toMatch(/Lateral Raise trend, \d+ lb to \d+ lb/);
+    expect(raise.getAttribute('aria-label')).not.toEqual(squat.getAttribute('aria-label'));
+  });
+
+  it('skips exercises for which a 1RM is undefined, not merely missing', async () => {
+    renderProgress(
+      baseOverview({
+        exercises: [lift('a', 'Pull-up', [10, 11, 12], { metricKeys: ['topReps', 'totalReps'] })],
+      }),
+    );
+    await screen.findByTestId('sessions-chart');
+    expect(screen.queryByTestId('strength-panels')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('strength-pending')).not.toBeInTheDocument();
+  });
+
+  it('gives screen readers the numbers, not just the shape', async () => {
+    renderProgress(baseOverview({ exercises: [lift('a', 'Back Squat', [300, 315, 330])] }));
+    await screen.findByTestId('strength-panels');
+    const table = screen.getByRole('table', { name: /Estimated 1RM by lift/ });
+    expect(within(table).getByRole('columnheader', { name: 'Change' })).toBeInTheDocument();
+    expect(within(table).getByRole('rowheader', { name: 'Back Squat' })).toBeInTheDocument();
+  });
+
+  it('reveals the panel range and start on selection', async () => {
+    renderProgress(baseOverview({ exercises: [lift('a', 'Back Squat', [300, 315, 330])] }));
+    await screen.findByTestId('strength-panels');
+    fireEvent.click(screen.getByTestId('lift-panel'));
+    expect(screen.getByTestId('lift-panel-detail')).toHaveTextContent(
+      /3 sessions · from 300 lb/,
+    );
+  });
+});

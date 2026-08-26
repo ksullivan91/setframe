@@ -186,10 +186,39 @@ describe('buildSmallMultiples', () => {
     expect(result.omitted).toEqual([{ id: 'row', name: 'Barbell Row', pointCount: 1 }]);
   });
 
-  it('orders panels by how much the lift actually moved', () => {
+  it('orders panels by proportional movement, not by which lift is heaviest', () => {
+    /* Squat 300 -> 330 is +10%; curl 40 -> 42.5 is +6.25%. Squat still leads,
+       but on the ratio rather than on the 30 lb absolute figure. */
     const result = buildSmallMultiples(lifts, { panel: { width: 300, height: 90 } });
     expect(result.panels[0]!.id).toBe('squat');
     expect(result.panels[0]!.change).toBe(30);
+    expect(result.panels[0]!.relativeChange).toBeCloseTo(0.1, 6);
+  });
+
+  it('ranks a big proportional gain above a big absolute one', () => {
+    // Sorting on absolute change ranks the heaviest lift first on every
+    // render, which is the same order every time and says nothing.
+    const result = buildSmallMultiples(
+      [
+        {
+          id: 'dl', name: 'Deadlift',
+          points: [
+            { localDate: '2026-05-01', value: 400 },
+            { localDate: '2026-07-01', value: 440 },
+          ],
+        },
+        {
+          id: 'lat', name: 'Lateral Raise',
+          points: [
+            { localDate: '2026-05-01', value: 20 },
+            { localDate: '2026-07-01', value: 25 },
+          ],
+        },
+      ],
+      { panel: { width: 300, height: 90 } },
+    );
+    // +25% beats +10%, even though 5 lb is far less than 40 lb.
+    expect(result.panels.map((panel) => panel.id)).toEqual(['lat', 'dl']);
   });
 
   it('does not inflate a small real change into a dramatic climb', () => {
@@ -222,5 +251,104 @@ describe('buildSmallMultiples', () => {
   it('emits a real SVG path, not an empty string, for a plotted panel', () => {
     const result = buildSmallMultiples(lifts, { panel: { width: 300, height: 90 } });
     expect(result.panels[0]!.path).toMatch(/^M[\d.-]+,[\d.-]+/);
+  });
+});
+
+describe('buildSmallMultiples minimumSpanRatio', () => {
+  const heavy = {
+    id: 'dl', name: 'Deadlift',
+    points: [
+      { localDate: '2026-05-01', value: 400 },
+      { localDate: '2026-06-01', value: 405 },
+      { localDate: '2026-07-01', value: 402 },
+    ],
+  };
+  const light = {
+    id: 'lat', name: 'Lateral Raise',
+    points: [
+      { localDate: '2026-05-01', value: 20 },
+      { localDate: '2026-06-01', value: 22 },
+      { localDate: '2026-07-01', value: 25 },
+    ],
+  };
+
+  it('scales the floor with each lift, unlike an absolute span', () => {
+    // The defect this replaced: one absolute floor is noise on a deadlift and
+    // the entire range of a lateral raise, so it either fails to damp the
+    // heavy lift or flattens the light one into a straight line.
+    const result = buildSmallMultiples([heavy, light], {
+      panel: { width: 300, height: 44 },
+      insets: { top: 6, right: 6, bottom: 6, left: 6 },
+      minimumSpanRatio: 0.08,
+    });
+    const dl = result.panels.find((p) => p.id === 'dl')!;
+    const lat = result.panels.find((p) => p.id === 'lat')!;
+    expect(dl.domain.max - dl.domain.min).toBeGreaterThanOrEqual(400 * 0.08);
+    expect(lat.domain.max - lat.domain.min).toBeGreaterThanOrEqual(20 * 0.08);
+    // Crucially the light lift's domain stays small enough to show its move.
+    expect(lat.domain.max - lat.domain.min).toBeLessThan(20);
+  });
+
+  it('lets a light lift use its panel while damping a heavy lift\'s noise', () => {
+    const result = buildSmallMultiples([heavy, light], {
+      panel: { width: 300, height: 44 },
+      insets: { top: 6, right: 6, bottom: 6, left: 6 },
+      minimumSpanRatio: 0.08,
+    });
+    const spread = (id: string) => {
+      const ys = result.panels.find((p) => p.id === id)!.points.map((point) => point.y);
+      return Math.max(...ys) - Math.min(...ys);
+    };
+    /* The lateral raise moved 20 -> 25, a 25% gain, and must be clearly
+       visible. The deadlift moved 400 -> 405, 1.25%, which is exactly the
+       noise the floor exists to suppress — drawing it as a climb would be the
+       lie. So these two are asymmetric on purpose, and the asymmetry is the
+       point of a *relative* floor. */
+    expect(spread('lat')).toBeGreaterThan(15);
+    expect(spread('dl')).toBeLessThan(spread('lat') / 3);
+    // Still drawn, though — damped is not erased.
+    expect(spread('dl')).toBeGreaterThan(1);
+  });
+
+  it('damps a lift whose whole movement is noise', () => {
+    const flat = {
+      id: 'b', name: 'Bench',
+      points: [
+        { localDate: '2026-05-01', value: 225 },
+        { localDate: '2026-06-01', value: 225.5 },
+        { localDate: '2026-07-01', value: 226 },
+      ],
+    };
+    const result = buildSmallMultiples([flat], {
+      panel: { width: 300, height: 44 },
+      insets: { top: 6, right: 6, bottom: 6, left: 6 },
+      minimumSpanRatio: 0.08,
+    });
+    const panel = result.panels[0]!;
+    const ys = panel.points.map((point) => point.y);
+    // A 1 lb move on a 225 lb lift must not fill the panel.
+    expect(Math.max(...ys) - Math.min(...ys)).toBeLessThan(panel.plot.height / 3);
+  });
+
+  it('uses the median so one outlier cannot set the whole scale', () => {
+    const withOutlier = {
+      id: 'o', name: 'Outlier',
+      points: [
+        { localDate: '2026-05-01', value: 100 },
+        { localDate: '2026-06-01', value: 102 },
+        { localDate: '2026-07-01', value: 101 },
+        { localDate: '2026-08-01', value: 1000 },
+      ],
+    };
+    const result = buildSmallMultiples([withOutlier], {
+      panel: { width: 300, height: 44 },
+      insets: { top: 6, right: 6, bottom: 6, left: 6 },
+      minimumSpanRatio: 0.08,
+    });
+    // Median is ~101, so the ratio floor is ~8 — not 80, which a mean-based
+    // floor dragged upward by the outlier would have produced.
+    const panel = result.panels[0]!;
+    expect(panel.domain.max - panel.domain.min).toBeLessThan(1200);
+    expect(panel.domain.max).toBeGreaterThanOrEqual(1000);
   });
 });

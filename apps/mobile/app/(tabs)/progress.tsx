@@ -12,6 +12,8 @@ import { useQuery } from '@tanstack/react-query';
 import {
   bucketLabel,
   bucketStart,
+  buildStrengthSeries,
+  describeStrengthPending,
   buildOverviewInsights,
   buildProgressSeries,
   comparePeriods,
@@ -44,7 +46,13 @@ import {
 } from '@setframe/domain';
 import type { ProgressOverviewResponse } from '@setframe/schemas';
 import { Card } from '../../src/components/Card';
-import { ColumnChart, LineChart, RangeSelector, StackedChart } from '../../src/components/Charts';
+import {
+  ColumnChart,
+  LineChart,
+  RangeSelector,
+  SmallMultiples,
+  StackedChart,
+} from '../../src/components/Charts';
 import { MetricInfo } from '../../src/components/MetricInfo';
 import { ProgressInsights } from '../../src/components/ProgressInsights';
 import { FadeIn, Skeleton, SkeletonStack } from '../../src/components/Skeleton';
@@ -111,6 +119,84 @@ function MetricInfoFor({ metricKey }: { metricKey: string }) {
  * a trend, and a monthly bucket would blur the very alternation (push day,
  * pull day, leg day) the chart exists to show.
  */
+
+/**
+ * Strength — the mobile counterpart of web's `StrengthPanels`.
+ *
+ * A lift is only drawn once it clears the metric's own
+ * `minimumSessionsForTrend`. That floor is not a UI preference: estimated
+ * 1RM's stated limitation is "treat small changes as noise", so two points
+ * joined by a line would be two observations plus an implication we cannot
+ * support.
+ */
+export function StrengthPanels({
+  exercises,
+  volumeUnit,
+}: {
+  exercises: ProgressOverviewResponse['exercises'];
+  volumeUnit: 'lb' | 'kg';
+}) {
+  const theme = useTheme();
+  const { lifts, pending } = useMemo(() => buildStrengthSeries(exercises), [exercises]);
+  const formatValue = useMemo(
+    () => (value: number) => `${Math.round(value).toLocaleString()} ${volumeUnit}`,
+    [volumeUnit],
+  );
+  const pendingNote = describeStrengthPending(pending);
+
+  /* The heading lives here, not on the screen, so a user whose training has
+     no 1RM at all — cycling, bodyweight work — never sees an "Estimated 1RM
+     per session" promise with nothing underneath it. */
+  if (!lifts.length && !pendingNote) return null;
+
+  const heading = (
+    <View>
+      <View style={styles.sectionTitleRow}>
+        <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Strength</Text>
+        <MetricInfo
+          label="Strength"
+          explanation="Whether the weight you can lift is going up, lift by lift."
+          calculation="Each panel plots your estimated 1RM per session — weight × (1 + reps / 30) from your best working set. Every panel shares the same left-to-right time axis, so you can read straight down the column to see when several lifts moved together."
+          limitation="Panels have their own vertical scales, because a deadlift and a lateral raise differ by too much to share one. So heights are not comparable between panels — compare each line against its own stated range. Estimated 1RM is an estimate, not a tested max, and it gets less accurate above about 10 reps."
+        />
+      </View>
+      {lifts.length ? (
+        <Helper>Estimated 1RM per session. Panels share a time axis; each has its own scale.</Helper>
+      ) : null}
+    </View>
+  );
+
+  if (!lifts.length) {
+    // Nothing plottable yet. Say what is missing rather than drawing an empty
+    // frame, and never imply the user has made no progress.
+    return (
+      <View style={styles.stack}>
+        {heading}
+        <Helper testID="strength-pending">{pendingNote}</Helper>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.stack}>
+      {heading}
+      <SmallMultiples
+        lifts={lifts.slice(0, 6)}
+        formatValue={formatValue}
+        /* Relative, not absolute. Without a floor a lift that moved 2.5 lb
+           over three months draws as a dramatic climb, because the domain
+           collapses onto the noise the metric's own limitation warns about.
+           But a fixed floor cannot serve both a 400 lb deadlift and a 25 lb
+           lateral raise, so the floor is 8% of each lift's own median. */
+        minimumSpanRatio={0.08}
+        label="Estimated 1RM by lift"
+        testID="strength-panels"
+      />
+      {pendingNote ? <Helper testID="strength-pending">{pendingNote}</Helper> : null}
+    </View>
+  );
+}
+
 export function CompositionSection({
   composition,
   localDate,
@@ -1111,8 +1197,10 @@ export default function ProgressScreen() {
 
         {exercises.length ? (
           <View style={styles.stack}>
+            <StrengthPanels exercises={exercises} volumeUnit={training.volumeUnit} />
+
             <View>
-              <SectionTitle>Strength</SectionTitle>
+              <SectionTitle>By exercise</SectionTitle>
               <Helper>Each exercise shows only the measures that make sense for how it is programmed.</Helper>
             </View>
             {exercises.slice(0, 4).map((exercise) => (

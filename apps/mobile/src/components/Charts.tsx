@@ -12,11 +12,13 @@ import Svg, { Circle, G, Line, Path, Rect, Text as SvgText } from 'react-native-
 import {
   buildColumnChart,
   buildLineChart,
+  buildSmallMultiples,
   buildStackedChart,
   nearestPointIndex,
   plotRect,
   remainderPatternKey,
   shouldClaimScrub,
+  type LiftSeries,
   type ProgressRange,
   type SeriesPoint,
   type StackedBucket,
@@ -598,6 +600,31 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 3,
   },
+  liftPanel: {
+    gap: 2,
+    padding: spacing[8],
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  liftPanelHead: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: spacing[8],
+  },
+  liftPanelName: {
+    fontSize: typeScale.body.fontSize,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
+  axisRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing[8],
+  },
+  axisLabel: {
+    fontSize: 10,
+  },
   rangeButton: {
     minHeight: 44,
     minWidth: 44,
@@ -834,6 +861,204 @@ export function StackedChart({
         accessibilityLabel={tableLabel}
         style={styles.visuallyHidden}
         testID="stacked-table"
+      />
+    </View>
+  );
+}
+
+export interface SmallMultiplesProps {
+  lifts: LiftSeries[];
+  panelHeight?: number;
+  formatValue: (value: number) => string;
+  formatPeriod?: (localDate: string) => string;
+  minimumPoints?: number;
+  minimumSpan?: number;
+  /** Minimum domain height as a fraction of the lift's own median value. */
+  minimumSpanRatio?: number;
+  label: string;
+  testID?: string;
+}
+
+/**
+ * Small multiples — the `react-native-svg` counterpart of web's
+ * `SmallMultiples`, drawing the identical `buildSmallMultiples` geometry.
+ *
+ * The comparison this enables is vertical: scanning down the panels to see
+ * that several lifts flattened in the same fortnight. That only works if a
+ * date lands at the same x in every panel, so the time axis is computed once
+ * across all lifts and labelled once underneath rather than per panel.
+ *
+ * Value axes are per panel and deliberately not shared — a deadlift and a
+ * lateral raise differ by an order of magnitude — which is why each panel
+ * states its own range in text rather than inviting a cross-panel height
+ * comparison that would be meaningless.
+ */
+export function SmallMultiples({
+  lifts,
+  panelHeight = 44,
+  formatValue,
+  formatPeriod = formatDate,
+  minimumPoints,
+  minimumSpan,
+  minimumSpanRatio,
+  label,
+  testID,
+}: SmallMultiplesProps) {
+  const theme = useTheme();
+  const [width, onLayout] = useMeasuredWidth(320);
+  const [selected, setSelected] = useState<string | null>(null);
+
+  const result = useMemo(
+    () =>
+      buildSmallMultiples(lifts, {
+        panel: { width, height: panelHeight },
+        // No left gutter: the value range is stated in the header text, so
+        // the sparkline needs no axis labels and can use the full width.
+        insets: { top: 6, right: 6, bottom: 6, left: 6 },
+        minimumPoints,
+        minimumSpan,
+        minimumSpanRatio,
+        formatValue,
+      }),
+    [lifts, width, panelHeight, minimumPoints, minimumSpan, minimumSpanRatio, formatValue],
+  );
+
+  if (!result.panels.length) return null;
+
+  const axisStart = result.bounds.first
+    ? formatPeriod(new Date(result.bounds.first).toISOString().slice(0, 10))
+    : '';
+  const axisEnd = result.bounds.last
+    ? formatPeriod(new Date(result.bounds.last).toISOString().slice(0, 10))
+    : '';
+
+  return (
+    <View style={styles.figure} testID={testID}>
+      <View onLayout={onLayout}>
+        {result.panels.map((panel) => {
+          const isSelected = panel.id === selected;
+          const direction: 'up' | 'down' | 'flat' =
+            panel.change == null || panel.change === 0 ? 'flat' : panel.change > 0 ? 'up' : 'down';
+          /* Direction is stated with an arrow and a signed number, never by
+             colour alone — and a fall is not painted red. Training load comes
+             down on purpose in a deload, and colouring that as failure is the
+             same mistake the body-weight chart exists to avoid. */
+          const arrow = direction === 'up' ? '↑' : direction === 'down' ? '↓' : '→';
+
+          return (
+            <Pressable
+              key={panel.id}
+              accessible
+              accessibilityRole="button"
+              accessibilityLabel={`${panel.name}: now ${formatValue(panel.last)}${
+                panel.change != null
+                  ? `, ${
+                      direction === 'flat' ? 'unchanged' : direction === 'up' ? 'up' : 'down'
+                    } ${formatValue(Math.abs(panel.change))} over this range`
+                  : ''
+              }${
+                panel.personalRecords.length
+                  ? `, ${panel.personalRecords.length} personal record${
+                      panel.personalRecords.length === 1 ? '' : 's'
+                    }`
+                  : ''
+              }`}
+              testID="lift-panel"
+              onPress={() => setSelected(isSelected ? null : panel.id)}
+              style={[
+                styles.liftPanel,
+                isSelected
+                  ? { borderColor: theme.chart.emphasis, backgroundColor: theme.action.accentSubtle }
+                  : { borderColor: 'transparent' },
+              ]}
+            >
+              <View style={styles.liftPanelHead}>
+                <Text style={[styles.liftPanelName, { color: theme.text.primary }]}>
+                  {panel.name}
+                </Text>
+                <Text style={[styles.legendLabel, { color: theme.text.secondary }]}>
+                  {formatValue(panel.last)}
+                  {panel.change != null
+                    ? `  ${arrow} ${formatValue(Math.abs(panel.change))}`
+                    : ''}
+                </Text>
+              </View>
+
+              <Svg
+                width={width}
+                height={panelHeight}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                <Path
+                  d={panel.path}
+                  fill="none"
+                  stroke={theme.chart.raw}
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                {panel.points.map((point) => (
+                  <Circle
+                    key={point.localDate}
+                    cx={point.x}
+                    cy={point.y}
+                    r={point.isPr ? 3.5 : 2}
+                    fill={point.isPr ? theme.chart.trend : theme.chart.raw}
+                    stroke={point.isPr ? theme.surface.raised : undefined}
+                    strokeWidth={point.isPr ? 1.5 : 0}
+                    testID={point.isPr ? 'lift-pr-marker' : 'lift-point'}
+                  />
+                ))}
+              </Svg>
+
+              {/* The PR annotation must not be colour-only. */}
+              {panel.personalRecords.length ? (
+                <Text
+                  style={[styles.legendLabel, { color: theme.text.secondary }]}
+                  testID="lift-pr-note"
+                >
+                  {`${panel.personalRecords.length} PR${
+                    panel.personalRecords.length === 1 ? '' : 's'
+                  } · latest ${formatPeriod(panel.personalRecords.at(-1)!.localDate)}`}
+                </Text>
+              ) : null}
+
+              {isSelected ? (
+                <Text
+                  style={[styles.legendLabel, { color: theme.text.secondary }]}
+                  testID="lift-panel-detail"
+                >
+                  {`Range ${formatValue(panel.domain.min)}–${formatValue(panel.domain.max)} · ${
+                    panel.points.length
+                  } sessions · from ${formatValue(panel.first)} on ${formatPeriod(
+                    panel.points[0]!.localDate,
+                  )}`}
+                </Text>
+              ) : null}
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* Labelled once, because every panel shares it. */}
+      <View style={styles.axisRow}>
+        <Text style={[styles.axisLabel, { color: theme.chart.axis }]}>{axisStart}</Text>
+        <Text style={[styles.axisLabel, { color: theme.chart.axis }]}>{axisEnd}</Text>
+      </View>
+
+      <View
+        accessible
+        accessibilityLabel={`${label}. ${result.panels
+          .map(
+            (panel) =>
+              `${panel.name}: from ${formatValue(panel.first)} to ${formatValue(panel.last)}${
+                panel.change == null ? '' : `, change ${formatValue(panel.change)}`
+              }, ${panel.points.length} sessions, ${panel.personalRecords.length} personal records`,
+          )
+          .join('. ')}`}
+        style={styles.visuallyHidden}
+        testID="strength-table"
       />
     </View>
   );

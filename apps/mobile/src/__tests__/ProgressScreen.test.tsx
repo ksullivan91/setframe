@@ -6,6 +6,7 @@ import {
   BodyWeightSection,
   CompositionSection,
   ExerciseCard,
+  StrengthPanels,
   TrainingSeriesSection,
 } from '../../app/(tabs)/progress';
 
@@ -697,5 +698,145 @@ describe('CompositionSection', () => {
     const readout = renderedTextOf(rendered, 'stacked-readout');
     expect(readout).toContain('11,000 lb');
     expect(readout).toContain('Legs 7,000 lb');
+  });
+});
+
+
+/**
+ * Strength small multiples — the mobile half. Mirrors ProgressPage.test.tsx's
+ * strength suite case for case, so parity is tested rather than intended.
+ */
+describe('StrengthPanels', () => {
+  function mondayOffsetWeeks(weeksAgo: number) {
+    const date = new Date();
+    date.setUTCHours(0, 0, 0, 0);
+    date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() || 7) - 1) - weeksAgo * 7);
+    return date;
+  }
+
+  function lift(
+    id: string,
+    name: string,
+    values: (number | null)[],
+    options: { metricKeys?: string[]; prAt?: number[] } = {},
+  ) {
+    return {
+      exerciseId: id,
+      exerciseName: name,
+      prescriptionKind: 'sets_reps',
+      metricKeys: options.metricKeys ?? ['estimatedOneRepMax', 'topSetLoad'],
+      sessionCount: values.length,
+      points: values.map((value, index) => ({
+        sessionId: `${id}-${index}`,
+        localDate: mondayOffsetWeeks(values.length - 1 - index).toISOString().slice(0, 10),
+        sessionName: 'Session',
+        metrics: [{ key: 'estimatedOneRepMax', value, loadUnit: 'lb' as const }],
+        isWeightPr: options.prAt?.includes(index) ?? false,
+        isRepPr: false,
+      })),
+    };
+  }
+
+  /**
+   * Point markers as *host* nodes only. `findAll` returns both the `Circle`
+   * component instance and the host element it renders, so an unfiltered
+   * query yields two entries per mark and any slice-by-index assertion
+   * silently compares interleaved panels.
+   */
+  function liftCircles(rendered: ReactTestRenderer) {
+    return rendered.root.findAll(
+      (node) =>
+        typeof node.type === 'string' &&
+        (node.props?.testID === 'lift-point' || node.props?.testID === 'lift-pr-marker') &&
+        typeof node.props?.cx === 'number',
+    );
+  }
+
+  const render = (exercises: unknown[]) =>
+    renderTree(
+      <StrengthPanels
+        exercises={exercises as ProgressOverviewResponse['exercises']}
+        volumeUnit="lb"
+      />,
+    );
+
+  it('draws one panel per lift with enough history', () => {
+    const rendered = render([
+      lift('a', 'Back Squat', [300, 315, 330]),
+      lift('b', 'Bench Press', [200, 205, 210]),
+    ]);
+    expect(pressablesByTestId(rendered, 'lift-panel')).toHaveLength(2);
+  });
+
+  it("withholds a lift below the metric's own session floor", () => {
+    const rendered = render([lift('a', 'Back Squat', [300, 315])]);
+    expect(renderedTextOf(rendered, 'strength-pending')).toContain(
+      'Back Squat needs 1 more session',
+    );
+    expect(hostsByTestId(rendered, 'strength-panels')).toHaveLength(0);
+  });
+
+  it('marks personal records as an annotation layer', () => {
+    const rendered = render([lift('a', 'Back Squat', [300, 315, 330], { prAt: [1, 2] })]);
+    expect(hostsByTestId(rendered, 'lift-pr-marker')).toHaveLength(2);
+    // PRs must not be conveyed by colour alone.
+    expect(renderedTextOf(rendered, 'lift-pr-note')).toContain('2 PRs');
+  });
+
+  it('states direction in words and a number, never colour alone', () => {
+    const rendered = render([lift('a', 'Back Squat', [300, 315, 330])]);
+    const panel = pressablesByTestId(rendered, 'lift-panel')[0]!;
+    expect(panel.props.accessibilityLabel).toContain('up 30 lb over this range');
+  });
+
+  it('gives every panel the same time axis so lifts can be compared vertically', () => {
+    const rendered = render([
+      lift('a', 'Back Squat', [300, 315, 330]),
+      lift('b', 'Bench Press', [200, 205, 210]),
+    ]);
+    const circles = liftCircles(rendered);
+    expect(circles).toHaveLength(6);
+    const first = circles.slice(0, 3).map((node) => node.props.cx);
+    const second = circles.slice(3, 6).map((node) => node.props.cx);
+    // Identical dates must land on identical x positions across panels.
+    expect(first).toEqual(second);
+    // ...and must actually be distinct, or the assertion above is vacuous.
+    expect(new Set(first).size).toBe(3);
+  });
+
+  it('gives each panel its own vertical scale, so a light lift is not flattened', () => {
+    const rendered = render([
+      lift('a', 'Back Squat', [300, 315, 330]),
+      lift('b', 'Lateral Raise', [20, 22, 25]),
+    ]);
+    const circles = liftCircles(rendered);
+    const spread = (ys: number[]) => Math.max(...ys) - Math.min(...ys);
+    const a = spread(circles.slice(0, 3).map((n) => n.props.cy));
+    const b = spread(circles.slice(3, 6).map((n) => n.props.cy));
+    /* Both lifts gained ~10-25% of their own load, so both must visibly use
+       their panel. A shared axis would draw the lateral raise as a flat line
+       along the bottom, which is the failure this asserts against. */
+    expect(a).toBeGreaterThan(5);
+    expect(b).toBeGreaterThan(5);
+  });
+
+  it('skips exercises for which a 1RM is undefined, not merely missing', () => {
+    const rendered = render([
+      lift('a', 'Pull-up', [10, 11, 12], { metricKeys: ['topReps', 'totalReps'] }),
+    ]);
+    expect(rendered.toJSON()).toBeNull();
+  });
+
+  it('gives VoiceOver the numbers, not just the shape', () => {
+    const rendered = render([lift('a', 'Back Squat', [300, 315, 330])]);
+    const table = rendered.root.findAll((node) => node.props?.testID === 'strength-table')[0]!;
+    expect(table.props.accessibilityLabel).toContain('Back Squat: from 300 lb to 330 lb');
+    expect(table.props.accessibilityLabel).toContain('3 sessions');
+  });
+
+  it('reveals the panel range and start on selection', () => {
+    const rendered = render([lift('a', 'Back Squat', [300, 315, 330])]);
+    press(rendered, 'lift-panel', 0);
+    expect(renderedTextOf(rendered, 'lift-panel-detail')).toContain('3 sessions · from 300 lb');
   });
 });

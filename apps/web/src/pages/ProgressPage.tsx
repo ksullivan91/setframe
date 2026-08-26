@@ -6,6 +6,8 @@ import { spacing } from '@setframe/design-tokens';
 import {
   bucketLabel,
   bucketStart,
+  buildStrengthSeries,
+  describeStrengthPending,
   buildOverviewInsights,
   buildProgressSeries,
   comparePeriods,
@@ -46,6 +48,7 @@ import {
   RangeSelector,
   Skeleton,
   SkeletonStack,
+  SmallMultiples,
   StackedChart,
 } from '../components';
 import { typeScale } from '../theme/typeScale';
@@ -324,6 +327,92 @@ function CompositionSection({
         ) : null}
       </Stack>
     </Card>
+  );
+}
+
+
+/**
+ * Strength — "am I getting stronger?", per lift.
+ *
+ * The single most-asked question in a training app, and until now Progress
+ * could not answer it: estimated 1RM was computed in `packages/domain` and
+ * shown only inside a per-exercise detail card, never as a trend you could
+ * scan across lifts.
+ *
+ * A lift is only drawn once it clears the metric's own
+ * `minimumSessionsForTrend`. That floor is not a UI preference — e1RM's
+ * stated limitation is "treat small changes as noise", so two points joined
+ * by a line would be two observations plus an implication we cannot support.
+ */
+function StrengthPanels({
+  exercises,
+  volumeUnit,
+}: {
+  exercises: ProgressOverviewResponse['exercises'];
+  volumeUnit: 'lb' | 'kg';
+}) {
+  const { lifts, pending } = useMemo(() => buildStrengthSeries(exercises), [exercises]);
+  const formatValue = useMemo(
+    () => (value: number) => `${Math.round(value).toLocaleString()} ${volumeUnit}`,
+    [volumeUnit],
+  );
+  const pendingNote = describeStrengthPending(pending);
+
+  /* The heading lives here, not on the page, so a user whose training has no
+     1RM at all — cycling, bodyweight work — never sees a "Estimated 1RM per
+     session" promise with nothing underneath it. An existing test caught
+     exactly that when the heading was hoisted out. */
+  if (!lifts.length && !pendingNote) return null;
+
+  const heading = (
+    <div>
+      <SectionTitle>
+        Strength
+        <MetricInfo
+          label="Strength"
+          explanation="Whether the weight you can lift is going up, lift by lift."
+          calculation="Each panel plots your estimated 1RM per session — weight × (1 + reps / 30) from your best working set. Every panel shares the same left-to-right time axis, so you can read straight down the column to see when several lifts moved together."
+          limitation="Panels have their own vertical scales, because a deadlift and a lateral raise differ by too much to share one. So heights are not comparable between panels — compare each line against its own stated range. Estimated 1RM is an estimate, not a tested max, and it gets less accurate above about 10 reps."
+        />
+      </SectionTitle>
+      {lifts.length ? (
+        <HelperText>
+          Estimated 1RM per session. Panels share a time axis; each has its own scale.
+        </HelperText>
+      ) : null}
+    </div>
+  );
+
+  if (!lifts.length) {
+    // Nothing plottable yet. Say what is missing rather than drawing an empty
+    // frame, and never imply the user has made no progress.
+    return (
+      <Stack $gap={spacing[8]}>
+        {heading}
+        <HelperText data-testid="strength-pending">{pendingNote}</HelperText>
+      </Stack>
+    );
+  }
+
+  return (
+    <Stack $gap={spacing[8]}>
+      {heading}
+      <SmallMultiples
+        lifts={lifts.slice(0, 6)}
+        formatValue={formatValue}
+        /* Relative, not absolute. Without a floor a lift that moved 2.5 lb
+           over three months draws as a dramatic climb, because the domain
+           collapses onto the noise the metric's own limitation warns about.
+           But a fixed floor cannot serve both a 400 lb deadlift and a 25 lb
+           lateral raise, so the floor is 8% of each lift's own median. */
+        minimumSpanRatio={0.08}
+        label="Estimated 1RM by lift"
+        testId="strength-panels"
+      />
+      {pendingNote ? (
+        <HelperText data-testid="strength-pending">{pendingNote}</HelperText>
+      ) : null}
+    </Stack>
   );
 }
 
@@ -1326,8 +1415,10 @@ export function ProgressPage() {
 
         {exercises.length ? (
           <Stack $gap={spacing[16]}>
+            <StrengthPanels exercises={exercises} volumeUnit={training.volumeUnit} />
+
             <div>
-              <SectionTitle>Strength</SectionTitle>
+              <SectionTitle>By exercise</SectionTitle>
               <HelperText>
                 Each exercise shows only the measures that make sense for how it is programmed.
               </HelperText>

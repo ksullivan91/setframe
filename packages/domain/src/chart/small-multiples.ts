@@ -67,6 +67,14 @@ export interface LiftPanel {
   /** `last - first`; null when a single observation makes change undefined. */
   change: number | null;
   /**
+   * `change` as a fraction of the starting value. This, not the absolute
+   * change, is what ranks the panels: sorting by absolute change ranks the
+   * heaviest lift first every time, which is the same order on every render
+   * and therefore carries no information. A lateral raise up 25% has moved
+   * more than a deadlift up 10%, and that is the thing worth leading with.
+   */
+  relativeChange: number | null;
+  /**
    * Fraction of the window since the most recent observation. High values mean
    * the lift has been dropped, which reads very differently from a flat line.
    */
@@ -83,11 +91,22 @@ export interface SmallMultiplesOptions {
   tickCount?: number;
   formatValue?: (value: number) => string;
   /**
-   * Minimum value-domain height. Without it a lift that moved 2.5 lb over
-   * three months draws as a dramatic climb, because the domain collapses onto
-   * the noise. Express it in the same unit as `value`.
+   * Minimum value-domain height, in the same unit as `value`. Without a floor
+   * a lift that moved 2.5 lb over three months draws as a dramatic climb,
+   * because the domain collapses onto the noise.
    */
   minimumSpan?: number;
+  /**
+   * Minimum value-domain height as a fraction of the panel's own typical
+   * value — the floor that actually works across a set of lifts.
+   *
+   * An absolute `minimumSpan` cannot: 20 lb is noise on a 400 lb deadlift and
+   * is the entire range of a 25 lb lateral raise, so one number either fails
+   * to damp the heavy lift or flattens the light one into a straight line. A
+   * ratio scales with the lift. The larger of the two floors wins, so an
+   * absolute floor can still be used to damp very small absolute numbers.
+   */
+  minimumSpanRatio?: number;
   /** Drops panels with fewer than this many observations. */
   minimumPoints?: number;
 }
@@ -104,9 +123,8 @@ export interface SmallMultiples {
 /**
  * Builds one panel per lift over a shared time axis.
  *
- * Panels are ordered by absolute change, largest first, so the lifts that
- * actually moved lead. A lift that has not been trained recently sorts on its
- * `staleness` instead of pretending its flat tail is a plateau.
+ * Panels are ordered by *proportional* change, largest first, so the lifts
+ * that actually moved lead rather than simply the heaviest ones.
  */
 export function buildSmallMultiples(
   lifts: readonly LiftSeries[],
@@ -129,16 +147,21 @@ export function buildSmallMultiples(
   });
 
   const panels = eligible.map((lift): LiftPanel => {
-    const axis = valueAxis(
-      lift.points.map((point) => point.value),
-      rect,
-      {
-        zeroBased: false,
-        tickCount: 2,
-        minimumSpan: options.minimumSpan,
-        format: options.formatValue,
-      },
-    );
+    const values = lift.points.map((point) => point.value);
+    /* The median, not the mean: a single tested max or a mis-entered weight
+       would drag a mean and take the whole panel's scale with it. */
+    const sorted = [...values].sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)] ?? 0;
+    const ratioFloor = options.minimumSpanRatio
+      ? Math.abs(median) * options.minimumSpanRatio
+      : 0;
+
+    const axis = valueAxis(values, rect, {
+      zeroBased: false,
+      tickCount: 2,
+      minimumSpan: Math.max(options.minimumSpan ?? 0, ratioFloor),
+      format: options.formatValue,
+    });
 
     const points: PlottedLiftPoint[] = lift.points.map((point, index) => ({
       ...point,
@@ -168,12 +191,22 @@ export function buildSmallMultiples(
       first,
       last,
       change: lift.points.length < 2 ? null : last - first,
+      relativeChange:
+        lift.points.length < 2 || first === 0 ? null : (last - first) / Math.abs(first),
       staleness: span > 0 ? Math.min(Math.max((shared.bounds.last - lastTime) / span, 0), 1) : 0,
       plot: rect,
     };
   });
 
-  panels.sort((a, b) => Math.abs(b.change ?? 0) - Math.abs(a.change ?? 0));
+  /* By proportional movement, largest first — see `relativeChange`. Ties and
+     lifts with no computable ratio fall back to absolute change so the order
+     stays total and deterministic. */
+  panels.sort(
+    (a, b) =>
+      Math.abs(b.relativeChange ?? 0) - Math.abs(a.relativeChange ?? 0) ||
+      Math.abs(b.change ?? 0) - Math.abs(a.change ?? 0) ||
+      a.name.localeCompare(b.name),
+  );
 
   return { panels, timeTicks: shared.ticks, bounds: shared.bounds, omitted };
 }
