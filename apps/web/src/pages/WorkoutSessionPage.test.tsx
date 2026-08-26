@@ -143,24 +143,32 @@ describe('WorkoutSessionPage prescription-aware fields', () => {
   it('shows only strength fields for a sets + reps exercise', async () => {
     renderSession({ kind: 'sets_reps', sets: 3, repsMin: 8, repsMax: 10 });
 
-    expect(await screen.findByLabelText(/^Weight/)).toBeInTheDocument();
-    expect(screen.getByLabelText('Reps')).toBeInTheDocument();
-    expect(screen.getByLabelText('RPE')).toBeInTheDocument();
-    expect(screen.queryByLabelText(/Duration/)).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Distance')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Distance unit')).not.toBeInTheDocument();
+    /* Scoped to the detailed set editor. Quick Log's visible labels are
+       deliberately short — the panel above them already says "Quick log" —
+       so an unscoped `getByLabelText('Reps')` now matches both regions. The
+       accessible names still differ ("Quick log: Reps"), which is what a
+       screen reader uses. */
+    const setEditor = (await screen.findAllByTestId('set-row'))[0]!;
+    expect(within(setEditor).getByLabelText(/^Weight/)).toBeInTheDocument();
+    expect(within(setEditor).getByLabelText('Reps')).toBeInTheDocument();
+    expect(within(setEditor).getByLabelText('RPE')).toBeInTheDocument();
+    expect(within(setEditor).queryByLabelText(/Duration/)).not.toBeInTheDocument();
+    expect(within(setEditor).queryByLabelText('Distance')).not.toBeInTheDocument();
+    expect(within(setEditor).queryByLabelText('Distance unit')).not.toBeInTheDocument();
   });
 
   it('shows only distance and duration for a distance + duration exercise', async () => {
     renderSession({ kind: 'distanceDuration', distanceMiles: 12, durationMinutes: 45 });
 
-    expect(await screen.findByLabelText('Distance')).toBeInTheDocument();
-    expect(screen.getByLabelText('Distance unit')).toBeInTheDocument();
-    expect(screen.getByLabelText('Duration (min)')).toBeInTheDocument();
-    expect(screen.queryByLabelText(/^Weight/)).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Reps')).not.toBeInTheDocument();
+    // Scoped to the detailed editor; see the sets+reps case above for why.
+    const setEditor = (await screen.findAllByTestId('set-row'))[0]!;
+    expect(within(setEditor).getByLabelText('Distance')).toBeInTheDocument();
+    expect(within(setEditor).getByLabelText('Distance unit')).toBeInTheDocument();
+    expect(within(setEditor).getByLabelText('Duration (min)')).toBeInTheDocument();
+    expect(within(setEditor).queryByLabelText(/^Weight/)).not.toBeInTheDocument();
+    expect(within(setEditor).queryByLabelText('Reps')).not.toBeInTheDocument();
     // A single continuous effort has no set type.
-    expect(screen.queryByLabelText('Type')).not.toBeInTheDocument();
+    expect(within(setEditor).queryByLabelText('Type')).not.toBeInTheDocument();
   });
 
   it('shows reps but not weight for bodyweight reps', async () => {
@@ -611,14 +619,24 @@ describe('WorkoutSessionPage persistent session actions', () => {
 });
 
 /**
- * Story 37 — a quick-entry header above each exercise's full set editor,
- * for the common case where sets share a value. Explicit "Apply to all
- * sets" rather than automatic cascade, so a manually-edited set is never
- * silently overwritten (only ever by the user's own next click).
+ * Stories 58 and 59 — Quick Log replaces the old "Apply to all sets" header.
+ *
+ * The previous action only *populated* the set inputs; the user still had to
+ * expand the exercise and save each set, so the fast path cost more taps than
+ * typing into the sets directly. Quick Log persists, in one request.
  */
-describe('WorkoutSessionPage collapsible quick-entry', () => {
-  function renderMultiSet(sets: { weightValue: number; reps: number }[]) {
-    const session = buildSession({ kind: 'sets_reps', sets: 3, repsMin: 8 }) as unknown as {
+describe('WorkoutSessionPage quick log', () => {
+  // Own reset: `.find()` on a shared mock would otherwise match a call made
+  // by an earlier test in this block and assert against the wrong payload.
+  beforeEach(() => {
+    mockPost.mockClear();
+  });
+
+  function renderMultiSet(
+    sets: Array<{ weightValue: number | null; reps: number | null; setType?: string }>,
+    prescription: unknown = { kind: 'sets_reps', sets: 3, repsMin: 8 },
+  ) {
+    const session = buildSession(prescription as never) as unknown as {
       exercises: { sets: unknown[] }[];
     };
     session.exercises[0]!.sets = sets.map((set, index) => ({
@@ -626,7 +644,7 @@ describe('WorkoutSessionPage collapsible quick-entry', () => {
       exerciseLogId: 'log-1',
       clientId: `3333333${index}-1111-4111-8111-111111111111`,
       sortOrder: index,
-      setType: 'working',
+      setType: set.setType ?? 'working',
       weightUnit: 'lb',
       durationSeconds: null,
       distanceValue: null,
@@ -647,166 +665,130 @@ describe('WorkoutSessionPage collapsible quick-entry', () => {
     return renderPage();
   }
 
-  it('pre-fills the quick-entry header from the first set, matching what session-start already templated', async () => {
-    renderMultiSet([
-      { weightValue: 135, reps: 8 },
-      { weightValue: 135, reps: 8 },
-    ]);
+  const unlogged = { weightValue: null, reps: 8 };
 
-    expect(await screen.findByLabelText('All sets: Reps')).toHaveValue('8');
+  it('logs every unlogged set in one request', async () => {
+    const user = userEvent.setup();
+    renderMultiSet([unlogged, unlogged, unlogged]);
+
+    const weight = await screen.findByLabelText(/^Quick log: Weight/);
+    await user.type(weight, '135');
+    await user.click(screen.getByRole('button', { name: 'Log all 3 sets' }));
+
+    // One call, not three — the user is not serialised behind the network.
+    await waitFor(() =>
+      expect(mockPost).toHaveBeenCalledWith(
+        '/workout-exercise-logs/log-1/quick-log',
+        expect.objectContaining({
+          setIds: ['set-1', 'set-2', 'set-3'],
+          values: expect.objectContaining({ weightValue: 135, reps: 8 }),
+        }),
+      ),
+    );
   });
 
-  it('applies the header value to every set only when Apply to all sets is explicitly clicked', async () => {
+  it('names only the sets it will actually write once some are logged', async () => {
     const user = userEvent.setup();
-    renderMultiSet([
-      { weightValue: 135, reps: 8 },
-      { weightValue: 135, reps: 8 },
-    ]);
+    renderMultiSet([{ weightValue: 135, reps: 8 }, unlogged, unlogged]);
 
-    const headerReps = await screen.findByLabelText('All sets: Reps');
-    await user.clear(headerReps);
-    await user.type(headerReps, '10');
+    const weight = await screen.findByLabelText(/^Quick log: Weight/);
+    await user.type(weight, '135');
+    // "Log all 3 sets" would misstate both the count and the effect.
+    await user.click(screen.getByRole('button', { name: 'Log remaining 2 sets' }));
 
-    // Not applied yet — each set's own field is untouched.
-    const perSetReps = screen.getAllByLabelText('Reps');
-    expect(perSetReps[0]).toHaveValue('8');
-    expect(perSetReps[1]).toHaveValue('8');
-
-    await user.click(screen.getByRole('button', { name: 'Apply to all sets' }));
-
-    expect(perSetReps[0]).toHaveValue('10');
-    expect(perSetReps[1]).toHaveValue('10');
+    await waitFor(() =>
+      expect(mockPost).toHaveBeenCalledWith(
+        '/workout-exercise-logs/log-1/quick-log',
+        expect.objectContaining({ setIds: ['set-2', 'set-3'] }),
+      ),
+    );
   });
 
-  it('leaves a manual per-set override alone unless Apply to all sets is clicked again', async () => {
+  it('never writes over a set the user already logged by hand', async () => {
     const user = userEvent.setup();
-    // Set 2 differs from set 1 on weight too, not just reps — otherwise a
-    // bug that applied the *whole* header (instead of only the field the
-    // user actually touched) couldn't be caught: weight would already
-    // coincidentally match and look unchanged.
-    renderMultiSet([
-      { weightValue: 135, reps: 8 },
-      { weightValue: 95, reps: 8 },
-    ]);
+    // Set 2 was corrected to 6 reps; Quick Log must leave it alone.
+    renderMultiSet([unlogged, { weightValue: 135, reps: 6 }, unlogged]);
 
-    await screen.findByLabelText('All sets: Reps');
-    const perSetReps = screen.getAllByLabelText('Reps');
-    await user.clear(perSetReps[1]!);
-    await user.type(perSetReps[1]!, '6');
-    expect(perSetReps[0]).toHaveValue('8');
-    expect(perSetReps[1]).toHaveValue('6');
+    await user.type(await screen.findByLabelText(/^Quick log: Weight/), '135');
+    await user.click(screen.getByRole('button', { name: 'Log remaining 2 sets' }));
 
-    // Editing the header itself, without clicking Apply, never touches any
-    // set — the cascade is only ever triggered by the explicit button.
-    const headerReps = screen.getByLabelText('All sets: Reps');
-    await user.clear(headerReps);
-    await user.type(headerReps, '10');
-    expect(perSetReps[1]).toHaveValue('6');
-
-    // Clicking Apply is the one action that does overwrite it — an
-    // explicit, deliberate re-application, not a silent one. Only the
-    // field actually edited in the header (reps) should move; set 2's own
-    // weight — never touched in the header — must survive.
-    await user.click(screen.getByRole('button', { name: 'Apply to all sets' }));
-    expect(perSetReps[1]).toHaveValue('10');
-    expect(screen.getAllByLabelText(/^Weight/)[1]).toHaveValue('95');
+    await waitFor(() => expect(mockPost).toHaveBeenCalled());
+    const call = mockPost.mock.calls.filter(([path]) => String(path).endsWith('/quick-log')).at(-1)!;
+    expect((call[1] as { setIds: string[] }).setIds).not.toContain('set-2');
   });
 
-  function renderMultiSetDistance(sets: { distanceValue: number; distanceUnit: 'm' | 'km' | 'mi'; durationSeconds: number }[]) {
-    const session = buildSession({ kind: 'distanceDuration', distanceMiles: 5, durationMinutes: 30 }) as unknown as {
-      exercises: { sets: unknown[] }[];
-    };
-    session.exercises[0]!.sets = sets.map((set, index) => ({
-      id: `set-${index + 1}`,
-      exerciseLogId: 'log-1',
-      clientId: `4444444${index}-1111-4111-8111-111111111111`,
-      sortOrder: index,
-      setType: 'working',
-      weightValue: null,
-      weightUnit: null,
-      reps: null,
-      rpe: null,
-      isPrWeight: false,
-      isPrReps: false,
-      createdAt: '2026-08-22T15:00:00.000Z',
-      updatedAt: '2026-08-22T15:00:00.000Z',
-      ...set,
-    }));
-
-    mockGet = (path: string) => {
-      if (path.startsWith('/workout-sessions/')) return Promise.resolve(session);
-      if (path === '/exercises') return Promise.resolve([]);
-      return Promise.resolve(null);
-    };
-    return renderPage();
-  }
-
-  it('changing only the distance unit does not drag the distance value along when applied', async () => {
+  it('never writes a warmup at the working weight', async () => {
     const user = userEvent.setup();
-    renderMultiSetDistance([
-      { distanceValue: 5, distanceUnit: 'mi', durationSeconds: 1800 },
-      { distanceValue: 8, distanceUnit: 'mi', durationSeconds: 1800 },
-    ]);
+    renderMultiSet([{ ...unlogged, setType: 'warmup' }, unlogged, unlogged]);
 
-    // Only the unit dropdown is touched — the distance value input itself
-    // is never edited.
-    await user.selectOptions(await screen.findByLabelText('All sets: Distance unit'), 'km');
-    await user.click(screen.getByRole('button', { name: 'Apply to all sets' }));
+    await user.type(await screen.findByLabelText(/^Quick log: Weight/), '135');
+    // Two working sets, so the warmup is excluded from the count as well.
+    await user.click(screen.getByRole('button', { name: 'Log all 2 sets' }));
 
-    // The unit applies to both sets...
-    expect(screen.getAllByLabelText('All sets: Distance unit')[0]).toHaveValue('km');
-    const perSetUnit = screen.getAllByLabelText('Distance unit');
-    expect(perSetUnit[0]).toHaveValue('km');
-    expect(perSetUnit[1]).toHaveValue('km');
-    // ...but each set's own distance value — never touched in the header
-    // — must survive untouched.
-    const perSetDistance = screen.getAllByLabelText('Distance');
-    expect(perSetDistance[0]).toHaveValue('5');
-    expect(perSetDistance[1]).toHaveValue('8');
+    const call = mockPost.mock.calls.filter(([path]) => String(path).endsWith('/quick-log')).at(-1)!;
+    expect((call[1] as { setIds: string[] }).setIds).toEqual(['set-2', 'set-3']);
   });
 
-  it('clears the touched header fields after a successful Apply, so a later click cannot silently reapply a stale edit', async () => {
+  it('does not offer RPE, which is optional and set-specific', async () => {
+    renderMultiSet([unlogged, unlogged]);
+    await screen.findByLabelText(/^Quick log: Weight/);
+    expect(screen.queryByLabelText(/^Quick log: RPE/)).not.toBeInTheDocument();
+  });
+
+  it('will not log until every required value is present', async () => {
+    renderMultiSet([{ weightValue: null, reps: null }, { weightValue: null, reps: null }]);
+    await screen.findByLabelText(/^Quick log: Weight/);
+    // Writing sets that still would not count as logged looks like a
+    // silent failure.
+    expect(screen.getByRole('button', { name: /^Log/ })).toBeDisabled();
+  });
+
+  it('disappears once there is nothing left to log', async () => {
+    renderMultiSet([{ weightValue: 135, reps: 8 }, { weightValue: 135, reps: 8 }]);
+    await screen.findByText('Outdoor Cycle');
+    expect(screen.queryByLabelText(/^Quick log: Weight/)).not.toBeInTheDocument();
+  });
+
+  it('is withheld for top set + backoff, whose sets differ by design', async () => {
+    /* Session start creates `top` and `backoff` sets with different planned
+       reps on purpose. One weight across them would be wrong for at least one
+       group, so the detailed editor is the honest answer. */
+    renderMultiSet(
+      [
+        { ...unlogged, setType: 'top' },
+        { ...unlogged, setType: 'backoff' },
+      ],
+      { kind: 'top_set_backoff', topSets: 1, backoffSets: 1 },
+    );
+    await screen.findByText('Outdoor Cycle');
+    expect(screen.queryByLabelText(/^Quick log: Weight/)).not.toBeInTheDocument();
+  });
+
+  it('leaves a collapsed exercise collapsed when its Quick Log is focused', async () => {
     const user = userEvent.setup();
-    renderMultiSet([
-      { weightValue: 135, reps: 8 },
-      { weightValue: 95, reps: 6 },
-    ]);
+    renderMultiSet([unlogged, unlogged]);
 
-    const headerReps = await screen.findByLabelText('All sets: Reps');
-    await user.clear(headerReps);
-    await user.type(headerReps, '10');
-    await user.click(screen.getByRole('button', { name: 'Apply to all sets' }));
-    expect(screen.getAllByLabelText('Reps')[1]).toHaveValue('10');
+    /* Collapse first — the active exercise is expanded by default, so
+       focusing its Quick Log could not show anything either way. */
+    await user.click(await screen.findByRole('button', { name: 'Collapse Outdoor Cycle' }));
+    expect(screen.queryByTestId('set-row')).not.toBeInTheDocument();
 
-    // Set 2's reps are hand-edited back to something else after the apply...
-    const perSetReps = screen.getAllByLabelText('Reps');
-    await user.clear(perSetReps[1]!);
-    await user.type(perSetReps[1]!, '7');
-    expect(perSetReps[1]).toHaveValue('7');
-
-    // ...and now the user edits the header's *weight* only, then applies.
-    // The stale "reps" touch from earlier must not still be armed — set 2's
-    // hand-edited reps must survive this unrelated apply.
-    const headerWeight = screen.getByLabelText(/^All sets: Weight/);
-    await user.clear(headerWeight);
-    await user.type(headerWeight, '150');
-    await user.click(screen.getByRole('button', { name: 'Apply to all sets' }));
-
-    expect(screen.getAllByLabelText('Reps')[1]).toHaveValue('7');
-    expect(screen.getAllByLabelText(/^Weight/)[1]).toHaveValue('150');
+    await user.click(screen.getByLabelText(/^Quick log: Weight/));
+    // Still collapsed: the quick path does not drag the editor open.
+    expect(screen.queryByTestId('set-row')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Expand Outdoor Cycle' })).toBeInTheDocument();
   });
 
   it('collapses and re-expands an exercise, hiding and restoring its set editor', async () => {
     const user = userEvent.setup();
+    // A fully logged set, so Quick Log is absent and this is purely about the
+    // detailed region opening and closing.
     renderMultiSet([{ weightValue: 135, reps: 8 }]);
 
     expect(await screen.findByLabelText('Reps')).toBeInTheDocument();
-    // The quick-entry header stays visible either way.
-    expect(screen.getByLabelText('All sets: Reps')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Collapse Outdoor Cycle' }));
     expect(screen.queryByLabelText('Reps')).not.toBeInTheDocument();
-    expect(screen.getByLabelText('All sets: Reps')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Expand Outdoor Cycle' }));
     expect(await screen.findByLabelText('Reps')).toBeInTheDocument();
@@ -983,17 +965,33 @@ describe('WorkoutSessionPage single-active-exercise accordion', () => {
     expect(screen.getByRole('button', { name: 'Expand Bench Press' })).toBeInTheDocument();
   });
 
-  it('focusing a field inside a collapsed exercise activates it too', async () => {
+  it('focusing another exercise\'s Quick Log does not expand it', async () => {
     const user = userEvent.setup();
     renderTwoExercises();
 
     await screen.findByRole('button', { name: 'Collapse Bench Press' });
-    // The quick-entry header stays visible even while collapsed (Story 37) —
-    // focusing it is exactly the "focus lands inside this exercise" trigger.
-    await user.click(screen.getAllByLabelText('All sets: Reps')[1]!);
+    /* Story 58 reverses what this used to assert. Focus landing inside a card
+       still activates the exercise, but Quick Log is explicitly exempt: the
+       old behaviour meant tabbing into a quick-entry box expanded the whole
+       accordion and destroyed the lightweight path, which is the gym test's
+       specific complaint. Detailed Sets open only through the explicit
+       control now. */
+    await user.click(screen.getAllByLabelText(/^Quick log: Reps/)[1]!);
+
+    expect(screen.getByRole('button', { name: 'Expand Barbell Row' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Collapse Bench Press' })).toBeInTheDocument();
+  });
+
+  it('focusing a set field inside a collapsed exercise still activates it', async () => {
+    const user = userEvent.setup();
+    renderTwoExercises();
+
+    await screen.findByRole('button', { name: 'Collapse Bench Press' });
+    // Only Quick Log is exempt; the detailed editor still claims focus.
+    await user.click(screen.getByRole('button', { name: 'Expand Barbell Row' }));
+    await user.click(screen.getAllByLabelText('Reps')[0]!);
 
     expect(await screen.findByRole('button', { name: 'Collapse Barbell Row' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Expand Bench Press' })).toBeInTheDocument();
   });
 
   it('manually collapsing the active exercise leaves none expanded', async () => {

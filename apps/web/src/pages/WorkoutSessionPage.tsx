@@ -11,7 +11,17 @@ import type {
   WorkoutSet,
   WorkoutSetPreviousPerformance,
 } from '@setframe/schemas';
-import { calculateVolume, estimateOneRepMax, isExerciseComplete, quickEntryFields, visibleSessionExercises } from '@setframe/domain';
+import {
+  calculateVolume,
+  describeQuickLogAction,
+  estimateOneRepMax,
+  isExerciseComplete,
+  isQuickLogComplete,
+  quickLogFields,
+  quickLogTargets as quickLogTargetsFor,
+  supportsQuickLog,
+  visibleSessionExercises,
+} from '@setframe/domain';
 import { radius, spacing } from '@setframe/design-tokens';
 import { AsyncStatusIndicator, Badge, Button, Card, IconButton, Input, Menu, Modal, PRBadge, Select, Skeleton, SkeletonStack, useAsyncStatus, useToast } from '../components';
 import { AddExercisePicker } from '../components/AddExercisePicker';
@@ -271,16 +281,71 @@ const SupportingText = styled.p`
  * row (see `QuickEntryFooter`'s "Apply to all sets"). Only the fields
  * relevant to this exercise's representation render, same as `SetGrid`.
  */
-const QuickEntryGrid = styled.div`
+/**
+ * Story 58 — Quick Log reads as a compact action panel, not as a second copy
+ * of the set editor stacked above the first.
+ *
+ * The previous version was a bare grid of inputs sharing the card's own
+ * surface, directly above the individual set rows, which is exactly why it
+ * looked like another set editor: nothing separated "log the normal case" from
+ * "customise a specific set". The tint, the border and the explicit label are
+ * doing the work of saying which question this region answers.
+ */
+const QuickLogPanel = styled.section`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: ${spacing[8]}px;
+  padding: ${spacing[12]}px;
+  border-radius: ${radius.small}px;
+  border: 1px solid ${(p) => p.theme.border.subtle};
+  background: ${(p) => p.theme.surface.sunken};
+`;
+
+const QuickLogHeading = styled.h3`
+  margin: 0;
+  font-size: ${typeScale.label.fontSize}px;
+  font-weight: 600;
+  color: ${(p) => p.theme.text.secondary};
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+`;
+
+/**
+ * One or two columns, never `auto-fit`. The previous grid packed as many
+ * fields as fitted, so weight and reps landed on one row at some widths and
+ * two at others, and the mobile alignment the gym test complained about was
+ * a direct result. Two columns is the shape of every representation this
+ * panel actually offers.
+ */
+const QuickLogFields = styled.div`
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: ${spacing[8]}px;
+
+  ${mq.tablet} {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+`;
+
+/** Two fields side by side even on the narrowest screen. */
+const QuickLogPair = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: ${spacing[8]}px;
 `;
 
-const QuickEntryFooter = styled.div`
+/**
+ * Sits below the fields at full width. A right-aligned secondary button read
+ * as an afterthought; this is the primary action of the whole card.
+ */
+const QuickLogAction = styled.div`
+  display: grid;
+`;
+
+const DetailedSetsHeader = styled.div`
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
+  gap: ${spacing[8]}px;
 `;
 
 const PreviousSessionCard = styled.div`
@@ -628,6 +693,40 @@ export function WorkoutSessionPage() {
     ]);
   };
 
+  /**
+   * Story 59 — Quick Log persists. The old `Apply to all sets` only populated
+   * the set inputs and left the user to expand the exercise and save each one,
+   * which is why the "fast path" cost more taps than typing into the sets.
+   *
+   * One request rather than N sequential PATCHes, so the user is not
+   * serialised behind the network for the most common case in the product.
+   */
+  const quickLogMutation = useMutation({
+    mutationFn: ({
+      exerciseLogId,
+      setIds,
+      values,
+    }: {
+      exerciseLogId: string;
+      setIds: string[];
+      values: Record<string, unknown>;
+    }) => api.post<WorkoutSet[]>(`/workout-exercise-logs/${exerciseLogId}/quick-log`, { setIds, values }),
+    onSuccess: async (_, variables) => {
+      await refreshSession();
+      /* The drafts these sets were showing are now stale — the server holds
+         the truth. Clearing them stops a half-typed local value from
+         reappearing over what was just logged. */
+      setDrafts((prev) => {
+        const next = { ...prev };
+        for (const setId of variables.setIds) delete next[setId];
+        return next;
+      });
+      setHeaderTouchedKeys((prev) => ({ ...prev, [variables.exerciseLogId]: [] }));
+    },
+    onError: () =>
+      toast.show({ variant: 'error', message: 'Could not log those sets. Your values are still here — try again.' }),
+  });
+
   const addSetMutation = useMutation({
     mutationFn: ({ exerciseLogId, sourceSet }: { exerciseLogId: string; sourceSet?: WorkoutSet }) =>
       api.post<WorkoutSet>(`/workout-exercise-logs/${exerciseLogId}/sets`, {
@@ -953,6 +1052,25 @@ export function WorkoutSessionPage() {
           const isComplete = isExerciseComplete(exerciseLog.prescription, exerciseLog.sets);
           const isExpanded = activeExerciseId === exerciseLog.id;
           const headerDraft = headerDrafts[exerciseLog.id] ?? getHeaderDraft(exerciseLog, definition);
+
+          /* Story 58/59 — what Quick Log would write, and what to call the
+             button. Derived from the server's sets, never from local drafts:
+             a prefilled-but-unsaved value must not make a set look logged. */
+          const quickLogValues = {
+            weightValue: parseOptionalNumber(headerDraft.weightValue),
+            weightUnit: exerciseLog.sets[0]?.weightUnit ?? 'lb',
+            reps: parseOptionalNumber(headerDraft.reps),
+            durationSeconds: displayToSeconds(headerDraft.durationSeconds, definition),
+            distanceValue: parseOptionalNumber(headerDraft.distanceValue),
+            distanceUnit: headerDraft.distanceUnit,
+          };
+          const quickLogTargets = quickLogTargetsFor(exerciseLog.prescription, exerciseLog.sets);
+          /* The denominator excludes warmups, so "Log all 3 sets" counts the
+             three working sets rather than four rows including a warmup the
+             action would never touch. */
+          const loggableSetCount = exerciseLog.sets.filter((set) => set.setType !== 'warmup').length;
+          const quickLogReady =
+            quickLogTargets.length > 0 && isQuickLogComplete(exerciseLog.prescription, quickLogValues);
           // Touched keys are derived straight from the patch's own keys, so
           // e.g. changing only the distance unit marks just `distanceUnit`
           // touched, never `distanceValue` alongside it.
@@ -1011,21 +1129,9 @@ export function WorkoutSessionPage() {
                 </div>
               </ExerciseTitleRow>
               <ExerciseHeaderActions>
-                <AddSetButtonWrap>
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      // Story 39: an explicit call, not a reliance on
-                      // click-triggered focus — Safari doesn't always
-                      // focus a <button> on click, unlike Chrome/Firefox.
-                      activateExercise(exerciseLog.id);
-                      addSetMutation.mutate({ exerciseLogId: exerciseLog.id, sourceSet: exerciseLog.sets.at(-1) });
-                    }}
-                    disabled={addSetMutation.isPending || query.data.status === 'completed'}
-                  >
-                    <Plus size={16} /> Add set
-                  </Button>
-                </AddSetButtonWrap>
+                {/* Story 58: `Add set` has moved into Detailed Sets. It
+                    customises the set list, so it belongs beside the sets
+                    rather than competing with the quick path for the header. */}
                 <Menu
                   label={`${exerciseLog.exercise.name} actions`}
                   items={[
@@ -1043,17 +1149,37 @@ export function WorkoutSessionPage() {
               </ExerciseHeaderActions>
             </ExerciseHeader>
 
-            {/* Story 37: quick-entry — set a common value once here and
-                apply it to every set instead of repeating it per row.
-                Visible regardless of expand state, matching the collapsed
-                header's own content per the story's UX intent. */}
-            <QuickEntryGrid>
-              {quickEntryFields(definition).map((field) => {
-                // Distinct from the per-set field labels below (not just
-                // "Weight"/"Reps") — two identically-labeled inputs in the
-                // same section would be genuinely ambiguous for a
-                // screen-reader user navigating by label, not only in tests.
-                const label = `All sets: ${getSessionFieldLabel(field, definition)}`;
+            {/* Story 58/59 — Quick Log: the fast path for the normal case,
+                where every planned set shares the same values. It persists;
+                it does not merely populate the set inputs.
+
+                `onFocus` stops here. The card activates an exercise when
+                focus lands inside it, which meant tabbing into a quick-entry
+                box expanded the whole accordion and destroyed the lightweight
+                path — the specific complaint the gym test raised. Detailed
+                Sets now open only through the explicit control. */}
+            {quickLogTargets.length > 0 && supportsQuickLog(exerciseLog.prescription) ? (
+            <QuickLogPanel
+              aria-label={`Quick log ${exerciseLog.exercise.name}`}
+              onFocus={(event) => event.stopPropagation()}
+            >
+              <QuickLogHeading>Quick log</QuickLogHeading>
+              <QuickLogFields>
+              {quickLogFields(exerciseLog.prescription).map((field) => {
+                /* The visible label is short — the panel above already says
+                   "Quick log", so repeating it in every field reads as noise.
+                   The *accessible* name still carries the prefix, because two
+                   identically named inputs on one card are genuinely ambiguous
+                   to a screen-reader user navigating by label. An explicit
+                   `aria-label` overrides the visible <label> for that name,
+                   so the two can differ deliberately.
+
+                   "Quick log" rather than "All sets" because the action no
+                   longer applies to every set: already-logged ones are left
+                   alone. */
+                const label = getSessionFieldLabel(field, definition);
+                const accessibleName = (withUnit?: string) =>
+                  `Quick log: ${withUnit ? `${label} (${withUnit})` : label}`;
                 switch (field) {
                   case 'weight':
                     return (
@@ -1064,6 +1190,7 @@ export function WorkoutSessionPage() {
                         onChange={(event) => updateHeader({ weightValue: event.target.value })}
                         inputMode="decimal"
                         unit={exerciseLog.sets[0]?.weightUnit ?? 'lb'}
+                        aria-label={accessibleName(exerciseLog.sets[0]?.weightUnit ?? 'lb')}
                       />
                     );
                   case 'reps':
@@ -1074,6 +1201,7 @@ export function WorkoutSessionPage() {
                         value={headerDraft.reps}
                         onChange={(event) => updateHeader({ reps: event.target.value })}
                         inputMode="numeric"
+                        aria-label={accessibleName()}
                       />
                     );
                   case 'duration':
@@ -1084,6 +1212,7 @@ export function WorkoutSessionPage() {
                         value={headerDraft.durationSeconds}
                         onChange={(event) => updateHeader({ durationSeconds: event.target.value })}
                         inputMode="decimal"
+                        aria-label={accessibleName()}
                       />
                     );
                   case 'distance':
@@ -1094,9 +1223,11 @@ export function WorkoutSessionPage() {
                           value={headerDraft.distanceValue}
                           onChange={(event) => updateHeader({ distanceValue: event.target.value })}
                           inputMode="decimal"
+                          aria-label={accessibleName()}
                         />
                         <Select
-                          label="All sets: Distance unit"
+                          label="Unit"
+                          aria-label="Quick log: Distance unit"
                           value={headerDraft.distanceUnit}
                           options={distanceUnitOptions}
                           onChange={(event) => updateHeader({ distanceUnit: event.target.value as DraftValues['distanceUnit'] })}
@@ -1117,19 +1248,51 @@ export function WorkoutSessionPage() {
                     return null;
                 }
               })}
-            </QuickEntryGrid>
-            <QuickEntryFooter>
-              <Button
-                variant="secondary"
-                onClick={() => applyHeaderToAllSets(exerciseLog, definition)}
-                disabled={!exerciseLog.sets.length || query.data.status === 'completed'}
-              >
-                Apply to all sets
-              </Button>
-            </QuickEntryFooter>
+              </QuickLogFields>
+              <QuickLogAction>
+                <Button
+                  onClick={() =>
+                    quickLogMutation.mutate({
+                      exerciseLogId: exerciseLog.id,
+                      setIds: quickLogTargets.map((set) => set.id),
+                      values: quickLogValues,
+                    })
+                  }
+                  disabled={
+                    !quickLogReady ||
+                    quickLogMutation.isPending ||
+                    query.data.status === 'completed'
+                  }
+                  data-testid={`quick-log-${exerciseLog.id}`}
+                >
+                  {describeQuickLogAction(quickLogTargets.length, loggableSetCount)}
+                </Button>
+              </QuickLogAction>
+            </QuickLogPanel>
+            ) : null}
 
             {isExpanded ? (
               <>
+            {/* Story 58 — Detailed Sets. `Add set` lives here now: it
+                customises the set list, so it belongs with the sets rather
+                than in the header competing with the quick path. */}
+            <DetailedSetsHeader>
+              <SupportingText>Detailed sets</SupportingText>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  // Story 39: an explicit call, not a reliance on
+                  // click-triggered focus — Safari doesn't always focus a
+                  // <button> on click, unlike Chrome/Firefox.
+                  activateExercise(exerciseLog.id);
+                  addSetMutation.mutate({ exerciseLogId: exerciseLog.id, sourceSet: exerciseLog.sets.at(-1) });
+                }}
+                disabled={addSetMutation.isPending || query.data.status === 'completed'}
+              >
+                <Plus size={16} /> Add set
+              </Button>
+            </DetailedSetsHeader>
+
             {exerciseLog.previousSession ? (
               <PreviousSessionCard>
                 <SupportingText>
@@ -1161,7 +1324,7 @@ export function WorkoutSessionPage() {
                   const plannedValue = getPlannedValue(set, index, exerciseLog);
                   const previousValue = getPreviousSet(exerciseLog.previousSession?.sets[index], exerciseLog);
                   return (
-                    <SetCard key={set.id}>
+                    <SetCard key={set.id} data-testid="set-row">
                       <SetCardHeader>
                         <SetTitleGroup>
                           <SetTitle>Set {index + 1}</SetTitle>
