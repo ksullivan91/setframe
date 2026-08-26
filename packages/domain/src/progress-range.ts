@@ -30,7 +30,7 @@
  *   week the data never arrived for.
  */
 
-import { isoWeekStart } from './training-trends';
+import { weekStart } from './training-trends';
 import { formatDateRangeLabel, formatWeekRange } from './progress-format';
 import type { SeriesPoint } from './chart-geometry';
 
@@ -50,7 +50,7 @@ export interface ProgressWindow {
 }
 
 export interface ProgressPoint<Meta = unknown> {
-  /** Bucket start, `YYYY-MM-DD` local. For a week bucket this is its Monday. */
+  /** Bucket start, `YYYY-MM-DD` local. For a week bucket this is its Sunday. */
   localDate: string;
   /** `null` is missing, never zero. */
   value: number | null;
@@ -139,8 +139,8 @@ export function bucketForRange(range: ProgressRange, spanDays: number): Progress
 /**
  * The date window a range covers, ending at `endLocalDate` (normally today).
  *
- * `W` is the current Monday–Sunday week rather than a trailing seven days:
- * the product's own copy says sessions completed "since Monday", and a
+ * `W` is the current Sunday–Saturday week rather than a trailing seven days:
+ * the product's own copy says sessions completed "since Sunday", and a
  * chart whose week disagrees with the sentence above it is worse than
  * either alone. Longer ranges are calendar-anchored offsets.
  *
@@ -150,7 +150,7 @@ export function bucketForRange(range: ProgressRange, spanDays: number): Progress
 export function windowForRange(range: ProgressRange, endLocalDate: string): ProgressWindow {
   switch (range) {
     case 'W':
-      return { start: isoWeekStart(endLocalDate), end: endLocalDate };
+      return { start: weekStart(endLocalDate), end: endLocalDate };
     case 'M':
       return { start: subtractMonths(endLocalDate, 1), end: endLocalDate };
     case '3M':
@@ -170,7 +170,7 @@ export function bucketStart(localDate: string, bucket: ProgressBucket): string {
     case 'day':
       return localDate;
     case 'week':
-      return isoWeekStart(localDate);
+      return weekStart(localDate);
     case 'month':
       return monthStart(localDate);
   }

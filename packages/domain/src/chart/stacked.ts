@@ -9,7 +9,7 @@
  *
  * Columns, not an area chart. Weekly buckets are discrete periods, and a
  * stacked area's slopes would imply the user trained continuously between two
- * Mondays. Bars claim nothing about the space between them.
+ * Sundays. Bars claim nothing about the space between them.
  */
 
 import { stack, stackOrderNone, stackOffsetNone } from 'd3-shape';

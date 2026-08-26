@@ -184,7 +184,7 @@ export interface BuildInsightOptions {
    * if the source has per-day observations. `/progress/overview` returns
    * training data **pre-aggregated by week** — one point per `weekStart`
    * holding that week's total — so truncating its previous window to
-   * "Monday–Tuesday" would still capture the whole previous week's bucket
+   * "Sunday–Tuesday" would still capture the whole previous week's bucket
    * and compare it against a partial current one: precisely the artefact
    * elapsed-matching exists to prevent, arrived at from the other direction.
    *
@@ -234,7 +234,7 @@ function windowDays(window: ProgressWindow): number {
 /**
  * How many days the period covers once complete.
  *
- * Only `W` can be partial. Story 48 anchors it to the current Monday–Sunday
+ * Only `W` can be partial. Story 48 anchors it to the current Sunday–Saturday
  * week — so on a Tuesday its window holds two days of a seven-day period, and
  * a comparison against a finished week needs to know that. Every other range
  * is a *trailing* window ending at today (`subtractMonths(today, 1)` → today),

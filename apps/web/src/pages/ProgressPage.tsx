@@ -1362,7 +1362,7 @@ export function ProgressPage() {
               This week
               <MetricInfo
                 label="Sessions this week"
-                explanation="Workouts you have completed since Monday."
+                explanation="Workouts you have completed since Sunday."
                 calculation="Completed sessions dated within the current week."
                 limitation={null}
               />

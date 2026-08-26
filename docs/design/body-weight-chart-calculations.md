@@ -12,7 +12,7 @@ window ending at the user's local date:
 
 | Range | Window | Bucket |
 | --- | --- | --- |
-| `W` | current Monday–Sunday week | day |
+| `W` | current Sunday–Saturday week | day |
 | `M` | trailing 30 days | day |
 | `3M` | trailing 90 days | week |
 | `6M` | trailing 180 days | week |
@@ -20,7 +20,7 @@ window ending at the user's local date:
 | `ALL` | first check-in → today | adaptive (day/week/month) |
 
 `W` is the *current* calendar week, not a trailing 7 days, so it agrees with
-the "since Monday" copy used elsewhere. Week boundaries are Monday-anchored
+the "since Sunday" copy used elsewhere. Week boundaries are Sunday-anchored
 ISO weeks (`weekStartOf`), the same definition the rest of the product uses.
 
 Bucketing targets 7–30 marks. `ALL` widens the bucket as history grows so a

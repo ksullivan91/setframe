@@ -6,6 +6,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { getTheme } from '../theme/getTheme';
 import { ToastProvider } from '../components/Toast';
 import { ProgressPage } from './ProgressPage';
+import { formatWeekRange } from '@setframe/domain';
 
 let mockGet: (path: string) => Promise<unknown> = () => new Promise(() => {});
 
@@ -28,17 +29,18 @@ type Overview = Record<string, unknown>;
 
 /* Anchored to the real current week rather than a fixed past date. The charts
    window by calendar range now, so a fixture stranded in 2025 would fall
-   outside every range and render as empty — a green suite proving nothing. */
-function mondayOffsetWeeks(weeksAgo: number) {
+   outside every range and render as empty — a green suite proving nothing.
+   Returns the Sunday that starts the week, matching `week.ts`. */
+function weekStartOffsetWeeks(weeksAgo: number) {
   const date = new Date();
   date.setUTCHours(0, 0, 0, 0);
-  date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() || 7) - 1) - weeksAgo * 7);
+  date.setUTCDate(date.getUTCDate() - date.getUTCDay() - weeksAgo * 7);
   return date;
 }
 
 function weeks(counts: (number | null)[], volumes: (number | null)[] = []) {
   return counts.map((completedCount, index) => ({
-    weekStart: mondayOffsetWeeks(counts.length - 1 - index).toISOString().slice(0, 10),
+    weekStart: weekStartOffsetWeeks(counts.length - 1 - index).toISOString().slice(0, 10),
     completedCount: completedCount ?? 0,
     plannedCount: null,
     completionRatio: null,
@@ -59,7 +61,7 @@ function days(counts: (number | null)[], volumes: (number | null)[] = []) {
   counts.forEach((completedCount, index) => {
     const total = completedCount ?? 0;
     const weekVolume = volumes[index] ?? null;
-    const monday = mondayOffsetWeeks(counts.length - 1 - index);
+    const monday = weekStartOffsetWeeks(counts.length - 1 - index);
     for (let session = 0; session < total; session += 1) {
       const date = new Date(monday);
       date.setUTCDate(date.getUTCDate() + session);
@@ -83,7 +85,7 @@ function trainingFixture(counts: (number | null)[], volumes: (number | null)[] =
 }
 
 /**
- * Composition weeks aligned to the same Mondays as `weeks`, so the two views
+ * Composition weeks aligned to the same week starts as `weeks`, so the two views
  * of one window cannot disagree. Values are per *detailed* pattern — the
  * grouping into Legs/Push/Pull happens in the component, which is exactly
  * what these tests need to exercise.
@@ -93,7 +95,7 @@ function compositionFixture(
   extras: { unclassifiedTotal?: number; unclassifiedExerciseCount?: number } = {},
 ) {
   const weekRows = perWeek.map((values, index) => ({
-    weekStart: mondayOffsetWeeks(perWeek.length - 1 - index).toISOString().slice(0, 10),
+    weekStart: weekStartOffsetWeeks(perWeek.length - 1 - index).toISOString().slice(0, 10),
     values: values ?? {},
     total: Object.values(values ?? {}).reduce((sum, value) => sum + value, 0),
     isCurrent: index === perWeek.length - 1,
@@ -846,7 +848,7 @@ describe('training frequency and volume charts', () => {
     const selector = screen.getByRole('group', { name: /Training frequency time range/i });
     fireEvent.click(within(selector).getByRole('button', { name: 'W' }));
 
-    // A Monday-Sunday week is seven daily marks, never one weekly one.
+    // A Sunday-Saturday week is seven daily marks, never one weekly one.
     await waitFor(() =>
       expect(screen.getByTestId('sessions-range-context')).toHaveTextContent(/one bar per day/),
     );
@@ -876,9 +878,20 @@ describe('training frequency and volume charts', () => {
 
     const readout = within(chart).getByTestId('chart-readout');
     /* A named span rather than a bare start date (Story 49's rule), and the
-       exact figure rather than the abbreviated axis label — 7,000 lb, not
-       the "7k" the tick shows. */
-    expect(readout.textContent).toMatch(/Aug 24\s*–\s*30/);
+       exact figure rather than the abbreviated axis label — 9,000 lb, not
+       the "9k" the tick shows.
+
+       The expected span is derived from the same helper the fixture uses,
+       not hardcoded: a literal date here is a test that passes only during
+       the week it was written, and it silently encoded the week boundary
+       besides — which is how it broke when weeks moved to Sunday. */
+    const currentWeekStart = weekStartOffsetWeeks(0);
+    const currentWeekEnd = new Date(currentWeekStart);
+    currentWeekEnd.setUTCDate(currentWeekEnd.getUTCDate() + 6);
+    const label = formatWeekRange(currentWeekStart.toISOString().slice(0, 10));
+    expect(readout.textContent).toContain(label);
+    // Sunday through Saturday, so the span the label names is 7 days.
+    expect(currentWeekEnd.getUTCDay()).toBe(6);
     expect(readout.textContent).toMatch(/9,000 lb/);
   });
 
@@ -1085,7 +1098,7 @@ describe('ProgressPage strength panels', () => {
       sessionCount: values.length,
       points: values.map((value, index) => ({
         sessionId: `${id}-${index}`,
-        localDate: mondayOffsetWeeks(values.length - 1 - index).toISOString().slice(0, 10),
+        localDate: weekStartOffsetWeeks(values.length - 1 - index).toISOString().slice(0, 10),
         sessionName: 'Session',
         metrics: [{ key: 'estimatedOneRepMax', value, loadUnit: 'lb' as const }],
         isWeightPr: options.prAt?.includes(index) ?? false,

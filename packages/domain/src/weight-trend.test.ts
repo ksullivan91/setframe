@@ -7,6 +7,7 @@ import {
   type WeightCheckIn,
   type WeightWeek,
 } from './weight-trend';
+import { weekStart } from './week';
 
 function series(start: string, values: number[], unit: 'lb' | 'kg' = 'lb'): WeightCheckIn[] {
   const base = Date.parse(`${start}T00:00:00Z`);
@@ -177,12 +178,12 @@ describe('rolling average', () => {
 });
 
 describe('weekly summaries', () => {
-  it('buckets by Monday-anchored ISO weeks with high and low', () => {
-    // 2025-08-04 is a Monday.
-    const trend = computeWeightTrend(series('2025-08-04', [180, 184, 176, 181, 179, 182, 178]));
+  it('buckets by Sunday-anchored weeks with high and low', () => {
+    // 2025-08-03 is a Sunday; seven consecutive days fill exactly one week.
+    const trend = computeWeightTrend(series('2025-08-03', [180, 184, 176, 181, 179, 182, 178]));
     expect(trend.weeks).toHaveLength(1);
     const week = trend.weeks[0]!;
-    expect(week.weekStart).toBe('2025-08-04');
+    expect(week.weekStart).toBe('2025-08-03');
     expect(week.checkInCount).toBe(7);
     expect(week.low).toBe(176);
     expect(week.high).toBe(184);
@@ -190,17 +191,24 @@ describe('weekly summaries', () => {
   });
 
   it('splits check-ins that straddle a week boundary', () => {
-    // 2025-08-03 is a Sunday, so it belongs to the week starting 2025-07-28.
-    const trend = computeWeightTrend(series('2025-08-03', [180, 181, 182]));
-    expect(trend.weeks.map((week) => week.weekStart)).toEqual(['2025-07-28', '2025-08-04']);
+    /* 2025-08-02 is a Saturday, the last day of the week starting 2025-07-27;
+       the two days after it open the next week. Under the old Monday rule the
+       split fell in a different place, so this pins the boundary rather than
+       just "some split happens". */
+    const trend = computeWeightTrend(series('2025-08-02', [180, 181, 182]));
+    expect(trend.weeks.map((week) => week.weekStart)).toEqual(['2025-07-27', '2025-08-03']);
     expect(trend.weeks[0]!.checkInCount).toBe(1);
     expect(trend.weeks[1]!.checkInCount).toBe(2);
   });
 
-  it('anchors ISO weeks on Monday', () => {
-    expect(weekStartOf('2025-08-04')).toBe('2025-08-04');
-    expect(weekStartOf('2025-08-10')).toBe('2025-08-04');
-    expect(weekStartOf('2025-08-11')).toBe('2025-08-11');
+  it('anchors weeks on Sunday, and agrees with the training-week boundary', () => {
+    expect(weekStartOf('2025-08-03')).toBe('2025-08-03'); // Sunday itself
+    expect(weekStartOf('2025-08-09')).toBe('2025-08-03'); // Saturday, last day
+    expect(weekStartOf('2025-08-10')).toBe('2025-08-10'); // next Sunday
+    /* Body weight and training used to compute this separately from
+       byte-identical copies. Both now re-export one definition, so two cards
+       on one screen cannot summarise different seven-day spans. */
+    expect(weekStartOf('2025-08-06')).toBe(weekStart('2025-08-06'));
   });
 });
 

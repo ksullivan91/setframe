@@ -149,25 +149,37 @@ workout_session
 - created_at, updated_at
 ```
 
-### 4.1 Week-boundary standard (Story 31)
+### 4.1 Week-boundary standard (Story 31; boundary changed 2026-08-26)
 
 Every weekly aggregation in Setframe — Sessions per week, Weekly volume,
-Body weight weekly buckets, training streaks, and consistency — uses one
-rule: **weeks start on Monday and run through Sunday**, computed against
-the user's local calendar date, never UTC. This is not configurable per
-metric; a chart or metric that needs to bucket by week must reuse the
-existing week-start function rather than deriving its own boundary.
+Body weight weekly buckets, training streaks, adherence and consistency —
+uses one rule: **weeks start on Sunday and run through Saturday**, computed
+against the user's local calendar date, never UTC. This is not configurable
+per metric; anything that buckets by week must import the shared function
+rather than deriving its own boundary.
 
-Canonical implementations (kept in sync, tested independently since they
-predate this doc note):
-- `packages/domain/src/training-trends.ts` — `isoWeekStart()`
-- `packages/domain/src/weight-trend.ts` — `weekStartOf()`
+**Canonical implementation: `packages/domain/src/week.ts` — `weekStart()`.**
 
-Both compute the Monday of a `YYYY-MM-DD` local date. Chart-facing period
-labels (e.g. "Aug 18–24") are derived from these week-starts via
-`packages/domain/src/progress-format.ts`'s `formatWeekRange()`, so the
-displayed date range can never disagree with which sessions the bar/point
-actually aggregates.
+This replaced the previous Monday-anchored (ISO-8601) rule, and collapsed two
+byte-identical copies of the boundary — `training-trends.ts`'s
+`isoWeekStart()` and `weight-trend.ts`'s `weekStartOf()` — into one
+definition. Both call sites still resolve (as `weekStart` and `weekStartOf`)
+but are now re-exports; `isoWeekStart` was **removed** rather than aliased,
+because a function named for a standard it no longer implements is worse than
+a rename. Two copies of a week boundary are one edit away from body-weight
+weeks and training weeks summarising different seven-day spans on the same
+screen.
+
+Chart-facing period labels (e.g. "Aug 23–29") derive from these week-starts
+via `packages/domain/src/progress-format.ts`'s `formatWeekRange()`, so the
+displayed range can never disagree with what the bar actually aggregates.
+
+No migration was needed: nothing persists a week start — every weekly figure
+is computed from a `local_date` at read time — and
+`program_schedule_slot.week_number` is cycle-relative (7-day chunks counted
+from the program's start date), not calendar-anchored. The change does alter
+what "this week" means for existing users, which is a product decision rather
+than a data change.
 
 ## 5. Daily manual inputs
 

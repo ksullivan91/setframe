@@ -25,34 +25,34 @@ describe('formatDateRangeLabel', () => {
 });
 
 describe('formatWeekRange', () => {
-  // 2026-08-17 is a Monday.
-  it('formats a Monday-anchored week within one month', () => {
-    expect(formatWeekRange('2026-08-17')).toBe('Aug 17–23');
+  // 2026-08-16 is a Sunday; the week ends Sat 2026-08-22.
+  it('formats a Sunday-anchored week within one month', () => {
+    expect(formatWeekRange('2026-08-16')).toBe('Aug 16–22');
   });
 
-  // 2026-08-31 is a Monday; the week ends 2026-09-06.
+  // 2026-08-30 is a Sunday; the week ends 2026-09-05.
   it('formats a week that crosses a month boundary', () => {
-    expect(formatWeekRange('2026-08-31')).toBe('Aug 31 – Sep 6');
+    expect(formatWeekRange('2026-08-30')).toBe('Aug 30 – Sep 5');
   });
 
-  // 2025-12-29 is a Monday; the week ends 2026-01-04, crossing a year.
+  // 2025-12-28 is a Sunday; the week ends 2026-01-03, crossing a year.
   it('stays day-precise and spells out the year when a week crosses a year boundary', () => {
-    expect(formatWeekRange('2025-12-29')).toBe('Dec 29 – Jan 4, 2026');
+    expect(formatWeekRange('2025-12-28')).toBe('Dec 28 – Jan 3, 2026');
   });
 });
 
 /**
  * The single shared implementation web and mobile both call to find the
- * last day of a Monday-anchored week — previously two byte-for-byte
+ * last day of a Sunday-anchored week — previously two byte-for-byte
  * identical copies, one per app.
  */
 describe('weekEndDate', () => {
-  it('returns the Sunday of a Monday-anchored week', () => {
-    expect(weekEndDate('2026-08-17')).toBe('2026-08-23');
+  it('returns the Saturday of a Sunday-anchored week', () => {
+    expect(weekEndDate('2026-08-16')).toBe('2026-08-22');
   });
 
   it('crosses a month boundary correctly', () => {
-    expect(weekEndDate('2026-08-31')).toBe('2026-09-06');
+    expect(weekEndDate('2026-08-30')).toBe('2026-09-05');
   });
 
   it('crosses a year boundary correctly', () => {

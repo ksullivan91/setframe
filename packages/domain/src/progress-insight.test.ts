@@ -10,13 +10,14 @@ import type { SeriesPoint } from './chart-geometry';
 /** Deterministic "today" so calendar arithmetic is stable. 2026-08-25 is a Tuesday. */
 const TUESDAY = '2026-08-25';
 /**
- * Five of seven days elapsed: still a partial week, but past the coverage
- * floor an averaging metric needs before its mean may stand for the period.
- * Two days of morning weight is noise, not an average — see
- * `AVERAGING_MIN_COVERAGE`.
+ * Six of seven days elapsed in the Sunday-anchored week (Sun 23 - Sat 29):
+ * still partial, but past the coverage floor an averaging metric needs before
+ * its mean may stand for the period. Three days of morning weight is noise,
+ * not an average — see `AVERAGING_MIN_COVERAGE`.
  */
 const FRIDAY = '2026-08-28';
-const SUNDAY = '2026-08-30';
+/** Saturday — the last day of the week, so the period is complete. */
+const SATURDAY = '2026-08-29';
 
 function points(entries: Array<[string, number]>): SeriesPoint[] {
   return entries.map(([localDate, value]) => ({ localDate, value }));
@@ -29,9 +30,9 @@ function sessions(dates: string[]): SeriesPoint[] {
 
 describe('previousWindowFor', () => {
   it('returns the calendar-equivalent window immediately before', () => {
-    // Current week is Mon 24th - Sun 30th; previous is Mon 17th - Sun 23rd.
-    const previous = previousWindowFor('W', { start: '2026-08-24', end: '2026-08-30' });
-    expect(previous).toEqual({ start: '2026-08-17', end: '2026-08-23' });
+    // Current week is Sun 23rd - Sat 29th; previous is Sun 16th - Sat 22nd.
+    const previous = previousWindowFor('W', { start: '2026-08-23', end: '2026-08-29' });
+    expect(previous).toEqual({ start: '2026-08-16', end: '2026-08-22' });
   });
 
   it('uses real calendar months rather than a fixed day count', () => {
@@ -53,12 +54,13 @@ describe('previousWindowFor', () => {
  */
 describe('partial-period comparison', () => {
   it('matches elapsed days for accumulating metrics', () => {
-    // Tuesday: 2 days elapsed of the current week. Last week had a session on
-    // every day, but only its first 2 days may be compared against.
+    /* Tuesday is 3 days into the Sunday-anchored week (Sun 23, Mon 24,
+       Tue 25). Last week ran Sun 16 - Sat 22 with a session every day, but
+       only its first 3 days may be compared against. */
     const raw = sessions([
-      '2026-08-17', '2026-08-18', '2026-08-19', '2026-08-20',
-      '2026-08-21', '2026-08-22', '2026-08-23',
-      '2026-08-24', '2026-08-25',
+      '2026-08-16', '2026-08-17', '2026-08-18', '2026-08-19',
+      '2026-08-20', '2026-08-21', '2026-08-22',
+      '2026-08-23', '2026-08-24', '2026-08-25',
     ]);
     const insight = buildProgressInsight(raw, {
       metric: 'training_frequency',
@@ -69,20 +71,20 @@ describe('partial-period comparison', () => {
     });
 
     expect(insight.current.isPartial).toBe(true);
-    expect(insight.current.elapsedDays).toBe(2);
-    expect(insight.current.value).toBe(2);
+    expect(insight.current.elapsedDays).toBe(3);
+    expect(insight.current.value).toBe(3);
     expect(insight.comparisonBasis).toBe('elapsed_matched');
-    // Previous window truncated to Mon-Tue, not the full week.
+    // Previous window truncated to Sun-Tue, not the full week.
     expect(insight.previous!.end).toBe('2026-08-18');
-    expect(insight.previous!.value).toBe(2);
-    // Like-for-like: no change, rather than "2 vs 7".
+    expect(insight.previous!.value).toBe(3);
+    // Like-for-like: no change, rather than "3 vs 7".
     expect(insight.change!.absolute).toBe(0);
   });
 
   it('uses the whole previous period for averaging metrics', () => {
     const raw = points([
-      ['2026-08-17', 168], ['2026-08-19', 168], ['2026-08-21', 168],
-      ['2026-08-24', 170], ['2026-08-25', 170],
+      ['2026-08-16', 168], ['2026-08-18', 168], ['2026-08-20', 168],
+      ['2026-08-23', 170], ['2026-08-24', 170], ['2026-08-25', 170],
     ]);
     const insight = buildProgressInsight(raw, {
       metric: 'body_weight',
@@ -92,8 +94,8 @@ describe('partial-period comparison', () => {
     });
 
     expect(insight.comparisonBasis).toBe('full_period');
-    // Full previous week, not truncated to two days.
-    expect(insight.previous!.end).toBe('2026-08-23');
+    // Full previous week, not truncated to the elapsed days.
+    expect(insight.previous!.end).toBe('2026-08-22');
     expect(insight.previous!.value).toBe(168);
     expect(insight.current.value).toBe(170);
     expect(insight.change!.absolute).toBe(2);
@@ -101,14 +103,14 @@ describe('partial-period comparison', () => {
 
   /**
    * `/progress/overview` returns training data pre-aggregated by week, so a
-   * previous window truncated to Monday–Tuesday still contains the whole
+   * previous window truncated to Sunday–Tuesday still contains the whole
    * previous week's bucket. Elapsed-matching that source would reintroduce
    * the artefact it exists to prevent, from the other direction.
    */
   it('falls back to whole periods when the source is only weekly', () => {
     const weekly: SeriesPoint[] = [
-      { localDate: '2026-08-17', value: 3 },
-      { localDate: '2026-08-24', value: 2 },
+      { localDate: '2026-08-16', value: 3 },
+      { localDate: '2026-08-23', value: 2 },
     ];
     const insight = buildProgressInsight(weekly, {
       metric: 'training_frequency',
@@ -121,7 +123,7 @@ describe('partial-period comparison', () => {
 
     expect(insight.comparisonBasis).toBe('full_period');
     // The whole previous week, not a truncated slice of it.
-    expect(insight.previous!.end).toBe('2026-08-23');
+    expect(insight.previous!.end).toBe('2026-08-22');
     expect(insight.previous!.value).toBe(3);
     expect(insight.current.value).toBe(2);
     // Still flagged partial, so copy says "so far" rather than implying a
@@ -135,7 +137,7 @@ describe('partial-period comparison', () => {
     const insight = buildProgressInsight(raw, {
       metric: 'training_frequency',
       range: 'W',
-      endLocalDate: SUNDAY,
+      endLocalDate: SATURDAY,
       aggregation: 'count',
       emptyIsZero: true,
     });

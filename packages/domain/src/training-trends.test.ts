@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildWeekWindow,
-  isoWeekStart,
+  weekStart,
   summarizeTrainingTrends,
   type TrainingSessionInput,
 } from './training-trends';
 
-// 2025-08-04, 2025-08-11 and 2025-08-18 are Mondays.
+/* Setframe weeks run Sunday-Saturday (see `week.ts`). 2025-08-03, 2025-08-10
+   and 2025-08-17 are Sundays; END (2025-08-22) is the Friday inside the last
+   of them. Dates below were chosen so the boundary is exercised rather than
+   sidestepped by landing mid-week. */
 const END = '2025-08-22';
 
 function sessions(...dates: string[]): TrainingSessionInput[] {
@@ -14,22 +17,28 @@ function sessions(...dates: string[]): TrainingSessionInput[] {
 }
 
 describe('week window', () => {
-  it('anchors weeks on Monday', () => {
-    expect(isoWeekStart('2025-08-04')).toBe('2025-08-04');
-    expect(isoWeekStart('2025-08-10')).toBe('2025-08-04');
-    expect(isoWeekStart('2025-08-11')).toBe('2025-08-11');
+  it('anchors weeks on Sunday', () => {
+    expect(weekStart('2025-08-03')).toBe('2025-08-03'); // Sunday itself
+    expect(weekStart('2025-08-09')).toBe('2025-08-03'); // Saturday, last day
+    expect(weekStart('2025-08-10')).toBe('2025-08-10'); // next Sunday
+    // The old ISO rule put Sunday at the *end* of the previous week.
+    expect(weekStart('2025-08-04')).toBe('2025-08-03'); // Monday
   });
 
   it('emits a contiguous window of exactly the requested length', () => {
     const window = buildWeekWindow(END, 8);
     expect(window).toHaveLength(8);
-    expect(window.at(-1)).toBe('2025-08-18');
-    expect(window[0]).toBe('2025-06-30');
+    expect(window.at(-1)).toBe('2025-08-17');
+    expect(window[0]).toBe('2025-06-29');
   });
 
   it('ends with the week containing the end date', () => {
-    expect(buildWeekWindow('2025-08-18', 3).at(-1)).toBe('2025-08-18');
-    expect(buildWeekWindow('2025-08-24', 3).at(-1)).toBe('2025-08-18');
+    // Monday and the Saturday six days later are the same Sunday-anchored
+    // week, so both windows end on the same date.
+    expect(buildWeekWindow('2025-08-18', 3).at(-1)).toBe('2025-08-17');
+    expect(buildWeekWindow('2025-08-23', 3).at(-1)).toBe('2025-08-17');
+    // The Sunday after it opens a new week rather than closing that one.
+    expect(buildWeekWindow('2025-08-24', 3).at(-1)).toBe('2025-08-24');
   });
 });
 
@@ -76,7 +85,7 @@ describe('completion ratio', () => {
 
   it('computes a real ratio when the plan is known', () => {
     const trends = summarizeTrainingTrends(sessions('2025-08-19', '2025-08-20'), END, 8, {
-      plannedByWeek: { '2025-08-18': 4 },
+      plannedByWeek: { '2025-08-17': 4 },
     });
     expect(trends.weeks.at(-1)!.completionRatio).toBe(0.5);
   });
@@ -86,7 +95,7 @@ describe('completion ratio', () => {
       sessions('2025-08-18', '2025-08-19', '2025-08-20'),
       END,
       8,
-      { plannedByWeek: { '2025-08-18': 2 } },
+      { plannedByWeek: { '2025-08-17': 2 } },
     );
     expect(trends.weeks.at(-1)!.completionRatio).toBe(1);
   });
@@ -193,7 +202,11 @@ describe('averages', () => {
 });
 
 describe('rest days', () => {
-  const end = '2025-03-30';
+  /* Saturday, so it shares a Sunday-anchored week with `weekOf(0)`
+     (2025-03-24, the Monday of that same week). Under the old Monday rule the
+     Sunday 2025-03-30 closed that week; under Sunday weeks it opens the next
+     one, which would put `end` and `weekOf(0)` in different weeks. */
+  const end = '2025-03-29';
 
   function weekOf(offsetWeeks: number) {
     const base = Date.parse('2025-03-24T00:00:00Z');
@@ -246,8 +259,8 @@ describe('rest days', () => {
     const result = summarizeTrainingTrends([{ localDate: weekOf(0) }], end, 3, {
       restDates: [weekOf(1)],
     });
-    const rest = result.weeks.find((week) => week.weekStart === isoWeekStart(weekOf(1)));
-    const gap = result.weeks.find((week) => week.weekStart === isoWeekStart(weekOf(2)));
+    const rest = result.weeks.find((week) => week.weekStart === weekStart(weekOf(1)));
+    const gap = result.weeks.find((week) => week.weekStart === weekStart(weekOf(2)));
     expect(rest?.isRestWeek).toBe(true);
     expect(rest?.restCount).toBe(1);
     expect(gap?.isRestWeek).toBe(false);

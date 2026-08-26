@@ -22,3 +22,4 @@ export * from './chart/index';
 export * from './movement-pattern';
 export * from './strength-series';
 export * from './planned-schedule';
+export * from './week';

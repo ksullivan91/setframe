@@ -24,7 +24,7 @@ export interface ScheduleSlot {
 }
 
 export interface PlannedWeekOptions {
-  /** `YYYY-MM-DD` Monday that starts the calendar week. */
+  /** `YYYY-MM-DD` Sunday that starts the calendar week. */
   weekStart: string;
   slots: readonly ScheduleSlot[];
   /** Set for block mode, null for perpetual. */

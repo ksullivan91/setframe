@@ -19,11 +19,11 @@ import {
   subtractMonths,
   windowForRange,
 } from './progress-range';
-import { isoWeekStart } from './training-trends';
+import { weekStart } from './training-trends';
 
 /* Deterministic fixtures, per the story's list. `END` is a Tuesday, so the
-   Monday-anchored week boundary is exercised rather than accidentally
-   avoided by picking a Sunday or Monday. */
+   Sunday-anchored week boundary is exercised rather than accidentally
+   avoided by picking a Saturday or Sunday. */
 const END = '2026-08-25'; // Tuesday
 
 function daily(startLocalDate: string, count: number, valueAt: (index: number) => number | null): SeriesPoint[] {
@@ -60,11 +60,14 @@ describe('calendar arithmetic', () => {
     expect(daysBetween('2026-05-25', END)).not.toBe(91);
   });
 
-  it('anchors the week window to Monday, matching "since Monday" copy', () => {
-    // END is a Tuesday; its week starts the day before.
-    expect(windowForRange('W', END).start).toBe('2026-08-24');
-    expect(bucketStart('2026-08-30', 'week')).toBe('2026-08-24'); // Sunday → same Monday
-    expect(bucketStart('2026-08-31', 'week')).toBe('2026-08-31'); // next Monday
+  it('anchors the week window to Sunday, matching "since Sunday" copy', () => {
+    // END is Tue 2026-08-25; its week began Sun 2026-08-23.
+    expect(windowForRange('W', END).start).toBe('2026-08-23');
+    expect(bucketStart('2026-08-29', 'week')).toBe('2026-08-23'); // Saturday → same Sunday
+    expect(bucketStart('2026-08-30', 'week')).toBe('2026-08-30'); // next Sunday
+    // Under the old ISO rule Sunday closed the previous week instead of
+    // opening a new one, which is the behaviour this replaces.
+    expect(bucketStart('2026-08-24', 'week')).toBe('2026-08-23'); // Monday
   });
 
   it('starts month buckets on the first', () => {
@@ -93,7 +96,7 @@ describe('bucketWindow', () => {
 
   it('covers the end date even when it falls mid-bucket', () => {
     const starts = bucketWindow({ start: '2026-08-01', end: END }, 'week');
-    expect(starts.at(-1)).toBe('2026-08-24'); // the Monday of END's week
+    expect(starts.at(-1)).toBe('2026-08-23'); // the Sunday of END's week
   });
 });
 
@@ -240,7 +243,7 @@ describe('rangeOptions — shown-and-disabled, not hidden', () => {
 
 describe('defaultRange', () => {
   it('opens on the tightest window that still shows every observation', () => {
-    // Four days spanning a Monday boundary do not fit inside "this week",
+    // Four days spanning a Sunday boundary do not fit inside "this week",
     // so the month is the tightest honest frame.
     expect(defaultRange(fourDays, END)).toBe('M');
     expect(defaultRange(fourWeeks, END)).toBe('M');
@@ -331,7 +334,7 @@ describe('formatBucketPeriod', () => {
     expect(formatBucketPeriod('2026-08-19', 'day')).toBe('Aug 19');
   });
 
-  it('names a week bucket as its Monday-Sunday span, never its start day alone', () => {
+  it('names a week bucket as its Sunday-Saturday span, never its start day alone', () => {
     const label = formatBucketPeriod('2026-08-17', 'week');
     expect(label).toBe('Aug 17–23');
     // The precise failure being prevented: a week mark must not render as
@@ -410,24 +413,24 @@ describe('buildProgressSeries zeroFrom', () => {
   });
 
   it('zeroes an empty bucket the bound falls inside, rather than nulling it', () => {
-    /* The week of Mon 2026-08-17 is empty, and the user's first session lands
+    /* The week of Sun 2026-08-16 is empty, and the user's first session lands
        mid-week on the 20th. The bound must be compared against the bucket's
        *end*: comparing its start would null the very bucket the history
        begins in and punch a hole at the left edge of every chart. */
-    const series = buildProgressSeries([{ localDate: '2026-08-31', value: 1 }], {
+    const series = buildProgressSeries([{ localDate: '2026-08-30', value: 1 }], {
       range: '3M',
       endLocalDate: '2026-09-07',
       aggregation: 'sum',
       emptyIsZero: true,
       zeroFrom: '2026-08-20',
     });
-    const boundWeek = series.points.find((point) => point.localDate === '2026-08-17');
+    const boundWeek = series.points.find((point) => point.localDate === '2026-08-16');
     expect(boundWeek).toBeDefined();
     expect(boundWeek?.sampleCount).toBe(0);
     expect(boundWeek?.value).toBe(0);
 
     // ...while the week entirely before the bound stays unknown.
-    const priorWeek = series.points.find((point) => point.localDate === '2026-08-10');
+    const priorWeek = series.points.find((point) => point.localDate === '2026-08-09');
     expect(priorWeek?.value).toBeNull();
   });
 
@@ -493,8 +496,8 @@ describe('buildProgressSeries zeroFrom', () => {
       bucket: countBucketForRange('M', 31),
     });
     expect(series.bucket).toBe('week');
-    // Every mark must land on a Monday once weekly.
-    expect(series.points.every((point) => isoWeekStart(point.localDate) === point.localDate)).toBe(
+    // Every mark must land on a Sunday once weekly.
+    expect(series.points.every((point) => weekStart(point.localDate) === point.localDate)).toBe(
       true,
     );
   });

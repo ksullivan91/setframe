@@ -47,6 +47,8 @@
  * one of these.
  */
 
+import { weekStart } from './week';
+
 export interface TrainingSessionInput {
   /** Session date in the user's timezone, `YYYY-MM-DD`. */
   localDate: string;
@@ -55,7 +57,7 @@ export interface TrainingSessionInput {
 }
 
 export interface TrainingWeek {
-  /** Monday of the ISO week, `YYYY-MM-DD`. */
+  /** Sunday that begins the week, `YYYY-MM-DD`. */
   weekStart: string;
   completedCount: number;
   /** `null` when we do not know how many sessions were planned. */
@@ -130,21 +132,23 @@ function toUtc(localDate: string): Date {
   return new Date(`${localDate}T00:00:00Z`);
 }
 
-/** Monday-anchored ISO week start for a `YYYY-MM-DD` string. */
-export function isoWeekStart(localDate: string): string {
-  const date = toUtc(localDate);
-  const isoDay = date.getUTCDay() || 7;
-  date.setUTCDate(date.getUTCDate() - isoDay + 1);
-  return date.toISOString().slice(0, 10);
-}
+/**
+ * Week start for a `YYYY-MM-DD` string — Sunday-anchored; see `./week`.
+ *
+ * Re-exported under this name because a great deal of code imports it from
+ * here. It is no longer an *ISO* week (ISO-8601 starts on Monday), so the old
+ * `weekStart` name was removed rather than kept as an alias: a function
+ * named for a standard it does not implement is worse than a rename.
+ */
+export { weekStart };
 
 /**
- * A contiguous list of Monday-anchored week starts ending with the week that
+ * A contiguous list of week starts ending with the week that
  * contains `endLocalDate`. Always exactly `weeks` entries, so the chart's
  * x-axis is a fixed window and gaps are real.
  */
 export function buildWeekWindow(endLocalDate: string, weeks: number): string[] {
-  const lastWeek = toUtc(isoWeekStart(endLocalDate));
+  const lastWeek = toUtc(weekStart(endLocalDate));
   const window: string[] = [];
   for (let offset = weeks - 1; offset >= 0; offset -= 1) {
     const start = new Date(lastWeek);
@@ -183,12 +187,12 @@ export function summarizeTrainingTrends(
   const volumeByWeek = new Map<string, number>();
   const restByWeek = new Map<string, number>();
   for (const localDate of options.restDates ?? []) {
-    const week = isoWeekStart(localDate);
+    const week = weekStart(localDate);
     if (!window.includes(week)) continue;
     restByWeek.set(week, (restByWeek.get(week) ?? 0) + 1);
   }
   for (const session of sessions) {
-    const week = isoWeekStart(session.localDate);
+    const week = weekStart(session.localDate);
     // Sessions outside the window are ignored rather than folded into the
     // edge weeks, which would silently inflate the oldest column.
     if (!window.includes(week)) continue;
@@ -233,7 +237,7 @@ export function summarizeTrainingTrends(
   }
 
   // The current week is still in progress, so it does not break the streak
-  // just by being empty on a Monday morning; we count back from the last
+  // just by being empty on a Sunday morning; we count back from the last
   // completed week instead.
   let currentStreakWeeks = 0;
   const streakStart = weeks.at(-1)?.completedCount === 0 ? weeks.length - 2 : weeks.length - 1;
@@ -251,7 +255,7 @@ export function summarizeTrainingTrends(
      edge day would silently inflate it. */
   const dayCounts = new Map<string, { completedCount: number; volume: number | null }>();
   for (const session of sessions) {
-    if (!window.includes(isoWeekStart(session.localDate))) continue;
+    if (!window.includes(weekStart(session.localDate))) continue;
     const entry = dayCounts.get(session.localDate) ?? { completedCount: 0, volume: null };
     entry.completedCount += 1;
     if (session.volume != null) entry.volume = (entry.volume ?? 0) + session.volume;

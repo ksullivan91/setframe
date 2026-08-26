@@ -252,7 +252,7 @@ export const handlers = [
     const bodyWeightWeeks = Object.entries(
       bodyWeightPoints.reduce<Record<string, number[]>>((byWeek, point) => {
         const date = new Date(`${point.localDate}T00:00:00Z`);
-        date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() || 7) - 1));
+        date.setUTCDate(date.getUTCDate() - date.getUTCDay());
         const weekStart = date.toISOString().slice(0, 10);
         (byWeek[weekStart] ??= []).push(point.raw);
         return byWeek;
@@ -272,9 +272,9 @@ export const handlers = [
        disagree. A screenshot with two non-zero bars is not evidence that a
        range selector works, and 3M/6M/Y need real history behind them. */
     const DAY_MS = 86_400_000;
-    const isoWeekStartOf = (iso: string) => {
+    const weekStartOf = (iso: string) => {
       const date = new Date(`${iso}T00:00:00Z`);
-      date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() || 7) - 1));
+      date.setUTCDate(date.getUTCDate() - date.getUTCDay());
       return date.toISOString().slice(0, 10);
     };
 
@@ -301,17 +301,17 @@ export const handlers = [
 
     const byWeek = new Map<string, { completed: number; volume: number | null }>();
     for (const day of trainingDays) {
-      const weekStart = isoWeekStartOf(day.localDate);
+      const weekStart = weekStartOf(day.localDate);
       const entry = byWeek.get(weekStart) ?? { completed: 0, volume: null };
       entry.completed += day.completedCount;
       if (day.volume != null) entry.volume = (entry.volume ?? 0) + day.volume;
       byWeek.set(weekStart, entry);
     }
 
-    const currentWeekStart = isoWeekStartOf(end.toISOString().slice(0, 10));
+    const currentWeekStart = weekStartOf(end.toISOString().slice(0, 10));
     const weekStarts: string[] = [];
     for (
-      let cursor = isoWeekStartOf(
+      let cursor = weekStartOf(
         new Date(end.getTime() - (TRAINING_DAYS - 1) * DAY_MS).toISOString().slice(0, 10),
       );
       cursor <= currentWeekStart;
@@ -363,7 +363,7 @@ export const handlers = [
       if (day.volume == null) continue;
       const weekday = new Date(`${day.localDate}T00:00:00Z`).getUTCDay();
       const split = patternSplit[weekday];
-      const weekStart = isoWeekStartOf(day.localDate);
+      const weekStart = weekStartOf(day.localDate);
       if (!split) {
         unclassifiedTotal += day.volume;
         continue;

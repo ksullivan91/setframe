@@ -434,12 +434,12 @@ describe('BodyWeightSection', () => {
  * a screenshot nobody compared.
  */
 describe('TrainingSeriesSection', () => {
-  /** Monday of the week `weeksAgo` before END, as `YYYY-MM-DD`. */
+  /** Sunday that starts the week `weeksAgo` before END, as `YYYY-MM-DD`. */
   const END = '2026-08-27'; // a Thursday, so the current week is half-elapsed
 
   function mondayWeeksAgo(weeksAgo: number): Date {
     const date = new Date(`${END}T00:00:00Z`);
-    date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() || 7) - 1) - weeksAgo * 7);
+    date.setUTCDate(date.getUTCDate() - date.getUTCDay() - weeksAgo * 7);
     return date;
   }
 
@@ -529,7 +529,7 @@ describe('TrainingSeriesSection', () => {
   it('buckets a week by day and a month by week', () => {
     const rendered = renderSessions([3, 2, 4, 3]);
     press(rendered, 'chart-range-W');
-    // A Monday-Sunday week is seven daily marks, never one weekly one.
+    // A Sunday-Saturday week is seven daily marks, never one weekly one.
     expect(textOf(rendered, 'sessions-range-context')).toContain('one bar per day');
 
     /* ...but a month is weekly. A daily session count is almost always 0 or
@@ -570,10 +570,10 @@ describe('CompositionSection', () => {
   const pushDay = { 'horizontal-push': 2500, 'vertical-push': 1500 };
   const pullDay = { 'horizontal-pull': 2000, 'vertical-pull': 1800 };
 
-  function mondayOffsetWeeks(weeksAgo: number) {
+  function weekStartOffsetWeeks(weeksAgo: number) {
     const date = new Date();
     date.setUTCHours(0, 0, 0, 0);
-    date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() || 7) - 1) - weeksAgo * 7);
+    date.setUTCDate(date.getUTCDate() - date.getUTCDay() - weeksAgo * 7);
     return date;
   }
 
@@ -582,7 +582,7 @@ describe('CompositionSection', () => {
     extras: { unclassifiedTotal?: number; unclassifiedExerciseCount?: number } = {},
   ): ProgressOverviewResponse['composition'] {
     const weekRows = perWeek.map((values, index) => ({
-      weekStart: mondayOffsetWeeks(perWeek.length - 1 - index).toISOString().slice(0, 10),
+      weekStart: weekStartOffsetWeeks(perWeek.length - 1 - index).toISOString().slice(0, 10),
       values: values ?? {},
       total: Object.values(values ?? {}).reduce((sum, value) => sum + value, 0),
       isCurrent: index === perWeek.length - 1,
@@ -724,10 +724,10 @@ describe('CompositionSection', () => {
  * strength suite case for case, so parity is tested rather than intended.
  */
 describe('StrengthPanels', () => {
-  function mondayOffsetWeeks(weeksAgo: number) {
+  function weekStartOffsetWeeks(weeksAgo: number) {
     const date = new Date();
     date.setUTCHours(0, 0, 0, 0);
-    date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() || 7) - 1) - weeksAgo * 7);
+    date.setUTCDate(date.getUTCDate() - date.getUTCDay() - weeksAgo * 7);
     return date;
   }
 
@@ -745,7 +745,7 @@ describe('StrengthPanels', () => {
       sessionCount: values.length,
       points: values.map((value, index) => ({
         sessionId: `${id}-${index}`,
-        localDate: mondayOffsetWeeks(values.length - 1 - index).toISOString().slice(0, 10),
+        localDate: weekStartOffsetWeeks(values.length - 1 - index).toISOString().slice(0, 10),
         sessionName: 'Session',
         metrics: [{ key: 'estimatedOneRepMax', value, loadUnit: 'lb' as const }],
         isWeightPr: options.prAt?.includes(index) ?? false,
@@ -865,16 +865,16 @@ describe('StrengthPanels', () => {
  * suite case for case, so parity is tested rather than intended.
  */
 describe('AdherenceSection', () => {
-  function mondayOffsetWeeks(weeksAgo: number) {
+  function weekStartOffsetWeeks(weeksAgo: number) {
     const date = new Date();
     date.setUTCHours(0, 0, 0, 0);
-    date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() || 7) - 1) - weeksAgo * 7);
+    date.setUTCDate(date.getUTCDate() - date.getUTCDay() - weeksAgo * 7);
     return date;
   }
 
   function weeksFixture(counts: number[], plans: (number | null)[]) {
     return counts.map((completedCount, index) => ({
-      weekStart: mondayOffsetWeeks(counts.length - 1 - index).toISOString().slice(0, 10),
+      weekStart: weekStartOffsetWeeks(counts.length - 1 - index).toISOString().slice(0, 10),
       completedCount,
       plannedCount: plans[index] ?? null,
       completionRatio:

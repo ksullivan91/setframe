@@ -1,3 +1,4 @@
+import { weekStart } from './week';
 /**
  * Body-weight trend maths.
  *
@@ -60,7 +61,7 @@ export interface WeightSeriesPoint {
 }
 
 export interface WeightWeek {
-  /** Monday of the ISO week, `YYYY-MM-DD`. */
+  /** Sunday that begins the week, `YYYY-MM-DD`. */
   weekStart: string;
   average: number;
   low: number;
@@ -135,13 +136,15 @@ function toDayNumber(localDate: string): number {
   return Math.round(Date.parse(`${localDate}T00:00:00Z`) / 86_400_000);
 }
 
-/** Monday-anchored ISO week start for a `YYYY-MM-DD` string. */
-export function weekStartOf(localDate: string): string {
-  const date = new Date(`${localDate}T00:00:00Z`);
-  const isoDay = date.getUTCDay() || 7;
-  date.setUTCDate(date.getUTCDate() - isoDay + 1);
-  return date.toISOString().slice(0, 10);
-}
+/**
+ * Week start for a `YYYY-MM-DD` string — Sunday-anchored; see `./week`.
+ *
+ * This was a byte-identical copy of `training-trends.ts`'s implementation.
+ * Two copies of the week boundary is one edit away from body-weight weeks and
+ * training weeks summarising different seven-day spans on the same screen, so
+ * both now re-export the single definition.
+ */
+export { weekStart as weekStartOf };
 
 /**
  * Least-squares slope of `value` against `day`, returned per 7 days.
@@ -237,7 +240,7 @@ export function computeWeightTrend(
 
   const weekMap = new Map<string, number[]>();
   for (const entry of daily) {
-    const start = weekStartOf(entry.localDate);
+    const start = weekStart(entry.localDate);
     weekMap.set(start, [...(weekMap.get(start) ?? []), entry.raw]);
   }
   const weeks: WeightWeek[] = [...weekMap.entries()]

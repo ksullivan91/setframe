@@ -193,7 +193,7 @@ Red/green deltas encode **moral valence** ("green=good"), which breaks in two wa
 | Metric | One-sentence tooltip (plain language) | Unit / precision | Min data before meaningful | Valid prescription types |
 |---|---|---|---|---|
 | Weeks trained (last 12) | "How many of the last 12 weeks you did at least one workout — a steady habit matters more than any single week." | integer "N of 12" | 3–4 wks history | all |
-| Sessions this week | "Workouts you've completed since Monday." | integer | immediate | all |
+| Sessions this week | "Workouts you've completed since Sunday." | integer | immediate | all |
 | Consistency | "Share of your planned workouts you actually completed — showing up is the goal." | % (no decimals) | ≥1 planned week | all |
 | Best set (per exercise) | "Your heaviest working set for this exercise — a simple sign you're getting stronger." | weight, round 5 lb | ≥2 sessions w/ that exercise | `sets_reps`,`top_set_backoff`,`per_side`,`bodyweight_reps` |
 | PRs | "A new personal best — heavier, more reps, longer, or farther than before." | event badge | on event | all (type-specific) |

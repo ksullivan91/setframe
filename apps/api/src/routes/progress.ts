@@ -12,7 +12,7 @@ import {
   summarizeConsistency,
   summarizeExerciseSets,
   summarizeTrainingTrends,
-  isoWeekStart as weekStartOf,
+  weekStart,
   type DistanceUnit,
   type LoadUnit,
   type ProgressSet,
@@ -31,8 +31,13 @@ import {
 import { getDb } from '../lib/db.js';
 import { requireAuth } from '../plugins/auth.js';
 
-function isoWeekStart(date: Date): string {
-  return weekStartOf(date.toISOString().slice(0, 10));
+/**
+ * Week start for a `Date`. The shared `weekStart` takes a calendar-date
+ * string; this only adapts the argument, so the boundary itself still has
+ * exactly one definition (`packages/domain/src/week.ts`).
+ */
+function weekStartOfDate(date: Date): string {
+  return weekStart(date.toISOString().slice(0, 10));
 }
 
 /**
@@ -225,7 +230,7 @@ export const progressRoutes: FastifyPluginAsyncZod = async (fastify) => {
           const load = toNumber(row.loadValue);
           if (load != null && row.reps != null) {
             const contribution = load * row.reps;
-            const week = weekStartOf(row.localDate);
+            const week = weekStart(row.localDate);
             const pattern = row.movementPattern?.trim();
             if (pattern) {
               const byPattern = compositionWeeks.get(week) ?? new Map<string, number>();
@@ -547,7 +552,7 @@ export const progressRoutes: FastifyPluginAsyncZod = async (fastify) => {
 
       const completedByWeek = new Map<string, number>();
       for (const session of sessions) {
-        const week = isoWeekStart(new Date(session.localDate));
+        const week = weekStartOfDate(new Date(session.localDate));
         completedByWeek.set(week, (completedByWeek.get(week) ?? 0) + 1);
       }
 
