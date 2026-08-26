@@ -3,9 +3,13 @@ import styled, { useTheme } from 'styled-components';
 import {
   buildColumnChart,
   buildLineChart,
+  buildStackedChart,
   nearestPointIndex,
+  plotRect,
+  remainderPatternKey,
   type ProgressRange,
   type SeriesPoint,
+  type StackedBucket,
 } from '@setframe/domain';
 import { spacing } from '@setframe/design-tokens';
 import { typeScale } from '../theme/typeScale';
@@ -635,5 +639,287 @@ export function RangeSelector({ options, value, onChange, label }: RangeSelector
         </RangeButton>
       ))}
     </RangeRow>
+  );
+}
+
+const Legend = styled.ul`
+  display: flex;
+  flex-wrap: wrap;
+  gap: ${spacing[4]}px ${spacing[12]}px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: ${typeScale.caption.fontSize}px;
+  color: ${(p) => p.theme.text.secondary};
+`;
+
+const LegendItem = styled.li<{ $muted: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: ${spacing[4]}px;
+  opacity: ${(p) => (p.$muted ? 0.45 : 1)};
+`;
+
+const Swatch = styled.span<{ $color: string }>`
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: ${(p) => p.$color};
+  flex: none;
+`;
+
+const Disclosure = styled.p`
+  margin: 0;
+  font-size: ${typeScale.caption.fontSize}px;
+  color: ${(p) => p.theme.text.secondary};
+`;
+
+const BreakdownRow = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: ${spacing[4]}px;
+`;
+
+export interface StackedChartProps {
+  buckets: StackedBucket[];
+  /** Stack order, bottom first. Use `orderMovementPatterns` to derive it. */
+  keys: string[];
+  /** Display name for a series key. */
+  labelForKey: (key: string) => string;
+  height?: number;
+  formatValue: (value: number) => string;
+  formatTick?: (value: number) => string;
+  formatPeriod?: (localDate: string) => string;
+  label: string;
+  emptyLabel?: string;
+  currentLabel?: string;
+  /** Rendered under the legend, e.g. the unclassified-volume disclosure. */
+  disclosure?: string;
+  testId?: string;
+}
+
+/**
+ * A stacked column chart — composition over time.
+ *
+ * The hit target is the whole column, not the individual segment. Selecting a
+ * week and reading its full breakdown is the useful interaction; selecting a
+ * single band would make the user tap five times to learn what one tap can
+ * tell them, and the thinnest bands are the hardest to hit.
+ *
+ * The text equivalent is a real matrix — one row per period, one cell per
+ * series — because the composition *is* the information here. A table of
+ * weekly totals would be a text equivalent of a different chart.
+ */
+export function StackedChart({
+  buckets,
+  keys,
+  labelForKey,
+  height = 168,
+  formatValue,
+  formatTick,
+  formatPeriod = formatDate,
+  label,
+  emptyLabel = 'Nothing logged',
+  currentLabel = 'Current week',
+  disclosure,
+  testId,
+}: StackedChartProps) {
+  const theme = useTheme();
+  const [ref, width] = useElementWidth(320);
+  const [selected, setSelected] = useState<number | null>(null);
+
+  const colorFor = useMemo(() => {
+    const palette = theme.chart.series;
+    const map = new Map<string, string>();
+    let next = 0;
+    for (const key of keys) {
+      if (key === remainderPatternKey) {
+        map.set(key, theme.chart.seriesRemainder);
+        continue;
+      }
+      map.set(key, palette[next % palette.length] ?? theme.chart.raw);
+      next += 1;
+    }
+    return (key: string) => map.get(key) ?? theme.chart.raw;
+  }, [keys, theme]);
+
+  const chart = useMemo(
+    () =>
+      buildStackedChart(
+        buckets,
+        plotRect({ width, height, insets: { top: 10, right: 8, bottom: 22, left: 40 } }),
+        { keys, format: formatTick ?? formatValue },
+      ),
+    [buckets, keys, width, height, formatValue, formatTick],
+  );
+
+  const selectedColumn = selected != null ? chart.columns[selected] : null;
+
+  /** Descending by value, so the readout leads with what dominated the week. */
+  function breakdown(column: (typeof chart.columns)[number]) {
+    return [...column.segments].sort((a, b) => b.value - a.value);
+  }
+
+  return (
+    <Figure data-testid={testId}>
+      <Frame ref={ref}>
+        <svg
+          width={width}
+          height={height}
+          role="img"
+          aria-label={label}
+          style={{ display: 'block', overflow: 'visible' }}
+        >
+          {chart.ticks.map((tick) => (
+            <g key={tick.value}>
+              <line
+                x1={chart.plot.x}
+                x2={chart.plot.x + chart.plot.width}
+                y1={tick.position}
+                y2={tick.position}
+                stroke={theme.chart.gridline}
+                strokeWidth={1}
+              />
+              <TickLabel x={0} y={tick.position + 3}>
+                {tick.label}
+              </TickLabel>
+            </g>
+          ))}
+
+          {chart.columns.map((column, index) => {
+            const isSelected = index === selected;
+            const isCurrent = (column.meta as { isCurrent?: boolean } | undefined)?.isCurrent === true;
+            const parts = breakdown(column);
+            return (
+              <g key={`${column.localDate}-${index}`}>
+                {/* An empty period gets a visible stub, so a missed week
+                    reads as a real zero rather than as a rendering gap. */}
+                {column.segments.length === 0 ? (
+                  <rect
+                    x={column.x}
+                    y={chart.plot.y + chart.plot.height - 2}
+                    width={column.width}
+                    height={2}
+                    rx={1}
+                    fill={theme.chart.empty}
+                    data-testid="stacked-empty"
+                  />
+                ) : (
+                  column.segments.map((segment) => (
+                    <rect
+                      key={segment.key}
+                      x={segment.x}
+                      y={segment.y}
+                      width={segment.width}
+                      height={segment.height}
+                      fill={colorFor(segment.key)}
+                      opacity={selected == null || isSelected ? 1 : 0.55}
+                      data-testid={`stacked-segment-${segment.key}`}
+                    />
+                  ))
+                )}
+                <rect
+                  x={chart.plot.x + chart.slotWidth * index}
+                  y={chart.plot.y}
+                  width={chart.slotWidth}
+                  height={chart.plot.height}
+                  fill="transparent"
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`${formatPeriod(column.localDate)}: ${
+                    column.total === 0
+                      ? emptyLabel
+                      : `${formatValue(column.total)} total, ${parts
+                          .map((part) => `${labelForKey(part.key)} ${formatValue(part.value)}`)
+                          .join(', ')}`
+                  }${isCurrent ? `, ${currentLabel.toLowerCase()}, still in progress` : ''}`}
+                  style={{ cursor: 'pointer', outline: 'none' }}
+                  onClick={() => setSelected(index)}
+                  onFocus={() => setSelected(index)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setSelected(index);
+                    }
+                  }}
+                />
+              </g>
+            );
+          })}
+        </svg>
+      </Frame>
+
+      <Readout aria-live="polite" data-testid="stacked-readout">
+        {selectedColumn ? (
+          selectedColumn.total === 0 ? (
+            <>
+              <ReadoutValue>{emptyLabel}</ReadoutValue>
+              <span>{formatPeriod(selectedColumn.localDate)}</span>
+            </>
+          ) : (
+            <>
+              <ReadoutValue>{formatValue(selectedColumn.total)}</ReadoutValue>
+              <span>{formatPeriod(selectedColumn.localDate)}</span>
+              {breakdown(selectedColumn).map((part) => (
+                <BreakdownRow key={part.key}>
+                  <Swatch $color={colorFor(part.key)} aria-hidden="true" />
+                  {labelForKey(part.key)} {formatValue(part.value)}
+                </BreakdownRow>
+              ))}
+              {(selectedColumn.meta as { isCurrent?: boolean } | undefined)?.isCurrent ? (
+                <span data-testid="stacked-current-label">{`${currentLabel} · still in progress`}</span>
+              ) : null}
+            </>
+          )
+        ) : (
+          <span>Select a bar to see what you trained that period.</span>
+        )}
+      </Readout>
+
+      <Legend data-testid="stacked-legend">
+        {chart.keys.map((key) => (
+          <LegendItem key={key} $muted={false}>
+            <Swatch $color={colorFor(key)} aria-hidden="true" />
+            {labelForKey(key)}
+          </LegendItem>
+        ))}
+      </Legend>
+
+      {disclosure ? <Disclosure data-testid="stacked-disclosure">{disclosure}</Disclosure> : null}
+
+      <VisuallyHidden>
+        <table>
+          <caption>{label}</caption>
+          <thead>
+            <tr>
+              <th scope="col">Period</th>
+              {chart.keys.map((key) => (
+                <th scope="col" key={key}>
+                  {labelForKey(key)}
+                </th>
+              ))}
+              <th scope="col">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {chart.columns.map((column, index) => (
+              <tr key={`row-${index}`}>
+                <th scope="row">
+                  {formatPeriod(column.localDate)}
+                  {(column.meta as { isCurrent?: boolean } | undefined)?.isCurrent
+                    ? ` (${currentLabel}, still in progress)`
+                    : ''}
+                </th>
+                {chart.keys.map((key) => {
+                  const segment = column.segments.find((entry) => entry.key === key);
+                  return <td key={key}>{segment ? formatValue(segment.value) : '—'}</td>;
+                })}
+                <td>{column.total === 0 ? emptyLabel : formatValue(column.total)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </VisuallyHidden>
+    </Figure>
   );
 }

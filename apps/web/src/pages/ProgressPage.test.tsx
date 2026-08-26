@@ -82,6 +82,42 @@ function trainingFixture(counts: (number | null)[], volumes: (number | null)[] =
   };
 }
 
+/**
+ * Composition weeks aligned to the same Mondays as `weeks`, so the two views
+ * of one window cannot disagree. Values are per *detailed* pattern — the
+ * grouping into Legs/Push/Pull happens in the component, which is exactly
+ * what these tests need to exercise.
+ */
+function compositionFixture(
+  perWeek: (Record<string, number> | null)[],
+  extras: { unclassifiedTotal?: number; unclassifiedExerciseCount?: number } = {},
+) {
+  const weekRows = perWeek.map((values, index) => ({
+    weekStart: mondayOffsetWeeks(perWeek.length - 1 - index).toISOString().slice(0, 10),
+    values: values ?? {},
+    total: Object.values(values ?? {}).reduce((sum, value) => sum + value, 0),
+    isCurrent: index === perWeek.length - 1,
+  }));
+  const totals = new Map<string, number>();
+  for (const week of weekRows) {
+    for (const [key, value] of Object.entries(week.values)) {
+      totals.set(key, (totals.get(key) ?? 0) + value);
+    }
+  }
+  const classified = [...totals.values()].reduce((sum, value) => sum + value, 0);
+  return {
+    unit: 'lb' as const,
+    patterns: [...totals.entries()]
+      .map(([key, total]) => ({ key, total, share: classified > 0 ? total / classified : 0 }))
+      .sort((a, b) => b.total - a.total),
+    weeks: weekRows,
+    unclassifiedTotal: extras.unclassifiedTotal ?? 0,
+    unclassifiedExerciseCount: extras.unclassifiedExerciseCount ?? 0,
+  };
+}
+
+const emptyComposition = compositionFixture([]);
+
 function baseOverview(overrides: Overview = {}): Overview {
   return {
     training: {
@@ -106,6 +142,7 @@ function baseOverview(overrides: Overview = {}): Overview {
       points: [],
       weeks: [],
     },
+    composition: emptyComposition,
     exercises: [],
     recentSessions: [],
     ...overrides,
@@ -880,5 +917,135 @@ describe('training frequency and volume charts', () => {
     await waitFor(() => expect(screen.getByTestId('sessions-chart')).toBeTruthy());
 
     expect(screen.getByTestId('sessions-total').textContent).toMatch(/12 sessions/);
+  });
+});
+
+/**
+ * Training composition — the first Progress chart that shows what the volume
+ * was made of rather than only how much of it there was.
+ */
+describe('ProgressPage training composition', () => {
+  const legDay = { squat: 4000, hinge: 3000 };
+  const pushDay = { 'horizontal-push': 2500, 'vertical-push': 1500 };
+  const pullDay = { 'horizontal-pull': 2000, 'vertical-pull': 1800 };
+
+  it('rolls detailed patterns up into the planning groups', async () => {
+    renderProgress(
+      baseOverview({
+        composition: compositionFixture([
+          { ...legDay, ...pushDay },
+          { ...pullDay, core: 500 },
+          { ...legDay, ...pullDay },
+          { ...pushDay, 'isolation-arm': 400 },
+        ]),
+      }),
+    );
+
+    const legend = await screen.findByTestId('stacked-legend');
+    // Groups, not raw pattern slugs — "Squat" and "Vertical push" must not
+    // reach the user; five meaningful bands must.
+    expect(within(legend).getByText('Legs')).toBeInTheDocument();
+    expect(within(legend).getByText('Push')).toBeInTheDocument();
+    expect(within(legend).getByText('Pull')).toBeInTheDocument();
+    expect(within(legend).queryByText('Squat')).not.toBeInTheDocument();
+    expect(within(legend).queryByText('Vertical push')).not.toBeInTheDocument();
+  });
+
+  it('stacks segments that sum to the week total', async () => {
+    renderProgress(
+      baseOverview({ composition: compositionFixture([{ ...legDay, ...pushDay }]) }),
+    );
+
+    await screen.findByTestId('composition-chart');
+    const columns = screen.getAllByRole('button', { name: /Legs/ });
+    // 4000 + 3000 legs, 2500 + 1500 push = 11,000 lb total.
+    expect(columns[0]).toHaveAccessibleName(/11,000 lb total/);
+    expect(columns[0]).toHaveAccessibleName(/Legs 7,000 lb/);
+    expect(columns[0]).toHaveAccessibleName(/Push 4,000 lb/);
+  });
+
+  it('names the largest group and its share', async () => {
+    renderProgress(
+      baseOverview({
+        composition: compositionFixture([{ squat: 8000, 'horizontal-push': 2000 }]),
+      }),
+    );
+    // 8000 of 10,000 is 80% legs.
+    expect(await screen.findByTestId('composition-summary')).toHaveTextContent(
+      /Legs was your largest share at 80% of 10,000 lb/,
+    );
+  });
+
+  it('discloses volume it could not group rather than hiding it', async () => {
+    renderProgress(
+      baseOverview({
+        composition: compositionFixture([{ squat: 5000 }], {
+          unclassifiedTotal: 2400,
+          unclassifiedExerciseCount: 3,
+        }),
+      }),
+    );
+    expect(await screen.findByTestId('stacked-disclosure')).toHaveTextContent(
+      /2,400 lb from 3 exercises without a movement pattern is not shown/,
+    );
+  });
+
+  it('explains the fixable cause when nothing is classified at all', async () => {
+    renderProgress(
+      baseOverview({
+        composition: compositionFixture([], {
+          unclassifiedTotal: 9000,
+          unclassifiedExerciseCount: 4,
+        }),
+      }),
+    );
+    const note = await screen.findByTestId('composition-unclassified-only');
+    expect(note).toHaveTextContent(/None of your exercises has a movement pattern set/);
+    // The chart itself must not render an empty axis alongside the message.
+    expect(screen.queryByTestId('composition-chart')).not.toBeInTheDocument();
+  });
+
+  it('renders nothing at all when there is no volume of any kind', async () => {
+    renderProgress(baseOverview({ composition: compositionFixture([]) }));
+    await screen.findByTestId('sessions-chart');
+    expect(screen.queryByTestId('composition-chart')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('composition-unclassified-only')).not.toBeInTheDocument();
+  });
+
+  it('draws an untrained week as a visible zero, not as a gap', async () => {
+    renderProgress(
+      baseOverview({
+        composition: compositionFixture([{ ...legDay }, null, { ...pushDay }]),
+      }),
+    );
+    await screen.findByTestId('composition-chart');
+    // A week with nothing logged still gets a stub, so the absence is drawn.
+    expect(screen.getAllByTestId('stacked-empty').length).toBeGreaterThan(0);
+  });
+
+  it('gives screen readers the composition, not just the totals', async () => {
+    renderProgress(
+      baseOverview({ composition: compositionFixture([{ ...legDay, ...pullDay }]) }),
+    );
+    await screen.findByTestId('composition-chart');
+    const table = screen.getByRole('table', {
+      name: /Training composition by movement pattern/,
+    });
+    // The text equivalent has to be a matrix; a column of weekly totals would
+    // be the text equivalent of a different chart.
+    expect(within(table).getByRole('columnheader', { name: 'Legs' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: 'Pull' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: 'Total' })).toBeInTheDocument();
+  });
+
+  it('reports the breakdown when a bar is selected', async () => {
+    renderProgress(
+      baseOverview({ composition: compositionFixture([{ ...legDay, ...pushDay }]) }),
+    );
+    await screen.findByTestId('composition-chart');
+    fireEvent.click(screen.getAllByRole('button', { name: /Legs/ })[0]!);
+    const readout = screen.getByTestId('stacked-readout');
+    expect(readout).toHaveTextContent(/11,000 lb/);
+    expect(readout).toHaveTextContent(/Legs 7,000 lb/);
   });
 });

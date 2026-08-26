@@ -61,7 +61,9 @@ export const lightTheme = {
       colorRamps.status.success,
       colorRamps.status.info,
       colorRamps.status.caution,
+      colorRamps.accent[700],
     ],
+    seriesRemainder: colorRamps.neutral[400],
   },
 } as const;
 
@@ -107,7 +109,9 @@ export const darkTheme = {
       colorRamps.status.success,
       colorRamps.status.info,
       colorRamps.status.caution,
+      colorRamps.accent[200],
     ],
+    seriesRemainder: colorRamps.neutral[500],
   },
 } as const;
 
@@ -129,9 +133,21 @@ export interface ChartTokens {
   /**
    * Ordered categorical palette for multi-series charts. Deliberately leads
    * with the two brand anchors (accent purple, success green) before
-   * borrowing the informational blue and caution amber.
+   * borrowing the informational blue and caution amber, then a second accent
+   * step. `status.error` is deliberately excluded: red on a movement pattern
+   * or a training category reads as a failure state, not a category.
+   *
+   * Five is the working limit, and it is a design constraint rather than a
+   * palette shortage. A stacked chart stops being readable past five or six
+   * categories, so a series with more collapses its tail into a remainder
+   * bucket drawn in `seriesRemainder` instead of inventing a sixth hue.
    */
   series: readonly string[];
+  /**
+   * Fill for an aggregated "everything else" category. Deliberately neutral,
+   * so a remainder never competes with a real named series for attention.
+   */
+  seriesRemainder: string;
 }
 
 export interface SemanticTheme {

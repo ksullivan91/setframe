@@ -19,3 +19,4 @@ export * from './progress-range';
 export * from './progress-insight';
 export * from './progress-overview-insights';
 export * from './chart/index';
+export * from './movement-pattern';

@@ -340,6 +340,64 @@ export const handlers = [
 
     const totalCompleted = trainingDays.reduce((sum, day) => sum + day.completedCount, 0);
 
+    /* Composition is derived from the *same* trainingDays volume rather than
+       invented alongside it, so the mock upholds the real API's invariant:
+       a week's stacked bands sum to that week's volume. A fixture that broke
+       that would make the chart look right while hiding the one defect the
+       invariant exists to catch. One pattern (`carry`) is deliberately tiny
+       and another (`cardio`) deliberately absent, so the remainder bucket and
+       the untrained-pattern case are both on screen under dev:mock. */
+    const patternSplit: Record<number, [string, number][]> = {
+      1: [['squat', 0.55], ['hinge', 0.3], ['core', 0.15]],
+      2: [['horizontal-push', 0.5], ['vertical-push', 0.35], ['isolation-arm', 0.15]],
+      4: [['hinge', 0.6], ['squat', 0.25], ['carry', 0.15]],
+      5: [['horizontal-pull', 0.45], ['vertical-pull', 0.4], ['isolation-arm', 0.15]],
+    };
+
+    const compositionByWeek = new Map<string, Record<string, number>>();
+    let unclassifiedTotal = 0;
+    for (const day of trainingDays) {
+      if (day.volume == null) continue;
+      const weekday = new Date(`${day.localDate}T00:00:00Z`).getUTCDay();
+      const split = patternSplit[weekday];
+      const weekStart = isoWeekStartOf(day.localDate);
+      if (!split) {
+        unclassifiedTotal += day.volume;
+        continue;
+      }
+      const values = compositionByWeek.get(weekStart) ?? {};
+      let assigned = 0;
+      split.forEach(([key, share], index) => {
+        // The last band takes the rounding remainder, so the parts always
+        // total exactly the day's volume rather than drifting by a pound.
+        const amount =
+          index === split.length - 1
+            ? day.volume! - assigned
+            : Math.round(day.volume! * share);
+        assigned += amount;
+        if (amount > 0) values[key] = (values[key] ?? 0) + amount;
+      });
+      compositionByWeek.set(weekStart, values);
+    }
+
+    const compositionWeeks = weekStarts.map((weekStart) => {
+      const values = compositionByWeek.get(weekStart) ?? {};
+      return {
+        weekStart,
+        values,
+        total: Object.values(values).reduce((sum, value) => sum + value, 0),
+        isCurrent: weekStart === currentWeekStart,
+      };
+    });
+
+    const patternTotals = new Map<string, number>();
+    for (const week of compositionWeeks) {
+      for (const [key, value] of Object.entries(week.values)) {
+        patternTotals.set(key, (patternTotals.get(key) ?? 0) + value);
+      }
+    }
+    const classifiedTotal = [...patternTotals.values()].reduce((sum, value) => sum + value, 0);
+
     return HttpResponse.json({
       training: {
         weeks: trainingWeeks,
@@ -368,6 +426,19 @@ export const handlers = [
         windowWeeks: 12,
         points: bodyWeightPoints,
         weeks: bodyWeightWeeks,
+      },
+      composition: {
+        unit: 'lb',
+        patterns: [...patternTotals.entries()]
+          .map(([key, total]) => ({
+            key,
+            total,
+            share: classifiedTotal > 0 ? total / classifiedTotal : 0,
+          }))
+          .sort((a, b) => b.total - a.total || a.key.localeCompare(b.key)),
+        weeks: compositionWeeks,
+        unclassifiedTotal,
+        unclassifiedExerciseCount: unclassifiedTotal > 0 ? 2 : 0,
       },
       exercises: [
         {
