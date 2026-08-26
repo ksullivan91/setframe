@@ -9,6 +9,10 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
+- `57-movement-pattern-coverage.md` — story 57, found while shipping the
+  composition chart: ungrouped volume is larger than every named group
+  combined in production, and `movement_pattern` is not editable anywhere in
+  the product, so a user cannot fix it.
 - `WAIT-automated-visual-and-e2e-testing.md` — deferred by request. Filed so the
   gap is tracked, deliberately not started.
 - `WAIT-figma-accentsubtle-token-fix.md` — deferred by request. Fixes

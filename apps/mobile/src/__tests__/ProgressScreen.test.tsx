@@ -648,13 +648,14 @@ describe('CompositionSection', () => {
     );
   });
 
-  it('explains the fixable cause when nothing is classified at all', () => {
+  it('explains the cause when nothing is classified, without promising an impossible fix', () => {
     const rendered = renderComposition(
       compositionFixture([], { unclassifiedTotal: 9000, unclassifiedExerciseCount: 4 }),
     );
-    expect(renderedTextOf(rendered, 'composition-unclassified-only')).toContain(
-      'None of your exercises has a movement pattern set',
-    );
+    const note = renderedTextOf(rendered, 'composition-unclassified-only');
+    expect(note).toContain('None of the exercises you have logged carries a movement pattern');
+    // Patterns are not editable in the app today; do not tell the user to set one.
+    expect(note).not.toContain('Setting a pattern on an exercise');
     expect(hostsByTestId(rendered, 'composition-chart')).toHaveLength(0);
   });
 

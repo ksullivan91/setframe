@@ -990,7 +990,7 @@ describe('ProgressPage training composition', () => {
     );
   });
 
-  it('explains the fixable cause when nothing is classified at all', async () => {
+  it('explains the cause when nothing is classified, without promising an impossible fix', async () => {
     renderProgress(
       baseOverview({
         composition: compositionFixture([], {
@@ -1000,7 +1000,10 @@ describe('ProgressPage training composition', () => {
       }),
     );
     const note = await screen.findByTestId('composition-unclassified-only');
-    expect(note).toHaveTextContent(/None of your exercises has a movement pattern set/);
+    expect(note).toHaveTextContent(/None of the exercises you have logged carries a movement pattern/);
+    /* Movement patterns are not editable anywhere in the app today, so the
+       copy must not tell the user to go and set one. */
+    expect(note).not.toHaveTextContent(/Setting a pattern on an exercise/);
     // The chart itself must not render an empty axis alongside the message.
     expect(screen.queryByTestId('composition-chart')).not.toBeInTheDocument();
   });

@@ -189,9 +189,9 @@ export function CompositionSection({
       <Card>
         <SectionTitle>Training composition</SectionTitle>
         <Helper testID="composition-unclassified-only">
-          {`None of your exercises has a movement pattern set yet, so there is nothing to break your ${formatValue(
+          {`None of the exercises you have logged carries a movement pattern yet, so there is nothing to break your ${formatValue(
             composition.unclassifiedTotal,
-          )} of volume down by. Setting a pattern on an exercise groups its work here.`}
+          )} of volume down by. Patterns come from the exercise library, and most entries do not have one set.`}
         </Helper>
       </Card>
     );
@@ -217,7 +217,7 @@ export function CompositionSection({
             label="Training composition"
             explanation="What your training volume was actually made of, by movement pattern."
             calculation="The same weight × reps that makes up Training volume, grouped by what each exercise trains — squats and hinges are Legs, presses are Push, rows and pull-ups are Pull. The bands in a bar always add up to that week's total."
-            limitation="Only exercises with a movement pattern set can be grouped. Anything without one is reported below the chart rather than hidden, so the total you see here can be smaller than your full volume."
+            limitation="Grouping depends on each exercise carrying a movement pattern in the library, and many do not yet — those are not editable in the app today. Anything ungrouped is reported below the chart rather than hidden, so the total here can be well below your full volume."
           />
         </View>
         <RangeSelector
