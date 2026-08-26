@@ -24,7 +24,6 @@ import {
   describeWeightRate,
   defaultRange,
   rangeOptions,
-  windowForRange,
   formatCompactNumber,
   formatDateRangeLabel,
   formatMetricValue,
@@ -162,17 +161,21 @@ export function TrainingSeriesSection({
   const [range, setRange] = useState<ProgressRange>(() => defaultRange(raw, localDate));
   const ranges = useMemo(() => rangeOptions(raw, localDate), [raw, localDate]);
 
-  const series = useMemo(() => {
-    const span = Math.max(daysBetween(windowForRange(range, localDate).start, localDate), 0);
-    return buildProgressSeries(raw, {
-      range,
-      endLocalDate: localDate,
-      aggregation: 'sum',
-      bucket: countBucketForRange(range, span),
-      emptyIsZero: true,
-      zeroFrom: firstActivityDate,
-    });
-  }, [raw, range, localDate, firstActivityDate]);
+  const series = useMemo(
+    () =>
+      buildProgressSeries(raw, {
+        range,
+        endLocalDate: localDate,
+        aggregation: 'sum',
+        /* The function, not a precomputed bucket: ALL's span is only known
+           once the data has been windowed, and computing it out here yields
+           zero for ALL. */
+        bucket: countBucketForRange,
+        emptyIsZero: true,
+        zeroFrom: firstActivityDate,
+      }),
+    [raw, range, localDate, firstActivityDate],
+  );
 
   /* A rest week is a fact about a week and the payload only carries it at
      that grain, so it is applied only when a mark *is* a week. */

@@ -439,11 +439,50 @@ describe('buildProgressSeries zeroFrom', () => {
     expect(countBucketForRange('3M', 92)).toBe('week');
     expect(countBucketForRange('6M', 183)).toBe('week');
     expect(countBucketForRange('Y', 365)).toBe('week');
-    expect(countBucketForRange('ALL', 182)).toBe('week');
+  });
+
+  /* These go through `buildProgressSeries` rather than calling
+     `countBucketForRange` directly. ALL's span is resolved from the data
+     *inside* that function — a caller computing its own span from
+     `windowForRange('ALL', …)` gets zero, so direct-call assertions passing
+     182 or 1200 test an input no caller can produce, and did while the
+     shipped ALL behaviour was wrong. */
+  function allBucketFor(points: SeriesPoint[]) {
+    return buildProgressSeries(points, {
+      range: 'ALL',
+      endLocalDate: '2026-08-25',
+      aggregation: 'sum',
+      bucket: countBucketForRange,
+    }).bucket;
+  }
+
+  it('reads a short history day by day, even at ALL', () => {
+    // Two weekly bars tell a ten-day-old account nothing.
+    expect(
+      allBucketFor([
+        { localDate: '2026-08-15', value: 1 },
+        { localDate: '2026-08-25', value: 1 },
+      ]),
+    ).toBe('day');
+  });
+
+  it('bucketes half a year of history by week at ALL', () => {
+    expect(
+      allBucketFor([
+        { localDate: '2026-02-24', value: 1 },
+        { localDate: '2026-08-25', value: 1 },
+      ]),
+    ).toBe('week');
   });
 
   it('steps ALL down to months once a weekly axis would run past ~104 bars', () => {
-    expect(countBucketForRange('ALL', 1200)).toBe('month');
+    // Three years: ~156 weekly bars at 390px is ~2.5px each.
+    expect(
+      allBucketFor([
+        { localDate: '2023-08-25', value: 1 },
+        { localDate: '2026-08-25', value: 1 },
+      ]),
+    ).toBe('month');
   });
 
   it('accepts a bucket override so a count chart can differ from a measurement', () => {

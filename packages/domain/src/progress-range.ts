@@ -249,8 +249,14 @@ export interface BuildSeriesOptions {
    *
    * Metrics do not all read best at the same resolution — see
    * `countBucketForRange`, which a count or workload chart passes here.
+   *
+   * Pass the *function* rather than a precomputed bucket whenever the choice
+   * depends on how much history there is. `ALL`'s window is resolved from the
+   * data inside this function, so a caller computing its own span from
+   * `windowForRange('ALL', …)` gets zero and any span-dependent branch dies
+   * silently — which is exactly what happened the first time this shipped.
    */
-  bucket?: ProgressBucket;
+  bucket?: ProgressBucket | ((range: ProgressRange, spanDays: number) => ProgressBucket);
 }
 
 /**
@@ -273,9 +279,13 @@ export interface BuildSeriesOptions {
  */
 export function countBucketForRange(range: ProgressRange, spanDays: number): ProgressBucket {
   if (range === 'W') return 'day';
-  // Beyond about two years a weekly axis is >104 bars; step down to months.
-  if (range === 'ALL' && spanDays > 730) return 'month';
-  if (range === 'ALL') return 'week';
+  if (range === 'ALL') {
+    /* A short history is still best read day by day — two weekly bars tell a
+       ten-day-old account nothing. Past a month, weeks; past about two years,
+       a weekly axis is >104 bars, so months. */
+    if (spanDays <= 31) return 'day';
+    return spanDays > 730 ? 'month' : 'week';
+  }
   const bucket = bucketForRange(range, spanDays);
   return bucket === 'day' ? 'week' : bucket;
 }
@@ -313,7 +323,10 @@ export function buildProgressSeries<Meta = unknown>(
       : windowForRange(options.range, options.endLocalDate);
 
   const spanDays = Math.max(daysBetween(window.start, window.end), 0);
-  const bucket = options.bucket ?? bucketForRange(options.range, spanDays);
+  const bucket =
+    typeof options.bucket === 'function'
+      ? options.bucket(options.range, spanDays)
+      : (options.bucket ?? bucketForRange(options.range, spanDays));
 
   /* Each bucket keeps its observations' `meta` alongside their values.
      Dropping it would break drill-down: the per-exercise chart navigates to

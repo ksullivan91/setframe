@@ -112,12 +112,12 @@ function toDayNumber(localDate: string): number {
 /**
  * Rounds a domain outward to human-friendly step boundaries, so axis labels
  * read 170 / 175 / 180 rather than 168.4 / 173.9 / 179.4.
- */
-/**
- * @param minStep Smallest step the axis may use, and the unit every step is a
- *   multiple of. Pass 1 for a chart of whole things: a session count topping
- *   out at 1 otherwise gets a step of 0.5 and an axis reading 0, 1, 1 — two
- *   gridlines with the same label, because half a session rounds to one.
+ *
+ * @param minStep Smallest step the axis may use, and the unit every step and
+ *   bound is a multiple of. Pass 1 for a chart of whole things: a session
+ *   count topping out at 1 otherwise gets a step of 0.5 and an axis reading
+ *   0, 1, 1 — two gridlines with the same label, because half a session
+ *   rounds to one.
  */
 export function niceScale(
   min: number,
@@ -131,8 +131,15 @@ export function niceScale(
   if (!Number.isFinite(min) || !Number.isFinite(max)) return { min: 0, max: 1, step: 1 };
   const span = max - min;
   if (span <= 0) {
+    /* A flat series still needs an axis around it. The bounds are aligned to
+       the step, not just padded by it: padding alone leaves 2.5 ± 1 → ticks
+       at 1.5 / 2.5 / 3.5, which breaks the whole-number promise `minStep`
+       makes even though the step itself is 1. */
     const pad = quantise(Math.abs(max) > 0 ? Math.abs(max) * 0.05 : 1);
-    return { min: min - pad, max: max + pad, step: pad };
+    const low = min - pad;
+    const high = max + pad;
+    if (!minStep || minStep <= 0) return { min: low, max: high, step: pad };
+    return { min: Math.floor(low / pad) * pad, max: Math.ceil(high / pad) * pad, step: pad };
   }
   const rawStep = span / Math.max(tickCount - 1, 1);
   const magnitude = 10 ** Math.floor(Math.log10(rawStep));

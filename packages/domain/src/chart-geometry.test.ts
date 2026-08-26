@@ -186,6 +186,15 @@ describe('column chart', () => {
     }
   });
 
+  it('keeps a flat count series on whole-number ticks', () => {
+    // niceScale(2.5, 2.5, 4, 1) padded to 1.5–3.5 with a step of 1: whole
+    // steps, fractional gridlines. The bounds have to align to the step too.
+    const scale = niceScale(2.5, 2.5, 4, 1);
+    expect(Number.isInteger(scale.min)).toBe(true);
+    expect(Number.isInteger(scale.max)).toBe(true);
+    expect(Number.isInteger(scale.step)).toBe(true);
+  });
+
   it('leaves a continuous measure free to use fractional steps', () => {
     // Volume and body weight are not counts; forcing integers on them would
     // coarsen an axis that legitimately needs decimals.
