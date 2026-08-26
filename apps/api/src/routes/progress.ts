@@ -17,6 +17,7 @@ import {
 } from '@setframe/domain';
 import {
   dailyManualEntry,
+  exercise,
   restDay,
   workoutExerciseLog,
   workoutSession,
@@ -117,10 +118,20 @@ export const progressRoutes: FastifyPluginAsyncZod = async (fastify) => {
           distanceUnit: workoutSet.distanceUnit,
           isPrWeight: workoutSet.isPrWeight,
           isPrReps: workoutSet.isPrReps,
+          /* Read live from `exercise`, deliberately *not* snapshotted onto the
+             log row like name and prescription are. ADR 0005 snapshots the
+             things that describe what the session *was* — rename a template
+             later and an old session must still render as it happened. A
+             movement pattern is not that: it is a taxonomy label on the
+             exercise itself, and correcting a mislabelled squat should
+             reclassify its whole history, which is the behaviour a user
+             fixing a typo expects. */
+          movementPattern: exercise.movementPattern,
         })
         .from(workoutSession)
         .innerJoin(workoutExerciseLog, eq(workoutExerciseLog.sessionId, workoutSession.id))
         .innerJoin(workoutSet, eq(workoutSet.exerciseLogId, workoutExerciseLog.id))
+        .leftJoin(exercise, eq(exercise.id, workoutExerciseLog.exerciseId))
         .where(
           and(
             eq(workoutSession.userId, request.userId!),
@@ -166,6 +177,11 @@ export const progressRoutes: FastifyPluginAsyncZod = async (fastify) => {
       // one session is summarised once, not split into two points.
       const exerciseSessionRows = new Map<string, Row[]>();
 
+      /** `weekStart` → `movementPattern` → volume. */
+      const compositionWeeks = new Map<string, Map<string, number>>();
+      let unclassifiedVolume = 0;
+      const unclassifiedExerciseIds = new Set<string>();
+
       for (const row of setRows) {
         const meta = sessionMeta.get(row.sessionId) ?? {
           sessionId: row.sessionId,
@@ -192,6 +208,29 @@ export const progressRoutes: FastifyPluginAsyncZod = async (fastify) => {
           }
         }
         sessionMeta.set(row.sessionId, meta);
+
+        /* Composition uses the identical volume rule as the session total
+           above — same `countsTowardVolume` gate, same `completed` gate, same
+           load x reps. That is not incidental: the stacked chart's promise is
+           that its segments sum to the week's volume, and two subtly
+           different rules would break that silently, in a way no test of
+           either number alone would catch. */
+        if (definition.countsTowardVolume && row.completed) {
+          const load = toNumber(row.loadValue);
+          if (load != null && row.reps != null) {
+            const contribution = load * row.reps;
+            const week = weekStartOf(row.localDate);
+            const pattern = row.movementPattern?.trim();
+            if (pattern) {
+              const byPattern = compositionWeeks.get(week) ?? new Map<string, number>();
+              byPattern.set(pattern, (byPattern.get(pattern) ?? 0) + contribution);
+              compositionWeeks.set(week, byPattern);
+            } else {
+              unclassifiedVolume += contribution;
+              unclassifiedExerciseIds.add(row.exerciseId);
+            }
+          }
+        }
 
         const key = `${row.exerciseId}:${row.sessionId}`;
         exerciseSessionRows.set(key, [...(exerciseSessionRows.get(key) ?? []), row]);
@@ -320,6 +359,43 @@ export const progressRoutes: FastifyPluginAsyncZod = async (fastify) => {
       // happens inside summarizeExerciseSets for the per-exercise metrics.
       const volumeUnit: LoadUnit = 'lb';
 
+      /* Composition weeks mirror `trends.weeks` exactly rather than being
+         derived from whichever weeks happen to contain volume. A stacked bar
+         chart drawn over a sparse week list silently closes its own gaps, so
+         three trained weeks either side of a month off render as six
+         consecutive weeks of training — the absence, which is the most
+         informative thing in the window, disappears. */
+      const compositionByWeek = trends.weeks.map((week) => {
+        const byPattern = compositionWeeks.get(week.weekStart);
+        const values: Record<string, number> = {};
+        let total = 0;
+        if (byPattern) {
+          for (const [pattern, value] of byPattern) {
+            if (value > 0) {
+              values[pattern] = value;
+              total += value;
+            }
+          }
+        }
+        return { weekStart: week.weekStart, values, total, isCurrent: week.isCurrent };
+      });
+
+      const patternTotals = new Map<string, number>();
+      for (const byPattern of compositionWeeks.values()) {
+        for (const [pattern, value] of byPattern) {
+          patternTotals.set(pattern, (patternTotals.get(pattern) ?? 0) + value);
+        }
+      }
+      const classifiedTotal = [...patternTotals.values()].reduce((sum, value) => sum + value, 0);
+      const patterns = [...patternTotals.entries()]
+        .filter(([, total]) => total > 0)
+        .map(([key, total]) => ({
+          key,
+          total,
+          share: classifiedTotal > 0 ? total / classifiedTotal : 0,
+        }))
+        .sort((a, b) => b.total - a.total || a.key.localeCompare(b.key));
+
       return {
         training: {
           weeks: trends.weeks,
@@ -350,6 +426,13 @@ export const progressRoutes: FastifyPluginAsyncZod = async (fastify) => {
           windowWeeks: weightTrend.windowWeeks,
           points: weightTrend.points,
           weeks: weightTrend.weeks,
+        },
+        composition: {
+          unit: volumeUnit,
+          patterns,
+          weeks: compositionByWeek,
+          unclassifiedTotal: unclassifiedVolume,
+          unclassifiedExerciseCount: unclassifiedExerciseIds.size,
         },
         exercises,
         recentSessions: sessions

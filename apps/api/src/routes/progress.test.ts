@@ -29,13 +29,17 @@ function queryChain(rows: unknown[]) {
 
 function selectChain(rows: unknown[]) {
   const chain = queryChain(rows);
+  /* Joins are self-referential rather than a fixed two-deep nest, so adding a
+     join to the real query does not silently break every mocked call in this
+     file. The overview query is `.from().innerJoin().innerJoin().leftJoin()
+     .where()`; hard-coding that depth means the next join fails here as an
+     opaque "is not a function" rather than as a readable assertion. */
+  const joinable: Record<string, unknown> = { where: vi.fn().mockReturnValue(chain) };
+  joinable.innerJoin = vi.fn().mockReturnValue(joinable);
+  joinable.leftJoin = vi.fn().mockReturnValue(joinable);
   return {
     from: vi.fn().mockReturnValue({
-      innerJoin: vi.fn().mockReturnValue({
-        innerJoin: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue(chain) }),
-        where: vi.fn().mockReturnValue(chain),
-      }),
-      where: vi.fn().mockReturnValue(chain),
+      ...joinable,
       orderBy: vi.fn().mockReturnValue(chain),
     }),
   };
@@ -212,6 +216,157 @@ describe('GET /v1/progress/overview daily training series', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json().training.windowWeeks).toBe(53);
+    await app.close();
+  });
+});
+
+/**
+ * Volume by movement pattern. The chart's whole promise is that its segments
+ * sum to the week's volume, so the sum is what these pin — not just the
+ * presence of the field.
+ */
+describe('GET /v1/progress/overview composition', () => {
+  const patternRow = (
+    overrides: Partial<typeof sessionSetRow> & { movementPattern?: string | null },
+  ) => ({ ...sessionSetRow, ...overrides });
+
+  it('splits volume by movement pattern and sums to the week total', async () => {
+    const rows = [
+      patternRow({
+        setId: '55555555-0001-4000-8000-000000000001', exerciseId: 'aaaaaaaa-0001-4000-8000-000000000001', exerciseName: 'Back Squat',
+        movementPattern: 'squat', loadValue: '225', reps: 5,
+      }),
+      patternRow({
+        setId: '55555555-0002-4000-8000-000000000002', exerciseId: 'aaaaaaaa-0003-4000-8000-000000000003', exerciseName: 'Deadlift',
+        movementPattern: 'hinge', loadValue: '315', reps: 3,
+      }),
+      patternRow({
+        setId: '55555555-0003-4000-8000-000000000003', exerciseId: 'aaaaaaaa-0002-4000-8000-000000000002', exerciseName: 'Front Squat',
+        movementPattern: 'squat', loadValue: '185', reps: 5,
+      }),
+      /* An unchecked set. Without one in the fixture this test is vacuous:
+         both volume rules gate on `completed`, so if composition ever stopped
+         gating on it the parts and the whole would still agree here and the
+         divergence would ship. Verified by mutation — removing the gate does
+         now fail this test. */
+      patternRow({
+        setId: '55555555-0004-4000-8000-000000000004', exerciseId: 'aaaaaaaa-0002-4000-8000-000000000002',
+        exerciseName: 'Front Squat', movementPattern: 'squat',
+        loadValue: '185', reps: 5, completed: false,
+      }),
+    ];
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain(rows))
+      .mockReturnValueOnce(selectChain([]))
+      .mockReturnValueOnce(selectChain([{ localDate: '2026-08-24' }]))
+      .mockReturnValueOnce(selectChain([]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'GET',
+      url: '/v1/progress/overview?weeks=4&localDate=2026-08-24',
+      headers: authHeader,
+    });
+    expect(response.statusCode).toBe(200);
+    const { composition, training } = response.json();
+
+    // 225*5 + 185*5 = 2050 squat; 315*3 = 945 hinge.
+    expect(composition.patterns).toEqual([
+      { key: 'squat', total: 2050, share: 2050 / 2995 },
+      { key: 'hinge', total: 945, share: 945 / 2995 },
+    ]);
+
+    const week = composition.weeks.find((w: { total: number }) => w.total > 0);
+    expect(week.values).toEqual({ squat: 2050, hinge: 945 });
+    // The load-bearing invariant: the parts equal the whole the other
+    // chart draws. A second, subtly different volume rule would break this.
+    const weekTotal = training.weeks.find(
+      (w: { weekStart: string }) => w.weekStart === week.weekStart,
+    ).volume;
+    expect(week.total).toBe(weekTotal);
+    await app.close();
+  });
+
+  it('reports unclassified volume rather than silently dropping it', async () => {
+    // Most of the exercise library carries no movementPattern. Dropping it
+    // would understate training and invite a wrong conclusion.
+    const rows = [
+      patternRow({ setId: '55555555-0001-4000-8000-000000000001', exerciseId: 'aaaaaaaa-0001-4000-8000-000000000001', movementPattern: 'squat', loadValue: '200', reps: 5 }),
+      patternRow({ setId: '55555555-0002-4000-8000-000000000002', exerciseId: 'aaaaaaaa-0004-4000-8000-000000000004', movementPattern: null, loadValue: '100', reps: 10 }),
+      patternRow({ setId: '55555555-0003-4000-8000-000000000003', exerciseId: 'aaaaaaaa-0005-4000-8000-000000000005', movementPattern: '  ', loadValue: '50', reps: 4 }),
+    ];
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain(rows))
+      .mockReturnValueOnce(selectChain([]))
+      .mockReturnValueOnce(selectChain([{ localDate: '2026-08-24' }]))
+      .mockReturnValueOnce(selectChain([]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'GET',
+      url: '/v1/progress/overview?weeks=4&localDate=2026-08-24',
+      headers: authHeader,
+    });
+    const { composition } = response.json();
+    expect(composition.unclassifiedTotal).toBe(1200); // 100*10 + 50*4
+    expect(composition.unclassifiedExerciseCount).toBe(2);
+    expect(composition.patterns).toEqual([{ key: 'squat', total: 1000, share: 1 }]);
+    await app.close();
+  });
+
+  it('returns a contiguous week list so a training gap stays visible', async () => {
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([patternRow({ movementPattern: 'squat' })]))
+      .mockReturnValueOnce(selectChain([]))
+      .mockReturnValueOnce(selectChain([{ localDate: '2026-08-24' }]))
+      .mockReturnValueOnce(selectChain([]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'GET',
+      url: '/v1/progress/overview?weeks=4&localDate=2026-08-24',
+      headers: authHeader,
+    });
+    const { composition, training } = response.json();
+    // Sparse weeks would let a stacked chart close its own gaps, rendering a
+    // month off as continuous training.
+    expect(composition.weeks).toHaveLength(training.weeks.length);
+    expect(composition.weeks.map((w: { weekStart: string }) => w.weekStart)).toEqual(
+      training.weeks.map((w: { weekStart: string }) => w.weekStart),
+    );
+    expect(composition.weeks.filter((w: { total: number }) => w.total === 0).length).toBeGreaterThan(0);
+    await app.close();
+  });
+
+  it('excludes cardio, where load x reps is not a quantity', async () => {
+    const rows = [
+      patternRow({ setId: '55555555-0001-4000-8000-000000000001', exerciseId: 'aaaaaaaa-0001-4000-8000-000000000001', movementPattern: 'squat', loadValue: '200', reps: 5 }),
+      patternRow({
+        setId: '55555555-0002-4000-8000-000000000002', exerciseId: 'aaaaaaaa-0006-4000-8000-000000000006', movementPattern: 'cardio',
+        prescription: { kind: 'distance', distanceMiles: 3 },
+        loadValue: null, reps: null, distanceValue: '3', distanceUnit: 'mi',
+      }),
+    ];
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain(rows))
+      .mockReturnValueOnce(selectChain([]))
+      .mockReturnValueOnce(selectChain([{ localDate: '2026-08-24' }]))
+      .mockReturnValueOnce(selectChain([]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'GET',
+      url: '/v1/progress/overview?weeks=4&localDate=2026-08-24',
+      headers: authHeader,
+    });
+    const { composition } = response.json();
+    // A 3-mile run is real training, but it is not 0 lb of volume and it is
+    // not a segment on a load chart.
+    expect(composition.patterns.map((p: { key: string }) => p.key)).toEqual(['squat']);
     await app.close();
   });
 });

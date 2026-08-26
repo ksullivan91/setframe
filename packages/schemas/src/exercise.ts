@@ -217,9 +217,57 @@ export const progressBodyWeightSchema = z.object({
 });
 export type ProgressBodyWeight = z.infer<typeof progressBodyWeightSchema>;
 
+export const compositionWeekSchema = z.object({
+  weekStart: z.string().date(),
+  /**
+   * Volume per movement pattern. A pattern absent from this record was
+   * genuinely untrained that week; we never write a `0`, because "you did no
+   * hinging" and "you did 0 lb of hinging" are the same fact but only the
+   * first is worth drawing, and a zero-height segment is indistinguishable
+   * from a rendering bug.
+   */
+  values: z.record(z.string(), z.number().positive()),
+  total: z.number().nonnegative(),
+  isCurrent: z.boolean(),
+});
+export type CompositionWeek = z.infer<typeof compositionWeekSchema>;
+
+/**
+ * Volume split by movement pattern — "what did I actually train?", which a
+ * single weekly total cannot answer. 12,000 lb of squatting and 12,000 lb
+ * spread evenly over six patterns are the same bar and very different weeks.
+ *
+ * The parts always recover the total; the total never recovers the parts.
+ */
+export const progressCompositionSchema = z.object({
+  unit: z.enum(['lb', 'kg']),
+  /** Patterns with any volume in the window, largest total first. */
+  patterns: z.array(
+    z.object({
+      key: z.string(),
+      total: z.number().positive(),
+      /** Share of *classified* volume, 0-1. Excludes `unclassifiedTotal`. */
+      share: z.number(),
+    }),
+  ),
+  weeks: z.array(compositionWeekSchema),
+  /**
+   * Volume from exercises carrying no `movementPattern`. Reported rather than
+   * silently dropped: most of the exercise library is unclassified, so a
+   * chart that omitted this would quietly understate training and invite the
+   * user to conclude they did less than they did. The UI must disclose it.
+   */
+  unclassifiedTotal: z.number().nonnegative(),
+  /** How many distinct exercises contributed to `unclassifiedTotal`. */
+  unclassifiedExerciseCount: z.number().int().nonnegative(),
+});
+export type ProgressComposition = z.infer<typeof progressCompositionSchema>;
+
 export const progressOverviewResponseSchema = z.object({
   training: progressTrainingSchema,
   bodyWeight: progressBodyWeightSchema,
+  /** Volume by movement pattern. See `progressCompositionSchema`. */
+  composition: progressCompositionSchema,
   /** Every exercise with history in the window, most-trained first. */
   exercises: z.array(progressExerciseSchema),
   recentSessions: z.array(
