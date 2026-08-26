@@ -74,22 +74,29 @@ the default still requires temporarily repointing `app/index.tsx` and
 reinstalling to clear expo-router's persisted navigation state. Revert any
 such change before committing.
 
-## Known limitation: scripting the sign-in
+## Scripting the sign-in — solved
 
-The account and its password are valid — `users.verifyPassword` against
-the Backend API returns `{ verified: true }`. But driving Clerk's
-**multi-step sign-in form** over CDP is not as simple as setting input
-values: Clerk validates against its own internal state, so a synthetic
-`input` event sets the field visually while the form still considers it
-empty, and "Continue" leaves you on `/v3/signin/identifier`.
+This section previously recorded the sign-in as unscriptable: driving Clerk's
+multi-step form over CDP set fields visually while the form still considered
+them empty, so "Continue" left you on `/v3/signin/identifier`.
 
-Making this reliable needs real key events
-(`Input.dispatchKeyEvent` per character, or `Input.insertText`) rather
-than assigning `.value`, plus waiting on Clerk's own step transitions
-instead of fixed timeouts.
+The fix was to stop driving the form. Clerk's **client API** is scriptable and
+the form was never the obstacle. `apps/web/e2e/ux/auth.ts` signs in unattended
+with `@clerk/testing`, and two details make it work:
 
-Until that is written, **web verification is a manual sign-in**: start
-`dev:mock`, sign in with the credentials above in a real browser, then
-resize to 390px. The account removes the *emailed-code* obstacle, which
-was the genuinely blocking part; it does not by itself make the flow
-scriptable.
+1. **Land on `/sign-in` first.** Every other route is wrapped in
+   `<SignedOut><RedirectToSignIn/></SignedOut>`, which bounces to the hosted
+   Clerk page before any script runs — so sign-in "succeeded" against a page
+   that was no longer the app.
+2. **Answer the second factor.** This instance requires an email code, so a
+   password alone leaves the attempt at `needs_second_factor` with no session:
+   it resolves without throwing and does nothing, which is why the earlier
+   attempt looked like it had worked. Because the addresses contain
+   `+clerk_test`, the code is the fixed `424242`.
+
+So web verification is no longer a manual sign-in. See `ux-tests/README.md`.
+
+Mobile: the Simulator has no tap primitive, so reaching a screen other than
+the default still requires temporarily repointing `app/index.tsx` and
+reinstalling to clear expo-router's persisted navigation state. Revert any
+such change before committing. That limitation is unchanged.

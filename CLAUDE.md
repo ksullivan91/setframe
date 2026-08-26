@@ -40,7 +40,15 @@ npm run check:deps       # missing *required* peer dependencies (story 56)
 
 ```bash
 npm run test:e2e --workspace=@setframe/web   # Playwright modal contract (story 67)
+npm run ux:review --workspace=@setframe/web  # autonomous UX review, 390px + 1440px
 ```
+
+`ux:review` drives the *running app* as a signed-in persona and writes ranked
+findings plus screenshots to `ux-tests/reports/`. It is a review, not a
+regression suite: journeys fail only on genuine breakage and report everything
+else. Sign-in is programmatic — `docs/design/design-review-account.md` used to
+record this as unsolved; it no longer is. See `ux-tests/README.md` and the
+`setframe-ux-review` skill.
 
 Two projects, because the contract genuinely splits: `mobile-webkit` asserts
 the viewport, scrolling and overflow behaviour on a real iPhone WebKit profile

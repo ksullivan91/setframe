@@ -13,6 +13,9 @@ export default defineConfig({
   testDir: './e2e',
   // Only the specs; the harness .tsx next to them is not a test.
   testMatch: '**/*.spec.ts',
+  /* UX reviews walk whole flows against a real signed-in session, so they are
+     slower than a component assertion and must not be cut off mid-journey. */
+  timeout: 120_000,
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   reporter: 'list',
@@ -44,11 +47,38 @@ export default defineConfig({
       testMatch: '**/modal-keyboard.spec.ts',
       use: { ...devices['Desktop Chrome'] },
     },
+    /* The autonomous UX reviewer. Two viewports, because the product's own
+       Definition of Done names both: 390px is where it is actually used, and
+       1440px is where it is usually built. A finding that only exists on one
+       of them is still a finding, so they are separate projects rather than
+       one run that quietly favours whichever ran last. */
+    {
+      name: 'ux-mobile',
+      testMatch: '**/ux/*.ux.spec.ts',
+      use: { ...devices['iPhone 13'], baseURL: 'http://localhost:5199' },
+    },
+    {
+      name: 'ux-desktop',
+      testMatch: '**/ux/*.ux.spec.ts',
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 }, baseURL: 'http://localhost:5199' },
+    },
   ],
-  webServer: {
-    command: 'npm run dev -- --port 5173 --strictPort',
-    url: 'http://localhost:5173/e2e/harness.html',
-    reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
-  },
+  /* Two servers. The modal harness needs the plain dev server; the UX review
+     needs `dev:mock`, because a review has to be reproducible — a journey
+     whose findings change with whatever happens to be in the database is a
+     report nobody can act on. MSW gives every run the same starting state. */
+  webServer: [
+    {
+      command: 'npm run dev -- --port 5173 --strictPort',
+      url: 'http://localhost:5173/e2e/harness.html',
+      reuseExistingServer: !process.env.CI,
+      timeout: 60_000,
+    },
+    {
+      command: 'npm run dev:mock -- --port 5199 --strictPort',
+      url: 'http://localhost:5199/sign-in',
+      reuseExistingServer: !process.env.CI,
+      timeout: 60_000,
+    },
+  ],
 });

@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "eslint . --max-warnings 0",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "ux:review": "playwright test --project=ux-mobile --project=ux-desktop"
   },
   "dependencies": {
     "@clerk/clerk-react": "5.61.3",
@@ -29,6 +30,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@clerk/testing": "^2.2.30",
     "@playwright/test": "^1.62.1",
     "@testing-library/dom": "10.4.0",
     "@testing-library/jest-dom": "6.6.3",

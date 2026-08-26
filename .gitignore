@@ -14,3 +14,7 @@ build/
 # Playwright (story 67)
 test-results/
 playwright-report/
+
+# Generated UX review artefacts (ux-tests/README.md)
+ux-tests/reports/*
+!ux-tests/reports/.gitkeep
