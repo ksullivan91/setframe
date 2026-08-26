@@ -431,6 +431,21 @@ describe('buildProgressSeries zeroFrom', () => {
     expect(priorWeek?.value).toBeNull();
   });
 
+  it('keeps a count chart legible at every range beyond the week', () => {
+    /* Caught on a screenshot: ALL over six months rendered 181 daily bars at
+       390px, every one of them 0 or 1 — a barcode, not a chart. */
+    expect(countBucketForRange('W', 7)).toBe('day');
+    expect(countBucketForRange('M', 31)).toBe('week');
+    expect(countBucketForRange('3M', 92)).toBe('week');
+    expect(countBucketForRange('6M', 183)).toBe('week');
+    expect(countBucketForRange('Y', 365)).toBe('week');
+    expect(countBucketForRange('ALL', 182)).toBe('week');
+  });
+
+  it('steps ALL down to months once a weekly axis would run past ~104 bars', () => {
+    expect(countBucketForRange('ALL', 1200)).toBe('month');
+  });
+
   it('accepts a bucket override so a count chart can differ from a measurement', () => {
     const series = buildProgressSeries(oneSession, {
       range: 'M',

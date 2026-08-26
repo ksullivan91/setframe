@@ -254,8 +254,8 @@ export interface BuildSeriesOptions {
 }
 
 /**
- * Bucket size for a **count or workload** chart, which differs from the
- * measurement default at one range: `M`.
+ * Bucket size for a **count or workload** chart, which is coarser than the
+ * measurement default at every range but `W`.
  *
  * Body weight at M is thirty daily marks and each one is a real reading. A
  * daily session count is almost always 0 or 1, so the same thirty marks are a
@@ -264,12 +264,20 @@ export interface BuildSeriesOptions {
  * than body weight for the same reason — it is additive, so a week's total is
  * a meaningful quantity, where a week of body weight would have to be averaged.
  *
- * Every other range is unchanged, so the two chart families still share one
- * range control and one set of window semantics.
+ * `ALL` steps down again once the history outgrows a weekly axis: six months
+ * of daily bars rendered as 181 slivers at 390px, which is what sent this
+ * function past its original one-range special case.
+ *
+ * `W` stays daily — seven bars is the whole point of that range — so the two
+ * chart families still share one range control and one set of windows.
  */
 export function countBucketForRange(range: ProgressRange, spanDays: number): ProgressBucket {
-  if (range === 'M') return 'week';
-  return bucketForRange(range, spanDays);
+  if (range === 'W') return 'day';
+  // Beyond about two years a weekly axis is >104 bars; step down to months.
+  if (range === 'ALL' && spanDays > 730) return 'month';
+  if (range === 'ALL') return 'week';
+  const bucket = bucketForRange(range, spanDays);
+  return bucket === 'day' ? 'week' : bucket;
 }
 
 /**

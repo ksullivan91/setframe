@@ -408,6 +408,8 @@ export interface ColumnChartProps {
    */
   formatTick?: (value: number) => string;
   formatPeriod?: (localDate: string) => string;
+  /** Smallest axis step. Pass 1 when the bars count whole things. */
+  minStep?: number;
   label: string;
   emptyLabel?: string;
   /**
@@ -426,6 +428,7 @@ export function ColumnChart({
   formatValue,
   formatTick,
   formatPeriod = formatDate,
+  minStep,
   label,
   emptyLabel = 'No sessions',
   currentLabel = 'Current week',
@@ -441,8 +444,9 @@ export function ColumnChart({
       buildColumnChart(series, {
         layout: { width, height, padding: { top: 10, right: 8, bottom: 22, left: 40 } },
         formatValue: formatTick ?? formatValue,
+        minStep,
       }),
-    [series, width, height, formatValue, formatTick],
+    [series, width, height, formatValue, formatTick, minStep],
   );
 
   const selectedColumn = selected != null ? chart.columns[selected] : null;

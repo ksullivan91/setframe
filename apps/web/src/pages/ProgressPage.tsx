@@ -748,6 +748,7 @@ function TrainingSeriesSection({
   formatCompact,
   emptyLabel,
   unitNoun,
+  minStep,
   testIdPrefix,
 }: {
   anchorId: string;
@@ -762,6 +763,8 @@ function TrainingSeriesSection({
   formatCompact: (value: number) => string;
   emptyLabel: string;
   unitNoun: (value: number) => string;
+  /** 1 for a count of whole sessions; unset for a continuous total. */
+  minStep?: number;
   testIdPrefix: string;
 }) {
   const raw = useMemo<SeriesPoint[]>(
@@ -875,6 +878,7 @@ function TrainingSeriesSection({
           series={columns}
           formatValue={formatValue}
           formatTick={formatCompact}
+          minStep={minStep}
           formatPeriod={(start) => formatBucketPeriod(start, series.bucket)}
           currentLabel={periodLabel}
           label={`${title}, ${bucketLabel(series.bucket)}, ${progressRangeLabel(range).toLowerCase()}`}
@@ -1082,6 +1086,8 @@ export function ProgressPage() {
             formatCompact={(value) => `${Math.round(value)}`}
             emptyLabel="No sessions"
             unitNoun={(value) => (Math.round(value) === 1 ? 'session' : 'sessions')}
+            // Sessions are whole things; a 0.5 gridline would be nonsense.
+            minStep={1}
             testIdPrefix="sessions"
           />
 
