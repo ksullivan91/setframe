@@ -9,6 +9,7 @@ const mockPush = jest.fn();
 let mockGet: (path: string) => Promise<unknown> = () => Promise.resolve([]);
 const mockPost = jest.fn((_path: string, _body?: unknown) => Promise.resolve({} as unknown));
 const mockDel = jest.fn((_path: string) => Promise.resolve(undefined as unknown));
+const mockPatch = jest.fn((_path: string, _body?: unknown) => Promise.resolve({} as unknown));
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush }),
@@ -18,7 +19,7 @@ jest.mock('../lib/api-client', () => ({
   useApiClient: () => ({
     get: (path: string) => mockGet(path),
     post: (path: string, body?: unknown) => mockPost(path, body),
-    patch: () => Promise.resolve({}),
+    patch: (path: string, body?: unknown) => mockPatch(path, body),
     del: (path: string) => mockDel(path),
     delete: (path: string) => mockDel(path),
   }),
@@ -640,5 +641,104 @@ describe('ProgramEditorScreen exercise reordering', () => {
       '/day-types/day-1/exercises/reorder',
       expect.anything(),
     );
+  });
+});
+
+
+/**
+ * Story 55's remaining gap. Training is the program editor now, but a workout
+ * created with a typo could only be renamed on the web app — the wizard had
+ * this and the editor did not.
+ */
+describe('ProgramEditorScreen workout rename', () => {
+  it('renames a workout from its action sheet', async () => {
+    mockGet = getWithWorkout();
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    const rendered = await renderScreen();
+    await openUpperA(rendered);
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Actions for Upper A')[0]!.props.onPress();
+    });
+    await act(async () => {
+      alertSpy.mock.calls[0]![2]!.find((b) => b.text === 'Rename')!.onPress!();
+    });
+
+    const input = rendered.root.findAll(
+      (node) => node.props?.testID === 'rename-workout-input' && typeof node.props?.onChangeText === 'function',
+    )[0]!;
+    await act(async () => {
+      input.props.onChangeText('Upper B');
+    });
+    const save = rendered.root.findAll(
+      (node) => node.props?.testID === 'rename-workout-save' && typeof node.props?.onPress === 'function',
+    )[0]!;
+    await act(async () => {
+      save.props.onPress();
+    });
+    await flush();
+
+    expect(mockPatch).toHaveBeenCalledWith('/day-types/day-1', { name: 'Upper B' });
+  });
+
+  it('prefills the current name so a small correction is not a retype', async () => {
+    mockGet = getWithWorkout();
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    const rendered = await renderScreen();
+    await openUpperA(rendered);
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Actions for Upper A')[0]!.props.onPress();
+    });
+    await act(async () => {
+      alertSpy.mock.calls[0]![2]!.find((b) => b.text === 'Rename')!.onPress!();
+    });
+
+    const input = rendered.root.findAll(
+      (node) => node.props?.testID === 'rename-workout-input' && typeof node.props?.onChangeText === 'function',
+    )[0]!;
+    expect(input.props.value).toBe('Upper A');
+  });
+
+  it('will not save an empty name', async () => {
+    mockGet = getWithWorkout();
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    const rendered = await renderScreen();
+    await openUpperA(rendered);
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Actions for Upper A')[0]!.props.onPress();
+    });
+    await act(async () => {
+      alertSpy.mock.calls[0]![2]!.find((b) => b.text === 'Rename')!.onPress!();
+    });
+
+    const input = rendered.root.findAll(
+      (node) => node.props?.testID === 'rename-workout-input' && typeof node.props?.onChangeText === 'function',
+    )[0]!;
+    await act(async () => {
+      input.props.onChangeText('   ');
+    });
+    const save = rendered.root.findAll(
+      (node) => node.props?.testID === 'rename-workout-save' && typeof node.props?.onPress === 'function',
+    )[0]!;
+    expect(save.props.disabled).toBe(true);
+    expect(mockPatch).not.toHaveBeenCalled();
+  });
+
+  it('offers rename as a non-destructive action alongside the destructive ones', async () => {
+    mockGet = getWithWorkout();
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    const rendered = await renderScreen();
+    await openUpperA(rendered);
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Actions for Upper A')[0]!.props.onPress();
+    });
+    const buttons = alertSpy.mock.calls[0]![2]!;
+    const rename = buttons.find((b) => b.text === 'Rename')!;
+    // Every other action in this sheet destroys something; this one must not
+    // be styled as though it does.
+    expect(rename.style).toBeUndefined();
   });
 });

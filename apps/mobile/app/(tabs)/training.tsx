@@ -14,6 +14,7 @@ import { Input } from '../../src/components/Input';
 import { Toast } from '../../src/components/Toast';
 import { Sheet } from '../../src/components/Sheet';
 import { WeekScheduleEditor } from '../../src/components/WeekScheduleEditor';
+import { UpcomingDaysSchedule } from '../../src/components/UpcomingDaysSchedule';
 import { AddExercisePicker } from '../../src/components/AddExercisePicker';
 import { ExerciseEditSheet, type ExerciseEditState } from '../../src/components/ExerciseEditSheet';
 import { useApiClient } from '../../src/lib/api-client';
@@ -66,6 +67,8 @@ export default function ProgramEditorScreen() {
   const [showAddExisting, setShowAddExisting] = useState(false);
   const [toast, setToast] = useState<{ variant: 'success' | 'error'; message: string } | null>(null);
   const [newWorkoutName, setNewWorkoutName] = useState('');
+  const [renamingWorkout, setRenamingWorkout] = useState<{ id: string; name: string } | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
   const [newProgramName, setNewProgramName] = useState('');
   const [showAddExercise, setShowAddExercise] = useState(false);
   const [editingExercise, setEditingExercise] = useState<ExerciseEditState | null>(null);
@@ -281,6 +284,24 @@ export default function ProgramEditorScreen() {
       setToast({ variant: 'error', message: 'Could not remove that workout from the program.' }),
   });
 
+  /* Story 55's remaining gap. The program wizard has had this since it was
+     written; Training — which is now the program editor — did not, so a
+     workout could be created with a typo and never corrected without going
+     to the web app. Same endpoint, same sheet-and-input shape as the wizard. */
+  const renameDayType = useMutation({
+    mutationFn: ({ dayTypeId, name }: { dayTypeId: string; name: string }) =>
+      api.patch<DayType>(`/day-types/${dayTypeId}`, { name }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['day-types'] });
+      void queryClient.invalidateQueries({ queryKey: ['program-day-types'] });
+      // The schedule renders day-type names, so its cache is stale too.
+      void queryClient.invalidateQueries({ queryKey: ['schedule-slots'] });
+      setRenamingWorkout(null);
+      setToast({ variant: 'success', message: 'Workout renamed.' });
+    },
+    onError: () => setToast({ variant: 'error', message: 'Could not rename that workout.' }),
+  });
+
   const deleteDayType = useMutation({
     mutationFn: (dayTypeId: string) => api.del(`/day-types/${dayTypeId}`),
     onSuccess: async () => {
@@ -360,6 +381,13 @@ export default function ProgramEditorScreen() {
      sit next to each other and the difference is the whole point. */
   function confirmWorkoutActions(dayTypeId: string, name: string) {
     Alert.alert(name, undefined, [
+      {
+        text: 'Rename',
+        onPress: () => {
+          setRenameDraft(name);
+          setRenamingWorkout({ id: dayTypeId, name });
+        },
+      },
       {
         text: 'Remove from this program',
         style: 'destructive',
@@ -789,6 +817,21 @@ export default function ProgramEditorScreen() {
         </Card>
       ) : null}
 
+      {/* Rest days, matching web's Schedule tab. Mounted only while this tab
+          is active rather than merely hidden: it fans out into 14 parallel
+          GET /dashboard/today calls, one per visible date, each several DB
+          queries server-side — no reason to pay that on every screen load. */}
+      {activeTab === 'schedule' ? (
+        <Card>
+          <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Rest days</Text>
+          <Text style={[styles.subtitle, { color: theme.text.secondary }]}>
+            Plan a rest day ahead, or correct a day you forgot to mark. Training always wins — a
+            logged workout supersedes a rest day.
+          </Text>
+          <UpcomingDaysSchedule localDate={localDate} />
+        </Card>
+      ) : null}
+
       {/* The selected workout's exercises. Belongs to the Workouts tab —
           web pairs the library and this detail panel side by side at
           desktop width and stacks them at mobile width, which is exactly
@@ -920,6 +963,33 @@ export default function ProgramEditorScreen() {
           </View>
         ))}
       </Sheet>
+
+      {renamingWorkout ? (
+        <Sheet
+          visible
+          onRequestClose={() => setRenamingWorkout(null)}
+          maxHeightPercent={50}
+          gap={spacing[8]}
+        >
+          <Text style={[styles.sheetTitle, { color: theme.text.primary }]}>Rename workout</Text>
+          <Input
+            label="Workout name"
+            value={renameDraft}
+            onChangeText={setRenameDraft}
+            testID="rename-workout-input"
+          />
+          <Button
+            label="Save"
+            testID="rename-workout-save"
+            disabled={!renameDraft.trim() || renameDayType.isPending}
+            loading={renameDayType.isPending}
+            onPress={() =>
+              renameDayType.mutate({ dayTypeId: renamingWorkout.id, name: renameDraft.trim() })
+            }
+          />
+          <Button label="Cancel" variant="secondary" onPress={() => setRenamingWorkout(null)} />
+        </Sheet>
+      ) : null}
 
       {toast ? <Toast variant={toast.variant} message={toast.message} onDismiss={() => setToast(null)} /> : null}
 
@@ -1058,6 +1128,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: spacing[8],
     paddingVertical: spacing[8],
+  },
+  sheetTitle: {
+    fontSize: typeScale.sectionTitle.fontSize,
+    fontWeight: '600',
   },
   programRowName: {
     flexDirection: 'row',

@@ -157,6 +157,14 @@ alongside their stories, named `README-{range}-{review}.md`.
   real 1 lb move, and a 2-day weight average that is exactly the
   water-weight noise `body-weight-display-psychology.md` exists to
   suppress.
+- `completed/README-52-56-mobile-parity-audit.md` — the mobile parity audit
+  pack (stories 52-56), archived once all five shipped.
+- `completed/55-mobile-program-editing-capability.md` — story 55. Most of it
+  had already shipped via story 54's IA restructure, which landed after the
+  story was written; the remaining gaps were workout rename and rest-day
+  planning on mobile. Its undo criterion inverted on contact with the code:
+  web's editor had neither undo *nor* confirmation, deleting a shared workout
+  on a single click, so parity meant adding confirmation to **web**.
 - `completed/57-movement-pattern-coverage.md` — story 57, in two parts: a
   hand-written migration backfilling `movement_pattern` (ungrouped volume in
   production went from 15,725 lb to 0), and a Movement pattern select on the

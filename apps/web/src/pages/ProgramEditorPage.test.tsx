@@ -260,8 +260,49 @@ describe('ProgramEditorPage program-scoped workouts', () => {
 
     await user.click(await screen.findByRole('button', { name: /Actions for Upper A/ }));
     await user.click(screen.getByRole('menuitem', { name: 'Remove from this program' }));
+    // Destructive, so it confirms first.
+    await user.click(await screen.findByTestId('confirm-workout-action'));
 
     expect(mockDel).toHaveBeenCalledWith(`/programs/${program.id}/day-types/day-1`);
+  });
+
+  /**
+   * Both workout actions destroy something and neither confirmed — one click
+   * on "Delete permanently" removed a workout from *every* program that used
+   * it, with no undo anywhere on this screen. Mobile has always confirmed
+   * both; this is web catching up.
+   */
+  it('confirms before deleting a workout permanently', async () => {
+    const user = userEvent.setup();
+    renderTraining();
+    await dayTypesRequested;
+    resolveDayTypes(dayTypes);
+    await screen.findAllByText('Upper A');
+
+    await user.click(await screen.findByRole('button', { name: /Actions for Upper A/ }));
+    await user.click(screen.getByRole('menuitem', { name: 'Delete permanently' }));
+
+    // Nothing is destroyed on the menu click alone.
+    expect(mockDel).not.toHaveBeenCalled();
+    // The copy has to say what makes this different from the option beside it.
+    expect(await screen.findByText(/every program that uses it/)).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('confirm-workout-action'));
+    expect(mockDel).toHaveBeenCalledWith('/day-types/day-1');
+  });
+
+  it('destroys nothing when the confirmation is cancelled', async () => {
+    const user = userEvent.setup();
+    renderTraining();
+    await dayTypesRequested;
+    resolveDayTypes(dayTypes);
+    await screen.findAllByText('Upper A');
+
+    await user.click(await screen.findByRole('button', { name: /Actions for Upper A/ }));
+    await user.click(screen.getByRole('menuitem', { name: 'Delete permanently' }));
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(mockDel).not.toHaveBeenCalled();
   });
 
   it('creates a new workout scoped to the selected program', async () => {

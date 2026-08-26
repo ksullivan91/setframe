@@ -60,20 +60,52 @@ capability gap, not a new feature.
 
 ## Acceptance Criteria
 
-- [ ] A user can add an exercise to an existing workout on mobile.
-- [ ] A user can remove an exercise from an existing workout on mobile.
-- [ ] A user can reorder exercises within a workout on mobile.
-- [ ] A user can edit an exercise's prescription on mobile.
-- [ ] A user can rename and remove a workout on mobile.
-- [ ] A user can change a program's schedule (which workout on which day).
-- [ ] A user can plan and correct rest days on mobile.
-- [ ] Destructive edits confirm, and are undoable where web is undoable.
-- [ ] Every edit surfaces failure visibly (see story 53's standard).
-- [ ] The "Edit on web" copy is removed only for capabilities actually
-      delivered — it must not claim parity it does not have.
-- [ ] Editing an existing program never mutates historical sessions
-      (ADR 0005's plan-vs-reality separation).
-- [ ] Tests cover each edit path.
+- [x] A user can add an exercise to an existing workout on mobile. *(Story 54)*
+- [x] A user can remove an exercise from an existing workout on mobile. *(54)*
+- [x] A user can reorder exercises within a workout on mobile. *(54)*
+- [x] A user can edit an exercise's prescription on mobile. *(54)*
+- [x] A user can rename and remove a workout on mobile. *(remove: 54; rename:
+      2026-08-26 — the wizard had it and the editor did not, so a workout
+      created with a typo could only be fixed on the web app)*
+- [x] A user can change a program's schedule. *(54)*
+- [x] A user can plan and correct rest days on mobile. *(2026-08-26 —
+      `UpcomingDaysSchedule`, mirroring web's component against the same
+      endpoints)*
+- [x] Destructive edits confirm, and are undoable where web is undoable.
+      **Web's editor turned out to have neither**: "Delete permanently"
+      fired on a single click, removing a workout from every program that
+      used it, with no undo anywhere on the screen. Mobile already confirmed
+      both actions, so the fix was on web — see below.
+- [x] Every edit surfaces failure visibly. *(Story 53)*
+- [x] The "Edit on web" copy is removed only for capabilities actually
+      delivered. *(Gone entirely; a test asserts its absence.)*
+- [x] Editing an existing program never mutates historical sessions. *(ADR
+      0005 holds — every mutation here touches `day_type`/`day_type_exercise`
+      only, never `workout_session`.)*
+- [x] Tests cover each edit path.
+
+## What this story actually turned out to be
+
+Most of it shipped as a side effect of story 54's IA restructure, which
+landed *after* this story was written. By 2026-08-26 mobile Training already
+had `addExerciseToWorkout`, `updateExercise`, `removeExercise`,
+`reorderExercises`, `upsertSlot`, `removeSlot`, `deleteDayType` and
+`removeFromProgram`. Three gaps remained: rename, rest days, and the undo
+question.
+
+The undo criterion inverted. It assumed web was the richer surface, and asked
+mobile to match it. Reading web's editor showed the opposite: it had no undo
+*and* no confirmation, deleting a shared workout on one click. Undo exists
+only in the creation wizard, which both platforms have. So parity here meant
+adding confirmation to **web**, not undo to mobile — building undo on mobile
+alone would have created the same divergence in reverse.
+
+## Recording the decision (as the steering document asked)
+
+No ADR is needed for a mobile read-only boundary, because there is no longer
+one. Mobile Training is a full program editor. The only remaining deliberate
+web-only surface is guided program *creation* at scale, which is a screen-size
+judgement rather than a capability boundary.
 
 ## Product-wide Definition of Done
 

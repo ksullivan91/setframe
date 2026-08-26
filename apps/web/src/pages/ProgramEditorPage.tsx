@@ -583,6 +583,13 @@ export function ProgramEditorPage() {
   const [selectedDayTypeId, setSelectedDayTypeId] = useState<string | null>(null);
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
   const [editState, setEditState] = useState<EditState | null>(null);
+  /* Both workout actions destroy something, and neither confirmed — one
+     click on "Delete permanently" removed a workout from *every* program
+     that used it, with no undo anywhere on this screen. Mobile has always
+     confirmed both; this is web catching up to it, not the reverse. */
+  const [pendingWorkoutAction, setPendingWorkoutAction] = useState<
+    { kind: 'removeFromProgram' | 'deletePermanently'; id: string; name: string } | null
+  >(null);
   const [searchParams] = useSearchParams();
   const requestedTab = searchParams.get('tab');
   const [activeTab, setActiveTab] = useState<'programs' | 'workouts' | 'schedule'>(
@@ -1048,12 +1055,22 @@ export function ProgramEditorPage() {
                       {
                         label: 'Remove from this program',
                         destructive: true,
-                        onClick: () => removeFromProgram.mutate(selectedDayType.id),
+                        onClick: () =>
+                          setPendingWorkoutAction({
+                            kind: 'removeFromProgram',
+                            id: selectedDayType.id,
+                            name: selectedDayType.name,
+                          }),
                       },
                       {
                         label: 'Delete permanently',
                         destructive: true,
-                        onClick: () => deleteDayType.mutate(selectedDayType.id),
+                        onClick: () =>
+                          setPendingWorkoutAction({
+                            kind: 'deletePermanently',
+                            id: selectedDayType.id,
+                            name: selectedDayType.name,
+                          }),
                       },
                     ]}
                   />
@@ -1166,6 +1183,46 @@ export function ProgramEditorPage() {
           ) : null}
         </ScheduleLayout>
       </div>
+
+      <SharedModal
+        open={pendingWorkoutAction != null}
+        onClose={() => setPendingWorkoutAction(null)}
+        title={
+          pendingWorkoutAction?.kind === 'deletePermanently'
+            ? `Delete ${pendingWorkoutAction.name}?`
+            : `Remove ${pendingWorkoutAction?.name ?? 'workout'} from this program?`
+        }
+        /* The two options sit next to each other in one menu and the
+           difference between them is the whole point, so the destructive one
+           says plainly that it is not scoped to this program. Same copy as
+           mobile's confirmation. */
+        description={
+          pendingWorkoutAction?.kind === 'deletePermanently'
+            ? 'This deletes the workout for every program that uses it, along with its exercises. Workouts you have already logged are not affected.'
+            : 'The workout itself is kept, along with any other program using it. Its scheduled days in this program are cleared.'
+        }
+      >
+        <Row style={{ justifyContent: 'flex-end', gap: spacing[8] }}>
+          <Button variant="secondary" onClick={() => setPendingWorkoutAction(null)}>
+            Cancel
+          </Button>
+          <Button
+            data-testid="confirm-workout-action"
+            disabled={removeFromProgram.isPending || deleteDayType.isPending}
+            onClick={() => {
+              if (!pendingWorkoutAction) return;
+              if (pendingWorkoutAction.kind === 'deletePermanently') {
+                deleteDayType.mutate(pendingWorkoutAction.id);
+              } else {
+                removeFromProgram.mutate(pendingWorkoutAction.id);
+              }
+              setPendingWorkoutAction(null);
+            }}
+          >
+            {pendingWorkoutAction?.kind === 'deletePermanently' ? 'Delete' : 'Remove'}
+          </Button>
+        </Row>
+      </SharedModal>
 
       {editState ? (
         <ExerciseEditModal
