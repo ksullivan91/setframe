@@ -283,6 +283,22 @@ const SavePresetRow = styled.div`
  * distance unit to the user's stated preference, and requires only
  * duration (plus a name for "Other") to save.
  */
+/**
+ * This section's own data, as shared query options.
+ *
+ * Exported so Today can wait for it before rendering anything. The section
+ * used to paint its card shell — title and the add button — the instant the
+ * page mounted, which put a fully-drawn "Additional activity" card *above*
+ * the skeleton still standing in for the rest of Today. React Query dedupes
+ * on the key, so the page subscribing to this costs no extra request.
+ */
+export function additionalActivitiesQuery(api: ReturnType<typeof useApiClient>, localDate: string) {
+  return {
+    queryKey: ['additional-activities', localDate] as const,
+    queryFn: () => api.get<{ items: AdditionalActivity[] }>(`/additional-activities?localDate=${localDate}`),
+  };
+}
+
 export function TodayAdditionalActivitySection({ localDate }: { localDate: string }) {
   const api = useApiClient();
   const toast = useToast();
@@ -293,10 +309,7 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
   const [pendingDelete, setPendingDelete] = useState<AdditionalActivity | null>(null);
   const [presetTitleDraft, setPresetTitleDraft] = useState('');
 
-  const query = useQuery({
-    queryKey: ['additional-activities', localDate],
-    queryFn: () => api.get<{ items: AdditionalActivity[] }>(`/additional-activities?localDate=${localDate}`),
-  });
+  const query = useQuery(additionalActivitiesQuery(api, localDate));
 
   // Story 43 — recent suggestions only matter while adding something new,
   // so this only fetches once the form is actually open, and never for an

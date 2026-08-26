@@ -84,6 +84,23 @@ function buildBody(localDate: string, draft: ActivityDraft) {
  * Today's main dashboard query, so a failed activity request degrades
  * this section alone and never blocks the scheduled workout card.
  */
+/**
+ * This section's own data, as shared query options — the native counterpart
+ * to web's export of the same name.
+ *
+ * Exported so Today can wait for it before rendering anything. The section
+ * used to paint its card the instant the screen mounted, because it fetches
+ * separately from the dashboard, so a finished "Additional activity" card sat
+ * above content that had not loaded. React Query dedupes on the key, so the
+ * screen subscribing to this costs no extra request.
+ */
+export function additionalActivitiesQuery(api: ReturnType<typeof useApiClient>, localDate: string) {
+  return {
+    queryKey: ['additional-activities', localDate] as const,
+    queryFn: () => api.get<{ items: AdditionalActivity[] }>(`/additional-activities?localDate=${localDate}`),
+  };
+}
+
 export function TodayAdditionalActivitySection({ localDate }: { localDate: string }) {
   const theme = useTheme();
   const api = useApiClient();
@@ -94,10 +111,7 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
   const [toast, setToast] = useState<{ variant: 'success' | 'error'; message: string } | null>(null);
   const [presetTitleDraft, setPresetTitleDraft] = useState('');
 
-  const query = useQuery({
-    queryKey: ['additional-activities', localDate],
-    queryFn: () => api.get<{ items: AdditionalActivity[] }>(`/additional-activities?localDate=${localDate}`),
-  });
+  const query = useQuery(additionalActivitiesQuery(api, localDate));
 
   // Story 42 — a new activity's distance unit defaults to the user's
   // preference; editing an existing one still preserves its own stored

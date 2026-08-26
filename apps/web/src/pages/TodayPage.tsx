@@ -30,6 +30,7 @@ import {
   Skeleton,
   SkeletonStack,
   TodayAdditionalActivitySection,
+  additionalActivitiesQuery,
   useAsyncStatus,
   useToast,
 } from '../components';
@@ -610,6 +611,17 @@ export function TodayPage() {
     queryKey: ['today', localDate],
     queryFn: () => fetchToday(api, localDate),
   });
+  /* Subscribed here purely so "has Today finished loading?" can account for
+     it. React Query dedupes on the key, so this shares the request the
+     section below makes rather than issuing a second one. */
+  const additionalActivities = useQuery(additionalActivitiesQuery(api, localDate));
+  /* Every panel on this page waits for this one flag.
+     Previously each section decided for itself: the dashboard query drove the
+     check-in skeleton, while Additional activity and Today summary rendered
+     their shells immediately. The result was a finished card sitting above a
+     skeleton, and a summary confidently reporting "0 of 5 steps complete"
+     with em-dashes for data that simply had not arrived yet. */
+  const isPageLoading = isLoading || additionalActivities.isLoading;
   const manual = data?.manualEntry;
   const [weight, setWeight] = useState('');
   const [journal, setJournal] = useState('');
@@ -835,7 +847,7 @@ export function TodayPage() {
             <Subtitle>Keep the morning quick, then move straight into today’s training.</Subtitle>
           </Header>
 
-          {showProgramSetupPrompt || (!isLoading && !isError) ? (
+          {showProgramSetupPrompt || (!isPageLoading && !isError) ? (
             <PrimaryWorkoutCard>
               <WorkoutCardHeader>
                 <SectionTitle style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -975,11 +987,17 @@ export function TodayPage() {
 
           {/* Story 41 — available on training, recovery, rest, and
               no-program days alike; deliberately outside every
-              `todayWorkoutState` branch above. */}
-          <TodayAdditionalActivitySection localDate={localDate} />
+              `todayWorkoutState` branch above.
+
+              Held back until the page has loaded. It owns its own query, so
+              it used to paint its card shell immediately and sat fully drawn
+              above the skeleton standing in for everything else. Not gated on
+              `isError`: its data is independent of the dashboard, so a failed
+              Today should not take a working feature down with it. */}
+          {!isPageLoading ? <TodayAdditionalActivitySection localDate={localDate} /> : null}
 
           <RitualCard>
-            {isLoading ? (
+            {isPageLoading ? (
               <SkeletonStack $gap={16}>
                 {Array.from({ length: 3 }).map((_, i) => (
                   <StepRow key={i}>
@@ -1144,6 +1162,11 @@ export function TodayPage() {
         </Stack>
 
         <Stack>
+          {/* Held back until the page has loaded, and until Today actually
+              has data. Every figure below is derived from the dashboard, so
+              rendering early reported "0 of 5 steps complete" beside three
+              em-dashes — not a placeholder but a confident wrong answer. */}
+          {!isPageLoading && !isError ? (
           <Card>
             <SectionTitle style={{ marginBottom: 8 }}>Today summary</SectionTitle>
             <StepBody>{completedSteps} of 5 steps complete.</StepBody>
@@ -1162,6 +1185,7 @@ export function TodayPage() {
               </MetaTile>
             </MetaList>
           </Card>
+          ) : null}
 
           {data?.scheduleSource === 'override' ? (
             <Card>

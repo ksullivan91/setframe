@@ -138,6 +138,56 @@ afterEach(() => {
   jest.clearAllMocks();
 });
 
+/**
+ * The screen presents one loading state, not several racing each other.
+ *
+ * Additional activity fetches separately from the dashboard, so it used to
+ * paint its finished card above a check-in card still full of blanks — which
+ * reads as "you have logged nothing today" rather than "still loading".
+ */
+describe('TodayScreen loading state', () => {
+  function textsIn(rendered: ReactTestRenderer): string[] {
+    return rendered.root
+      .findAll((node) => typeof node.type === 'string')
+      .flatMap((node) => ([] as unknown[]).concat(node.props?.children))
+      .filter((child): child is string => typeof child === 'string');
+  }
+
+  it('shows nothing but the header while Today is loading', async () => {
+    mockGet = () => new Promise(() => {}); // never resolves
+    const rendered = await renderScreen();
+
+    const texts = textsIn(rendered);
+    expect(texts).toContain('Today');
+    expect(texts).not.toContain('Additional activity');
+    expect(texts).not.toContain("Today's check-in");
+  });
+
+  it('keeps them hidden while only the additional-activity request is outstanding', async () => {
+    /* The dashboard resolving first is the ordering that produced the bug
+       report: Today had data, so its own gate cleared, while Additional
+       activity was still fetching and drew its empty shell. */
+    mockGet = (path: string) => {
+      if (path.startsWith('/additional-activities')) return new Promise(() => {});
+      if (path.startsWith('/dashboard/today')) return Promise.resolve(todayPayload());
+      if (path === '/programs') return Promise.resolve([{ id: 'program-1', isActive: true }]);
+      return Promise.resolve([]);
+    };
+    const rendered = await renderScreen();
+
+    const texts = textsIn(rendered);
+    expect(texts).not.toContain('Additional activity');
+    expect(texts).not.toContain("Today's check-in");
+  });
+
+  it('shows the screen once everything has loaded', async () => {
+    mockGet = getFor(todayPayload());
+    const rendered = await renderScreen();
+
+    expect(textsIn(rendered)).toContain("Today's check-in");
+  });
+});
+
 describe('TodayScreen rest days', () => {
   it('offers a rest day alongside choosing a workout when nothing is scheduled', async () => {
     mockGet = getFor(todayPayload());

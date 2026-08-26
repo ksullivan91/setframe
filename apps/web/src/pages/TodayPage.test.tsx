@@ -47,6 +47,73 @@ describe('TodayPage', () => {
   });
 });
 
+/** A minimal scheduled-day dashboard payload. */
+function baseToday() {
+  return {
+    localDate: '2026-08-22',
+    dayTypeId: 'day-1',
+    dayLabel: 'Push',
+    weekLabel: 'Week 3',
+    sessions: [],
+    manualEntry: null,
+    activitySummary: null,
+    nutritionSnapshot: null,
+    syncState: null,
+  };
+}
+
+/**
+ * The page presents one loading state, not several racing each other.
+ *
+ * Additional activity and Today summary each owned their own readiness:
+ * Additional activity painted its card shell the moment the page mounted
+ * (it fetches separately), and Today summary rendered straight from
+ * still-undefined dashboard data. The result was a finished card and a
+ * summary claiming "0 of 5 steps complete" sitting above the skeleton that
+ * stood in for everything else.
+ */
+describe('TodayPage loading state', () => {
+  it('shows nothing but the header and skeleton while Today is loading', async () => {
+    mockGet = () => new Promise(() => {}); // never resolves
+    renderTodayPage();
+
+    expect(screen.getByText('Today')).toBeInTheDocument();
+    expect(screen.queryByText('Additional activity')).not.toBeInTheDocument();
+    expect(screen.queryByText('Today summary')).not.toBeInTheDocument();
+    expect(screen.queryByText(/of 5 steps complete/)).not.toBeInTheDocument();
+  });
+
+  it('keeps them hidden while only the additional-activity request is outstanding', async () => {
+    /* The dashboard resolving first is the ordering that produced the
+       screenshot: Today had data, so its skeleton cleared, while Additional
+       activity was still fetching and drew its empty shell. */
+    mockGet = (path: string) => {
+      if (path.startsWith('/additional-activities')) return new Promise(() => {});
+      if (path.startsWith('/dashboard/today')) return Promise.resolve(baseToday());
+      if (path === '/programs') return Promise.resolve([{ id: 'p1', isActive: true }]);
+      return Promise.resolve(null);
+    };
+    renderTodayPage();
+
+    await screen.findByText('Today');
+    expect(screen.queryByText('Additional activity')).not.toBeInTheDocument();
+    expect(screen.queryByText('Today summary')).not.toBeInTheDocument();
+  });
+
+  it('shows both once everything has loaded', async () => {
+    mockGet = (path: string) => {
+      if (path.startsWith('/additional-activities')) return Promise.resolve({ items: [] });
+      if (path.startsWith('/dashboard/today')) return Promise.resolve(baseToday());
+      if (path === '/programs') return Promise.resolve([{ id: 'p1', isActive: true }]);
+      return Promise.resolve(null);
+    };
+    renderTodayPage();
+
+    expect(await screen.findByText('Additional activity')).toBeInTheDocument();
+    expect(await screen.findByText('Today summary')).toBeInTheDocument();
+  });
+});
+
 /** Story 06: a completed-but-not-active session must show the completed
  * review state instead of the Start/Preview/Change/Skip action row — it
  * previously fell through to the "scheduled" state because

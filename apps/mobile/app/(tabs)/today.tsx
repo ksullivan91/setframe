@@ -31,8 +31,12 @@ import { Input } from '../../src/components/Input';
 import { MetricTile } from '../../src/components/MetricTile';
 import { SyncStatusPill, type SyncStatus } from '../../src/components/SyncStatusPill';
 import { Checkbox } from '../../src/components/Checkbox';
+import { Skeleton, SkeletonStack } from '../../src/components/Skeleton';
 import { Toast } from '../../src/components/Toast';
-import { TodayAdditionalActivitySection } from '../../src/components/TodayAdditionalActivitySection';
+import {
+  TodayAdditionalActivitySection,
+  additionalActivitiesQuery,
+} from '../../src/components/TodayAdditionalActivitySection';
 import { countsTowardVolume, isSessionSetLogged } from '../../src/lib/prescription';
 import { visibleSessionExercises } from '@setframe/domain';
 import { ApiError, useApiClient } from '../../src/lib/api-client';
@@ -260,6 +264,15 @@ export default function TodayScreen() {
     queryKey: ['today', localDate],
     queryFn: () => api.get<DashboardTodayResponse>(`/dashboard/today?localDate=${localDate}`),
   });
+
+  /* Subscribed here purely so "has Today finished loading?" can account for
+     it. React Query dedupes on the key, so this shares the request the
+     section below makes rather than issuing a second one. */
+  const additionalActivities = useQuery(additionalActivitiesQuery(api, localDate));
+  /* Every panel on this screen waits for this one flag. Previously each
+     decided for itself, so Additional activity — which fetches separately —
+     drew its finished card above a check-in card still full of blanks. */
+  const isPageLoading = todayQuery.isLoading || additionalActivities.isLoading;
 
   const manual = todayQuery.data?.manualEntry;
 
@@ -654,13 +667,38 @@ export default function TodayScreen() {
 
       {/* Story 41 — available on training, recovery, rest, and no-program
           days alike; deliberately outside every todayWorkoutState branch
-          above. */}
-      <TodayAdditionalActivitySection localDate={localDate} />
+          above.
+
+          Held back until the screen has loaded. It owns its own query, so it
+          used to paint its finished card above content that had not arrived.
+          Not gated on the dashboard's error state: its data is independent,
+          so a failed Today should not take a working feature down with it. */}
+      {!isPageLoading ? <TodayAdditionalActivitySection localDate={localDate} /> : null}
 
       {toast ? (
         <Toast variant={toast.variant} message={toast.message} onDismiss={() => setToast(null)} />
       ) : null}
 
+      {/* One loading state for the screen, matching web. Previously these
+          cards rendered immediately with every value blank, which reads as
+          "you have logged nothing today" rather than "this is still
+          loading" — a meaningfully wrong message on a check-in screen. */}
+      {isPageLoading ? (
+        <Card>
+          <SkeletonStack gap={16}>
+            {[0, 1, 2].map((row) => (
+              <View key={row} style={styles.stepRow}>
+                <Skeleton rounded height={22} width={22} />
+                <View style={styles.stepContent}>
+                  <Skeleton width="40%" height={16} />
+                  <Skeleton width="70%" height={13} />
+                </View>
+              </View>
+            ))}
+          </SkeletonStack>
+        </Card>
+      ) : (
+      <>
       <Card>
         <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Today&apos;s check-in</Text>
 
@@ -787,6 +825,8 @@ export default function TodayScreen() {
           </View>
         </View>
       </Card>
+      </>
+      )}
     </ScrollView>
   );
 }
