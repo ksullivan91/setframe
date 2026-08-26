@@ -163,6 +163,12 @@ function pressablesByLabel(rendered: ReactTestRenderer, label: string) {
   });
 }
 
+function hostsByTestId(rendered: ReactTestRenderer, testID: string) {
+  return rendered.root.findAll(
+    (node) => node.props?.testID === testID && typeof node.type === 'string',
+  );
+}
+
 function textInputsByLabel(rendered: ReactTestRenderer, label: string) {
   return rendered.root.findAll(
     (node) =>
@@ -397,170 +403,126 @@ describe('WorkoutSessionScreen persistent session actions', () => {
  * sets" rather than automatic cascade, so a manually-edited set is never
  * silently overwritten (only ever by the user's own next click).
  */
-describe('WorkoutSessionScreen collapsible quick-entry', () => {
-  it('pre-fills the quick-entry header from the first set, matching what session-start already templated', async () => {
-    mockSessionPayload = baseSession({ sets: [baseSet(), baseSet({ id: 'set-2', sortOrder: 1 })] });
-    const rendered = await renderScreen();
+/**
+ * Stories 58 and 59 — Quick Log replaces the old "Apply to all sets" header.
+ * Mirrors WorkoutSessionPage.test.tsx case for case, so parity is tested
+ * rather than intended.
+ *
+ * The fixture is a `distanceDuration` exercise, so Quick Log offers distance
+ * and duration — and never RPE, which is optional for every representation.
+ */
+describe('WorkoutSessionScreen quick log', () => {
+  /** A set with none of its required values entered yet. */
+  const unlogged = (overrides = {}) =>
+    baseSet({ durationSeconds: null, distanceValue: null, ...overrides });
 
-    const header = textInputsByLabel(rendered, 'All sets: Duration (min)')[0]!;
-    expect(header.props.value).toBe('30');
-  });
-
-  it('applies the header value to every set only when Apply to all sets is explicitly clicked', async () => {
-    mockSessionPayload = baseSession({ sets: [baseSet(), baseSet({ id: 'set-2', sortOrder: 1 })] });
-    const rendered = await renderScreen();
-
-    const header = textInputsByLabel(rendered, 'All sets: Duration (min)')[0]!;
-    await act(async () => {
-      header.props.onChangeText('45');
-    });
-
-    // Not applied yet — each set's own field is untouched.
-    let perSetDuration = textInputsByLabel(rendered, 'Duration (min)');
-    expect(perSetDuration[0]!.props.value).toBe('30');
-    expect(perSetDuration[1]!.props.value).toBe('30');
-
-    await act(async () => {
-      pressablesByLabel(rendered, 'Apply to all sets')[0]!.props.onPress();
-    });
-
-    perSetDuration = textInputsByLabel(rendered, 'Duration (min)');
-    expect(perSetDuration[0]!.props.value).toBe('45');
-    expect(perSetDuration[1]!.props.value).toBe('45');
-  });
-
-  it('leaves a manual per-set override alone unless Apply to all sets is clicked again', async () => {
-    // Set 2 differs from set 1 on every quick-entry field, not just
-    // duration — otherwise a bug that applied the *whole* header (instead
-    // of only the field the user actually touched) couldn't be caught:
-    // distance/rpe would already coincidentally match and look unchanged.
+  it('logs every unlogged set in one request', async () => {
     mockSessionPayload = baseSession({
-      sets: [baseSet(), baseSet({ id: 'set-2', sortOrder: 1, distanceValue: 8, rpe: 6 })],
+      sets: [unlogged(), unlogged({ id: 'set-2', sortOrder: 1 })],
     });
     const rendered = await renderScreen();
 
-    let perSetDuration = textInputsByLabel(rendered, 'Duration (min)');
     await act(async () => {
-      perSetDuration[1]!.props.onChangeText('20');
+      textInputsByLabel(rendered, 'Quick log: Distance')[0]!.props.onChangeText('5');
     });
-    perSetDuration = textInputsByLabel(rendered, 'Duration (min)');
-    expect(perSetDuration[1]!.props.value).toBe('20');
+    await act(async () => {
+      textInputsByLabel(rendered, 'Quick log: Duration (min)')[0]!.props.onChangeText('30');
+    });
+    await act(async () => {
+      pressablesByLabel(rendered, 'Log all 2 sets')[0]!.props.onPress();
+    });
 
-    // Editing the header itself, without clicking Apply, never touches any
-    // set — the cascade is only ever triggered by the explicit button.
-    const header = textInputsByLabel(rendered, 'All sets: Duration (min)')[0]!;
-    await act(async () => {
-      header.props.onChangeText('45');
-    });
-    perSetDuration = textInputsByLabel(rendered, 'Duration (min)');
-    expect(perSetDuration[1]!.props.value).toBe('20');
-
-    // Clicking Apply is the one action that does overwrite it — an
-    // explicit, deliberate re-application, not a silent one. Only the
-    // field actually edited in the header (duration) should move; set 2's
-    // own distance/rpe — never touched in the header — must survive.
-    await act(async () => {
-      pressablesByLabel(rendered, 'Apply to all sets')[0]!.props.onPress();
-    });
-    expect(textInputsByLabel(rendered, 'Distance')[1]!.props.value).toBe('8');
-    expect(textInputsByLabel(rendered, 'RPE')[1]!.props.value).toBe('6');
-    perSetDuration = textInputsByLabel(rendered, 'Duration (min)');
-    expect(perSetDuration[1]!.props.value).toBe('45');
+    // One call, not two — the user is not serialised behind the network.
+    expect(mockPost).toHaveBeenCalledWith(
+      '/workout-exercise-logs/log-1/quick-log',
+      expect.objectContaining({ setIds: ['set-1', 'set-2'] }),
+    );
   });
 
-  it('changing only the distance unit does not drag the distance value along when applied', async () => {
+  it('names only the sets it will actually write once some are logged', async () => {
     mockSessionPayload = baseSession({
-      sets: [baseSet({ distanceValue: 5 }), baseSet({ id: 'set-2', sortOrder: 1, distanceValue: 8 })],
+      sets: [baseSet(), unlogged({ id: 'set-2', sortOrder: 1 })],
     });
     const rendered = await renderScreen();
 
-    // Only the unit dropdown is touched — the distance value input itself
-    // is never edited.
-    await act(async () => {
-      selectsByLabel(rendered, 'All sets: Distance unit')[0]!.props.onChange('km');
-    });
-    await act(async () => {
-      pressablesByLabel(rendered, 'Apply to all sets')[0]!.props.onPress();
-    });
-
-    // The unit applies to both sets...
-    const perSetUnit = selectsByLabel(rendered, 'Unit');
-    expect(perSetUnit[0]!.props.value).toBe('km');
-    expect(perSetUnit[1]!.props.value).toBe('km');
-    // ...but each set's own distance value — never touched in the header
-    // — must survive untouched.
-    const perSetDistance = textInputsByLabel(rendered, 'Distance');
-    expect(perSetDistance[0]!.props.value).toBe('5');
-    expect(perSetDistance[1]!.props.value).toBe('8');
+    // "Log all 2 sets" would misstate both the count and the effect.
+    expect(pressablesByLabel(rendered, 'Log remaining set')).toHaveLength(1);
   });
 
-  it('clears the touched header fields after a successful Apply, so a later click cannot silently reapply a stale edit', async () => {
+  it('never writes over a set the user already logged by hand', async () => {
     mockSessionPayload = baseSession({
-      sets: [baseSet({ durationSeconds: 1800 }), baseSet({ id: 'set-2', sortOrder: 1, durationSeconds: 1200 })],
+      sets: [unlogged(), baseSet({ id: 'set-2', sortOrder: 1, distanceValue: 8 })],
     });
     const rendered = await renderScreen();
 
-    const headerDuration = textInputsByLabel(rendered, 'All sets: Duration (min)')[0]!;
     await act(async () => {
-      headerDuration.props.onChangeText('60');
+      textInputsByLabel(rendered, 'Quick log: Distance')[0]!.props.onChangeText('5');
     });
     await act(async () => {
-      pressablesByLabel(rendered, 'Apply to all sets')[0]!.props.onPress();
-    });
-    expect(textInputsByLabel(rendered, 'Duration (min)')[1]!.props.value).toBe('60');
-
-    // Set 2's duration is hand-edited back to something else after the
-    // apply...
-    let perSetDuration = textInputsByLabel(rendered, 'Duration (min)');
-    await act(async () => {
-      perSetDuration[1]!.props.onChangeText('15');
-    });
-    perSetDuration = textInputsByLabel(rendered, 'Duration (min)');
-    expect(perSetDuration[1]!.props.value).toBe('15');
-
-    // ...and now the user edits the header's *distance* only, then
-    // applies. The stale "duration" touch from earlier must not still be
-    // armed — set 2's hand-edited duration must survive this unrelated
-    // apply.
-    const headerDistance = textInputsByLabel(rendered, 'All sets: Distance')[0]!;
-    await act(async () => {
-      headerDistance.props.onChangeText('12');
+      textInputsByLabel(rendered, 'Quick log: Duration (min)')[0]!.props.onChangeText('30');
     });
     await act(async () => {
-      pressablesByLabel(rendered, 'Apply to all sets')[0]!.props.onPress();
+      pressablesByLabel(rendered, 'Log remaining set')[0]!.props.onPress();
     });
 
-    perSetDuration = textInputsByLabel(rendered, 'Duration (min)');
-    expect(perSetDuration[1]!.props.value).toBe('15');
-    expect(textInputsByLabel(rendered, 'Distance')[1]!.props.value).toBe('12');
+    const call = mockPost.mock.calls.filter(([path]) => String(path).endsWith('/quick-log')).at(-1)!;
+    expect((call[1] as { setIds: string[] }).setIds).toEqual(['set-1']);
   });
 
-  it('collapses and re-expands an exercise, hiding and restoring its set editor', async () => {
+  it('never writes a warmup at the working values', async () => {
+    mockSessionPayload = baseSession({
+      sets: [unlogged({ setType: 'warmup' }), unlogged({ id: 'set-2', sortOrder: 1 })],
+    });
+    const rendered = await renderScreen();
+
+    // One working set, so the warmup is excluded from the count as well.
+    expect(pressablesByLabel(rendered, 'Log 1 set')).toHaveLength(1);
+  });
+
+  it('does not offer RPE, which is optional and set-specific', async () => {
+    mockSessionPayload = baseSession({ sets: [unlogged()] });
+    const rendered = await renderScreen();
+
+    expect(textInputsByLabel(rendered, 'Quick log: Distance')).toHaveLength(1);
+    expect(textInputsByLabel(rendered, 'Quick log: RPE')).toHaveLength(0);
+  });
+
+  it('will not log until every required value is present', async () => {
+    mockSessionPayload = baseSession({ sets: [unlogged()] });
+    const rendered = await renderScreen();
+
+    // Writing sets that still would not count as logged looks like a
+    // silent failure.
+    expect(pressablesByLabel(rendered, 'Log 1 set')[0]!.props.accessibilityState?.disabled).toBe(true);
+  });
+
+  it('disappears once there is nothing left to log', async () => {
     mockSessionPayload = baseSession({ sets: [baseSet()] });
     const rendered = await renderScreen();
 
-    expect(textInputsByLabel(rendered, 'Duration (min)')).toHaveLength(1);
-    // The quick-entry header stays visible either way.
-    expect(textInputsByLabel(rendered, 'All sets: Duration (min)')).toHaveLength(1);
+    expect(hostsByTestId(rendered, 'quick-log-panel-log-1')).toHaveLength(0);
+  });
+
+  it('collapses and re-expands an exercise, hiding and restoring its set editor', async () => {
+    // A fully logged set, so Quick Log is absent and this is purely about the
+    // detailed region opening and closing.
+    mockSessionPayload = baseSession({ sets: [baseSet()] });
+    const rendered = await renderScreen();
+
+    expect(textInputsByLabel(rendered, 'Duration (min)').length).toBeGreaterThan(0);
 
     await act(async () => {
       pressablesByLabel(rendered, 'Collapse Outdoor Cycle')[0]!.props.onPress();
     });
     expect(textInputsByLabel(rendered, 'Duration (min)')).toHaveLength(0);
-    expect(textInputsByLabel(rendered, 'All sets: Duration (min)')).toHaveLength(1);
 
     await act(async () => {
       pressablesByLabel(rendered, 'Expand Outdoor Cycle')[0]!.props.onPress();
     });
-    expect(textInputsByLabel(rendered, 'Duration (min)')).toHaveLength(1);
+    expect(textInputsByLabel(rendered, 'Duration (min)').length).toBeGreaterThan(0);
   });
 });
 
-/**
- * Story 38 — exercise-level completion state, derived from every set's
- * own required-field completeness (packages/domain's isExerciseComplete),
- * never a UI flag toggled on accordion close.
- */
 describe('WorkoutSessionScreen exercise completion state', () => {
   it('shows Complete once every set has its required fields', async () => {
     mockSessionPayload = baseSession({
@@ -600,8 +562,14 @@ describe('WorkoutSessionScreen exercise completion state', () => {
  * often focus moves between controls in the same exercise.
  */
 describe('WorkoutSessionScreen single-active-exercise accordion', () => {
-  function twoExerciseSession(): WorkoutSessionDetail {
-    const base = baseSession({ sets: [baseSet()] });
+  /**
+   * @param logged Whether both exercises' sets already have their required
+   *   values. Unlogged sets are what make Quick Log render at all, so a test
+   *   about Quick Log has to ask for them explicitly.
+   */
+  function twoExerciseSession(logged = true): WorkoutSessionDetail {
+    const set = logged ? baseSet() : baseSet({ durationSeconds: null, distanceValue: null });
+    const base = baseSession({ sets: [set] });
     return {
       ...base,
       exercises: [
@@ -638,20 +606,27 @@ describe('WorkoutSessionScreen single-active-exercise accordion', () => {
     expect(pressablesByLabel(rendered, 'Expand Outdoor Cycle')).toHaveLength(1);
   });
 
-  it('focusing a quick-entry field inside a collapsed exercise activates it too', async () => {
-    mockSessionPayload = twoExerciseSession();
+  it('focusing another exercise\'s Quick Log does not expand it', async () => {
+    mockSessionPayload = twoExerciseSession(false);
     const rendered = await renderScreen();
 
-    // The quick-entry header stays visible even while collapsed (Story 37)
-    // — focusing it is exactly the "focus lands inside this exercise"
-    // trigger.
-    const secondHeaderDuration = textInputsByLabel(rendered, 'All sets: Duration (min)')[1]!;
+    /* Story 58 reverses what this used to assert. Focus landing inside a
+       card still activates the exercise, but Quick Log is explicitly exempt:
+       the old behaviour meant touching a quick-entry box expanded the whole
+       accordion and destroyed the lightweight path, which is the gym test's
+       specific complaint. Detailed Sets open only through the explicit
+       control now.
+
+       Asserted on behaviour rather than on the absence of an `onFocus` prop:
+       the `Input` component supplies its own for focus styling, so the prop
+       is always present and its absence would test the wrong thing. */
+    const secondQuickLog = textInputsByLabel(rendered, 'Quick log: Duration (min)')[1]!;
     await act(async () => {
-      secondHeaderDuration.props.onFocus();
+      secondQuickLog.props.onFocus?.({ nativeEvent: {} });
     });
 
-    expect(pressablesByLabel(rendered, 'Collapse Indoor Cycle')).toHaveLength(1);
-    expect(pressablesByLabel(rendered, 'Expand Outdoor Cycle')).toHaveLength(1);
+    expect(pressablesByLabel(rendered, 'Expand Indoor Cycle')).toHaveLength(1);
+    expect(pressablesByLabel(rendered, 'Collapse Outdoor Cycle')).toHaveLength(1);
   });
 
   it('manually collapsing the active exercise leaves none expanded', async () => {
