@@ -5,6 +5,9 @@ import {
   bucketStart,
   bucketWindow,
   buildProgressSeries,
+  comparePeriods,
+  countBucketForRange,
+  currentPeriodLabel,
   daysBetween,
   defaultRange,
   monthStart,
@@ -16,6 +19,7 @@ import {
   subtractMonths,
   windowForRange,
 } from './progress-range';
+import { isoWeekStart } from './training-trends';
 
 /* Deterministic fixtures, per the story's list. `END` is a Tuesday, so the
    Monday-anchored week boundary is exercised rather than accidentally
@@ -427,6 +431,20 @@ describe('buildProgressSeries zeroFrom', () => {
     expect(priorWeek?.value).toBeNull();
   });
 
+  it('accepts a bucket override so a count chart can differ from a measurement', () => {
+    const series = buildProgressSeries(oneSession, {
+      range: 'M',
+      endLocalDate: '2026-08-25',
+      aggregation: 'sum',
+      bucket: countBucketForRange('M', 31),
+    });
+    expect(series.bucket).toBe('week');
+    // Every mark must land on a Monday once weekly.
+    expect(series.points.every((point) => isoWeekStart(point.localDate) === point.localDate)).toBe(
+      true,
+    );
+  });
+
   it('zeroes every empty bucket when no bound is given', () => {
     const series = buildProgressSeries(oneSession, {
       range: 'M',
@@ -435,5 +453,87 @@ describe('buildProgressSeries zeroFrom', () => {
       emptyIsZero: true,
     });
     expect(series.points.every((point) => point.value !== null)).toBe(true);
+  });
+});
+
+describe('comparePeriods', () => {
+  function weekly(points: SeriesPoint[], end = '2026-08-25') {
+    return buildProgressSeries(points, {
+      range: '3M',
+      endLocalDate: end,
+      aggregation: 'sum',
+      bucket: 'week',
+      emptyIsZero: true,
+      zeroFrom: points[0]?.localDate ?? null,
+    });
+  }
+
+  it('reports the change between the last two periods', () => {
+    const series = weekly([
+      { localDate: '2026-08-03', value: 3 },
+      { localDate: '2026-08-10', value: 2 },
+      { localDate: '2026-08-24', value: 5 },
+    ]);
+    const comparison = comparePeriods(series, '2026-08-25')!;
+    expect(comparison.current.value).toBe(5);
+    // The week of the 17th was empty but the user was logging, so it is a
+    // real zero and the change is measured against it.
+    expect(comparison.previous?.value).toBe(0);
+    expect(comparison.change).toBe(5);
+  });
+
+  it('withholds a comparison when the previous period predates the user', () => {
+    /* The Story 51 trap: an unknown prior week treated as zero manufactures a
+       baseline from a period the user was not there for — "compared with 0
+       last week" for a week before they had an account. */
+    const series = weekly([{ localDate: '2026-08-24', value: 2 }]);
+    const previousUnknown = {
+      ...series,
+      points: [
+        { localDate: '2026-08-17', value: null, sampleCount: 0 },
+        series.points.at(-1)!,
+      ],
+    };
+    const comparison = comparePeriods(previousUnknown, '2026-08-25')!;
+    expect(comparison.previous?.value).toBeNull();
+    expect(comparison.change).toBeNull();
+  });
+
+  it('flags a week still being lived in as partial', () => {
+    // 2026-08-25 is a Tuesday; its week does not close until Sunday the 30th.
+    expect(comparePeriods(weekly([{ localDate: '2026-08-24', value: 2 }]), '2026-08-25')!.isPartial).toBe(true);
+  });
+
+  it('treats a week as partial right up to its final day', () => {
+    // Sunday the 30th closes the week, but it is still being lived in: the
+    // user can train that evening, so the bar is not yet a finished total.
+    const series = weekly([{ localDate: '2026-08-24', value: 2 }], '2026-08-30');
+    expect(comparePeriods(series, '2026-08-30')!.isPartial).toBe(true);
+  });
+
+  it('does not flag a finished period a user has since stopped logging in', () => {
+    /* ALL ends at the last observation rather than today, so its final bucket
+       is genuinely complete — nothing more can land in a week that ended a
+       month ago, and calling it "current" would be wrong. */
+    const series = buildProgressSeries(
+      [
+        { localDate: '2026-06-08', value: 3 },
+        { localDate: '2026-06-15', value: 2 },
+      ],
+      { range: 'ALL', endLocalDate: '2026-08-25', aggregation: 'sum', bucket: 'week' },
+    );
+    expect(comparePeriods(series, '2026-08-25')!.isPartial).toBe(false);
+  });
+
+  it('returns null when there are no buckets at all', () => {
+    expect(comparePeriods({ range: 'W', window: { start: '2026-08-24', end: '2026-08-25' }, bucket: 'day', points: [] }, '2026-08-25')).toBeNull();
+  });
+});
+
+describe('currentPeriodLabel', () => {
+  it('names each bucket the way the user would say it', () => {
+    expect(currentPeriodLabel('day')).toBe('Today');
+    expect(currentPeriodLabel('week')).toBe('Current week');
+    expect(currentPeriodLabel('month')).toBe('This month');
   });
 });

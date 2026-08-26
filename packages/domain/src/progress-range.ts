@@ -244,6 +244,32 @@ export interface BuildSeriesOptions {
    * layer, where an empty prior week became "compared with 0 last week".
    */
   zeroFrom?: string | null;
+  /**
+   * Overrides the bucket `bucketForRange` would pick.
+   *
+   * Metrics do not all read best at the same resolution — see
+   * `countBucketForRange`, which a count or workload chart passes here.
+   */
+  bucket?: ProgressBucket;
+}
+
+/**
+ * Bucket size for a **count or workload** chart, which differs from the
+ * measurement default at one range: `M`.
+ *
+ * Body weight at M is thirty daily marks and each one is a real reading. A
+ * daily session count is almost always 0 or 1, so the same thirty marks are a
+ * barcode carrying no shape; weekly totals over a month run 0–6 and show the
+ * training rhythm the chart exists to reveal. Volume follows sessions rather
+ * than body weight for the same reason — it is additive, so a week's total is
+ * a meaningful quantity, where a week of body weight would have to be averaged.
+ *
+ * Every other range is unchanged, so the two chart families still share one
+ * range control and one set of window semantics.
+ */
+export function countBucketForRange(range: ProgressRange, spanDays: number): ProgressBucket {
+  if (range === 'M') return 'week';
+  return bucketForRange(range, spanDays);
 }
 
 /**
@@ -279,7 +305,7 @@ export function buildProgressSeries<Meta = unknown>(
       : windowForRange(options.range, options.endLocalDate);
 
   const spanDays = Math.max(daysBetween(window.start, window.end), 0);
-  const bucket = bucketForRange(options.range, spanDays);
+  const bucket = options.bucket ?? bucketForRange(options.range, spanDays);
 
   /* Each bucket keeps its observations' `meta` alongside their values.
      Dropping it would break drill-down: the per-exercise chart navigates to
@@ -484,5 +510,68 @@ export function describeBucketValue(
       return null;
     case 'last':
       return point.sampleCount === 1 ? null : `latest of ${point.sampleCount} ${noun}`;
+  }
+}
+
+export interface PeriodComparison {
+  /** The most recent bucket in the series. */
+  current: ProgressPoint;
+  /** The bucket before it, or `null` if the series has only one. */
+  previous: ProgressPoint | null;
+  /**
+   * `current - previous`, and `null` unless the comparison is honest.
+   *
+   * Requires both values to be known. A `null` previous bucket is one that
+   * predates the user's first activity, and treating it as zero manufactures
+   * a baseline from a period they were not there for — "compared with 0 last
+   * week" for a week before they signed up. Story 51 shipped that bug once.
+   */
+  change: number | null;
+  /**
+   * True when `current` extends past `endLocalDate` — a week still being
+   * lived in. Callers must not present a partial bucket as directly
+   * comparable to a finished one.
+   */
+  isPartial: boolean;
+}
+
+/**
+ * The latest bucket, the one before it, and whether they can honestly be
+ * compared.
+ *
+ * Lives here rather than in either renderer so web and mobile cannot disagree
+ * about what "previous period" means or when a comparison is safe to show.
+ */
+export function comparePeriods(
+  series: ProgressSeries,
+  endLocalDate: string,
+): PeriodComparison | null {
+  const current = series.points.at(-1);
+  if (!current) return null;
+  const previous = series.points.at(-2) ?? null;
+  const change =
+    current.value != null && previous?.value != null ? current.value - previous.value : null;
+  return {
+    current,
+    previous,
+    change,
+    isPartial: nextBucketStart(current.localDate, series.bucket) > endLocalDate,
+  };
+}
+
+/**
+ * How a partial bucket names itself: "Current week", "Today", "This month".
+ *
+ * Story 33: a period that is still in progress must be distinguishable
+ * without relying on its fill colour. This is the text half of that.
+ */
+export function currentPeriodLabel(bucket: ProgressBucket): string {
+  switch (bucket) {
+    case 'day':
+      return 'Today';
+    case 'week':
+      return 'Current week';
+    case 'month':
+      return 'This month';
   }
 }
