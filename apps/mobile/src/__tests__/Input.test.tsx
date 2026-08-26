@@ -1,13 +1,26 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { ThemeProvider } from '../theme/ThemeProvider';
+import { PopoverHost } from '../components/PopoverHost';
 import { Input } from '../components/Input';
 
 let tree: ReactTestRenderer | null = null;
 
+/**
+ * `react-test-renderer` has no layout engine, so a host node's
+ * `measureInWindow` never invokes its callback and anything that positions
+ * itself from a measurement silently never appears. `createNodeMock` is the
+ * documented way to supply one — same category of environment gap as the
+ * safe-area mock in jest.setup.ts.
+ */
+const nodeMock = () => ({
+  measureInWindow: (callback: (x: number, y: number, w: number, h: number) => void) =>
+    callback(20, 100, 22, 22),
+});
+
 function renderTree(element: React.ReactElement): ReactTestRenderer {
   act(() => {
-    tree = create(<ThemeProvider>{element}</ThemeProvider>);
+    tree = create(<ThemeProvider><PopoverHost>{element}</PopoverHost></ThemeProvider>, { createNodeMock: nodeMock });
   });
   return tree!;
 }

@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { ThemeProvider } from '../src/theme/ThemeProvider';
+import { PopoverHost } from '../src/components/PopoverHost';
 import { env } from '../src/lib/env';
 import { tokenCache } from '../src/lib/token-cache';
 
@@ -12,7 +13,8 @@ const queryClient = new QueryClient();
 
 /**
  * Root layout — wires ClerkProvider (bearer-token auth per ADR 0002),
- * react-query, and the shared theme provider around every route.
+ * react-query, the shared theme provider and the popover host around every
+ * route.
  * Auth-gating (SignIn/SignUp vs. the tab shell) happens in
  * `app/(tabs)/_layout.tsx` via `useAuth()`/`<Redirect>`, not here.
  */
@@ -24,6 +26,12 @@ export default function RootLayout() {
           <GestureHandlerRootView style={{ flex: 1 }}>
             <SafeAreaProvider>
               <StatusBar style="dark" />
+              {/* Anchored popovers (MetricInfo help) render here rather than
+                  in a modal, so a panel never covers the app and a second
+                  trigger stays tappable while one is open. Mounted inside
+                  SafeAreaProvider so measured window coordinates and the
+                  overlay share one coordinate space. */}
+              <PopoverHost>
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="sign-in" />
@@ -40,6 +48,7 @@ export default function RootLayout() {
                   options={{ headerShown: true, title: 'Exercise History' }}
                 />
               </Stack>
+              </PopoverHost>
             </SafeAreaProvider>
           </GestureHandlerRootView>
         </ThemeProvider>

@@ -2,6 +2,7 @@ import React from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import type { ProgressOverviewResponse } from '@setframe/schemas';
 import { ThemeProvider } from '../theme/ThemeProvider';
+import { PopoverHost } from '../components/PopoverHost';
 import {
   BodyWeightSection,
   CompositionSection,
@@ -25,9 +26,21 @@ jest.mock('../lib/api-client', () => ({
 
 let tree: ReactTestRenderer | null = null;
 
+/**
+ * `react-test-renderer` has no layout engine, so a host node's
+ * `measureInWindow` never invokes its callback and anything that positions
+ * itself from a measurement silently never appears. `createNodeMock` is the
+ * documented way to supply one — same category of environment gap as the
+ * safe-area mock in jest.setup.ts.
+ */
+const nodeMock = () => ({
+  measureInWindow: (callback: (x: number, y: number, w: number, h: number) => void) =>
+    callback(20, 100, 22, 22),
+});
+
 function renderTree(element: React.ReactElement): ReactTestRenderer {
   act(() => {
-    tree = create(<ThemeProvider>{element}</ThemeProvider>);
+    tree = create(<ThemeProvider><PopoverHost>{element}</PopoverHost></ThemeProvider>, { createNodeMock: nodeMock });
   });
   return tree!;
 }
@@ -662,7 +675,9 @@ describe('CompositionSection', () => {
 
   it('renders nothing at all when there is no volume of any kind', () => {
     const rendered = renderComposition(compositionFixture([]));
-    expect(rendered.toJSON()).toBeNull();
+    expect(hostsByTestId(rendered, 'composition-chart')).toHaveLength(0);
+    expect(hostsByTestId(rendered, 'composition-unclassified-only')).toHaveLength(0);
+    expect(hostsByTestId(rendered, 'composition-summary')).toHaveLength(0);
   });
 
   it('draws an untrained week as a visible zero, not as a gap', () => {
@@ -689,7 +704,8 @@ describe('CompositionSection', () => {
         localDate={localDate}
       />,
     );
-    expect(rendered.toJSON()).toBeNull();
+    expect(hostsByTestId(rendered, 'composition-chart')).toHaveLength(0);
+    expect(hostsByTestId(rendered, 'composition-unclassified-only')).toHaveLength(0);
   });
 
   it('reports the breakdown when a bar is selected', () => {
@@ -824,7 +840,8 @@ describe('StrengthPanels', () => {
     const rendered = render([
       lift('a', 'Pull-up', [10, 11, 12], { metricKeys: ['topReps', 'totalReps'] }),
     ]);
-    expect(rendered.toJSON()).toBeNull();
+    expect(hostsByTestId(rendered, 'strength-panels')).toHaveLength(0);
+    expect(hostsByTestId(rendered, 'strength-pending')).toHaveLength(0);
   });
 
   it('gives VoiceOver the numbers, not just the shape', () => {
