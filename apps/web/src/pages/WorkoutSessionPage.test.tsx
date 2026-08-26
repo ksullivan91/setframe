@@ -1084,3 +1084,137 @@ describe('WorkoutSessionPage per-set save state', () => {
     expect(screen.getAllByRole('button', { name: 'Save' })[0]).toBeEnabled();
   });
 });
+
+/**
+ * Story 61 — completing an exercise should read as an accomplishment, not as
+ * another form state. The previous treatment was a success badge inside an
+ * otherwise unchanged header: informative, and emotionally flat.
+ */
+describe('WorkoutSessionPage exercise completion experience', () => {
+  /* The per-set save suite above leaves `mockPatch` rejecting. `clearAllMocks`
+     clears recorded calls but not implementations, so without this every save
+     here fails and nothing ever completes. */
+  beforeEach(() => {
+    mockPatch.mockReset();
+    mockPatch.mockImplementation((_path: string, body?: unknown) => Promise.resolve(body));
+  });
+
+  function renderWithSets(sets: Array<{ weightValue: number | null; reps: number | null }>) {
+    const session = buildSession({ kind: 'sets_reps', sets: sets.length, repsMin: 8 }) as unknown as {
+      exercises: { sets: unknown[] }[];
+    };
+    session.exercises[0]!.sets = sets.map((set, index) => ({
+      id: `set-${index + 1}`,
+      exerciseLogId: 'log-1',
+      clientId: `5555555${index}-1111-4111-8111-111111111111`,
+      sortOrder: index,
+      setType: 'working',
+      weightUnit: 'lb',
+      durationSeconds: null,
+      distanceValue: null,
+      distanceUnit: null,
+      rpe: null,
+      isPrWeight: false,
+      isPrReps: false,
+      createdAt: '2026-08-22T15:00:00.000Z',
+      updatedAt: '2026-08-22T15:00:00.000Z',
+      ...set,
+    }));
+    mockGet = (path: string) => {
+      if (path.startsWith('/workout-sessions/')) return Promise.resolve(session);
+      if (path === '/exercises') return Promise.resolve([]);
+      return Promise.resolve(null);
+    };
+    return renderPage();
+  }
+
+  it('gives a completed exercise a distinct card, not just a badge', async () => {
+    renderWithSets([{ weightValue: 135, reps: 8 }, { weightValue: 135, reps: 8 }]);
+    expect(await screen.findByTestId('exercise-card-complete')).toBeInTheDocument();
+  });
+
+  it('leaves an unfinished exercise looking unfinished', async () => {
+    renderWithSets([{ weightValue: 135, reps: 8 }, { weightValue: null, reps: null }]);
+    await screen.findByTestId('exercise-card');
+    expect(screen.queryByTestId('exercise-card-complete')).not.toBeInTheDocument();
+  });
+
+  it('summarises what was achieved in one line, not a set list', async () => {
+    renderWithSets([
+      { weightValue: 135, reps: 8 },
+      { weightValue: 135, reps: 8 },
+      { weightValue: 135, reps: 8 },
+    ]);
+    const summary = await screen.findByTestId('completed-summary-log-1');
+    expect(summary).toHaveTextContent('3 sets · 135lb · 8 reps');
+  });
+
+  it('still says "Complete" in words, never colour alone', async () => {
+    renderWithSets([{ weightValue: 135, reps: 8 }]);
+    await screen.findByTestId('exercise-card-complete');
+    expect(screen.getByText('Complete')).toBeInTheDocument();
+  });
+
+  it('collapses the exercise once its last set is logged', async () => {
+    const user = userEvent.setup();
+    /* Driven through Quick Log rather than a per-set save: it is the primary
+       flow, and it is the one that completes a whole exercise in a single
+       action — which is exactly the transition this behaviour keys on. */
+    renderWithSets([{ weightValue: null, reps: null }, { weightValue: null, reps: null }]);
+
+    expect(await screen.findAllByTestId('set-row')).toHaveLength(2);
+
+    // The refetch after logging returns a session where every set is logged.
+    const completed = buildSession({ kind: 'sets_reps', sets: 2, repsMin: 8 }) as unknown as {
+      exercises: { sets: unknown[] }[];
+    };
+    completed.exercises[0]!.sets = [0, 1].map((index) => ({
+      id: `set-${index + 1}`,
+      exerciseLogId: 'log-1',
+      clientId: `5555555${index}-1111-4111-8111-111111111111`,
+      sortOrder: index,
+      setType: 'working',
+      weightValue: 135,
+      weightUnit: 'lb',
+      reps: 8,
+      durationSeconds: null,
+      distanceValue: null,
+      distanceUnit: null,
+      rpe: null,
+      isPrWeight: false,
+      isPrReps: false,
+      createdAt: '2026-08-22T15:00:00.000Z',
+      updatedAt: '2026-08-22T15:00:00.000Z',
+    }));
+
+    await user.type(screen.getByLabelText(/^Quick log: Weight/), '135');
+    await user.type(screen.getByLabelText(/^Quick log: Reps/), '8');
+
+    mockGet = (path: string) => {
+      if (path.startsWith('/workout-sessions/')) return Promise.resolve(completed);
+      if (path === '/exercises') return Promise.resolve([]);
+      return Promise.resolve(null);
+    };
+    await user.click(screen.getByRole('button', { name: 'Log all 2 sets' }));
+
+    // Collapsed automatically — detail on demand, attention moves on.
+    await waitFor(() => expect(screen.queryAllByTestId('set-row')).toHaveLength(0));
+    expect(screen.getByTestId('exercise-card-complete')).toBeInTheDocument();
+  });
+
+  it('lets a completed exercise be collapsed and reopened', async () => {
+    const user = userEvent.setup();
+    renderWithSets([{ weightValue: 135, reps: 8 }]);
+
+    /* An exercise that was already complete when the page loaded is *not*
+       auto-collapsed — that only fires on the transition, so reopening a
+       finished exercise to correct it is never fought. */
+    await screen.findByTestId('exercise-card-complete');
+    await user.click(screen.getByRole('button', { name: /^Collapse/ }));
+    expect(screen.queryAllByTestId('set-row')).toHaveLength(0);
+
+    await user.click(screen.getByRole('button', { name: /^Expand/ }));
+    // Correcting a finished exercise stays possible.
+    expect(await screen.findAllByTestId('set-row')).toHaveLength(1);
+  });
+});

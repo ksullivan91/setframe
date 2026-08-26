@@ -681,3 +681,37 @@ describe('WorkoutSessionScreen write failures', () => {
     expect(textNodesContaining(rendered, 'Could not finish your workout').length).toBeGreaterThan(0);
   });
 });
+
+/**
+ * Story 61 — the mobile half of the completion experience. Mirrors
+ * WorkoutSessionPage.test.tsx so parity is tested rather than intended.
+ */
+describe('WorkoutSessionScreen exercise completion experience', () => {
+  it('gives a completed exercise a distinct card, not just a badge', async () => {
+    mockSessionPayload = baseSession({ sets: [baseSet()] });
+    const rendered = await renderScreen();
+    expect(hostsByTestId(rendered, 'exercise-card-complete').length).toBeGreaterThan(0);
+  });
+
+  it('leaves an unfinished exercise looking unfinished', async () => {
+    mockSessionPayload = baseSession({
+      sets: [baseSet(), baseSet({ id: 'set-2', sortOrder: 1, durationSeconds: null, distanceValue: null })],
+    });
+    const rendered = await renderScreen();
+    expect(hostsByTestId(rendered, 'exercise-card-complete')).toHaveLength(0);
+    expect(hostsByTestId(rendered, 'exercise-card').length).toBeGreaterThan(0);
+  });
+
+  it('summarises what was achieved in one line, not a set list', async () => {
+    mockSessionPayload = baseSession({ sets: [baseSet(), baseSet({ id: 'set-2', sortOrder: 1 })] });
+    const rendered = await renderScreen();
+    const summary = hostsByTestId(rendered, 'completed-summary-log-1')[0]!;
+    expect(JSON.stringify(summary.props.children)).toContain('2 sets');
+  });
+
+  it('still says "Complete" in words, never colour alone', async () => {
+    mockSessionPayload = baseSession({ sets: [baseSet()] });
+    const rendered = await renderScreen();
+    expect(JSON.stringify(rendered.toJSON())).toContain('Complete');
+  });
+});

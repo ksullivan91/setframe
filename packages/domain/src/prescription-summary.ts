@@ -96,3 +96,39 @@ export function formatSessionSet(
 
   return bits.join(' · ');
 }
+
+/**
+ * A completed exercise in one line: `3 sets · 135 lb × 8`.
+ *
+ * Story 61. The collapsed completed card needs to say what was achieved
+ * without becoming a set list — the whole point of collapsing is that the
+ * detail is available on demand rather than always present.
+ *
+ * Representation-aware through `formatSessionSet`, so a run reads
+ * `1 set · 3 mi · 30 min` rather than being forced into weight × reps.
+ *
+ * Uniform sets collapse to one figure; mixed sets say so rather than picking
+ * a winner. Reporting `135 lb × 8` for an exercise whose last set dropped to
+ * 6 reps would overstate it, and averaging would invent a set that never
+ * happened.
+ */
+export function summarizeCompletedExercise(
+  prescription: Prescription | null | undefined,
+  sets: readonly FormattableSet[],
+  options: { includeRpe?: boolean } = {},
+): string | null {
+  if (!sets.length) return null;
+
+  const setLabel = `${sets.length} ${sets.length === 1 ? 'set' : 'sets'}`;
+  const formatted = sets.map((set) => formatSessionSet(prescription, set, options));
+  const distinct = [...new Set(formatted.filter(Boolean))];
+
+  if (!distinct.length) return setLabel;
+  if (distinct.length === 1) return `${setLabel} · ${distinct[0]}`;
+
+  /* Mixed. Leading with the heaviest/longest would misrepresent the rest, so
+     the range is named by its endpoints in the order performed — which is
+     what a lifter actually wants to see from a top-set-and-backoff or a
+     set that dropped. */
+  return `${setLabel} · ${formatted[0]} → ${formatted.at(-1)}`;
+}

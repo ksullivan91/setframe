@@ -24,6 +24,7 @@ import {
   isSaving,
   quickLogTargets as quickLogTargetsFor,
   settleSync,
+  summarizeCompletedExercise,
   supportsQuickLog,
   visibleSessionExercises,
   type SyncMap,
@@ -242,10 +243,27 @@ const ExerciseList = styled.div`
   grid-column: 1;
 `;
 
-const ExerciseCard = styled(Card)`
+/**
+ * Story 61 — a completed exercise should read as an accomplishment, not as
+ * another form state. The previous treatment was a success badge inside an
+ * otherwise unchanged header, which is informative and emotionally flat: the
+ * card looked identical to one still being worked on.
+ *
+ * The whole surface carries the state — tinted background and a success
+ * border — so it is unmistakable while scrolling. The badge stays, because
+ * colour must never be the only signal.
+ */
+const ExerciseCard = styled(Card)<{ $complete?: boolean }>`
   display: flex;
   flex-direction: column;
   gap: ${spacing[16]}px;
+  border: 1px solid ${(p) => (p.$complete ? p.theme.status.success : 'transparent')};
+  background: ${(p) => (p.$complete ? p.theme.action.accentSubtle : p.theme.surface.raised)};
+  transition: background 160ms ease-out, border-color 160ms ease-out;
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
   /* Story 39: scrollIntoView's target for a newly-active exercise stays
      clear of the sticky session action bar (Story 36), which only
      floats over content below tablet width. */
@@ -914,6 +932,32 @@ export function WorkoutSessionPage() {
     previousActiveExerciseId.current = activeExerciseId;
   }, [activeExerciseId]);
 
+  /**
+   * Story 61 — an exercise collapses itself the moment it becomes complete.
+   *
+   * Keyed on the *transition*, not on the state: collapsing whenever the
+   * active exercise happens to be complete would fight the user every time
+   * they reopened a finished exercise to correct a set. `wasComplete` records
+   * what each exercise looked like on the previous render, so this fires once
+   * per completion and never again.
+   *
+   * Deliberately no scroll. Moving the page under someone who may be looking
+   * at something else is the "forced jump" story 62 rules out; the collapse
+   * alone is enough to move attention on.
+   */
+  const wasComplete = useRef<Record<string, boolean>>({});
+  useEffect(() => {
+    const exercises = query.data ? visibleSessionExercises(query.data.exercises) : [];
+    for (const exerciseLog of exercises) {
+      const complete = isExerciseComplete(exerciseLog.prescription, exerciseLog.sets);
+      const justCompleted = complete && wasComplete.current[exerciseLog.id] === false;
+      wasComplete.current[exerciseLog.id] = complete;
+      if (justCompleted) {
+        setActiveExerciseId((current) => (current === exerciseLog.id ? null : current));
+      }
+    }
+  }, [query.data]);
+
   const totalSetsLogged = useMemo(
     () =>
       orderedExercises.reduce(
@@ -1099,6 +1143,9 @@ export function WorkoutSessionPage() {
           const definition = getPrescriptionDefinition(exerciseLog.prescription);
           const loggedSetCount = exerciseLog.sets.filter((set) => isSessionSetLogged(exerciseLog.prescription, set)).length;
           const isComplete = isExerciseComplete(exerciseLog.prescription, exerciseLog.sets);
+          const completedSummary = isComplete
+            ? summarizeCompletedExercise(exerciseLog.prescription, exerciseLog.sets)
+            : null;
           const isExpanded = activeExerciseId === exerciseLog.id;
           const headerDraft = headerDrafts[exerciseLog.id] ?? getHeaderDraft(exerciseLog, definition);
 
@@ -1134,6 +1181,8 @@ export function WorkoutSessionPage() {
           return (
           <ExerciseCard
             key={exerciseLog.id}
+            $complete={isComplete}
+            data-testid={isComplete ? 'exercise-card-complete' : 'exercise-card'}
             ref={(node) => {
               exerciseCardRefs.current[exerciseLog.id] = node;
             }}
@@ -1167,9 +1216,19 @@ export function WorkoutSessionPage() {
                       never a UI flag toggled on collapse — text always
                       accompanies the color so it isn't the only signal. */}
                   {isComplete ? (
-                    <Badge tone="success">
-                      <Check size={14} aria-hidden="true" /> Complete
-                    </Badge>
+                    <>
+                      <Badge tone="success">
+                        <Check size={14} aria-hidden="true" /> Complete
+                      </Badge>
+                      {/* What was achieved, in one line. Not a set list: the
+                          point of collapsing is that detail is available on
+                          demand rather than always present. */}
+                      {completedSummary ? (
+                        <SupportingText data-testid={`completed-summary-${exerciseLog.id}`}>
+                          {completedSummary}
+                        </SupportingText>
+                      ) : null}
+                    </>
                   ) : exerciseLog.sets.length > 0 ? (
                     <SupportingText>
                       {loggedSetCount} of {exerciseLog.sets.length} sets complete

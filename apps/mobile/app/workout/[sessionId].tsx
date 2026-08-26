@@ -15,6 +15,7 @@ import {
   isSaving,
   quickLogTargets as quickLogTargetsFor,
   settleSync,
+  summarizeCompletedExercise,
   supportsQuickLog,
   visibleSessionExercises,
   type SyncMap,
@@ -536,6 +537,28 @@ export default function WorkoutSessionScreen() {
     }
   }, [visibleExercises]);
 
+  /**
+   * Story 61 — an exercise collapses itself the moment it becomes complete.
+   *
+   * Keyed on the *transition*, not on the state: collapsing whenever the
+   * active exercise happens to be complete would fight the user every time
+   * they reopened a finished exercise to correct a set.
+   *
+   * Deliberately no scroll — moving the screen under someone who may be
+   * looking at something else is the "forced jump" story 62 rules out.
+   */
+  const wasComplete = useRef<Record<string, boolean>>({});
+  useEffect(() => {
+    for (const exerciseLog of visibleExercises) {
+      const complete = isExerciseComplete(exerciseLog.prescription, exerciseLog.sets);
+      const justCompleted = complete && wasComplete.current[exerciseLog.id] === false;
+      wasComplete.current[exerciseLog.id] = complete;
+      if (justCompleted) {
+        setActiveExerciseId((current) => (current === exerciseLog.id ? null : current));
+      }
+    }
+  }, [visibleExercises]);
+
   const totalSetsLogged = useMemo(
     () =>
       visibleExercises.reduce(
@@ -707,6 +730,9 @@ export default function WorkoutSessionScreen() {
         /* Story 58/59 — what Quick Log would write, and what to call the
            button. Derived from the server's sets, never from local drafts: a
            prefilled-but-unsaved value must not make a set look logged. */
+        const completedSummary = isComplete
+          ? summarizeCompletedExercise(exerciseLog.prescription, exerciseLog.sets)
+          : null;
         const quickLogValues = draftToValues(headerDraft, definition);
         const quickLogTargets = quickLogTargetsFor(exerciseLog.prescription, exerciseLog.sets);
         /* The denominator excludes warmups, so "Log all 3 sets" counts the
@@ -728,7 +754,18 @@ export default function WorkoutSessionScreen() {
           for (const key of Object.keys(patch) as SessionField[]) touchHeaderKey(key);
         };
         return (
-        <Card key={exerciseLog.id}>
+        <Card
+          key={exerciseLog.id}
+          testID={isComplete ? 'exercise-card-complete' : 'exercise-card'}
+          /* Story 61 — the whole surface carries completion, not a badge on
+             an otherwise identical card. The badge stays, because colour must
+             never be the only signal. */
+          style={
+            isComplete
+              ? { borderWidth: 1, borderColor: theme.status.success, backgroundColor: theme.action.accentSubtle }
+              : undefined
+          }
+        >
           <View style={styles.exerciseHeader}>
             <View style={styles.exerciseTitleRow}>
               <IconButton
@@ -764,7 +801,19 @@ export default function WorkoutSessionScreen() {
               flag toggled on collapse — text always accompanies the color
               so it isn't the only signal. */}
           {isComplete ? (
-            <Badge label="Complete" tone="success" />
+            <>
+              <Badge label="Complete" tone="success" />
+              {/* What was achieved, in one line. Not a set list: the point of
+                  collapsing is that detail is available on demand. */}
+              {completedSummary ? (
+                <Text
+                  style={[styles.prescription, { color: theme.text.secondary }]}
+                  testID={`completed-summary-${exerciseLog.id}`}
+                >
+                  {completedSummary}
+                </Text>
+              ) : null}
+            </>
           ) : exerciseLog.sets.length > 0 ? (
             <Text style={[styles.prescription, { color: theme.text.secondary }]}>
               {`${loggedSetCount} of ${exerciseLog.sets.length} sets complete`}
