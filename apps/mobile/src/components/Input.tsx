@@ -39,8 +39,8 @@ export interface InputProps {
 /**
  * `TextField/Numeric`-style Input per style guide §6, generalized to
  * also cover text/email/password fields (SignIn/SignUp chrome). `unit`
- * renders a suffix (e.g. "lb") for weight/BP numeric entry per §6/§10 —
- * weight/reps/BP are unitless numbers without it.
+ * renders a suffix (e.g. "lb") for weight numeric entry per §6/§10 —
+ * weight/reps are unitless numbers without it.
  */
 export function Input({
   label,

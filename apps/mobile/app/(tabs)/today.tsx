@@ -59,8 +59,6 @@ interface DashboardTodayResponse {
     localDate: string;
     morningWeightValue: number | null;
     morningWeightUnit: 'lb' | 'kg' | null;
-    systolicBp: number | null;
-    diastolicBp: number | null;
     notes: string | null;
     mood: number | null;
     preWorkoutMealLogged: boolean | null;
@@ -108,8 +106,6 @@ interface DashboardTodayResponse {
 interface DailyManualEntryPatch {
   morningWeightValue?: number | null;
   morningWeightUnit?: 'lb' | 'kg' | null;
-  systolicBp?: number | null;
-  diastolicBp?: number | null;
   notes?: string | null;
   mood?: number | null;
   preWorkoutMealLogged?: boolean | null;
@@ -173,13 +169,6 @@ function parseOptionalNumber(value: string) {
   return { ok: true as const, value: parsed };
 }
 
-function parseOptionalInteger(value: string) {
-  const parsed = parseOptionalNumber(value);
-  if (!parsed.ok || parsed.value == null) return parsed;
-  if (!Number.isInteger(parsed.value)) return { ok: false as const, value: null };
-  return parsed;
-}
-
 function sumCompletedSets(session?: WorkoutSessionDetail | null) {
   if (!session) return 0;
   return visibleSessionExercises(session.exercises).reduce(
@@ -240,21 +229,17 @@ export default function TodayScreen() {
   const localDate = useLocalDate();
   const topPadding = useScreenTopPadding();
   const [weight, setWeight] = useState('');
-  const [systolic, setSystolic] = useState('');
-  const [diastolic, setDiastolic] = useState('');
   const [journal, setJournal] = useState('');
   const [selectedMood, setSelectedMood] = useState<number | null>(null);
   const [healthMetrics, setHealthMetrics] = useState<DailyHealthMetrics | null>(null);
   const [weightStatus, setWeightStatus] = useState<SaveState>('idle');
-  const [bpStatus, setBpStatus] = useState<SaveState>('idle');
   const [journalStatus, setJournalStatus] = useState<SaveState>('idle');
   const [mealStatus, setMealStatus] = useState<SaveState>('idle');
   const [weightError, setWeightError] = useState<string | null>(null);
-  const [bpError, setBpError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ variant: 'success' | 'error'; message: string } | null>(null);
   const initialHydratedRef = useRef(false);
   const hydratedLocalDateRef = useRef<string | null>(null);
-  const lastSavedSectionRef = useRef<'weight' | 'bp' | 'journal' | 'meal' | null>(null);
+  const lastSavedSectionRef = useRef<'weight' | 'journal' | 'meal' | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -283,12 +268,10 @@ export default function TodayScreen() {
     // Full re-hydration on first load AND whenever the local calendar date
     // changes (e.g. the app was left open/backgrounded across midnight) —
     // without this, a rolled-over day's empty state never overwrites the
-    // previous day's still-displayed weight/BP/journal input values
+    // previous day's still-displayed weight/journal input values
     // (Story 07: stale local-date carryover).
     if (!initialHydratedRef.current || hydratedLocalDateRef.current !== localDate) {
       setWeight(manual.morningWeightValue?.toString() ?? '');
-      setSystolic(manual.systolicBp?.toString() ?? '');
-      setDiastolic(manual.diastolicBp?.toString() ?? '');
       setJournal(manual.notes ?? '');
       setSelectedMood(manual.mood ?? null);
       initialHydratedRef.current = true;
@@ -299,10 +282,6 @@ export default function TodayScreen() {
     switch (lastSavedSectionRef.current) {
       case 'weight':
         setWeight(manual.morningWeightValue?.toString() ?? '');
-        break;
-      case 'bp':
-        setSystolic(manual.systolicBp?.toString() ?? '');
-        setDiastolic(manual.diastolicBp?.toString() ?? '');
         break;
       case 'journal':
         setJournal(manual.notes ?? '');
@@ -383,7 +362,7 @@ export default function TodayScreen() {
   async function saveSection(
     body: DailyManualEntryPatch,
     setStatus: (status: SaveState) => void,
-    section: 'weight' | 'bp' | 'journal' | 'meal',
+    section: 'weight' | 'journal' | 'meal',
   ) {
     setStatus('saving');
     lastSavedSectionRef.current = section;
@@ -412,25 +391,6 @@ export default function TodayScreen() {
       },
       setWeightStatus,
       'weight',
-    );
-  }
-
-  function saveBloodPressure() {
-    const systolicValue = parseOptionalInteger(systolic);
-    const diastolicValue = parseOptionalInteger(diastolic);
-    if (!systolicValue.ok || !diastolicValue.ok) {
-      setBpError('Use whole numbers for blood pressure.');
-      setBpStatus('error');
-      return;
-    }
-    setBpError(null);
-    void saveSection(
-      {
-        systolicBp: systolicValue.value,
-        diastolicBp: diastolicValue.value,
-      },
-      setBpStatus,
-      'bp',
     );
   }
 
@@ -515,7 +475,6 @@ export default function TodayScreen() {
               : 'No workout scheduled yet. Choose a workout for today or adjust today’s plan without changing your recurring schedule.';
 
   const weightDone = manual?.morningWeightValue != null;
-  const bpDone = manual?.systolicBp != null || manual?.diastolicBp != null;
   const journalDone = Boolean((manual?.notes ?? '').trim()) || manual?.mood != null;
   const mealDone = Boolean(manual?.preWorkoutMealLogged);
   const syncPillStatus = todayQuery.isFetching ? 'syncing' : mapSyncStatus(todayQuery.data?.syncState?.status);
@@ -725,29 +684,6 @@ export default function TodayScreen() {
             <Input label="Weight" value={weight} onChangeText={(value) => { setWeight(value); setWeightError(null); if (weightStatus === 'error') setWeightStatus('idle'); }} numeric unit={manual?.morningWeightUnit ?? 'lb'} errorMessage={weightError ?? undefined} />
             <Button label="Save weight" variant="secondary" loading={weightStatus === 'saving'} onPress={saveWeight} />
             <SaveFeedback state={weightStatus} errorMessage={weightError} />
-          </View>
-        </View>
-
-        <View style={[styles.divider, { backgroundColor: theme.border.subtle }]} />
-
-        <View style={styles.stepRow}>
-          <StepStatusIcon done={bpDone} />
-          <View style={styles.stepContent}>
-            <View style={styles.titleWithIcon}>
-              <Watch size={18} color={theme.text.primary} />
-              <Text style={[styles.stepTitle, { color: theme.text.primary }]}>Blood pressure</Text>
-            </View>
-            <Text style={[styles.bodyText, { color: theme.text.secondary }]}>Optional, but useful when recovery feels off.</Text>
-            <View style={styles.bpRow}>
-              <View style={styles.bpField}>
-                <Input label="Systolic" value={systolic} onChangeText={(value) => { setSystolic(value); setBpError(null); if (bpStatus === 'error') setBpStatus('idle'); }} numeric errorMessage={bpError ?? undefined} />
-              </View>
-              <View style={styles.bpField}>
-                <Input label="Diastolic" value={diastolic} onChangeText={(value) => { setDiastolic(value); setBpError(null); if (bpStatus === 'error') setBpStatus('idle'); }} numeric errorMessage={bpError ?? undefined} />
-              </View>
-            </View>
-            <Button label="Save blood pressure" variant="secondary" loading={bpStatus === 'saving'} onPress={saveBloodPressure} />
-            <SaveFeedback state={bpStatus} errorMessage={bpError} />
           </View>
         </View>
 
@@ -989,13 +925,6 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-  },
-  bpRow: {
-    flexDirection: 'row',
-    gap: spacing[8],
-  },
-  bpField: {
-    flex: 1,
   },
   moodRow: {
     flexDirection: 'row',
