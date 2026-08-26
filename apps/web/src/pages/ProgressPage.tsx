@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useQuery } from '@tanstack/react-query';
@@ -908,7 +908,11 @@ export function ProgressPage() {
   const api = useApiClient();
   const navigate = useNavigate();
   const localDate = todayLocalDate();
-  const windowWeeks = 12;
+  /* A full year plus the partial current week, so W through Y all have their
+     whole window on hand. The old value was 12, which silently truncated
+     every range past 3M to a quarter of what the user selected — invisible
+     against a fixture that ignores the parameter, wrong against the API. */
+  const [windowWeeks, setWindowWeeks] = useState(53);
 
   const query = useQuery({
     queryKey: ['progress-overview', localDate, windowWeeks],
@@ -922,6 +926,17 @@ export function ProgressPage() {
   // a real possibility rather than a theoretical one. Treat anything that is
   // not the contract as an error state instead of destructuring into a crash.
   const overview = isProgressOverview(query.data) ? query.data : null;
+
+  /* ALL has to mean all. `firstActivityDate` is deliberately unwindowed, so a
+     user with more history than the default window says so in the first
+     response and we widen once. Only ever widens, so this settles after one
+     extra fetch and never for the majority who have under a year logged. */
+  const firstActivity = overview?.training.firstActivityDate ?? null;
+  useEffect(() => {
+    if (!firstActivity) return;
+    const needed = Math.ceil(daysBetween(firstActivity, localDate) / 7) + 1;
+    if (needed > windowWeeks) setWindowWeeks(Math.min(needed, 260));
+  }, [firstActivity, localDate, windowWeeks]);
 
   /* Story 51. Fixed to the week rather than a page-level range: the strip
      answers "what's changed lately", and week-over-week is the span a user

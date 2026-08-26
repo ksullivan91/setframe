@@ -767,6 +767,33 @@ describe('training frequency and volume charts', () => {
       },
     });
 
+  it('requests a full year, so the long ranges are not silently truncated', async () => {
+    /* The default was 12 weeks while the selector offers 6M, Y and ALL. The
+       MSW fixture ignores the parameter, so nothing on screen revealed that
+       every long range was rendering a quarter of what it claimed. */
+    const paths: string[] = [];
+    const overview = withVolume([3, 2, 4, 3], [9000, 8000, 12000, 7000]);
+    mockGet = (path: string) => {
+      paths.push(path);
+      return Promise.resolve(overview);
+    };
+    render(
+      <MemoryRouter initialEntries={['/progress']}>
+        <QueryClientProvider
+          client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+        >
+          <ThemeProvider theme={getTheme('light')}>
+            <ToastProvider>
+              <ProgressPage />
+            </ToastProvider>
+          </ThemeProvider>
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(paths.length).toBeGreaterThan(0));
+    expect(paths[0]).toMatch(/weeks=53\b/);
+  });
+
   it('gives both charts the same range selector the rest of Progress uses', async () => {
     renderProgress(withVolume([3, 2, 4, 3], [9000, 8000, 12000, 7000]));
     await waitFor(() => expect(screen.getByTestId('sessions-chart')).toBeTruthy());

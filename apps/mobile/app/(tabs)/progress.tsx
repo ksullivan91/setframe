@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -706,7 +706,10 @@ export default function ProgressScreen() {
   const api = useApiClient();
   const router = useRouter();
   const localDate = todayLocalDate();
-  const windowWeeks = 12;
+  /* A full year plus the partial current week, so W through Y all have their
+     whole window on hand. The old value was 12, which silently truncated
+     every range past 3M to a quarter of what the user selected. */
+  const [windowWeeks, setWindowWeeks] = useState(53);
   const topPadding = useScreenTopPadding();
   /* Applied to every return path below — the loading and error states are
      as capable of rendering under the Dynamic Island as the loaded one. */
@@ -717,6 +720,17 @@ export default function ProgressScreen() {
     queryFn: () =>
       api.get<ProgressOverviewResponse>(`/progress/overview?weeks=${windowWeeks}&localDate=${localDate}`),
   });
+
+  /* ALL has to mean all. `firstActivityDate` is deliberately unwindowed, so a
+     user with more history than the default window says so in the first
+     response and we widen once. Only ever widens, so this settles after one
+     extra fetch and never fires for anyone under a year in. */
+  const firstActivity = query.data?.training.firstActivityDate ?? null;
+  useEffect(() => {
+    if (!firstActivity) return;
+    const needed = Math.ceil(daysBetween(firstActivity, localDate) / 7) + 1;
+    if (needed > windowWeeks) setWindowWeeks(Math.min(needed, 260));
+  }, [firstActivity, localDate, windowWeeks]);
 
   /* Story 51. Fixed to the week rather than a page-level range: the strip
      answers "what's changed lately", and week-over-week is the span a user
