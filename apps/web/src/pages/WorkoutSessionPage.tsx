@@ -24,7 +24,8 @@ import {
   isSaving,
   quickLogTargets as quickLogTargetsFor,
   settleSync,
-  summarizeCompletedExercise,
+  buildCompletedExerciseReadout,
+  completedSetCountLabel,
   supportsQuickLog,
   visibleSessionExercises,
   type SyncMap,
@@ -46,6 +47,7 @@ import {
   type SessionField,
 } from '../lib/prescription';
 import { typeScale } from '../theme/typeScale';
+import { CompletedExerciseCard } from '../components/CompletedExerciseCard';
 import { mq } from '../theme/breakpoints';
 
 type SetType = WorkoutSet['setType'];
@@ -244,21 +246,25 @@ const ExerciseList = styled.div`
 `;
 
 /**
- * Story 61 — a completed exercise should read as an accomplishment, not as
- * another form state. The previous treatment was a success badge inside an
- * otherwise unchanged header, which is informative and emotionally flat: the
- * card looked identical to one still being worked on.
+ * Story 61, corrected by story 42.
  *
- * The whole surface carries the state — tinted background and a success
- * border — so it is unmistakable while scrolling. The badge stays, because
- * colour must never be the only signal.
+ * The completed surface used to be `action.accentSubtle` — the lavender that
+ * means *selected* everywhere else in the product — with a hairline success
+ * border. Two things were wrong with that. Semantically it said "this one is
+ * picked", not "this one is done". Visually the tint was the loudest thing on
+ * the screen, so finished work drew more attention than the exercise the user
+ * still had to do.
+ *
+ * It is now a genuine success tint, and the state is carried mostly by the
+ * card's *contents* (see `CompletedExerciseCard`) rather than by its fill, so
+ * colour is a reinforcement rather than the message.
  */
 const ExerciseCard = styled(Card)<{ $complete?: boolean }>`
   display: flex;
   flex-direction: column;
   gap: ${spacing[16]}px;
   border: 1px solid ${(p) => (p.$complete ? p.theme.status.success : 'transparent')};
-  background: ${(p) => (p.$complete ? p.theme.action.accentSubtle : p.theme.surface.raised)};
+  background: ${(p) => (p.$complete ? p.theme.status.successSubtle : p.theme.surface.raised)};
   transition: background 160ms ease-out, border-color 160ms ease-out;
 
   @media (prefers-reduced-motion: reduce) {
@@ -915,7 +921,21 @@ export function WorkoutSessionPage() {
   useEffect(() => {
     if (!hasSeededActiveExercise.current && orderedExercises.length > 0) {
       hasSeededActiveExercise.current = true;
-      setActiveExerciseId(orderedExercises[0]!.id);
+      /* Story 42 — the first *incomplete* exercise, not simply the first.
+         Reopening a session mid-workout used to expand the editor for an
+         exercise the user had already finished: the wrong place to land, and
+         the one case that hides a completed exercise's own summary behind the
+         editor it replaced.
+
+         A session with nothing left to do keeps story 39's original fallback
+         and opens the first exercise. There is no "next" to orient toward at
+         that point — the user is here to review or to hit Finish — and
+         collapsing everything by default would cost a tap for the common
+         reason someone reopens a finished session, which is to correct it. */
+      const next = orderedExercises.find(
+        (exerciseLog) => !isExerciseComplete(exerciseLog.prescription, exerciseLog.sets),
+      );
+      setActiveExerciseId((next ?? orderedExercises[0]!).id);
     }
   }, [orderedExercises]);
 
@@ -941,9 +961,16 @@ export function WorkoutSessionPage() {
    * what each exercise looked like on the previous render, so this fires once
    * per completion and never again.
    *
-   * Deliberately no scroll. Moving the page under someone who may be looking
-   * at something else is the "forced jump" story 62 rules out; the collapse
-   * alone is enough to move attention on.
+   * Story 42 extends this into a handoff: finishing an exercise opens the
+   * next unfinished one, so the workout reads as a queue that is emptying
+   * rather than a list that merely changes colour. The existing scroll effect
+   * then brings it into view with `block: 'nearest'`, which moves the page
+   * only when the next exercise is actually off-screen — orientation, not the
+   * forced jump story 62 rules out.
+   *
+   * When nothing is left, this collapses to none rather than reopening
+   * something already finished: at that point the Finish action is the only
+   * thing left to do, and every card is a summary.
    */
   const wasComplete = useRef<Record<string, boolean>>({});
   useEffect(() => {
@@ -953,7 +980,12 @@ export function WorkoutSessionPage() {
       const justCompleted = complete && wasComplete.current[exerciseLog.id] === false;
       wasComplete.current[exerciseLog.id] = complete;
       if (justCompleted) {
-        setActiveExerciseId((current) => (current === exerciseLog.id ? null : current));
+        const next = exercises.find(
+          (candidate) =>
+            candidate.id !== exerciseLog.id &&
+            !isExerciseComplete(candidate.prescription, candidate.sets),
+        );
+        setActiveExerciseId((current) => (current === exerciseLog.id ? (next?.id ?? null) : current));
       }
     }
   }, [query.data]);
@@ -1143,10 +1175,26 @@ export function WorkoutSessionPage() {
           const definition = getPrescriptionDefinition(exerciseLog.prescription);
           const loggedSetCount = exerciseLog.sets.filter((set) => isSessionSetLogged(exerciseLog.prescription, set)).length;
           const isComplete = isExerciseComplete(exerciseLog.prescription, exerciseLog.sets);
-          const completedSummary = isComplete
-            ? summarizeCompletedExercise(exerciseLog.prescription, exerciseLog.sets)
+          /* Story 42 — the completed readout: representation-aware figures
+             plus an honest comparison, derived in the domain package so web
+             and mobile decide identically. Built only when complete, and
+             only from server-held sets. */
+          const completedReadout = isComplete
+            ? buildCompletedExerciseReadout(
+                exerciseLog.prescription,
+                exerciseLog.sets,
+                exerciseLog.previousSession?.sets ?? null,
+              )
             : null;
           const isExpanded = activeExerciseId === exerciseLog.id;
+          /* Story 42 — "collapsed" only means something once the accordion has
+             been seeded. `activeExerciseId` is null for the first render after
+             the session loads, and treating that as collapsed would flash a
+             completed exercise as a summary card and then snap it back open
+             when the seeding effect runs a moment later. The ref is written in
+             that same effect and never read before its first commit, so this
+             settles to the real value immediately. */
+          const isCollapsed = hasSeededActiveExercise.current && !isExpanded;
           const headerDraft = headerDrafts[exerciseLog.id] ?? getHeaderDraft(exerciseLog, definition);
 
           /* Story 58/59 — what Quick Log would write, and what to call the
@@ -1178,6 +1226,30 @@ export function WorkoutSessionPage() {
               return { ...prev, [exerciseLog.id]: [...new Set([...existing, ...patched])] };
             });
           };
+          /* One definition, rendered either in the active header or demoted
+             into the completed card's corner — the actions are the same
+             either way, only their prominence changes.
+
+             A function, not a shared element: handing the *same* element
+             object to both branches makes React tear the menu down and build
+             it again as the branch flips, which silently discards its open
+             state — the menu appeared to do nothing when clicked. */
+          const renderExerciseMenu = () => (
+            <Menu
+              label={`${exerciseLog.exercise.name} actions`}
+              items={[
+                {
+                  label: 'Remove from today’s workout',
+                  destructive: true,
+                  disabled: query.data.status === 'completed',
+                  onClick: () => {
+                    activateExercise(exerciseLog.id);
+                    setPendingExerciseRemoval({ exerciseLogId: exerciseLog.id, name: exerciseLog.exercise.name, loggedSetCount });
+                  },
+                },
+              ]}
+            />
+          );
           return (
           <ExerciseCard
             key={exerciseLog.id}
@@ -1195,6 +1267,20 @@ export function WorkoutSessionPage() {
             // the exercise it was opened from.
             onFocus={() => activateExercise(exerciseLog.id)}
           >
+{/* Story 42 — a finished exercise stops being a form. While it is
+                collapsed it renders as a record of what happened; reopening it
+                returns the ordinary header and the full editor, so completion
+                stays reversible. */}
+            {completedReadout && isCollapsed ? (
+              <CompletedExerciseCard
+                name={exerciseLog.exercise.name}
+                readout={completedReadout}
+                setCountLabel={completedSetCountLabel(exerciseLog.sets)}
+                onReopen={() => toggleActiveExercise(exerciseLog.id)}
+                testId={`completed-exercise-${exerciseLog.id}`}
+                actions={renderExerciseMenu()}
+              />
+            ) : (
             <ExerciseHeader>
               <ExerciseTitleRow>
                 <IconButton
@@ -1213,23 +1299,15 @@ export function WorkoutSessionPage() {
                   <SupportingText>{summarizePrescription(exerciseLog.prescription)}</SupportingText>
                   {/* Story 38: completion is derived from every set's own
                       required-field completeness (isExerciseComplete),
-                      never a UI flag toggled on collapse — text always
-                      accompanies the color so it isn't the only signal. */}
-                  {isComplete ? (
-                    <>
-                      <Badge tone="success">
-                        <Check size={14} aria-hidden="true" /> Complete
-                      </Badge>
-                      {/* What was achieved, in one line. Not a set list: the
-                          point of collapsing is that detail is available on
-                          demand rather than always present. */}
-                      {completedSummary ? (
-                        <SupportingText data-testid={`completed-summary-${exerciseLog.id}`}>
-                          {completedSummary}
-                        </SupportingText>
-                      ) : null}
-                    </>
-                  ) : exerciseLog.sets.length > 0 ? (
+                      never a UI flag toggled on collapse.
+
+                      Story 42 removed the `✓ Complete` badge that used to sit
+                      here. This header now only renders while the exercise is
+                      being *edited*, where progress through the sets is the
+                      useful readout; the completed state is a card of its own
+                      and says so through structure rather than a label
+                      competing with the exercise name. */}
+                  {exerciseLog.sets.length > 0 ? (
                     <SupportingText>
                       {loggedSetCount} of {exerciseLog.sets.length} sets complete
                     </SupportingText>
@@ -1240,22 +1318,10 @@ export function WorkoutSessionPage() {
                 {/* Story 58: `Add set` has moved into Detailed Sets. It
                     customises the set list, so it belongs beside the sets
                     rather than competing with the quick path for the header. */}
-                <Menu
-                  label={`${exerciseLog.exercise.name} actions`}
-                  items={[
-                    {
-                      label: 'Remove from today’s workout',
-                      destructive: true,
-                      disabled: query.data.status === 'completed',
-                      onClick: () => {
-                        activateExercise(exerciseLog.id);
-                        setPendingExerciseRemoval({ exerciseLogId: exerciseLog.id, name: exerciseLog.exercise.name, loggedSetCount });
-                      },
-                    },
-                  ]}
-                />
+                {renderExerciseMenu()}
               </ExerciseHeaderActions>
             </ExerciseHeader>
+            )}
 
             {/* Story 58/59 — Quick Log: the fast path for the normal case,
                 where every planned set shares the same values. It persists;

@@ -790,7 +790,10 @@ describe('WorkoutSessionPage quick log', () => {
     await user.click(screen.getByRole('button', { name: 'Collapse Outdoor Cycle' }));
     expect(screen.queryByLabelText('Reps')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Expand Outdoor Cycle' }));
+    /* This exercise is fully logged, so collapsing it reveals story 42's
+       completed card rather than a chevron — and the card itself is what
+       reopens the editor. */
+    await user.click(screen.getByRole('button', { name: /Outdoor Cycle, completed/ }));
     expect(await screen.findByLabelText('Reps')).toBeInTheDocument();
   });
 });
@@ -831,14 +834,19 @@ describe('WorkoutSessionPage exercise completion state', () => {
     return renderPage();
   }
 
-  it('shows Complete once every set has its required fields', async () => {
+  it('reads as complete once every set has its required fields', async () => {
+    const user = userEvent.setup();
     renderMultiSetWithCompletion([
       { weightValue: 135, reps: 8 },
       { weightValue: 145, reps: 8 },
     ]);
 
-    expect(await screen.findByText('Complete')).toBeInTheDocument();
-    expect(screen.queryByText(/sets complete/)).not.toBeInTheDocument();
+    /* Story 42 replaced story 38's `Complete` badge with a distinct collapsed
+       card. The derived completion state it keys on is unchanged — only how
+       the state presents itself. */
+    await user.click(await screen.findByRole('button', { name: /^Collapse/ }));
+    expect(await screen.findByTestId('completed-exercise-log-1')).toBeInTheDocument();
+    expect(screen.queryByText(/of 2 sets complete/)).not.toBeInTheDocument();
   });
 
   it('shows a running count while any set is still missing a required field', async () => {
@@ -1139,20 +1147,55 @@ describe('WorkoutSessionPage exercise completion experience', () => {
     expect(screen.queryByTestId('exercise-card-complete')).not.toBeInTheDocument();
   });
 
-  it('summarises what was achieved in one line, not a set list', async () => {
-    renderWithSets([
+  /* A single-exercise fixture that is already complete is also the seeded
+     active exercise, so it opens as an editor. Collapsing is what a user does
+     after finishing — and mid-workout the app does it for them (story 61) —
+     so these assertions about the collapsed presentation start there. */
+  async function renderCompletedAndCollapse(
+    sets: Array<{ weightValue: number | null; reps: number | null }>,
+  ) {
+    const user = userEvent.setup();
+    renderWithSets(sets);
+    await user.click(await screen.findByRole('button', { name: /^Collapse/ }));
+    return user;
+  }
+
+  it('reports achievement as labelled figures, not a summary string', async () => {
+    /* Story 42 replaced `3 sets · 135lb · 8 reps → …` with named metrics. The
+       old string was accurate and had to be parsed; these can be read. */
+    await renderCompletedAndCollapse([
       { weightValue: 135, reps: 8 },
-      { weightValue: 135, reps: 8 },
-      { weightValue: 135, reps: 8 },
+      { weightValue: 185, reps: 6 },
+      { weightValue: 195, reps: 6 },
     ]);
-    const summary = await screen.findByTestId('completed-summary-log-1');
-    expect(summary).toHaveTextContent('3 sets · 135lb · 8 reps');
+    const metrics = await screen.findByTestId('completed-exercise-log-1-metrics');
+    expect(metrics).toHaveTextContent('Top set');
+    expect(metrics).toHaveTextContent('195 lb × 6');
+    expect(metrics).toHaveTextContent('Volume');
+    expect(metrics).not.toHaveTextContent('→');
   });
 
-  it('still says "Complete" in words, never colour alone', async () => {
-    renderWithSets([{ weightValue: 135, reps: 8 }]);
-    await screen.findByTestId('exercise-card-complete');
-    expect(screen.getByText('Complete')).toBeInTheDocument();
+  it('does not put a "Complete" label beside the exercise name', async () => {
+    /* The rejected design competed with the exercise title. Completion is now
+       carried by the card's structure — but must still not be colour alone,
+       which the accessible name below covers. */
+    await renderCompletedAndCollapse([{ weightValue: 135, reps: 8 }]);
+    await screen.findByTestId('completed-exercise-log-1');
+    expect(screen.queryByText('Complete')).not.toBeInTheDocument();
+  });
+
+  it('announces completion to assistive tech rather than relying on colour', async () => {
+    await renderCompletedAndCollapse([{ weightValue: 135, reps: 8 }]);
+    expect(
+      await screen.findByRole('button', { name: /Outdoor Cycle, completed, 1 set completed/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('shows no comparison when there is no history to compare against', async () => {
+    /* "vs last —" placeholders to preserve a layout are explicitly ruled out. */
+    await renderCompletedAndCollapse([{ weightValue: 135, reps: 8 }]);
+    await screen.findByTestId('completed-exercise-log-1');
+    expect(screen.queryByText(/vs last/)).not.toBeInTheDocument();
   });
 
   it('collapses the exercise once its last set is logged', async () => {
@@ -1202,20 +1245,19 @@ describe('WorkoutSessionPage exercise completion experience', () => {
     expect(screen.getByTestId('exercise-card-complete')).toBeInTheDocument();
   });
 
-  it('lets a completed exercise be collapsed and reopened', async () => {
-    const user = userEvent.setup();
-    renderWithSets([{ weightValue: 135, reps: 8 }]);
+  it('reopens a completed exercise from the card itself', async () => {
+    const user = await renderCompletedAndCollapse([{ weightValue: 135, reps: 8 }]);
 
-    /* An exercise that was already complete when the page loaded is *not*
-       auto-collapsed — that only fires on the transition, so reopening a
-       finished exercise to correct it is never fought. */
-    await screen.findByTestId('exercise-card-complete');
-    await user.click(screen.getByRole('button', { name: /^Collapse/ }));
+    /* The whole card is the reopen target: mid-workout, one-handed, a small
+       chevron is a poor one. */
+    await screen.findByTestId('completed-exercise-log-1');
     expect(screen.queryAllByTestId('set-row')).toHaveLength(0);
 
-    await user.click(screen.getByRole('button', { name: /^Expand/ }));
-    // Correcting a finished exercise stays possible.
+    await user.click(screen.getByRole('button', { name: /Outdoor Cycle, completed/ }));
+
+    // Completion is never a one-way door.
     expect(await screen.findAllByTestId('set-row')).toHaveLength(1);
+    expect(screen.queryByTestId('completed-exercise-log-1')).not.toBeInTheDocument();
   });
 });
 
@@ -1267,10 +1309,12 @@ describe('WorkoutSessionPage focus and overrides', () => {
       { weightValue: 135, reps: 8 },
     ]);
 
-    // Reopen the finished exercise and correct the last set.
+    // Reopen the finished exercise and correct the last set. Collapsing a
+    // complete exercise reveals story 42's summary card, which is itself the
+    // control that reopens the editor.
     await screen.findByTestId('exercise-card-complete');
     await user.click(screen.getByRole('button', { name: /^Collapse/ }));
-    await user.click(screen.getByRole('button', { name: /^Expand/ }));
+    await user.click(screen.getByRole('button', { name: /Outdoor Cycle, completed/ }));
 
     const thirdSet = within((await screen.findAllByTestId('set-row'))[2]!);
     await user.clear(thirdSet.getByLabelText('Reps'));

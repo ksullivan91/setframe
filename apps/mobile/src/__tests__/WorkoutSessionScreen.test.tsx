@@ -151,10 +151,14 @@ function textNodesContaining(rendered: ReactTestRenderer, needle: string) {
 // onPress to one), so dedupe by the handler's own reference identity —
 // both layers carry the exact same function — rather than guessing which
 // layer counts as "the" match.
-function pressablesByLabel(rendered: ReactTestRenderer, label: string) {
-  const matches = rendered.root.findAll(
-    (node) => node.props?.accessibilityLabel === label && typeof node.props?.onPress === 'function',
-  );
+/** `label` may be a regex — story 42's completed card builds its accessible
+    name from the exercise name plus its state, so exact matching is brittle. */
+function pressablesByLabel(rendered: ReactTestRenderer, label: string | RegExp) {
+  const matches = rendered.root.findAll((node) => {
+    const actual = node.props?.accessibilityLabel;
+    if (typeof actual !== 'string' || typeof node.props?.onPress !== 'function') return false;
+    return typeof label === 'string' ? actual === label : label.test(actual);
+  });
   const seenHandlers = new Set<unknown>();
   return matches.filter((node) => {
     if (seenHandlers.has(node.props.onPress)) return false;
@@ -516,22 +520,31 @@ describe('WorkoutSessionScreen quick log', () => {
     });
     expect(textInputsByLabel(rendered, 'Duration (min)')).toHaveLength(0);
 
+    /* This exercise is fully logged, so collapsing it reveals story 42's
+       completed card rather than a chevron — and the card is what reopens the
+       editor. */
     await act(async () => {
-      pressablesByLabel(rendered, 'Expand Outdoor Cycle')[0]!.props.onPress();
+      pressablesByLabel(rendered, /Outdoor Cycle, completed/)[0]!.props.onPress();
     });
     expect(textInputsByLabel(rendered, 'Duration (min)').length).toBeGreaterThan(0);
   });
 });
 
 describe('WorkoutSessionScreen exercise completion state', () => {
-  it('shows Complete once every set has its required fields', async () => {
+  it('reads as complete once every set has its required fields', async () => {
     mockSessionPayload = baseSession({
       sets: [baseSet(), baseSet({ id: 'set-2', sortOrder: 1 })],
     });
     const rendered = await renderScreen();
 
-    expect(textNodesContaining(rendered, 'Complete').length).toBeGreaterThan(0);
-    expect(textNodesContaining(rendered, 'sets complete')).toHaveLength(0);
+    /* Story 42 replaced story 38's `Complete` badge with a distinct collapsed
+       card. The derived completion state it keys on is unchanged — only how
+       that state presents itself. */
+    await act(async () => {
+      pressablesByLabel(rendered, 'Collapse Outdoor Cycle')[0]!.props.onPress();
+    });
+    expect(hostsByTestId(rendered, 'completed-exercise-log-1').length).toBeGreaterThan(0);
+    expect(textNodesContaining(rendered, 'of 2 sets complete')).toHaveLength(0);
   });
 
   it('shows a running count while any set is still missing a required field', async () => {
@@ -586,8 +599,13 @@ describe('WorkoutSessionScreen single-active-exercise accordion', () => {
     };
   }
 
+  /* Story 42 note: these use the *unlogged* fixture. A complete exercise no
+     longer renders a chevron while collapsed — it renders a summary card, and
+     the card itself is the reopen control — so a chevron-based assertion about
+     accordion mechanics needs exercises that are still in progress. The
+     completed-card behaviour is covered in its own describe below. */
   it('starts with only the first exercise expanded', async () => {
-    mockSessionPayload = twoExerciseSession();
+    mockSessionPayload = twoExerciseSession(false);
     const rendered = await renderScreen();
 
     expect(pressablesByLabel(rendered, 'Collapse Outdoor Cycle')).toHaveLength(1);
@@ -595,7 +613,7 @@ describe('WorkoutSessionScreen single-active-exercise accordion', () => {
   });
 
   it('tapping another exercise header switches which one is expanded', async () => {
-    mockSessionPayload = twoExerciseSession();
+    mockSessionPayload = twoExerciseSession(false);
     const rendered = await renderScreen();
 
     await act(async () => {
@@ -630,7 +648,7 @@ describe('WorkoutSessionScreen single-active-exercise accordion', () => {
   });
 
   it('manually collapsing the active exercise leaves none expanded', async () => {
-    mockSessionPayload = twoExerciseSession();
+    mockSessionPayload = twoExerciseSession(false);
     const rendered = await renderScreen();
 
     await act(async () => {
@@ -702,17 +720,51 @@ describe('WorkoutSessionScreen exercise completion experience', () => {
     expect(hostsByTestId(rendered, 'exercise-card').length).toBeGreaterThan(0);
   });
 
-  it('summarises what was achieved in one line, not a set list', async () => {
+  it('reports achievement as labelled figures, not a summary string', async () => {
     mockSessionPayload = baseSession({ sets: [baseSet(), baseSet({ id: 'set-2', sortOrder: 1 })] });
     const rendered = await renderScreen();
-    const summary = hostsByTestId(rendered, 'completed-summary-log-1')[0]!;
-    expect(JSON.stringify(summary.props.children)).toContain('2 sets');
+    await act(async () => {
+      pressablesByLabel(rendered, 'Collapse Outdoor Cycle')[0]!.props.onPress();
+    });
+    /* The base fixture is a distance+duration ride, so this also pins that the
+       card is representation-aware: distance and pace, never weight × reps. */
+    /* The rendered node holds React internals, so it cannot be stringified —
+       collect the visible strings instead. */
+    const tile = hostsByTestId(rendered, 'completed-exercise-log-1-metrics')[0]!;
+    const text = tile
+      .findAll((node) => typeof node.type === 'string')
+      .flatMap((node) => ([] as unknown[]).concat(node.props?.children))
+      .filter((child): child is string => typeof child === 'string')
+      .join(' ');
+    expect(text).toContain('Distance');
+    expect(text).toContain('Pace');
+    expect(text).not.toContain('Volume');
+    expect(text).not.toContain('lb');
   });
 
-  it('still says "Complete" in words, never colour alone', async () => {
+  it('announces completion rather than relying on colour', async () => {
     mockSessionPayload = baseSession({ sets: [baseSet()] });
     const rendered = await renderScreen();
-    expect(JSON.stringify(rendered.toJSON())).toContain('Complete');
+    await act(async () => {
+      pressablesByLabel(rendered, 'Collapse Outdoor Cycle')[0]!.props.onPress();
+    });
+    /* Completion is carried by an icon and a tint, so the accessible name has
+       to say it in words — and say that the card reopens. */
+    expect(pressablesByLabel(rendered, /Outdoor Cycle, completed, 1 set completed/).length).toBeGreaterThan(0);
+  });
+
+  it('does not label the card "Complete" beside the exercise name', async () => {
+    mockSessionPayload = baseSession({ sets: [baseSet()] });
+    const rendered = await renderScreen();
+    await act(async () => {
+      pressablesByLabel(rendered, 'Collapse Outdoor Cycle')[0]!.props.onPress();
+    });
+    /* `Complete` may legitimately appear inside "1 set completed"; what must
+       not exist is a standalone label competing with the exercise name. */
+    const exactLabels = textNodesContaining(rendered, 'Complete').filter((node) =>
+      ([] as unknown[]).concat(node.props?.children).some((child) => child === 'Complete'),
+    );
+    expect(exactLabels).toHaveLength(0);
   });
 });
 

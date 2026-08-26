@@ -45,6 +45,15 @@ export const colorRamps = {
   },
   status: {
     success: '#00C48C',
+    /* Story 42 — a success *surface*, for the completed-exercise and
+       workout-complete cards. The solid green is a 4.6:1 accent for icons and
+       text; filling a card with it produces the "entire interface turns
+       bright green" result that story explicitly rules out. These two are the
+       success hue carried down to a tint that body text still reads against:
+       roughly 8% of the accent over the light canvas, and a desaturated deep
+       green for dark mode (a tint of a light hue goes muddy on dark). */
+    successSubtle: '#DFF5EC',
+    successSubtleDark: '#11312A',
     error: '#FF647C',
     caution: '#F5A623',
     info: '#3E8FF5',

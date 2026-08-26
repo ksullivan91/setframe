@@ -38,6 +38,7 @@ export const lightTheme = {
   },
   status: {
     success: colorRamps.status.success,
+    successSubtle: colorRamps.status.successSubtle,
     error: colorRamps.status.error,
     caution: colorRamps.status.caution,
     info: colorRamps.status.info,
@@ -92,6 +93,7 @@ export const darkTheme = {
   },
   status: {
     success: colorRamps.status.success,
+    successSubtle: colorRamps.status.successSubtleDark,
     error: colorRamps.status.error,
     caution: colorRamps.status.caution,
     info: colorRamps.status.info,
@@ -161,7 +163,7 @@ export interface SemanticTheme {
     accentSubtle: string;
     destructive: string;
   };
-  status: { success: string; error: string; caution: string; info: string };
+  status: { success: string; successSubtle: string; error: string; caution: string; info: string };
   chart: ChartTokens;
 }
 

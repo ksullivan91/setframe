@@ -157,6 +157,14 @@ alongside their stories, named `README-{range}-{review}.md`.
   real 1 lb move, and a 2-day weight average that is exactly the
   water-weight noise `body-weight-display-psychology.md` exists to
   suppress.
+- `completed/42-redesign-exercise-completion.md` — exercise completion as a
+  real interaction state rather than success styling on the active card. The
+  first attempt kept the header, added a `Complete` badge and a green border
+  over the *lavender selection tint*, and summarised the work as
+  `5 sets · 135lb · 8 reps → 195lb · 6 reps`. Completion is now a distinct
+  collapsed card — circled check, representation-aware figures on tiles, an
+  honest comparison only when history supports one — and finishing an exercise
+  hands off to the next unfinished one.
 - `completed/README-64-67-mobile-web-modal-rework.md` — the mobile-web modal
   rework (stories 64-67). The reported "two sheets" was never two dialogs:
   below 640px the primitive presented *every* dialog as a bottom sheet, so a

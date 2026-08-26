@@ -15,7 +15,8 @@ import {
   isSaving,
   quickLogTargets as quickLogTargetsFor,
   settleSync,
-  summarizeCompletedExercise,
+  buildCompletedExerciseReadout,
+  completedSetCountLabel,
   supportsQuickLog,
   visibleSessionExercises,
   type SyncMap,
@@ -56,6 +57,7 @@ import {
   type PrescriptionDefinition,
   type SessionField,
 } from '../../src/lib/prescription';
+import { CompletedExerciseCard } from '../../src/components/CompletedExerciseCard';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { radius, spacing, typeScale } from '../../src/theme/getTheme';
 
@@ -533,7 +535,16 @@ export default function WorkoutSessionScreen() {
   useEffect(() => {
     if (!hasSeededActiveExercise.current && visibleExercises.length > 0) {
       hasSeededActiveExercise.current = true;
-      setActiveExerciseId(visibleExercises[0]!.id);
+      /* Story 42 — the first *incomplete* exercise, not simply the first.
+         Reopening a session mid-workout used to expand the editor for an
+         exercise already finished: the wrong place to land, and the one case
+         that hides a completed exercise's own summary behind the editor it
+         replaced. A session with nothing left to do keeps the original
+         fallback, since there is no "next" to orient toward. */
+      const next = visibleExercises.find(
+        (exerciseLog) => !isExerciseComplete(exerciseLog.prescription, exerciseLog.sets),
+      );
+      setActiveExerciseId((next ?? visibleExercises[0]!).id);
     }
   }, [visibleExercises]);
 
@@ -554,7 +565,16 @@ export default function WorkoutSessionScreen() {
       const justCompleted = complete && wasComplete.current[exerciseLog.id] === false;
       wasComplete.current[exerciseLog.id] = complete;
       if (justCompleted) {
-        setActiveExerciseId((current) => (current === exerciseLog.id ? null : current));
+        /* Story 42 — finishing hands off to the next unfinished exercise, so
+           the workout reads as a queue emptying rather than a list changing
+           colour. Null when nothing is left: every card is a summary and
+           Finish is the only thing to do. */
+        const next = visibleExercises.find(
+          (candidate) =>
+            candidate.id !== exerciseLog.id &&
+            !isExerciseComplete(candidate.prescription, candidate.sets),
+        );
+        setActiveExerciseId((current) => (current === exerciseLog.id ? (next?.id ?? null) : current));
       }
     }
   }, [visibleExercises]);
@@ -730,9 +750,19 @@ export default function WorkoutSessionScreen() {
         /* Story 58/59 — what Quick Log would write, and what to call the
            button. Derived from the server's sets, never from local drafts: a
            prefilled-but-unsaved value must not make a set look logged. */
-        const completedSummary = isComplete
-          ? summarizeCompletedExercise(exerciseLog.prescription, exerciseLog.sets)
+        /* Story 42 — representation-aware figures plus an honest comparison,
+           derived in the domain package so native and web decide identically. */
+        const completedReadout = isComplete
+          ? buildCompletedExerciseReadout(
+              exerciseLog.prescription,
+              exerciseLog.sets,
+              exerciseLog.previousSession?.sets ?? null,
+            )
           : null;
+        /* "Collapsed" only means something once the accordion has been seeded;
+           before that `activeExerciseId` is null and treating it as collapsed
+           would flash a completed exercise as a summary and snap it back open. */
+        const isCollapsed = hasSeededActiveExercise.current && !isExpanded;
         const quickLogValues = draftToValues(headerDraft, definition);
         const quickLogTargets = quickLogTargetsFor(exerciseLog.prescription, exerciseLog.sets);
         /* The denominator excludes warmups, so "Log all 3 sets" counts the
@@ -757,15 +787,42 @@ export default function WorkoutSessionScreen() {
         <Card
           key={exerciseLog.id}
           testID={isComplete ? 'exercise-card-complete' : 'exercise-card'}
-          /* Story 61 — the whole surface carries completion, not a badge on
-             an otherwise identical card. The badge stays, because colour must
-             never be the only signal. */
+          /* Story 61, corrected by story 42. This was `action.accentSubtle` —
+             the lavender that means *selected* everywhere else — which said
+             "picked", not "done", and made finished work the loudest thing on
+             screen. Now a real success tint, with the state carried mostly by
+             the card's contents rather than its fill. */
           style={
             isComplete
-              ? { borderWidth: 1, borderColor: theme.status.success, backgroundColor: theme.action.accentSubtle }
+              ? { borderWidth: 1, borderColor: theme.status.success, backgroundColor: theme.status.successSubtle }
               : undefined
           }
         >
+          {/* Story 42 — a finished exercise stops being a form while it is
+              collapsed, and returns to the ordinary header the moment it is
+              reopened, so completion stays reversible. */}
+          {completedReadout && isCollapsed ? (
+            <CompletedExerciseCard
+              name={exerciseLog.exercise.name}
+              readout={completedReadout}
+              setCountLabel={completedSetCountLabel(exerciseLog.sets)}
+              onReopen={() => toggleActiveExercise(exerciseLog.id)}
+              testID={`completed-exercise-${exerciseLog.id}`}
+              actions={
+                <IconButton
+                  icon={MoreVertical}
+                  variant="subtle"
+                  accessibilityLabel={`${exerciseLog.exercise.name} actions`}
+                  onPress={() => {
+                    if (sessionQuery.data.status === 'completed') return;
+                    activateExercise(exerciseLog.id);
+                    confirmRemoveExercise(exerciseLog.id, exerciseLog.exercise.name, loggedSetCount);
+                  }}
+                />
+              }
+            />
+          ) : (
+          <>
           <View style={styles.exerciseHeader}>
             <View style={styles.exerciseTitleRow}>
               <IconButton
@@ -797,28 +854,20 @@ export default function WorkoutSessionScreen() {
           <Text style={[styles.prescription, { color: theme.text.secondary }]}>{summarizePrescription(exerciseLog.prescription)}</Text>
 
           {/* Story 38: completion is derived from every set's own
-              required-field completeness (isExerciseComplete), never a UI
-              flag toggled on collapse — text always accompanies the color
-              so it isn't the only signal. */}
-          {isComplete ? (
-            <>
-              <Badge label="Complete" tone="success" />
-              {/* What was achieved, in one line. Not a set list: the point of
-                  collapsing is that detail is available on demand. */}
-              {completedSummary ? (
-                <Text
-                  style={[styles.prescription, { color: theme.text.secondary }]}
-                  testID={`completed-summary-${exerciseLog.id}`}
-                >
-                  {completedSummary}
-                </Text>
-              ) : null}
-            </>
-          ) : exerciseLog.sets.length > 0 ? (
+              required-field completeness (isExerciseComplete), never a UI flag
+              toggled on collapse.
+
+              Story 42 removed the `Complete` badge that sat here. This header
+              now only renders while the exercise is being edited, where
+              progress through the sets is the useful readout; the completed
+              state is a card of its own. */}
+          {exerciseLog.sets.length > 0 ? (
             <Text style={[styles.prescription, { color: theme.text.secondary }]}>
               {`${loggedSetCount} of ${exerciseLog.sets.length} sets complete`}
             </Text>
           ) : null}
+          </>
+          )}
 
           {/* Story 58/59 — Quick Log: the fast path for the normal case,
               where every planned set shares the same values. It persists; it
