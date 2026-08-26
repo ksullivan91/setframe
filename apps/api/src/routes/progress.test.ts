@@ -17,11 +17,14 @@ vi.mock('../lib/db', () => ({
 
 function queryChain(rows: unknown[]) {
   const resolved = Promise.resolve(rows);
-  return {
+  // `orderBy` returns the chain rather than resolving, so a query that goes on
+  // to `.limit(1)` still works; `then` keeps it awaitable for those that stop.
+  const chain: Record<string, unknown> = {
     limit: vi.fn().mockResolvedValue(rows),
-    orderBy: vi.fn().mockResolvedValue(rows),
     then: resolved.then.bind(resolved),
   };
+  chain.orderBy = vi.fn().mockReturnValue(chain);
+  return chain;
 }
 
 function selectChain(rows: unknown[]) {
@@ -33,7 +36,7 @@ function selectChain(rows: unknown[]) {
         where: vi.fn().mockReturnValue(chain),
       }),
       where: vi.fn().mockReturnValue(chain),
-      orderBy: vi.fn().mockResolvedValue(rows),
+      orderBy: vi.fn().mockReturnValue(chain),
     }),
   };
 }
@@ -93,6 +96,7 @@ describe('GET /v1/progress/overview training summary', () => {
       .mockReturnValueOnce(selectChain([userRow])) // auth
       .mockReturnValueOnce(selectChain([sessionSetRow])) // setRows
       .mockReturnValueOnce(selectChain([])) // restRows
+      .mockReturnValueOnce(selectChain([{ localDate: '2026-08-24' }])) // firstSession
       .mockReturnValueOnce(selectChain([])); // bodyWeightRows
 
     const app = buildApp();
@@ -111,6 +115,103 @@ describe('GET /v1/progress/overview training summary', () => {
     expect(body.training.totalCompleted).toBe(1);
     expect(body.recentSessions).toHaveLength(1);
     expect(body.recentSessions[0]).toMatchObject({ sessionId: sessionSetRow.sessionId, exerciseCount: 1, setCount: 1 });
+    await app.close();
+  });
+});
+
+/**
+ * Story 50 — the daily rollup the sub-weekly ranges chart from, and the bound
+ * that decides where an empty period may honestly be drawn as zero.
+ */
+describe('GET /v1/progress/overview daily training series', () => {
+  it('returns a per-day rollup alongside the weekly one', async () => {
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([sessionSetRow]))
+      .mockReturnValueOnce(selectChain([]))
+      .mockReturnValueOnce(selectChain([{ localDate: '2026-08-24' }]))
+      .mockReturnValueOnce(selectChain([]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'GET',
+      url: '/v1/progress/overview?weeks=4&localDate=2026-08-24',
+      headers: authHeader,
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.training.days).toEqual([
+      { localDate: '2026-08-24', completedCount: 1, volume: 1080 },
+    ]);
+    await app.close();
+  });
+
+  it('reports a first-activity date that predates the requested window', async () => {
+    /* The load-bearing case. `firstActivityDate` must come from its own
+       unbounded query, not from the windowed session rows — derived from
+       those it would always equal the window's own start, and every range
+       would look like the user began at its left edge. */
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([sessionSetRow]))
+      .mockReturnValueOnce(selectChain([]))
+      .mockReturnValueOnce(selectChain([{ localDate: '2024-03-05' }]))
+      .mockReturnValueOnce(selectChain([]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'GET',
+      url: '/v1/progress/overview?weeks=4&localDate=2026-08-24',
+      headers: authHeader,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().training.firstActivityDate).toBe('2024-03-05');
+    await app.close();
+  });
+
+  it('reports a null first-activity date for a user who has never trained', async () => {
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([]))
+      .mockReturnValueOnce(selectChain([]))
+      .mockReturnValueOnce(selectChain([]))
+      .mockReturnValueOnce(selectChain([]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'GET',
+      url: '/v1/progress/overview?weeks=4&localDate=2026-08-24',
+      headers: authHeader,
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.training.firstActivityDate).toBeNull();
+    expect(body.training.days).toEqual([]);
+    await app.close();
+  });
+
+  it('accepts a window long enough for the Y and ALL ranges', async () => {
+    // The old cap was 52, one week short of a full year plus the partial
+    // current one, and far short of any real history for ALL.
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([sessionSetRow]))
+      .mockReturnValueOnce(selectChain([]))
+      .mockReturnValueOnce(selectChain([{ localDate: '2024-03-05' }]))
+      .mockReturnValueOnce(selectChain([]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'GET',
+      url: '/v1/progress/overview?weeks=53&localDate=2026-08-24',
+      headers: authHeader,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().training.windowWeeks).toBe(53);
     await app.close();
   });
 });

@@ -112,19 +112,40 @@ function toDayNumber(localDate: string): number {
 /**
  * Rounds a domain outward to human-friendly step boundaries, so axis labels
  * read 170 / 175 / 180 rather than 168.4 / 173.9 / 179.4.
+ *
+ * @param minStep Smallest step the axis may use, and the unit every step and
+ *   bound is a multiple of. Pass 1 for a chart of whole things: a session
+ *   count topping out at 1 otherwise gets a step of 0.5 and an axis reading
+ *   0, 1, 1 — two gridlines with the same label, because half a session
+ *   rounds to one.
  */
-export function niceScale(min: number, max: number, tickCount: number): { min: number; max: number; step: number } {
+export function niceScale(
+  min: number,
+  max: number,
+  tickCount: number,
+  minStep?: number,
+): { min: number; max: number; step: number } {
+  const quantise = (step: number) =>
+    minStep && minStep > 0 ? Math.max(Math.ceil(step / minStep) * minStep, minStep) : step;
+
   if (!Number.isFinite(min) || !Number.isFinite(max)) return { min: 0, max: 1, step: 1 };
   const span = max - min;
   if (span <= 0) {
-    const pad = Math.abs(max) > 0 ? Math.abs(max) * 0.05 : 1;
-    return { min: min - pad, max: max + pad, step: pad };
+    /* A flat series still needs an axis around it. The bounds are aligned to
+       the step, not just padded by it: padding alone leaves 2.5 ± 1 → ticks
+       at 1.5 / 2.5 / 3.5, which breaks the whole-number promise `minStep`
+       makes even though the step itself is 1. */
+    const pad = quantise(Math.abs(max) > 0 ? Math.abs(max) * 0.05 : 1);
+    const low = min - pad;
+    const high = max + pad;
+    if (!minStep || minStep <= 0) return { min: low, max: high, step: pad };
+    return { min: Math.floor(low / pad) * pad, max: Math.ceil(high / pad) * pad, step: pad };
   }
   const rawStep = span / Math.max(tickCount - 1, 1);
   const magnitude = 10 ** Math.floor(Math.log10(rawStep));
   const normalised = rawStep / magnitude;
   const niceNormalised = normalised <= 1 ? 1 : normalised <= 2 ? 2 : normalised <= 5 ? 5 : 10;
-  const step = niceNormalised * magnitude;
+  const step = quantise(niceNormalised * magnitude);
   return { min: Math.floor(min / step) * step, max: Math.ceil(max / step) * step, step };
 }
 
@@ -225,6 +246,8 @@ export interface ColumnChartOptions {
   formatValue?: (value: number) => string;
   /** Fraction of each slot taken by the bar itself. */
   barRatio?: number;
+  /** Smallest axis step. Pass 1 when the values are counts of whole things. */
+  minStep?: number;
 }
 
 export interface PlottedColumn<Meta = unknown> {
@@ -263,7 +286,7 @@ export function buildColumnChart<Meta>(
   const format = options.formatValue ?? ((value: number) => String(Math.round(value)));
 
   const values = series.flatMap((point) => (point.value == null ? [] : [point.value]));
-  const scale = niceScale(0, values.length ? Math.max(...values) : 1, tickCount);
+  const scale = niceScale(0, values.length ? Math.max(...values) : 1, tickCount, options.minStep);
   const domainMax = scale.max > 0 ? scale.max : 1;
 
   const slot = plot.width / Math.max(series.length, 1);

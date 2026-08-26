@@ -14,6 +14,9 @@ export function isProgressOverview(value: unknown): value is ProgressOverviewRes
   const candidate = value as Partial<ProgressOverviewResponse>;
   return (
     Array.isArray(candidate.training?.weeks) &&
+    // Story 50's daily buckets. An API that predates them returns no `days`,
+    // and the sub-weekly ranges would map over undefined.
+    Array.isArray(candidate.training?.days) &&
     Array.isArray(candidate.bodyWeight?.points) &&
     Array.isArray(candidate.exercises) &&
     Array.isArray(candidate.recentSessions)

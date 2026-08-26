@@ -268,3 +268,98 @@ describe('rest days', () => {
     expect(result.totalRestDays).toBe(0);
   });
 });
+
+/**
+ * Story 50 — the W and M ranges need day resolution. Weekly buckets are the
+ * wrong grain there: a seven-bar week chart drawn from `weeks` is one bar.
+ */
+describe('daily rollup', () => {
+  it('reports each training day separately', () => {
+    const result = summarizeTrainingTrends(sessions('2025-08-19', '2025-08-21'), END, 2);
+    expect(result.days).toEqual([
+      { localDate: '2025-08-19', completedCount: 1, volume: null },
+      { localDate: '2025-08-21', completedCount: 1, volume: null },
+    ]);
+  });
+
+  it('sums two sessions logged on the same day', () => {
+    const result = summarizeTrainingTrends(sessions('2025-08-19', '2025-08-19'), END, 2);
+    expect(result.days).toHaveLength(1);
+    expect(result.days[0]!.completedCount).toBe(2);
+  });
+
+  it('agrees with the weekly totals it is built from', () => {
+    const result = summarizeTrainingTrends(
+      sessions('2025-08-19', '2025-08-21', '2025-08-12'),
+      END,
+      2,
+    );
+    const dayTotal = result.days.reduce((sum, day) => sum + day.completedCount, 0);
+    expect(dayTotal).toBe(result.totalCompleted);
+  });
+
+  it('omits a day with no session rather than emitting a zero', () => {
+    // Whether an absence *means* zero depends on when the user started
+    // logging — a question for the consumer, via firstActivityDate.
+    const result = summarizeTrainingTrends(sessions('2025-08-19'), END, 2);
+    expect(result.days.map((day) => day.localDate)).toEqual(['2025-08-19']);
+  });
+
+  it('keeps volume null for a day of non-load training', () => {
+    const result = summarizeTrainingTrends([{ localDate: '2025-08-19', volume: null }], END, 2);
+    expect(result.days[0]!.volume).toBeNull();
+  });
+
+  it('sums volume across a day, and never folds null into a 0', () => {
+    const result = summarizeTrainingTrends(
+      [
+        { localDate: '2025-08-19', volume: 1000 },
+        { localDate: '2025-08-19', volume: null },
+        { localDate: '2025-08-19', volume: 500 },
+      ],
+      END,
+      2,
+    );
+    expect(result.days[0]!.volume).toBe(1500);
+  });
+
+  it('excludes sessions outside the window, as the weekly buckets do', () => {
+    const result = summarizeTrainingTrends(sessions('2025-08-19', '2024-01-05'), END, 2);
+    expect(result.days.map((day) => day.localDate)).toEqual(['2025-08-19']);
+  });
+});
+
+describe('firstActivityDate', () => {
+  it('is the earliest session date', () => {
+    const result = summarizeTrainingTrends(sessions('2025-08-21', '2025-08-12'), END, 2);
+    expect(result.firstActivityDate).toBe('2025-08-12');
+  });
+
+  it('is null when nothing has been logged', () => {
+    expect(summarizeTrainingTrends([], END, 2).firstActivityDate).toBeNull();
+  });
+
+  it('prefers the caller-supplied date over the earliest session in view', () => {
+    // The API knows the unwindowed answer from its own query; `sessions` here
+    // is already trimmed, so deriving from it would pin the user's history to
+    // the window's own start.
+    const result = summarizeTrainingTrends(sessions('2025-08-21'), END, 2, {
+      firstActivityDate: '2023-11-02',
+    });
+    expect(result.firstActivityDate).toBe('2023-11-02');
+  });
+
+  it('honours an explicit null from a caller that knows there is no history', () => {
+    const result = summarizeTrainingTrends(sessions('2025-08-21'), END, 2, {
+      firstActivityDate: null,
+    });
+    expect(result.firstActivityDate).toBeNull();
+  });
+
+  it('counts a session older than the window as evidence the user was logging', () => {
+    // The question is "had they started by then", and a session that predates
+    // the window still answers yes — even though it is excluded from `weeks`.
+    const result = summarizeTrainingTrends(sessions('2025-08-21', '2024-01-05'), END, 2);
+    expect(result.firstActivityDate).toBe('2024-01-05');
+  });
+});

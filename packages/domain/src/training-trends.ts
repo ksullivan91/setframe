@@ -75,8 +75,42 @@ export interface TrainingWeek {
   isCurrent: boolean;
 }
 
+/**
+ * One calendar day of training, for ranges too short for weekly buckets.
+ *
+ * `weeks` is the wrong resolution for the W and M ranges — a seven-bar chart
+ * of one bar is not a chart. These carry the same facts a day at a time, so
+ * the client can bucket to whatever the selected range calls for
+ * (`buildProgressSeries` in progress-range.ts) rather than the API deciding
+ * a single granularity for every range.
+ *
+ * Only days with activity appear. A day with no session is absent, not zero:
+ * whether that absence *means* zero depends on whether the user had started
+ * logging yet, which is a question for the consumer and is what
+ * `firstActivityDate` below exists to answer.
+ */
+export interface TrainingDay {
+  /** `YYYY-MM-DD` in the user's timezone. */
+  localDate: string;
+  completedCount: number;
+  /** `null` for a day of non-load training, so 0 never implies wasted work. */
+  volume: number | null;
+}
+
 export interface TrainingTrends {
   weeks: TrainingWeek[];
+  /** Per-day counts and volume, for sub-weekly ranges. */
+  days: TrainingDay[];
+  /**
+   * The earliest date with any recorded training, or `null` if there is none.
+   *
+   * A chart may legitimately render an empty period as zero — you trained no
+   * times that week — but only *within* the span the user was actually using
+   * the app. Before their first session there is no fact to report, and
+   * drawing a row of zeros there invents a history of not training out of an
+   * account that did not exist yet.
+   */
+  firstActivityDate: string | null;
   /** Weeks in the window containing at least one completed session. */
   weeksTrained: number;
   /** Length of the window, so the UI can render "N of M". */
@@ -125,6 +159,15 @@ export interface TrainingTrendOptions {
   plannedByWeek?: Readonly<Record<string, number>>;
   /** Dates the user marked as rest, `YYYY-MM-DD`. */
   restDates?: readonly string[];
+  /**
+   * The user's true first training date, where the caller knows it.
+   *
+   * `sessions` is normally already trimmed to the requested window, so the
+   * earliest one in it is the window's own start rather than the user's. A
+   * caller holding the unwindowed answer — the API runs a separate query for
+   * exactly this — passes it here so `firstActivityDate` means what it says.
+   */
+  firstActivityDate?: string | null;
 }
 
 export function summarizeTrainingTrends(
@@ -202,8 +245,36 @@ export function summarizeTrainingTrends(
 
   const totalCompleted = weeks.reduce((sum, week) => sum + week.completedCount, 0);
 
+  /* Daily rollup, built from the same sessions the weekly buckets use so the
+     two can never disagree about a total. Sessions outside the window are
+     excluded here for the same reason they are there: folding them into an
+     edge day would silently inflate it. */
+  const dayCounts = new Map<string, { completedCount: number; volume: number | null }>();
+  for (const session of sessions) {
+    if (!window.includes(isoWeekStart(session.localDate))) continue;
+    const entry = dayCounts.get(session.localDate) ?? { completedCount: 0, volume: null };
+    entry.completedCount += 1;
+    if (session.volume != null) entry.volume = (entry.volume ?? 0) + session.volume;
+    dayCounts.set(session.localDate, entry);
+  }
+  const days: TrainingDay[] = [...dayCounts.entries()]
+    .map(([localDate, entry]) => ({ localDate, ...entry }))
+    .sort((a, b) => a.localDate.localeCompare(b.localDate));
+
+  /* Falls back to the earliest session supplied — every session, not just
+     those inside the window, since a session older than the window is still
+     evidence the user had started logging. `options.firstActivityDate` wins
+     where the caller knows the unwindowed truth. */
+  const derivedFirstActivity = sessions.length
+    ? sessions.reduce((min, s) => (s.localDate < min ? s.localDate : min), sessions[0]!.localDate)
+    : null;
+  const firstActivityDate =
+    options.firstActivityDate !== undefined ? options.firstActivityDate : derivedFirstActivity;
+
   return {
     weeks,
+    days,
+    firstActivityDate,
     weeksTrained: weeks.filter((week) => week.completedCount > 0).length,
     windowWeeks,
     currentStreakWeeks,

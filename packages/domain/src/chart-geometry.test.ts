@@ -162,6 +162,46 @@ describe('column chart', () => {
     expect(chart.columns[1]!.height).toBeCloseTo(chart.columns[0]!.height / 2, 5);
   });
 
+  /* Caught on a real screenshot of the W range: a daily session count tops out
+     at 1, niceScale picked a step of 0.5, and the axis rendered 0, 1, 1 —
+     two gridlines carrying the same label, because half a session rounds to
+     one. `minStep: 1` is what a chart of whole things passes. */
+  it('never labels two gridlines the same for a count that tops out at one', () => {
+    const chart = buildColumnChart(points([['2025-08-04', 1], ['2025-08-05', 1]]), {
+      layout,
+      minStep: 1,
+    });
+    const labels = chart.ticks.map((tick) => tick.label);
+    expect(new Set(labels).size).toBe(labels.length);
+    expect(labels).toEqual(['0', '1']);
+  });
+
+  it('keeps whole-number steps as the count grows', () => {
+    const chart = buildColumnChart(points([['2025-08-04', 5], ['2025-08-11', 2]]), {
+      layout,
+      minStep: 1,
+    });
+    for (const tick of chart.ticks) {
+      expect(Number.isInteger(tick.value)).toBe(true);
+    }
+  });
+
+  it('keeps a flat count series on whole-number ticks', () => {
+    // niceScale(2.5, 2.5, 4, 1) padded to 1.5–3.5 with a step of 1: whole
+    // steps, fractional gridlines. The bounds have to align to the step too.
+    const scale = niceScale(2.5, 2.5, 4, 1);
+    expect(Number.isInteger(scale.min)).toBe(true);
+    expect(Number.isInteger(scale.max)).toBe(true);
+    expect(Number.isInteger(scale.step)).toBe(true);
+  });
+
+  it('leaves a continuous measure free to use fractional steps', () => {
+    // Volume and body weight are not counts; forcing integers on them would
+    // coarsen an axis that legitimately needs decimals.
+    const chart = buildColumnChart(points([['2025-08-04', 1], ['2025-08-11', 0.5]]), { layout });
+    expect(chart.ticks.some((tick) => !Number.isInteger(tick.value))).toBe(true);
+  });
+
   it('does not make a lone column full height', () => {
     // A single week of 1 session should not read as "100% of something".
     const chart = buildColumnChart(points([['2025-08-18', 1]]), { layout });

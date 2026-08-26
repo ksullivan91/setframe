@@ -183,6 +183,15 @@ export function bucketStart(localDate: string, bucket: ProgressBucket): string {
  * or a three-week break looks like three consecutive days. This is what
  * "missing data is missing, not zero" means geometrically.
  */
+/** The start of the bucket immediately after the one beginning `start`. */
+export function nextBucketStart(start: string, bucket: ProgressBucket): string {
+  const date = toUtc(start);
+  if (bucket === 'day') date.setUTCDate(date.getUTCDate() + 1);
+  else if (bucket === 'week') date.setUTCDate(date.getUTCDate() + 7);
+  else date.setUTCMonth(date.getUTCMonth() + 1);
+  return toLocalDate(date);
+}
+
 export function bucketWindow(window: ProgressWindow, bucket: ProgressBucket): string[] {
   const starts: string[] = [];
   const endBucket = bucketStart(window.end, bucket);
@@ -192,11 +201,7 @@ export function bucketWindow(window: ProgressWindow, bucket: ProgressBucket): st
   for (let guard = 0; guard < 4000; guard += 1) {
     starts.push(cursor);
     if (cursor >= endBucket) break;
-    const date = toUtc(cursor);
-    if (bucket === 'day') date.setUTCDate(date.getUTCDate() + 1);
-    else if (bucket === 'week') date.setUTCDate(date.getUTCDate() + 7);
-    else date.setUTCMonth(date.getUTCMonth() + 1);
-    cursor = toLocalDate(date);
+    cursor = nextBucketStart(cursor, bucket);
   }
   return starts;
 }
@@ -228,6 +233,61 @@ export interface BuildSeriesOptions {
    * like body weight, where an unweighed day is unknown, not zero.
    */
   emptyIsZero?: boolean;
+  /**
+   * Earliest date `emptyIsZero` is allowed to apply from. Buckets ending
+   * before this stay `null`.
+   *
+   * "You completed no sessions that week" is only a fact about a week the
+   * user was around for. Without this bound, selecting Y on a two-week-old
+   * account draws fifty bars of zero — a year of not training, invented for
+   * an account that did not exist. Story 51 hit the same edge in the insight
+   * layer, where an empty prior week became "compared with 0 last week".
+   */
+  zeroFrom?: string | null;
+  /**
+   * Overrides the bucket `bucketForRange` would pick.
+   *
+   * Metrics do not all read best at the same resolution — see
+   * `countBucketForRange`, which a count or workload chart passes here.
+   *
+   * Pass the *function* rather than a precomputed bucket whenever the choice
+   * depends on how much history there is. `ALL`'s window is resolved from the
+   * data inside this function, so a caller computing its own span from
+   * `windowForRange('ALL', …)` gets zero and any span-dependent branch dies
+   * silently — which is exactly what happened the first time this shipped.
+   */
+  bucket?: ProgressBucket | ((range: ProgressRange, spanDays: number) => ProgressBucket);
+}
+
+/**
+ * Bucket size for a **count or workload** chart, which is coarser than the
+ * measurement default at every range but `W`.
+ *
+ * Body weight at M is thirty daily marks and each one is a real reading. A
+ * daily session count is almost always 0 or 1, so the same thirty marks are a
+ * barcode carrying no shape; weekly totals over a month run 0–6 and show the
+ * training rhythm the chart exists to reveal. Volume follows sessions rather
+ * than body weight for the same reason — it is additive, so a week's total is
+ * a meaningful quantity, where a week of body weight would have to be averaged.
+ *
+ * `ALL` steps down again once the history outgrows a weekly axis: six months
+ * of daily bars rendered as 181 slivers at 390px, which is what sent this
+ * function past its original one-range special case.
+ *
+ * `W` stays daily — seven bars is the whole point of that range — so the two
+ * chart families still share one range control and one set of windows.
+ */
+export function countBucketForRange(range: ProgressRange, spanDays: number): ProgressBucket {
+  if (range === 'W') return 'day';
+  if (range === 'ALL') {
+    /* A short history is still best read day by day — two weekly bars tell a
+       ten-day-old account nothing. Past a month, weeks; past about two years,
+       a weekly axis is >104 bars, so months. */
+    if (spanDays <= 31) return 'day';
+    return spanDays > 730 ? 'month' : 'week';
+  }
+  const bucket = bucketForRange(range, spanDays);
+  return bucket === 'day' ? 'week' : bucket;
 }
 
 /**
@@ -263,7 +323,10 @@ export function buildProgressSeries<Meta = unknown>(
       : windowForRange(options.range, options.endLocalDate);
 
   const spanDays = Math.max(daysBetween(window.start, window.end), 0);
-  const bucket = bucketForRange(options.range, spanDays);
+  const bucket =
+    typeof options.bucket === 'function'
+      ? options.bucket(options.range, spanDays)
+      : (options.bucket ?? bucketForRange(options.range, spanDays));
 
   /* Each bucket keeps its observations' `meta` alongside their values.
      Dropping it would break drill-down: the per-exercise chart navigates to
@@ -287,7 +350,15 @@ export function buildProgressSeries<Meta = unknown>(
   const points = bucketWindow(window, bucket).map<ProgressPoint<Meta>>((start) => {
     const entry = byBucket.get(start);
     if (!entry || entry.values.length === 0) {
-      return { localDate: start, value: options.emptyIsZero ? 0 : null, sampleCount: 0 };
+      /* A bucket is zero only if it ends on or after the first day the user
+         was logging. `bucketEnd` rather than `start`, so the week or month
+         containing that first day still counts as zero-able — the user was
+         present for part of it, and nulling the very bucket their history
+         begins in would punch a hole at the left edge of every chart. */
+      const bucketEnd = nextBucketStart(start, bucket);
+      const zeroable =
+        options.emptyIsZero && (!options.zeroFrom || bucketEnd > options.zeroFrom);
+      return { localDate: start, value: zeroable ? 0 : null, sampleCount: 0 };
     }
     return {
       localDate: start,
@@ -460,5 +531,68 @@ export function describeBucketValue(
       return null;
     case 'last':
       return point.sampleCount === 1 ? null : `latest of ${point.sampleCount} ${noun}`;
+  }
+}
+
+export interface PeriodComparison {
+  /** The most recent bucket in the series. */
+  current: ProgressPoint;
+  /** The bucket before it, or `null` if the series has only one. */
+  previous: ProgressPoint | null;
+  /**
+   * `current - previous`, and `null` unless the comparison is honest.
+   *
+   * Requires both values to be known. A `null` previous bucket is one that
+   * predates the user's first activity, and treating it as zero manufactures
+   * a baseline from a period they were not there for — "compared with 0 last
+   * week" for a week before they signed up. Story 51 shipped that bug once.
+   */
+  change: number | null;
+  /**
+   * True when `current` extends past `endLocalDate` — a week still being
+   * lived in. Callers must not present a partial bucket as directly
+   * comparable to a finished one.
+   */
+  isPartial: boolean;
+}
+
+/**
+ * The latest bucket, the one before it, and whether they can honestly be
+ * compared.
+ *
+ * Lives here rather than in either renderer so web and mobile cannot disagree
+ * about what "previous period" means or when a comparison is safe to show.
+ */
+export function comparePeriods(
+  series: ProgressSeries,
+  endLocalDate: string,
+): PeriodComparison | null {
+  const current = series.points.at(-1);
+  if (!current) return null;
+  const previous = series.points.at(-2) ?? null;
+  const change =
+    current.value != null && previous?.value != null ? current.value - previous.value : null;
+  return {
+    current,
+    previous,
+    change,
+    isPartial: nextBucketStart(current.localDate, series.bucket) > endLocalDate,
+  };
+}
+
+/**
+ * How a partial bucket names itself: "Current week", "Today", "This month".
+ *
+ * Story 33: a period that is still in progress must be distinguishable
+ * without relying on its fill colour. This is the text half of that.
+ */
+export function currentPeriodLabel(bucket: ProgressBucket): string {
+  switch (bucket) {
+    case 'day':
+      return 'Today';
+    case 'week':
+      return 'Current week';
+    case 'month':
+      return 'This month';
   }
 }

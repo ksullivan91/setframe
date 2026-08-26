@@ -80,7 +80,11 @@ export const progressRoutes: FastifyPluginAsyncZod = async (fastify) => {
       preHandler: requireAuth,
       schema: {
         querystring: z.object({
-          weeks: z.coerce.number().int().positive().max(52).default(12),
+          /* Capped at five years rather than one: Story 50's Y range needs 53
+             weeks to cover a full year plus the partial current one, and ALL
+             needs to reach whatever history exists. The cost is bounded by
+             how much the user has actually logged, not by the cap. */
+          weeks: z.coerce.number().int().positive().max(260).default(12),
           localDate: z.string().date().optional(),
         }),
         response: { 200: progressOverviewResponseSchema },
@@ -202,11 +206,32 @@ export const progressRoutes: FastifyPluginAsyncZod = async (fastify) => {
           and(eq(restDay.userId, request.userId!), gte(restDay.localDate, sinceLocalDate)),
         );
 
+      /* The user's first-ever completed session, deliberately *not* bounded by
+         `sinceLocalDate`. This answers "had they started logging by then",
+         which bounds where a chart may honestly draw an empty period as zero
+         — so it has to be able to predate the requested window. Reading it
+         from `sessions` instead would pin it to the window's own start and
+         make every range look like the user began at its left edge. */
+      const [firstSessionRow] = await db
+        .select({ localDate: workoutSession.localDate })
+        .from(workoutSession)
+        .where(
+          and(
+            eq(workoutSession.userId, request.userId!),
+            eq(workoutSession.status, 'completed'),
+          ),
+        )
+        .orderBy(workoutSession.localDate)
+        .limit(1);
+
       const trends = summarizeTrainingTrends(
         sessions.map((session) => ({ localDate: session.localDate, volume: session.volume })),
         endLocalDate,
         windowWeeks,
-        { restDates: restRows.map((row) => row.localDate) },
+        {
+          restDates: restRows.map((row) => row.localDate),
+          firstActivityDate: firstSessionRow?.localDate ?? null,
+        },
       );
 
       const exerciseMap = new Map<
@@ -298,6 +323,8 @@ export const progressRoutes: FastifyPluginAsyncZod = async (fastify) => {
       return {
         training: {
           weeks: trends.weeks,
+          days: trends.days,
+          firstActivityDate: trends.firstActivityDate,
           weeksTrained: trends.weeksTrained,
           windowWeeks: trends.windowWeeks,
           currentStreakWeeks: trends.currentStreakWeeks,
