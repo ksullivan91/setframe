@@ -1197,3 +1197,90 @@ describe('ProgressPage strength panels', () => {
     );
   });
 });
+
+
+/**
+ * Plan vs actual. `plannedCount` was hardcoded `null` from the day the route
+ * was written, so this comparison could not be drawn at all.
+ */
+describe('ProgressPage adherence', () => {
+  function planned(counts: number[], plans: (number | null)[]) {
+    return {
+      training: {
+        ...trainingFixture(counts),
+        weeks: weeks(counts).map((week, index) => ({
+          ...week,
+          plannedCount: plans[index] ?? null,
+          completionRatio:
+            plans[index] == null || plans[index] === 0
+              ? null
+              : counts[index]! / (plans[index] as number),
+        })),
+        weeksTrained: counts.filter((count) => count > 0).length,
+        windowWeeks: counts.length,
+        currentStreakWeeks: 1,
+        longestStreakWeeks: 2,
+        totalCompleted: counts.reduce((sum, count) => sum + count, 0),
+        averageSessionsPerWeek: 2,
+        volumeUnit: 'lb' as const,
+      },
+    };
+  }
+
+  it('draws one row per planned week', async () => {
+    renderProgress(baseOverview(planned([3, 2, 3], [3, 3, 3])));
+    await screen.findByTestId('adherence-chart');
+    expect(screen.getAllByTestId('adherence-row')).toHaveLength(3);
+  });
+
+  it('omits weeks the program never covered, rather than drawing zeroes', async () => {
+    // "0 of 0" across early history invents a shortfall from an absence.
+    renderProgress(baseOverview(planned([0, 0, 3], [null, null, 3])));
+    await screen.findByTestId('adherence-chart');
+    expect(screen.getAllByTestId('adherence-row')).toHaveLength(1);
+  });
+
+  it('renders nothing at all when there is no active program', async () => {
+    renderProgress(baseOverview(planned([2, 3], [null, null])));
+    await screen.findByTestId('sessions-chart');
+    expect(screen.queryByTestId('adherence-chart')).not.toBeInTheDocument();
+  });
+
+  it('does not style an extra session as a failure', async () => {
+    renderProgress(baseOverview(planned([4], [3])));
+    await screen.findByTestId('adherence-chart');
+    // Beating the plan shares the met-plan treatment, never the behind one.
+    expect(screen.getByTestId('adherence-fill-ahead')).toBeInTheDocument();
+    expect(screen.queryByTestId('adherence-fill-behind')).not.toBeInTheDocument();
+  });
+
+  it('marks a short week as behind', async () => {
+    renderProgress(baseOverview(planned([1], [3])));
+    await screen.findByTestId('adherence-chart');
+    expect(screen.getByTestId('adherence-fill-behind')).toBeInTheDocument();
+  });
+
+  it('states the counts in text, never by bar length alone', async () => {
+    renderProgress(baseOverview(planned([2], [3])));
+    await screen.findByTestId('adherence-chart');
+    expect(screen.getByTestId('adherence-row')).toHaveTextContent('2/3');
+  });
+
+  it('summarises finished weeks without counting the current one', async () => {
+    // The current week is still in progress; counting it would report a
+    // shortfall the user still has days to close.
+    renderProgress(baseOverview(planned([3, 3, 0], [3, 3, 3])));
+    await screen.findByTestId('adherence-chart');
+    expect(screen.getByTestId('adherence-summary')).toHaveTextContent(
+      /hit your plan in 2 of 2 finished weeks/,
+    );
+  });
+
+  it('gives screen readers the planned and completed numbers', async () => {
+    renderProgress(baseOverview(planned([2], [3])));
+    await screen.findByTestId('adherence-chart');
+    const table = screen.getByRole('table', { name: /Planned versus completed/ });
+    expect(within(table).getByRole('columnheader', { name: 'Planned' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: 'Completed' })).toBeInTheDocument();
+  });
+});

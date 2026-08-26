@@ -6,6 +6,7 @@ import {
   buildSmallMultiples,
   buildStackedChart,
   nearestPointIndex,
+  plannedWeeks,
   plotRect,
   remainderPatternKey,
   type LiftSeries,
@@ -1189,6 +1190,163 @@ export function SmallMultiples({
                 <td>{panel.change == null ? '—' : formatValue(panel.change)}</td>
                 <td>{panel.points.length}</td>
                 <td>{panel.personalRecords.length}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </VisuallyHidden>
+    </Figure>
+  );
+}
+
+const AdherenceRow = styled.div`
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: ${spacing[8]}px;
+  padding: ${spacing[4]}px 0;
+`;
+
+const AdherenceWeek = styled.span`
+  font-size: ${typeScale.caption.fontSize}px;
+  color: ${(p) => p.theme.text.secondary};
+  white-space: nowrap;
+  min-width: 52px;
+`;
+
+const AdherenceTrack = styled.div`
+  position: relative;
+  height: 16px;
+  border-radius: 4px;
+  background: ${(p) => p.theme.chart.empty};
+  overflow: visible;
+`;
+
+const AdherenceFill = styled.div<{ $verdict: string }>`
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 4px;
+  background: ${(p) =>
+    p.$verdict === 'behind' ? p.theme.chart.raw : p.theme.chart.trend};
+`;
+
+const AdherenceTarget = styled.div`
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: ${(p) => p.theme.text.primary};
+`;
+
+const AdherenceCount = styled.span`
+  font-size: ${typeScale.caption.fontSize}px;
+  color: ${(p) => p.theme.text.secondary};
+  white-space: nowrap;
+  min-width: 44px;
+  text-align: right;
+`;
+
+export interface AdherenceWeekDatum {
+  weekStart: string;
+  completedCount: number;
+  plannedCount: number | null;
+  isCurrent: boolean;
+}
+
+export interface AdherenceChartProps {
+  weeks: AdherenceWeekDatum[];
+  formatPeriod?: (localDate: string) => string;
+  label: string;
+  testId?: string;
+}
+
+/**
+ * Planned versus completed, superposed on one track per week.
+ *
+ * Superposition rather than two side-by-side bars: planned and completed are
+ * the same quantity in the same unit, and the question is the *relationship*
+ * between them. Juxtaposing them makes the reader compute a difference the
+ * chart could simply show. The target line is what turns each row into a
+ * single readable comparison — bar past the line means the plan was met.
+ *
+ * A week is drawn at all only when it had a plan. `plannedCount: null` means
+ * the program did not cover that week, and rendering "0 of 0" across a user's
+ * early history would invent a shortfall from an absence.
+ *
+ * Exceeding the plan is drawn in the same colour as meeting it, never as an
+ * exception, and falling short is not painted red — the accent, not an error
+ * colour, because missing a session is a fact about a week and not a fault.
+ */
+export function AdherenceChart({
+  weeks,
+  formatPeriod = formatDate,
+  label,
+  testId,
+}: AdherenceChartProps) {
+  const planned = plannedWeeks(weeks);
+  if (!planned.length) return null;
+
+  // One scale across every row, so bar lengths are comparable down the column.
+  const scaleMax = Math.max(
+    ...planned.map((week) => Math.max(week.completedCount, week.plannedCount ?? 0)),
+    1,
+  );
+
+  return (
+    <Figure data-testid={testId}>
+      <div>
+        {planned.map((week) => {
+          const target = week.plannedCount ?? 0;
+          const verdict =
+            week.completedCount >= target ? (week.completedCount > target ? 'ahead' : 'onPlan') : 'behind';
+          return (
+            <AdherenceRow key={week.weekStart} data-testid="adherence-row">
+              <AdherenceWeek>{formatPeriod(week.weekStart)}</AdherenceWeek>
+              <AdherenceTrack
+                role="img"
+                aria-label={`${formatPeriod(week.weekStart)}: ${week.completedCount} of ${target} planned sessions${
+                  week.isCurrent ? ', current week, still in progress' : ''
+                }`}
+              >
+                <AdherenceFill
+                  $verdict={verdict}
+                  data-testid={`adherence-fill-${verdict}`}
+                  style={{ width: `${Math.min((week.completedCount / scaleMax) * 100, 100)}%` }}
+                />
+                <AdherenceTarget
+                  data-testid="adherence-target"
+                  style={{ left: `${(target / scaleMax) * 100}%` }}
+                />
+              </AdherenceTrack>
+              <AdherenceCount>
+                {week.isCurrent
+                  ? `${week.completedCount}/${target} so far`
+                  : `${week.completedCount}/${target}`}
+              </AdherenceCount>
+            </AdherenceRow>
+          );
+        })}
+      </div>
+
+      <VisuallyHidden>
+        <table>
+          <caption>{label}</caption>
+          <thead>
+            <tr>
+              <th scope="col">Week</th>
+              <th scope="col">Planned</th>
+              <th scope="col">Completed</th>
+            </tr>
+          </thead>
+          <tbody>
+            {planned.map((week) => (
+              <tr key={week.weekStart}>
+                <th scope="row">
+                  {formatPeriod(week.weekStart)}
+                  {week.isCurrent ? ' (current week, still in progress)' : ''}
+                </th>
+                <td>{week.plannedCount}</td>
+                <td>{week.completedCount}</td>
               </tr>
             ))}
           </tbody>

@@ -27,6 +27,10 @@ function queryChain(rows: unknown[]) {
   return chain;
 }
 
+/* Sequences below end with `.mockReturnValue` rather than `...Once`, so any
+   query the route gains later resolves to "no rows" instead of shifting every
+   positional mock in this file. Adding the schedule lookups for
+   `plannedCount` broke all nine tests exactly that way. */
 function selectChain(rows: unknown[]) {
   const chain = queryChain(rows);
   /* Joins are self-referential rather than a fixed two-deep nest, so adding a
@@ -82,6 +86,14 @@ const sessionSetRow = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  /* `clearAllMocks` clears recorded calls but leaves queued
+     `mockReturnValueOnce` values and any sticky `mockReturnValue` in place. A
+     test whose route makes fewer queries than it queued therefore leaks the
+     remainder into the next test, shifting every positional mock after it —
+     which is exactly how two planned-count tests started failing with an
+     unrelated error from a different query. Reset the query mock itself, but
+     not the Clerk module mock, whose factory implementation must survive. */
+  mockSelect.mockReset();
 });
 
 /**
@@ -101,7 +113,7 @@ describe('GET /v1/progress/overview training summary', () => {
       .mockReturnValueOnce(selectChain([sessionSetRow])) // setRows
       .mockReturnValueOnce(selectChain([])) // restRows
       .mockReturnValueOnce(selectChain([{ localDate: '2026-08-24' }])) // firstSession
-      .mockReturnValueOnce(selectChain([])); // bodyWeightRows
+      .mockReturnValue(selectChain([])); // bodyWeightRows
 
     const app = buildApp();
     const response = await app.inject({
@@ -134,7 +146,7 @@ describe('GET /v1/progress/overview daily training series', () => {
       .mockReturnValueOnce(selectChain([sessionSetRow]))
       .mockReturnValueOnce(selectChain([]))
       .mockReturnValueOnce(selectChain([{ localDate: '2026-08-24' }]))
-      .mockReturnValueOnce(selectChain([]));
+      .mockReturnValue(selectChain([]));
 
     const app = buildApp();
     const response = await app.inject({
@@ -161,7 +173,7 @@ describe('GET /v1/progress/overview daily training series', () => {
       .mockReturnValueOnce(selectChain([sessionSetRow]))
       .mockReturnValueOnce(selectChain([]))
       .mockReturnValueOnce(selectChain([{ localDate: '2024-03-05' }]))
-      .mockReturnValueOnce(selectChain([]));
+      .mockReturnValue(selectChain([]));
 
     const app = buildApp();
     const response = await app.inject({
@@ -181,7 +193,7 @@ describe('GET /v1/progress/overview daily training series', () => {
       .mockReturnValueOnce(selectChain([]))
       .mockReturnValueOnce(selectChain([]))
       .mockReturnValueOnce(selectChain([]))
-      .mockReturnValueOnce(selectChain([]));
+      .mockReturnValue(selectChain([]));
 
     const app = buildApp();
     const response = await app.inject({
@@ -205,7 +217,7 @@ describe('GET /v1/progress/overview daily training series', () => {
       .mockReturnValueOnce(selectChain([sessionSetRow]))
       .mockReturnValueOnce(selectChain([]))
       .mockReturnValueOnce(selectChain([{ localDate: '2024-03-05' }]))
-      .mockReturnValueOnce(selectChain([]));
+      .mockReturnValue(selectChain([]));
 
     const app = buildApp();
     const response = await app.inject({
@@ -260,7 +272,7 @@ describe('GET /v1/progress/overview composition', () => {
       .mockReturnValueOnce(selectChain(rows))
       .mockReturnValueOnce(selectChain([]))
       .mockReturnValueOnce(selectChain([{ localDate: '2026-08-24' }]))
-      .mockReturnValueOnce(selectChain([]));
+      .mockReturnValue(selectChain([]));
 
     const app = buildApp();
     const response = await app.inject({
@@ -301,7 +313,7 @@ describe('GET /v1/progress/overview composition', () => {
       .mockReturnValueOnce(selectChain(rows))
       .mockReturnValueOnce(selectChain([]))
       .mockReturnValueOnce(selectChain([{ localDate: '2026-08-24' }]))
-      .mockReturnValueOnce(selectChain([]));
+      .mockReturnValue(selectChain([]));
 
     const app = buildApp();
     const response = await app.inject({
@@ -322,7 +334,7 @@ describe('GET /v1/progress/overview composition', () => {
       .mockReturnValueOnce(selectChain([patternRow({ movementPattern: 'squat' })]))
       .mockReturnValueOnce(selectChain([]))
       .mockReturnValueOnce(selectChain([{ localDate: '2026-08-24' }]))
-      .mockReturnValueOnce(selectChain([]));
+      .mockReturnValue(selectChain([]));
 
     const app = buildApp();
     const response = await app.inject({
@@ -355,7 +367,7 @@ describe('GET /v1/progress/overview composition', () => {
       .mockReturnValueOnce(selectChain(rows))
       .mockReturnValueOnce(selectChain([]))
       .mockReturnValueOnce(selectChain([{ localDate: '2026-08-24' }]))
-      .mockReturnValueOnce(selectChain([]));
+      .mockReturnValue(selectChain([]));
 
     const app = buildApp();
     const response = await app.inject({
@@ -368,5 +380,113 @@ describe('GET /v1/progress/overview composition', () => {
     // not a segment on a load chart.
     expect(composition.patterns.map((p: { key: string }) => p.key)).toEqual(['squat']);
     await app.close();
+  });
+});
+
+/**
+ * Planned vs actual. `plannedCount` was hardcoded `null` with a TODO from the
+ * day this route was written, so the completion ratio was unanswerable.
+ */
+describe('GET /v1/progress/overview planned counts', () => {
+  const program = {
+    id: 'bbbbbbbb-0001-4000-8000-000000000001',
+    startDate: '2026-01-05',
+    cycleLengthWeeks: null,
+  };
+  const version = {
+    id: 'cccccccc-0001-4000-8000-000000000001',
+    versionNumber: 1,
+    effectiveFrom: '2026-01-05',
+    effectiveTo: null,
+  };
+  // Monday, Wednesday, Friday.
+  const slots = [
+    { dayIndex: 1, weekNumber: null },
+    { dayIndex: 3, weekNumber: null },
+    { dayIndex: 5, weekNumber: null },
+  ];
+
+  function mockProgram(programRows: unknown[], versionRows: unknown[], slotRows: unknown[]) {
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([sessionSetRow]))
+      .mockReturnValueOnce(selectChain([]))
+      .mockReturnValueOnce(selectChain([{ localDate: '2026-08-24' }]))
+      .mockReturnValueOnce(selectChain(programRows))
+      .mockReturnValueOnce(selectChain(versionRows))
+      .mockReturnValueOnce(selectChain(slotRows))
+      .mockReturnValue(selectChain([]));
+  }
+
+  async function fetchWeeks() {
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'GET',
+      url: '/v1/progress/overview?weeks=4&localDate=2026-08-24',
+      headers: authHeader,
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    await app.close();
+    return body.training.weeks as {
+      weekStart: string;
+      completedCount: number;
+      plannedCount: number | null;
+      completionRatio: number | null;
+    }[];
+  }
+
+  it('derives a planned count from the active program schedule', async () => {
+    mockProgram([program], [version], slots);
+    const weeks = await fetchWeeks();
+    expect(weeks.every((week) => week.plannedCount === 3)).toBe(true);
+  });
+
+  it('reports a real completion ratio instead of null', async () => {
+    mockProgram([program], [version], slots);
+    const weeks = await fetchWeeks();
+    const trained = weeks.find((week) => week.completedCount > 0)!;
+    expect(trained.completionRatio).toBeCloseTo(trained.completedCount / 3, 6);
+  });
+
+  it('leaves planned counts null when there is no active program', async () => {
+    // Nothing to fall short of, so a ratio would be meaningless rather than 0.
+    mockProgram([], [], []);
+    const weeks = await fetchWeeks();
+    expect(weeks.every((week) => week.plannedCount === null)).toBe(true);
+    expect(weeks.every((week) => week.completionRatio === null)).toBe(true);
+  });
+
+  it('leaves weeks before the program started null, never zero', async () => {
+    // "0 of 3" across history the plan never covered is a fabricated
+    // indictment, not a fact about the user.
+    mockProgram([program], [{ ...version, effectiveFrom: '2026-08-24' }], slots);
+    const weeks = await fetchWeeks();
+    expect(weeks[0]!.plannedCount).toBeNull();
+    expect(weeks.at(-1)!.plannedCount).not.toBeNull();
+  });
+
+  it('uses the highest program version when several exist', async () => {
+    /* The two versions must differ in a way the assertion can see, or the
+       test passes whichever one is picked — mutation testing caught exactly
+       that. v1 covers the whole window; v2 starts in the final week. Picking
+       v1 by array position would plan every week; picking v2 correctly leaves
+       the earlier weeks unplanned. */
+    mockProgram(
+      [program],
+      [
+        { ...version, versionNumber: 1, effectiveFrom: '2026-01-05' },
+        {
+          id: 'cccccccc-0002-4000-8000-000000000002',
+          versionNumber: 2,
+          effectiveFrom: '2026-08-24',
+          effectiveTo: null,
+        },
+      ],
+      slots,
+    );
+    const weeks = await fetchWeeks();
+    expect(weeks[0]!.plannedCount).toBeNull();
+    expect(weeks.at(-1)!.plannedCount).not.toBeNull();
   });
 });

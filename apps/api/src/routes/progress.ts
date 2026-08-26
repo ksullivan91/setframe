@@ -4,8 +4,10 @@ import { z } from 'zod';
 import { progressConsistencyWeekSchema, progressOverviewResponseSchema } from '@setframe/schemas';
 import type { Prescription } from '@setframe/schemas';
 import {
+  completionRatio,
   computeWeightTrend,
   getPrescriptionDefinition,
+  plannedDaysForWeek,
   getProgressMetricKeys,
   summarizeConsistency,
   summarizeExerciseSets,
@@ -18,7 +20,10 @@ import {
 import {
   dailyManualEntry,
   exercise,
+  programScheduleSlot,
+  programVersion,
   restDay,
+  trainingProgram,
   workoutExerciseLog,
   workoutSession,
   workoutSet,
@@ -69,10 +74,11 @@ function toNumber(value: string | number | null): number | null {
  *    something (`countsTowardVolume`). A week of cardio reports `null`
  *    volume, not 0, so it does not read as a failed week.
  *
- * TODO(phase-4): derive `plannedCount` per week from the active
- * program_version's workout_template count. Until then planned counts are
- * omitted and the completion ratio is reported as `null` rather than being
- * faked by mirroring the completed count.
+ * 3. `plannedCount` comes from the active program version's schedule slots,
+ *    using the same day-of-week/cycle rule as `dashboard.ts`'s
+ *    `resolveScheduledDayType`, so the ratio can never disagree with the
+ *    user's own calendar. A week the program did not cover reports `null`,
+ *    never `0` — before a plan existed there was nothing to fall short of.
  */
 export const progressRoutes: FastifyPluginAsyncZod = async (fastify) => {
   fastify.get(
@@ -263,6 +269,47 @@ export const progressRoutes: FastifyPluginAsyncZod = async (fastify) => {
         .orderBy(workoutSession.localDate)
         .limit(1);
 
+      /* The active program's schedule, for planned-vs-actual. Same selection
+         rule as dashboard.ts: the active program, its highest version. */
+      const [activeProgram] = await db
+        .select({
+          id: trainingProgram.id,
+          startDate: trainingProgram.startDate,
+          cycleLengthWeeks: trainingProgram.cycleLengthWeeks,
+        })
+        .from(trainingProgram)
+        .where(
+          and(eq(trainingProgram.userId, request.userId!), eq(trainingProgram.isActive, true)),
+        )
+        .limit(1);
+
+      let scheduleSlots: { dayIndex: number; weekNumber: number | null }[] = [];
+      let effectiveFrom: string | null = null;
+      let effectiveTo: string | null = null;
+      if (activeProgram) {
+        const versions = await db
+          .select({
+            id: programVersion.id,
+            versionNumber: programVersion.versionNumber,
+            effectiveFrom: programVersion.effectiveFrom,
+            effectiveTo: programVersion.effectiveTo,
+          })
+          .from(programVersion)
+          .where(eq(programVersion.trainingProgramId, activeProgram.id));
+        const version = versions.sort((a, b) => b.versionNumber - a.versionNumber)[0];
+        if (version) {
+          effectiveFrom = version.effectiveFrom;
+          effectiveTo = version.effectiveTo;
+          scheduleSlots = await db
+            .select({
+              dayIndex: programScheduleSlot.dayIndex,
+              weekNumber: programScheduleSlot.weekNumber,
+            })
+            .from(programScheduleSlot)
+            .where(eq(programScheduleSlot.programVersionId, version.id));
+        }
+      }
+
       const trends = summarizeTrainingTrends(
         sessions.map((session) => ({ localDate: session.localDate, volume: session.volume })),
         endLocalDate,
@@ -396,9 +443,25 @@ export const progressRoutes: FastifyPluginAsyncZod = async (fastify) => {
         }))
         .sort((a, b) => b.total - a.total || a.key.localeCompare(b.key));
 
+      const weeksWithPlan = trends.weeks.map((week) => {
+        const plannedCount = plannedDaysForWeek({
+          weekStart: week.weekStart,
+          slots: scheduleSlots,
+          cycleLengthWeeks: activeProgram?.cycleLengthWeeks ?? null,
+          programStartDate: activeProgram?.startDate ?? null,
+          effectiveFrom,
+          effectiveTo,
+        });
+        return {
+          ...week,
+          plannedCount,
+          completionRatio: completionRatio(week.completedCount, plannedCount),
+        };
+      });
+
       return {
         training: {
-          weeks: trends.weeks,
+          weeks: weeksWithPlan,
           days: trends.days,
           firstActivityDate: trends.firstActivityDate,
           weeksTrained: trends.weeksTrained,

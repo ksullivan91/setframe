@@ -15,6 +15,7 @@ import {
   buildSmallMultiples,
   buildStackedChart,
   nearestPointIndex,
+  plannedWeeks,
   plotRect,
   remainderPatternKey,
   shouldClaimScrub,
@@ -625,6 +626,39 @@ const styles = StyleSheet.create({
   axisLabel: {
     fontSize: 10,
   },
+  adherenceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[8],
+    paddingVertical: spacing[4],
+  },
+  adherenceWeek: {
+    fontSize: typeScale.caption.fontSize,
+    minWidth: 52,
+  },
+  adherenceTrack: {
+    flex: 1,
+    height: 16,
+    borderRadius: 4,
+  },
+  adherenceFill: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    borderRadius: 4,
+  },
+  adherenceTarget: {
+    position: 'absolute',
+    top: -3,
+    bottom: -3,
+    width: 2,
+  },
+  adherenceCount: {
+    fontSize: typeScale.caption.fontSize,
+    minWidth: 44,
+    textAlign: 'right',
+  },
   rangeButton: {
     minHeight: 44,
     minWidth: 44,
@@ -1059,6 +1093,124 @@ export function SmallMultiples({
           .join('. ')}`}
         style={styles.visuallyHidden}
         testID="strength-table"
+      />
+    </View>
+  );
+}
+
+export interface AdherenceWeekDatum {
+  weekStart: string;
+  completedCount: number;
+  plannedCount: number | null;
+  isCurrent: boolean;
+}
+
+export interface AdherenceChartProps {
+  weeks: AdherenceWeekDatum[];
+  formatPeriod?: (localDate: string) => string;
+  label: string;
+  testID?: string;
+}
+
+/**
+ * Planned versus completed — the `react-native` counterpart of web's
+ * `AdherenceChart`, drawn with plain views rather than SVG because the
+ * geometry is a single proportional width per row.
+ *
+ * Superposition rather than two side-by-side bars: planned and completed are
+ * the same quantity in the same unit, and the question is the *relationship*
+ * between them. Juxtaposing them makes the reader compute a difference the
+ * chart could simply show.
+ *
+ * A week is drawn only when it had a plan. `plannedCount: null` means the
+ * program did not cover that week, and rendering "0 of 0" across a user's
+ * early history would invent a shortfall from an absence.
+ */
+export function AdherenceChart({
+  weeks,
+  formatPeriod = formatDate,
+  label,
+  testID,
+}: AdherenceChartProps) {
+  const theme = useTheme();
+  const planned = plannedWeeks(weeks);
+  if (!planned.length) return null;
+
+  // One scale across every row, so bar lengths are comparable down the column.
+  const scaleMax = Math.max(
+    ...planned.map((week) => Math.max(week.completedCount, week.plannedCount ?? 0)),
+    1,
+  );
+
+  return (
+    <View style={styles.figure} testID={testID}>
+      <View>
+        {planned.map((week) => {
+          const target = week.plannedCount ?? 0;
+          const verdict =
+            week.completedCount >= target
+              ? week.completedCount > target
+                ? 'ahead'
+                : 'onPlan'
+              : 'behind';
+          return (
+            <View
+              key={week.weekStart}
+              testID="adherence-row"
+              accessible
+              accessibilityLabel={`${formatPeriod(week.weekStart)}: ${week.completedCount} of ${target} planned sessions${
+                week.isCurrent ? ', current week, still in progress' : ''
+              }`}
+              style={styles.adherenceRow}
+            >
+              <Text style={[styles.adherenceWeek, { color: theme.text.secondary }]}>
+                {formatPeriod(week.weekStart)}
+              </Text>
+              <View style={[styles.adherenceTrack, { backgroundColor: theme.chart.empty }]}>
+                <View
+                  testID={`adherence-fill-${verdict}`}
+                  style={[
+                    styles.adherenceFill,
+                    {
+                      backgroundColor:
+                        verdict === 'behind' ? theme.chart.raw : theme.chart.trend,
+                      width: `${Math.min((week.completedCount / scaleMax) * 100, 100)}%`,
+                    },
+                  ]}
+                />
+                <View
+                  testID="adherence-target"
+                  style={[
+                    styles.adherenceTarget,
+                    {
+                      backgroundColor: theme.text.primary,
+                      left: `${(target / scaleMax) * 100}%`,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={[styles.adherenceCount, { color: theme.text.secondary }]}>
+                {week.isCurrent
+                  ? `${week.completedCount}/${target} so far`
+                  : `${week.completedCount}/${target}`}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+
+      <View
+        accessible
+        accessibilityLabel={`${label}. ${planned
+          .map(
+            (week) =>
+              `${formatPeriod(week.weekStart)}${
+                week.isCurrent ? ' (current week, still in progress)' : ''
+              }: planned ${week.plannedCount}, completed ${week.completedCount}`,
+          )
+          .join('. ')}`}
+        style={styles.visuallyHidden}
+        testID="adherence-table"
       />
     </View>
   );

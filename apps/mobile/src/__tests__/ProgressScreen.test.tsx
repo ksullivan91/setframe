@@ -4,6 +4,7 @@ import type { ProgressOverviewResponse } from '@setframe/schemas';
 import { ThemeProvider } from '../theme/ThemeProvider';
 import { PopoverHost } from '../components/PopoverHost';
 import {
+  AdherenceSection,
   BodyWeightSection,
   CompositionSection,
   ExerciseCard,
@@ -855,5 +856,86 @@ describe('StrengthPanels', () => {
     const rendered = render([lift('a', 'Back Squat', [300, 315, 330])]);
     press(rendered, 'lift-panel', 0);
     expect(renderedTextOf(rendered, 'lift-panel-detail')).toContain('3 sessions · from 300 lb');
+  });
+});
+
+
+/**
+ * Plan vs actual — the mobile half. Mirrors ProgressPage.test.tsx's adherence
+ * suite case for case, so parity is tested rather than intended.
+ */
+describe('AdherenceSection', () => {
+  function mondayOffsetWeeks(weeksAgo: number) {
+    const date = new Date();
+    date.setUTCHours(0, 0, 0, 0);
+    date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() || 7) - 1) - weeksAgo * 7);
+    return date;
+  }
+
+  function weeksFixture(counts: number[], plans: (number | null)[]) {
+    return counts.map((completedCount, index) => ({
+      weekStart: mondayOffsetWeeks(counts.length - 1 - index).toISOString().slice(0, 10),
+      completedCount,
+      plannedCount: plans[index] ?? null,
+      completionRatio:
+        plans[index] == null || plans[index] === 0
+          ? null
+          : completedCount / (plans[index] as number),
+      volume: null,
+      restCount: 0,
+      isRestWeek: false,
+      isCurrent: index === counts.length - 1,
+    }));
+  }
+
+  const render = (counts: number[], plans: (number | null)[]) =>
+    renderTree(
+      <AdherenceSection
+        weeks={weeksFixture(counts, plans) as ProgressOverviewResponse['training']['weeks']}
+      />,
+    );
+
+  it('draws one row per planned week', () => {
+    const rendered = render([3, 2, 3], [3, 3, 3]);
+    expect(hostsByTestId(rendered, 'adherence-row')).toHaveLength(3);
+  });
+
+  it('omits weeks the program never covered, rather than drawing zeroes', () => {
+    const rendered = render([0, 0, 3], [null, null, 3]);
+    expect(hostsByTestId(rendered, 'adherence-row')).toHaveLength(1);
+  });
+
+  it('renders nothing at all when there is no active program', () => {
+    const rendered = render([2, 3], [null, null]);
+    expect(hostsByTestId(rendered, 'adherence-chart')).toHaveLength(0);
+  });
+
+  it('does not style an extra session as a failure', () => {
+    const rendered = render([4], [3]);
+    expect(hostsByTestId(rendered, 'adherence-fill-ahead')).toHaveLength(1);
+    expect(hostsByTestId(rendered, 'adherence-fill-behind')).toHaveLength(0);
+  });
+
+  it('marks a short week as behind', () => {
+    const rendered = render([1], [3]);
+    expect(hostsByTestId(rendered, 'adherence-fill-behind')).toHaveLength(1);
+  });
+
+  it('states the counts in text, never by bar length alone', () => {
+    const rendered = render([2], [3]);
+    expect(renderedTextOf(rendered, 'adherence-row')).toContain('2/3');
+  });
+
+  it('summarises finished weeks without counting the current one', () => {
+    const rendered = render([3, 3, 0], [3, 3, 3]);
+    expect(renderedTextOf(rendered, 'adherence-summary')).toContain(
+      'hit your plan in 2 of 2 finished weeks',
+    );
+  });
+
+  it('gives VoiceOver the planned and completed numbers', () => {
+    const rendered = render([2], [3]);
+    const table = rendered.root.findAll((n) => n.props?.testID === 'adherence-table')[0]!;
+    expect(table.props.accessibilityLabel).toContain('planned 3, completed 2');
   });
 });

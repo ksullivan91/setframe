@@ -13,7 +13,9 @@ import {
   bucketLabel,
   bucketStart,
   buildStrengthSeries,
+  describeAdherence,
   describeStrengthPending,
+  plannedWeeks,
   buildOverviewInsights,
   buildProgressSeries,
   comparePeriods,
@@ -47,6 +49,7 @@ import {
 import type { ProgressOverviewResponse } from '@setframe/schemas';
 import { Card } from '../../src/components/Card';
 import {
+  AdherenceChart,
   ColumnChart,
   LineChart,
   RangeSelector,
@@ -129,6 +132,53 @@ function MetricInfoFor({ metricKey }: { metricKey: string }) {
  * joined by a line would be two observations plus an implication we cannot
  * support.
  */
+
+/**
+ * Adherence — the mobile counterpart of web's `AdherenceSection`.
+ *
+ * Answers the north star's "what caused the change" more often than anything
+ * else on the screen: volume fell because two planned days were missed, not
+ * because effort dropped. Unanswerable until now, because the API hardcoded
+ * `plannedCount: null`.
+ *
+ * Rendered only when a plan actually existed — a user with no active program
+ * sees nothing here rather than a column of zeroes implying failure.
+ */
+export function AdherenceSection({
+  weeks,
+}: {
+  weeks: ProgressOverviewResponse['training']['weeks'];
+}) {
+  const planned = useMemo(() => plannedWeeks(weeks), [weeks]);
+  const summary = describeAdherence(weeks);
+  const theme = useTheme();
+
+  if (!planned.length) return null;
+
+  return (
+    <Card>
+      <View style={styles.sectionTitleRow}>
+        <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Plan vs actual</Text>
+        <MetricInfo
+          label="Plan vs actual"
+          explanation="How many of your planned training days you actually completed each week."
+          calculation="Planned days come from your active program's schedule — the days of the week it assigns a workout to. The marker on each bar is that week's target; the bar is what you completed."
+          limitation="Only weeks your program actually covered are shown. Weeks before you set the program up are left out rather than drawn as zeroes, because there was no plan to fall short of. Extra sessions beyond the plan are shown as met, not as a problem."
+        />
+      </View>
+
+      <AdherenceChart
+        weeks={planned}
+        formatPeriod={(weekStart) => formatWeekRange(weekStart)}
+        label="Planned versus completed sessions by week"
+        testID="adherence-chart"
+      />
+
+      {summary ? <Helper testID="adherence-summary">{summary}</Helper> : null}
+    </Card>
+  );
+}
+
 export function StrengthPanels({
   exercises,
   volumeUnit,
@@ -1192,6 +1242,8 @@ export default function ProgressScreen() {
             />
           </View>
         ) : null}
+
+        <AdherenceSection weeks={training.weeks} />
 
         <CompositionSection composition={composition} localDate={localDate} />
 

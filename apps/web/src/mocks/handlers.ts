@@ -330,7 +330,10 @@ export const handlers = [
         weekStart,
         completedCount,
         plannedCount: 5,
-        completionRatio: Math.min(completedCount / 5, 1),
+        /* Uncapped, matching the API: clamping would erase the difference
+           between hitting the plan and beating it, which is exactly what the
+           adherence chart exists to show. */
+        completionRatio: completedCount / 5,
         volume: entry?.volume ?? null,
         restCount: completedCount === 0 ? 5 : 1,
         isRestWeek: completedCount === 0,

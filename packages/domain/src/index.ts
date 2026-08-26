@@ -21,3 +21,4 @@ export * from './progress-overview-insights';
 export * from './chart/index';
 export * from './movement-pattern';
 export * from './strength-series';
+export * from './planned-schedule';
