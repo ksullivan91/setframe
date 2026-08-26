@@ -18,3 +18,4 @@ export * from './additional-activity-recents';
 export * from './progress-range';
 export * from './progress-insight';
 export * from './progress-overview-insights';
+export * from './chart/index';
