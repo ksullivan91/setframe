@@ -9,19 +9,9 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
-- `setframe-progress-experience-rebuild/` — stories 48–51 remain (46, 47
-  shipped), the Progress page rebuilt as a core product experience rather
-  than static reporting.
-  48: a universal time-range and
-  interaction model with *real* per-range aggregation (today's
-  `filterByRange` only trims a trailing window — every range renders the
-  same bucket size). 49: Body Weight rebuilt as the reference-quality
-  chart that sets the interaction grammar for the rest. 50: Training
-  Frequency and Weekly Volume rebuilt on that grammar. 51: an
-  insight-ready deterministic metric contract (no AI calls yet).
-  Delivery per the pack's own README: **A** 46 → 47 → 48, **B** 49,
-  **C** 50, **D** 51. Stories 46 and 48 are a direct critical review of
-  stories 30–33, which shipped 2026-08-25.
+- `setframe-progress-experience-rebuild/` — story 50 remains (46, 47, 48,
+  49, 51 shipped): Training Frequency and Weekly Volume rebuilt on the
+  interaction grammar story 49 established.
 - `WAIT-automated-visual-and-e2e-testing.md` — deferred by request. Filed so the
   gap is tracked, deliberately not started.
 - `WAIT-figma-accentsubtle-token-fix.md` — deferred by request. Fixes
@@ -129,6 +119,31 @@ alongside their stories, named `README-{range}-{review}.md`.
   deliberately: that is this story's own sanctioned escalation for narrow
   screens, and the reported breakage was mobile *web*, which is what got
   anchored.
+- `completed/48-progress-time-range-interaction-foundation.md` — story 48,
+  the temporal model. A range now carries a *window* and a *bucket*, not
+  just a trailing day count: `filterByRange` trimmed and stopped, so every
+  range rendered the same bucket size and `ALL` drew 383 daily marks that
+  buried a real 9.4 lb decline. Bucketing targets 7-30 marks per range,
+  windows are calendar-anchored, and `W` is the current Monday-Sunday week
+  because the product's own copy says "since Monday". `filterByRange` is
+  retired so two range models cannot coexist.
+- `completed/49-body-weight-reference-chart.md` — story 49, Body Weight as
+  the reference chart the others inherit their interaction grammar from.
+  Its sharpest fix: bucketed marks were rendering a week's mean under a
+  single date, telling the user they weighed that on a morning they may
+  never have logged — marks now name their span and sample count. Also
+  made the trend line exist for screen readers, and withholds the
+  week-over-week comparison in the two cases where it would lie.
+- `completed/51-insight-ready-progress-metrics.md` — story 51, a
+  deterministic insight contract (no AI calls). Both platforms render
+  byte-identical sentences from one domain function, and nothing is shown
+  when sample size or semantics do not support it. Rendering it caught
+  four bugs that reasoning had not: a fabricated "compared with 0 last
+  week" baseline predating the user's first observation, a caveat that
+  fired on every weekly metric, a flat percentage threshold that hid a
+  real 1 lb move, and a 2-day weight average that is exactly the
+  water-weight noise `body-weight-display-psychology.md` exists to
+  suppress.
 - `completed/47-charting-technology-spike.md` — story 47, the charting
   decision spike. Outcome: **keep the hand-rolled SVG architecture and
   extend it** (ADR 0008). Scrub — the capability that looked like it
