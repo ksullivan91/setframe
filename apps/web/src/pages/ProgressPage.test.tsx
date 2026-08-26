@@ -1,7 +1,7 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { ThemeProvider } from 'styled-components';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { getTheme } from '../theme/getTheme';
 import { ToastProvider } from '../components/Toast';
@@ -26,21 +26,66 @@ vi.mock('react-router-dom', async () => {
 
 type Overview = Record<string, unknown>;
 
+/* Anchored to the real current week rather than a fixed past date. The charts
+   window by calendar range now, so a fixture stranded in 2025 would fall
+   outside every range and render as empty — a green suite proving nothing. */
+function mondayOffsetWeeks(weeksAgo: number) {
+  const date = new Date();
+  date.setUTCHours(0, 0, 0, 0);
+  date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() || 7) - 1) - weeksAgo * 7);
+  return date;
+}
+
 function weeks(counts: (number | null)[], volumes: (number | null)[] = []) {
   return counts.map((completedCount, index) => ({
-    weekStart: new Date(Date.UTC(2025, 5, 2) + index * 7 * 86_400_000).toISOString().slice(0, 10),
+    weekStart: mondayOffsetWeeks(counts.length - 1 - index).toISOString().slice(0, 10),
     completedCount: completedCount ?? 0,
     plannedCount: null,
     completionRatio: null,
     volume: volumes[index] ?? null,
+    restCount: 0,
+    isRestWeek: false,
     isCurrent: index === counts.length - 1,
   }));
+}
+
+/**
+ * The daily rollup the charts actually bucket from, derived from the same
+ * counts as `weeks` so the two cannot disagree — which is the property the
+ * API guarantees and the fixture must not quietly break.
+ */
+function days(counts: (number | null)[], volumes: (number | null)[] = []) {
+  const rows: { localDate: string; completedCount: number; volume: number | null }[] = [];
+  counts.forEach((completedCount, index) => {
+    const total = completedCount ?? 0;
+    const weekVolume = volumes[index] ?? null;
+    const monday = mondayOffsetWeeks(counts.length - 1 - index);
+    for (let session = 0; session < total; session += 1) {
+      const date = new Date(monday);
+      date.setUTCDate(date.getUTCDate() + session);
+      rows.push({
+        localDate: date.toISOString().slice(0, 10),
+        completedCount: 1,
+        volume: weekVolume == null ? null : Math.round(weekVolume / total),
+      });
+    }
+  });
+  return rows;
+}
+
+function trainingFixture(counts: (number | null)[], volumes: (number | null)[] = []) {
+  const dayRows = days(counts, volumes);
+  return {
+    weeks: weeks(counts, volumes),
+    days: dayRows,
+    firstActivityDate: dayRows[0]?.localDate ?? null,
+  };
 }
 
 function baseOverview(overrides: Overview = {}): Overview {
   return {
     training: {
-      weeks: weeks([2, 0, 3, 1, 0, 2, 3, 2, 1, 0, 2, 1]),
+      ...trainingFixture([2, 0, 3, 1, 0, 2, 3, 2, 1, 0, 2, 1]),
       weeksTrained: 9,
       windowWeeks: 12,
       currentStreakWeeks: 3,
@@ -109,7 +154,7 @@ describe('loading and empty states', () => {
     renderProgress(
       baseOverview({
         training: {
-          weeks: weeks([0, 0, 0, 0]),
+          ...trainingFixture([0, 0, 0, 0]),
           weeksTrained: 0,
           windowWeeks: 4,
           currentStreakWeeks: 0,
@@ -151,7 +196,15 @@ describe('training summary', () => {
     renderProgress(baseOverview());
     await waitFor(() => expect(screen.getByTestId('sessions-chart')).toBeTruthy());
     const columns = screen.getAllByTestId(/^chart-column/);
-    expect(columns.length).toBe(12);
+    /* The fixture trains in 9 of its 12 weeks. The exact column count follows
+       the selected range's window rather than the payload length, so this
+       pins the property that matters: a week with no training still occupies
+       the axis. Omitting them would give exactly 9. */
+    expect(columns.length).toBeGreaterThan(9);
+    const zeroCells = screen
+      .getAllByRole('row')
+      .filter((row) => row.querySelector('td')?.textContent === '0');
+    expect(zeroCells.length).toBeGreaterThanOrEqual(3);
   });
 
   it('distinguishes the current week', async () => {
@@ -171,7 +224,7 @@ describe('training summary', () => {
       baseOverview({
         training: {
           ...(baseOverview().training as Record<string, unknown>),
-          weeks: weeks([2, 3], [4000, 8005]),
+          ...trainingFixture([2, 3], [4000, 8005]),
         },
       }),
     );
@@ -642,30 +695,13 @@ describe('API version skew', () => {
  * relative to today so the strip has something to compare.
  */
 describe('insight strip', () => {
-  /** Monday of the week `weeksAgo` weeks before today, as `YYYY-MM-DD`. */
-  function mondayWeeksAgo(weeksAgo: number): string {
-    const date = new Date();
-    const isoDay = date.getUTCDay() || 7;
-    date.setUTCDate(date.getUTCDate() - (isoDay - 1) - weeksAgo * 7);
-    return date.toISOString().slice(0, 10);
-  }
-
-  function recentWeeks(counts: number[]) {
-    return counts.map((completedCount, index) => ({
-      weekStart: mondayWeeksAgo(counts.length - 1 - index),
-      completedCount,
-      plannedCount: null,
-      completionRatio: null,
-      volume: null,
-      isCurrent: index === counts.length - 1,
-    }));
-  }
-
+  /* Weeks and days built from the same counts, so the strip and the charts
+     below it are describing one history rather than two. */
   function withRecentWeeks(counts: number[]) {
     return baseOverview({
       training: {
         ...(baseOverview().training as Record<string, unknown>),
-        weeks: recentWeeks(counts),
+        ...trainingFixture(counts),
       },
     });
   }
@@ -684,7 +720,11 @@ describe('insight strip', () => {
    * nothing to say, and the strip must be absent rather than empty.
    */
   it('renders no strip at all when nothing can be compared', async () => {
-    renderProgress(baseOverview());
+    /* A single week of history: there is no previous week, so no comparison
+       exists to state. (This used to lean on the base fixture being dated to
+       2025 and therefore out of every window — an accident of the fixture
+       rather than the condition the story is about.) */
+    renderProgress(withRecentWeeks([1]));
     await waitFor(() => expect(screen.getByTestId('weeks-trained')).toBeTruthy());
     expect(screen.queryByTestId('progress-insights')).toBeNull();
   });
@@ -699,5 +739,119 @@ describe('insight strip', () => {
     fireEvent.click(screen.getByRole('button', { name: /1 session so far/ }));
 
     expect(scrollIntoView).toHaveBeenCalled();
+  });
+});
+
+/**
+ * Story 50 — training frequency and volume as explorable charts rather than
+ * static reporting.
+ */
+describe('training frequency and volume charts', () => {
+  /* Pinned to a Thursday so "the current week" is a fixed, half-elapsed week.
+     Without this the fixture's session dates depend on the weekday the suite
+     happens to run, and the partial-week assertions drift with it. Only Date
+     is faked, so react-query's timers still run normally. */
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-08-27T12:00:00Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const withVolume = (counts: number[], volumes: (number | null)[]) =>
+    baseOverview({
+      training: {
+        ...(baseOverview().training as Record<string, unknown>),
+        ...trainingFixture(counts, volumes),
+      },
+    });
+
+  it('gives both charts the same range selector the rest of Progress uses', async () => {
+    renderProgress(withVolume([3, 2, 4, 3], [9000, 8000, 12000, 7000]));
+    await waitFor(() => expect(screen.getByTestId('sessions-chart')).toBeTruthy());
+
+    expect(screen.getByRole('group', { name: /Training frequency time range/i })).toBeTruthy();
+    expect(screen.getByRole('group', { name: /Training volume time range/i })).toBeTruthy();
+  });
+
+  it('re-buckets to days when the week range is selected', async () => {
+    renderProgress(withVolume([3, 2, 4, 3], [9000, 8000, 12000, 7000]));
+    await waitFor(() => expect(screen.getByTestId('sessions-chart')).toBeTruthy());
+
+    const selector = screen.getByRole('group', { name: /Training frequency time range/i });
+    fireEvent.click(within(selector).getByRole('button', { name: 'W' }));
+
+    // A Monday-Sunday week is seven daily marks, never one weekly one.
+    await waitFor(() =>
+      expect(screen.getByTestId('sessions-range-context')).toHaveTextContent(/one bar per day/),
+    );
+  });
+
+  it('buckets a month by week, because a daily session count is only ever 0 or 1', async () => {
+    renderProgress(withVolume([3, 2, 4, 3], [9000, 8000, 12000, 7000]));
+    await waitFor(() => expect(screen.getByTestId('sessions-chart')).toBeTruthy());
+
+    const selector = screen.getByRole('group', { name: /Training frequency time range/i });
+    fireEvent.click(within(selector).getByRole('button', { name: 'M' }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('sessions-range-context')).toHaveTextContent(/one bar per week/),
+    );
+  });
+
+  it('reveals the exact period and value when a bar is selected', async () => {
+    // 9,000 over 3 sessions divides evenly, so the assertion is about the
+    // readout rather than about how the fixture rounds.
+    renderProgress(withVolume([3, 2, 4, 3], [9000, 8000, 12000, 9000]));
+    await waitFor(() => expect(screen.getByTestId('volume-chart')).toBeTruthy());
+
+    const chart = screen.getByTestId('volume-chart');
+    const bars = within(chart).getAllByRole('button');
+    fireEvent.click(bars.at(-1)!);
+
+    const readout = within(chart).getByTestId('chart-readout');
+    /* A named span rather than a bare start date (Story 49's rule), and the
+       exact figure rather than the abbreviated axis label — 7,000 lb, not
+       the "7k" the tick shows. */
+    expect(readout.textContent).toMatch(/Aug 24\s*–\s*30/);
+    expect(readout.textContent).toMatch(/9,000 lb/);
+  });
+
+  it('names the current period in words, never by bar colour alone', async () => {
+    renderProgress(withVolume([3, 2, 4, 3], [9000, 8000, 12000, 7000]));
+    await waitFor(() => expect(screen.getByTestId('sessions-chart')).toBeTruthy());
+
+    // Story 33 fixed this once already: the in-progress bar must carry text.
+    expect(screen.getByTestId('sessions-partial-note').textContent).toMatch(
+      /still in progress.*not yet comparable/i,
+    );
+    expect(screen.getByTestId('sessions-current').textContent).toMatch(/so far/);
+  });
+
+  it('compares against the previous period', async () => {
+    renderProgress(withVolume([3, 2, 4, 3], [9000, 8000, 12000, 7000]));
+    await waitFor(() => expect(screen.getByTestId('sessions-chart')).toBeTruthy());
+
+    expect(screen.getByTestId('sessions-previous').textContent).toBe('4');
+    expect(screen.getByTestId('sessions-change').textContent).toMatch(/↓\s*1/);
+  });
+
+  it('never shows a 0 lb volume for training that carries no load', async () => {
+    /* The story's explicit trap: a walk is a completed session, but weight ×
+       reps is meaningless for it. It must not be reported as having moved
+       zero pounds — the volume chart should not be offered at all. */
+    renderProgress(withVolume([2, 3, 2, 1], [null, null, null, null]));
+    await waitFor(() => expect(screen.getByTestId('sessions-chart')).toBeTruthy());
+
+    expect(screen.queryByTestId('volume-chart')).toBeNull();
+    expect(screen.queryByText(/0 lb/)).toBeNull();
+  });
+
+  it('counts only completed sessions, not the days around them', async () => {
+    renderProgress(withVolume([3, 2, 4, 3], [9000, 8000, 12000, 7000]));
+    await waitFor(() => expect(screen.getByTestId('sessions-chart')).toBeTruthy());
+
+    expect(screen.getByTestId('sessions-total').textContent).toMatch(/12 sessions/);
   });
 });

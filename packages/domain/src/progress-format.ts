@@ -187,3 +187,24 @@ export function describeWeightRate(
   const word = direction === 'rising' ? 'up' : 'down';
   return `Trending ${word} about ${magnitude} ${unit} a week over the past ${windowWeeks} weeks`;
 }
+
+/**
+ * Short number for an axis tick: `10k`, `12.4k`, `1.2M`.
+ *
+ * Only ever used where a full number does not fit — a volume tick reading
+ * `12,420 lb` overlaps its neighbour at 390px. The exact figure is always
+ * still available by selecting the mark, so this abbreviates a label, never
+ * the value itself.
+ */
+export function formatCompactNumber(value: number): string {
+  const magnitude = Math.abs(value);
+  if (magnitude >= 1_000_000) {
+    const millions = value / 1_000_000;
+    return `${Number(millions.toFixed(magnitude >= 10_000_000 ? 0 : 1))}M`;
+  }
+  if (magnitude >= 1_000) {
+    const thousands = value / 1_000;
+    return `${Number(thousands.toFixed(magnitude >= 10_000 ? 0 : 1))}k`;
+  }
+  return `${Math.round(value)}`;
+}

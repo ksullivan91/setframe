@@ -399,10 +399,23 @@ export function LineChart({
 export interface ColumnChartProps {
   series: SeriesPoint<{ isCurrent?: boolean; isRest?: boolean }>[];
   height?: number;
+  /** Exact value, for the readout and screen-reader labels. */
   formatValue: (value: number) => string;
+  /**
+   * Axis-tick value, where a full one will not fit. `12,420 lb` under a bar at
+   * 390px overlaps its neighbour; `12k lb` does not. Selecting a bar still
+   * reports the exact figure, so the abbreviation never hides the real number.
+   */
+  formatTick?: (value: number) => string;
   formatPeriod?: (localDate: string) => string;
   label: string;
   emptyLabel?: string;
+  /**
+   * What an in-progress period is called. Defaults to the week, but a daily
+   * or monthly bucket must not be announced as "current week" — the readout
+   * and the screen-reader label would both be describing the wrong span.
+   */
+  currentLabel?: string;
   onSelectColumn?: (column: { localDate: string; value: number | null; index: number }) => void;
   testId?: string;
 }
@@ -411,9 +424,11 @@ export function ColumnChart({
   series,
   height = 140,
   formatValue,
+  formatTick,
   formatPeriod = formatDate,
   label,
   emptyLabel = 'No sessions',
+  currentLabel = 'Current week',
   onSelectColumn,
   testId,
 }: ColumnChartProps) {
@@ -424,10 +439,10 @@ export function ColumnChart({
   const chart = useMemo(
     () =>
       buildColumnChart(series, {
-        layout: { width, height, padding: { top: 10, right: 8, bottom: 22, left: 32 } },
-        formatValue,
+        layout: { width, height, padding: { top: 10, right: 8, bottom: 22, left: 40 } },
+        formatValue: formatTick ?? formatValue,
       }),
-    [series, width, height, formatValue],
+    [series, width, height, formatValue, formatTick],
   );
 
   const selectedColumn = selected != null ? chart.columns[selected] : null;
@@ -506,7 +521,7 @@ export function ColumnChart({
                   role="button"
                   aria-label={`${formatPeriod(column.localDate)}: ${
                     column.value == null ? emptyLabel : formatValue(column.value)
-                  }${isRest ? ', rest week' : ''}${isCurrent ? ', current week' : ''}`}
+                  }${isRest ? ', rest week' : ''}${isCurrent ? `, ${currentLabel.toLowerCase()}, still in progress` : ''}`}
                   style={{ cursor: onSelectColumn ? 'pointer' : 'default', outline: 'none' }}
                   onClick={() => select(index)}
                   onFocus={() => setSelected(index)}
@@ -532,7 +547,9 @@ export function ColumnChart({
             <span>{formatPeriod(selectedColumn.localDate)}</span>
             {/* Story 33: current/incomplete period must be labeled
                 semantically, not only by its distinct fill color. */}
-            {selectedColumn.meta?.isCurrent ? <span data-testid="chart-current-label">Current week</span> : null}
+            {selectedColumn.meta?.isCurrent ? (
+              <span data-testid="chart-current-label">{`${currentLabel} · still in progress`}</span>
+            ) : null}
           </>
         ) : (
           <span>Select a bar to see its period and value.</span>
@@ -545,7 +562,10 @@ export function ColumnChart({
           <tbody>
             {chart.columns.map((column, index) => (
               <tr key={`row-${index}`}>
-                <th scope="row">{formatPeriod(column.localDate)}</th>
+                <th scope="row">
+                  {formatPeriod(column.localDate)}
+                  {column.meta?.isCurrent ? ` (${currentLabel}, still in progress)` : ''}
+                </th>
                 <td>{column.value == null ? emptyLabel : formatValue(column.value)}</td>
               </tr>
             ))}

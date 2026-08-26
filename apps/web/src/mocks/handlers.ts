@@ -267,33 +267,91 @@ export const handlers = [
         checkInCount: values.length,
       }));
 
+    /* Story 50: 26 weeks of *daily* training, with the weekly buckets derived
+       from it rather than declared alongside it, so the two can never
+       disagree. A screenshot with two non-zero bars is not evidence that a
+       range selector works, and 3M/6M/Y need real history behind them. */
+    const DAY_MS = 86_400_000;
+    const isoWeekStartOf = (iso: string) => {
+      const date = new Date(`${iso}T00:00:00Z`);
+      date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() || 7) - 1));
+      return date.toISOString().slice(0, 10);
+    };
+
+    const TRAINING_DAYS = 182;
+    const trainingDays: { localDate: string; completedCount: number; volume: number | null }[] = [];
+    for (let offset = TRAINING_DAYS - 1; offset >= 0; offset -= 1) {
+      const date = new Date(end.getTime() - offset * DAY_MS);
+      const weekIndex = Math.floor((TRAINING_DAYS - 1 - offset) / 7);
+      // A deload week and a holiday fortnight, so a real zero is on screen
+      // and can be told apart from a gap.
+      if (weekIndex === 9 || weekIndex === 17 || weekIndex === 18) continue;
+      const weekday = date.getUTCDay();
+      const lifts = weekday === 1 || weekday === 2 || weekday === 4 || weekday === 5;
+      // Saturday is a programmed conditioning session: a completed workout
+      // that moves no external load, so its volume is null and never a 0 lb.
+      const conditions = weekday === 6;
+      if (!lifts && !conditions) continue;
+      trainingDays.push({
+        localDate: date.toISOString().slice(0, 10),
+        completedCount: 1,
+        volume: lifts ? 2_600 + weekIndex * 45 + ((weekIndex * 37 + weekday * 130) % 900) : null,
+      });
+    }
+
+    const byWeek = new Map<string, { completed: number; volume: number | null }>();
+    for (const day of trainingDays) {
+      const weekStart = isoWeekStartOf(day.localDate);
+      const entry = byWeek.get(weekStart) ?? { completed: 0, volume: null };
+      entry.completed += day.completedCount;
+      if (day.volume != null) entry.volume = (entry.volume ?? 0) + day.volume;
+      byWeek.set(weekStart, entry);
+    }
+
+    const currentWeekStart = isoWeekStartOf(end.toISOString().slice(0, 10));
+    const weekStarts: string[] = [];
+    for (
+      let cursor = isoWeekStartOf(
+        new Date(end.getTime() - (TRAINING_DAYS - 1) * DAY_MS).toISOString().slice(0, 10),
+      );
+      cursor <= currentWeekStart;
+
+    ) {
+      weekStarts.push(cursor);
+      const next = new Date(`${cursor}T00:00:00Z`);
+      next.setUTCDate(next.getUTCDate() + 7);
+      cursor = next.toISOString().slice(0, 10);
+    }
+
+    const trainingWeeks = weekStarts.map((weekStart) => {
+      const entry = byWeek.get(weekStart);
+      const completedCount = entry?.completed ?? 0;
+      return {
+        weekStart,
+        completedCount,
+        plannedCount: 5,
+        completionRatio: Math.min(completedCount / 5, 1),
+        volume: entry?.volume ?? null,
+        restCount: completedCount === 0 ? 5 : 1,
+        isRestWeek: completedCount === 0,
+        isCurrent: weekStart === currentWeekStart,
+      };
+    });
+
+    const totalCompleted = trainingDays.reduce((sum, day) => sum + day.completedCount, 0);
+
     return HttpResponse.json({
       training: {
-        weeks: Array.from({ length: 12 }, (_, index) => {
-          const monday = new Date(end.getTime() - (11 - index) * 7 * 86_400_000);
-          monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() || 7) - 1));
-          // One deliberate rest week, so the chart shows a real zero that is
-          // not a gap — the two must look different.
-          const isRestWeek = index === 4;
-          const completedCount = isRestWeek ? 0 : 3 + (index % 2);
-          return {
-            weekStart: monday.toISOString().slice(0, 10),
-            completedCount,
-            plannedCount: 4,
-            completionRatio: completedCount / 4,
-            volume: isRestWeek ? null : 11_000 + index * 320,
-            restCount: isRestWeek ? 5 : 1,
-            isRestWeek,
-            isCurrent: index === 11,
-          };
-        }),
-        weeksTrained: 11,
-        windowWeeks: 12,
+        weeks: trainingWeeks,
+        days: trainingDays,
+        firstActivityDate: trainingDays[0]?.localDate ?? null,
+        weeksTrained: trainingWeeks.filter((week) => week.completedCount > 0).length,
+        windowWeeks: trainingWeeks.length,
         currentStreakWeeks: 7,
         longestStreakWeeks: 8,
-        totalCompleted: 38,
-        totalRestDays: 16,
-        averageSessionsPerWeek: 3.4,
+        totalCompleted,
+        totalRestDays: trainingWeeks.reduce((sum, week) => sum + week.restCount, 0),
+        averageSessionsPerWeek: totalCompleted / trainingWeeks.length,
         volumeUnit: 'lb',
       },
       bodyWeight: {
