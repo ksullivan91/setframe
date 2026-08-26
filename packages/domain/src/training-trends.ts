@@ -159,6 +159,15 @@ export interface TrainingTrendOptions {
   plannedByWeek?: Readonly<Record<string, number>>;
   /** Dates the user marked as rest, `YYYY-MM-DD`. */
   restDates?: readonly string[];
+  /**
+   * The user's true first training date, where the caller knows it.
+   *
+   * `sessions` is normally already trimmed to the requested window, so the
+   * earliest one in it is the window's own start rather than the user's. A
+   * caller holding the unwindowed answer — the API runs a separate query for
+   * exactly this — passes it here so `firstActivityDate` means what it says.
+   */
+  firstActivityDate?: string | null;
 }
 
 export function summarizeTrainingTrends(
@@ -252,12 +261,15 @@ export function summarizeTrainingTrends(
     .map(([localDate, entry]) => ({ localDate, ...entry }))
     .sort((a, b) => a.localDate.localeCompare(b.localDate));
 
-  /* Taken from every session supplied, not just those inside the window: the
-     question this answers is "had the user started logging by then", and a
-     session older than the window is still evidence that they had. */
-  const firstActivityDate = sessions.length
+  /* Falls back to the earliest session supplied — every session, not just
+     those inside the window, since a session older than the window is still
+     evidence the user had started logging. `options.firstActivityDate` wins
+     where the caller knows the unwindowed truth. */
+  const derivedFirstActivity = sessions.length
     ? sessions.reduce((min, s) => (s.localDate < min ? s.localDate : min), sessions[0]!.localDate)
     : null;
+  const firstActivityDate =
+    options.firstActivityDate !== undefined ? options.firstActivityDate : derivedFirstActivity;
 
   return {
     weeks,

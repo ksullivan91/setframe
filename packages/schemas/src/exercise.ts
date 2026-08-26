@@ -139,9 +139,29 @@ export const progressTrainingWeekSchema = z.object({
 });
 export type ProgressTrainingWeek = z.infer<typeof progressTrainingWeekSchema>;
 
+export const progressTrainingDaySchema = z.object({
+  localDate: z.string().date(),
+  completedCount: z.number().int().nonnegative(),
+  /** `null` for a day of non-load training, so 0 never implies wasted work. */
+  volume: z.number().nullable(),
+});
+export type ProgressTrainingDay = z.infer<typeof progressTrainingDaySchema>;
+
 export const progressTrainingSchema = z.object({
   /** Contiguous window; untrained weeks are present with a zero count. */
   weeks: z.array(progressTrainingWeekSchema),
+  /**
+   * Sparse per-day rollup, for ranges too short to bucket weekly. Only days
+   * with activity appear — a day with no session is absent, not zero, since
+   * whether that absence *means* zero depends on `firstActivityDate`.
+   */
+  days: z.array(progressTrainingDaySchema),
+  /**
+   * Earliest date with any recorded training, or `null` if there is none.
+   * Bounds where a chart may honestly draw an empty period as zero: before
+   * it there is no fact to report, only an account that did not exist.
+   */
+  firstActivityDate: z.string().date().nullable(),
   weeksTrained: z.number().int().nonnegative(),
   windowWeeks: z.number().int().positive(),
   currentStreakWeeks: z.number().int().nonnegative(),

@@ -339,6 +339,23 @@ describe('firstActivityDate', () => {
     expect(summarizeTrainingTrends([], END, 2).firstActivityDate).toBeNull();
   });
 
+  it('prefers the caller-supplied date over the earliest session in view', () => {
+    // The API knows the unwindowed answer from its own query; `sessions` here
+    // is already trimmed, so deriving from it would pin the user's history to
+    // the window's own start.
+    const result = summarizeTrainingTrends(sessions('2025-08-21'), END, 2, {
+      firstActivityDate: '2023-11-02',
+    });
+    expect(result.firstActivityDate).toBe('2023-11-02');
+  });
+
+  it('honours an explicit null from a caller that knows there is no history', () => {
+    const result = summarizeTrainingTrends(sessions('2025-08-21'), END, 2, {
+      firstActivityDate: null,
+    });
+    expect(result.firstActivityDate).toBeNull();
+  });
+
   it('counts a session older than the window as evidence the user was logging', () => {
     // The question is "had they started by then", and a session that predates
     // the window still answers yes — even though it is excluded from `weeks`.
