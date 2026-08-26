@@ -183,6 +183,15 @@ export function bucketStart(localDate: string, bucket: ProgressBucket): string {
  * or a three-week break looks like three consecutive days. This is what
  * "missing data is missing, not zero" means geometrically.
  */
+/** The start of the bucket immediately after the one beginning `start`. */
+export function nextBucketStart(start: string, bucket: ProgressBucket): string {
+  const date = toUtc(start);
+  if (bucket === 'day') date.setUTCDate(date.getUTCDate() + 1);
+  else if (bucket === 'week') date.setUTCDate(date.getUTCDate() + 7);
+  else date.setUTCMonth(date.getUTCMonth() + 1);
+  return toLocalDate(date);
+}
+
 export function bucketWindow(window: ProgressWindow, bucket: ProgressBucket): string[] {
   const starts: string[] = [];
   const endBucket = bucketStart(window.end, bucket);
@@ -192,11 +201,7 @@ export function bucketWindow(window: ProgressWindow, bucket: ProgressBucket): st
   for (let guard = 0; guard < 4000; guard += 1) {
     starts.push(cursor);
     if (cursor >= endBucket) break;
-    const date = toUtc(cursor);
-    if (bucket === 'day') date.setUTCDate(date.getUTCDate() + 1);
-    else if (bucket === 'week') date.setUTCDate(date.getUTCDate() + 7);
-    else date.setUTCMonth(date.getUTCMonth() + 1);
-    cursor = toLocalDate(date);
+    cursor = nextBucketStart(cursor, bucket);
   }
   return starts;
 }
@@ -228,6 +233,17 @@ export interface BuildSeriesOptions {
    * like body weight, where an unweighed day is unknown, not zero.
    */
   emptyIsZero?: boolean;
+  /**
+   * Earliest date `emptyIsZero` is allowed to apply from. Buckets ending
+   * before this stay `null`.
+   *
+   * "You completed no sessions that week" is only a fact about a week the
+   * user was around for. Without this bound, selecting Y on a two-week-old
+   * account draws fifty bars of zero — a year of not training, invented for
+   * an account that did not exist. Story 51 hit the same edge in the insight
+   * layer, where an empty prior week became "compared with 0 last week".
+   */
+  zeroFrom?: string | null;
 }
 
 /**
@@ -287,7 +303,15 @@ export function buildProgressSeries<Meta = unknown>(
   const points = bucketWindow(window, bucket).map<ProgressPoint<Meta>>((start) => {
     const entry = byBucket.get(start);
     if (!entry || entry.values.length === 0) {
-      return { localDate: start, value: options.emptyIsZero ? 0 : null, sampleCount: 0 };
+      /* A bucket is zero only if it ends on or after the first day the user
+         was logging. `bucketEnd` rather than `start`, so the week or month
+         containing that first day still counts as zero-able — the user was
+         present for part of it, and nulling the very bucket their history
+         begins in would punch a hole at the left edge of every chart. */
+      const bucketEnd = nextBucketStart(start, bucket);
+      const zeroable =
+        options.emptyIsZero && (!options.zeroFrom || bucketEnd > options.zeroFrom);
+      return { localDate: start, value: zeroable ? 0 : null, sampleCount: 0 };
     }
     return {
       localDate: start,

@@ -369,3 +369,71 @@ describe('describeBucketValue', () => {
     expect(describeBucketValue({ sampleCount: 0 }, 'week', 'mean')).toBeNull();
   });
 });
+
+/**
+ * Story 50. A count chart may legitimately draw an empty period as zero —
+ * "you trained no times that week" is a fact — but only for periods the user
+ * was actually around for. Unbounded, selecting Y on a two-week-old account
+ * renders fifty bars of a year of not training that never happened.
+ */
+describe('buildProgressSeries zeroFrom', () => {
+  const oneSession: SeriesPoint[] = [{ localDate: '2026-08-24', value: 2 }];
+
+  it('leaves buckets ending before the first activity unknown, not zero', () => {
+    const series = buildProgressSeries(oneSession, {
+      range: 'M',
+      endLocalDate: '2026-08-25',
+      aggregation: 'sum',
+      emptyIsZero: true,
+      zeroFrom: '2026-08-20',
+    });
+    const before = series.points.filter((point) => point.localDate < '2026-08-20');
+    expect(before.length).toBeGreaterThan(0);
+    expect(before.every((point) => point.value === null)).toBe(true);
+  });
+
+  it('zeroes empty buckets once the user was logging', () => {
+    const series = buildProgressSeries(oneSession, {
+      range: 'M',
+      endLocalDate: '2026-08-25',
+      aggregation: 'sum',
+      emptyIsZero: true,
+      zeroFrom: '2026-08-20',
+    });
+    const after = series.points.filter((point) => point.localDate >= '2026-08-20');
+    expect(after.length).toBeGreaterThan(0);
+    expect(after.every((point) => point.value !== null)).toBe(true);
+  });
+
+  it('zeroes an empty bucket the bound falls inside, rather than nulling it', () => {
+    /* The week of Mon 2026-08-17 is empty, and the user's first session lands
+       mid-week on the 20th. The bound must be compared against the bucket's
+       *end*: comparing its start would null the very bucket the history
+       begins in and punch a hole at the left edge of every chart. */
+    const series = buildProgressSeries([{ localDate: '2026-08-31', value: 1 }], {
+      range: '3M',
+      endLocalDate: '2026-09-07',
+      aggregation: 'sum',
+      emptyIsZero: true,
+      zeroFrom: '2026-08-20',
+    });
+    const boundWeek = series.points.find((point) => point.localDate === '2026-08-17');
+    expect(boundWeek).toBeDefined();
+    expect(boundWeek?.sampleCount).toBe(0);
+    expect(boundWeek?.value).toBe(0);
+
+    // ...while the week entirely before the bound stays unknown.
+    const priorWeek = series.points.find((point) => point.localDate === '2026-08-10');
+    expect(priorWeek?.value).toBeNull();
+  });
+
+  it('zeroes every empty bucket when no bound is given', () => {
+    const series = buildProgressSeries(oneSession, {
+      range: 'M',
+      endLocalDate: '2026-08-25',
+      aggregation: 'sum',
+      emptyIsZero: true,
+    });
+    expect(series.points.every((point) => point.value !== null)).toBe(true);
+  });
+});
