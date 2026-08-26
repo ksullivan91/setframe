@@ -20,3 +20,4 @@ export * from './Charts';
 export * from './MetricInfo';
 export * from './ProgressInsights';
 export * from './TodayAdditionalActivitySection';
+export * from './DurationInput';

@@ -157,7 +157,7 @@ describe('TodayAdditionalActivitySection', () => {
     await flush();
 
     const durationField = rendered.root.findAll(
-      (node) => node.props?.label === 'Duration' && typeof node.props?.onChangeText === 'function',
+      (node) => node.props?.label === 'Duration minutes' && typeof node.props?.onChangeText === 'function',
     )[0];
     await act(async () => {
       durationField!.props.onChangeText('15');
@@ -283,7 +283,7 @@ describe('TodayAdditionalActivitySection activity-type-driven fields', () => {
     expect(fieldLabels(rendered)).toContain('Activity name');
 
     const durationField = rendered.root.findAll(
-      (node) => node.props?.label === 'Duration' && typeof node.props?.onChangeText === 'function',
+      (node) => node.props?.label === 'Duration minutes' && typeof node.props?.onChangeText === 'function',
     )[0];
     await act(async () => {
       durationField!.props.onChangeText('10');
@@ -386,7 +386,7 @@ describe('TodayAdditionalActivitySection quick activity shortcuts', () => {
     await flush();
 
     const durationField = rendered.root.findAll(
-      (node) => node.props?.label === 'Duration' && typeof node.props?.onChangeText === 'function',
+      (node) => node.props?.label === 'Duration minutes' && typeof node.props?.onChangeText === 'function',
     )[0];
     expect(durationField!.props.value).toBe('15');
     expect(mockPost).not.toHaveBeenCalled();
@@ -441,7 +441,7 @@ describe('TodayAdditionalActivitySection quick activity shortcuts', () => {
     await flush();
 
     const durationField = rendered.root.findAll(
-      (node) => node.props?.label === 'Duration' && typeof node.props?.onChangeText === 'function',
+      (node) => node.props?.label === 'Duration minutes' && typeof node.props?.onChangeText === 'function',
     )[0];
     await act(async () => {
       durationField!.props.onChangeText('15');
@@ -479,7 +479,7 @@ describe('TodayAdditionalActivitySection quick activity shortcuts', () => {
 
     expect(mockDel).toHaveBeenCalledWith('/additional-activity-presets/preset-1');
     const durationField = rendered.root.findAll(
-      (node) => node.props?.label === 'Duration' && typeof node.props?.onChangeText === 'function',
+      (node) => node.props?.label === 'Duration minutes' && typeof node.props?.onChangeText === 'function',
     )[0];
     expect(durationField!.props.value).toBe('');
   });

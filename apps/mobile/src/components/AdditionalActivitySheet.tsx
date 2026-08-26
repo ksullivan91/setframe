@@ -3,13 +3,33 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { X } from 'lucide-react-native';
 import { radius, spacing } from '@setframe/design-tokens';
 import type { AdditionalActivity, AdditionalActivityPreset, AdditionalActivityType } from '@setframe/schemas';
-import { getAdditionalActivityFields, type RecentActivitySuggestion } from '@setframe/domain';
+import {
+  getAdditionalActivityFields,
+  secondsToDurationParts,
+  validateDurationDraft,
+  type DurationDraft,
+  type RecentActivitySuggestion,
+} from '@setframe/domain';
 import { useTheme } from '../theme/ThemeProvider';
 import { typeScale } from '../theme/getTheme';
 import { Button } from './Button';
+import { DurationInput } from './DurationInput';
 import { Input } from './Input';
 import { Select } from './Select';
 import { Sheet } from './Sheet';
+
+/** Canonical seconds -> the two form fields, with empty for "no duration". */
+function toDurationDraft(totalSeconds: number | null | undefined): DurationDraft {
+  if (totalSeconds == null || totalSeconds <= 0) return { minutes: '', seconds: '' };
+  const parts = secondsToDurationParts(totalSeconds);
+  return {
+    minutes: String(parts.minutes),
+    // Blank rather than "0" so a whole-minute activity looks exactly as it
+    // did before seconds existed.
+    seconds: parts.seconds === 0 ? '' : String(parts.seconds),
+  };
+}
+
 
 export const activityTypeLabels: Record<AdditionalActivityType, string> = {
   walk: 'Walk',
@@ -31,7 +51,7 @@ const activityTypeOptions = (Object.keys(activityTypeLabels) as AdditionalActivi
 export interface ActivityDraft {
   activityType: AdditionalActivityType;
   title: string;
-  durationMinutes: string;
+  duration: DurationDraft;
   distanceValue: string;
   distanceUnit: 'm' | 'km' | 'mi';
   startTime: string;
@@ -39,7 +59,7 @@ export interface ActivityDraft {
 }
 
 export function emptyActivityDraft(preferredDistanceUnit: 'km' | 'mi' = 'mi'): ActivityDraft {
-  return { activityType: 'walk', title: '', durationMinutes: '', distanceValue: '', distanceUnit: preferredDistanceUnit, startTime: '', notes: '' };
+  return { activityType: 'walk', title: '', duration: { minutes: '', seconds: '' }, distanceValue: '', distanceUnit: preferredDistanceUnit, startTime: '', notes: '' };
 }
 
 // The start-time field works in local wall-clock time, but `startedAt` is
@@ -51,7 +71,10 @@ export function draftFromActivity(activity: AdditionalActivity): ActivityDraft {
   return {
     activityType: activity.activityType,
     title: activity.title ?? '',
-    durationMinutes: activity.durationSeconds != null ? String(Math.round(activity.durationSeconds / 60)) : '',
+    /* Split, not rounded to minutes. The previous `Math.round(seconds / 60)`
+       meant opening an existing 877-second activity and saving it rewrote it
+       to 900 — precision was destroyed on every round-trip through this form. */
+    duration: toDurationDraft(activity.durationSeconds),
     distanceValue: activity.distanceValue != null ? String(activity.distanceValue) : '',
     distanceUnit: activity.distanceUnit ?? 'mi',
     startTime: local ? `${String(local.getHours()).padStart(2, '0')}:${String(local.getMinutes()).padStart(2, '0')}` : '',
@@ -63,7 +86,15 @@ export function draftFromActivity(activity: AdditionalActivity): ActivityDraft {
  * enough for most activities; "Other" additionally needs a name. */
 export function canSaveActivityDraft(draft: ActivityDraft): boolean {
   const fields = new Set(getAdditionalActivityFields(draft.activityType));
-  return draft.durationMinutes.trim() !== '' && (!fields.has('title') || draft.title.trim() !== '');
+  /* A duration of zero is not a duration. `validateDurationDraft` returns
+     null for an empty *or* all-zero draft, so both are blocked by one rule
+     rather than two checks that could disagree. */
+  const duration = validateDurationDraft(draft.duration);
+  return (
+    duration.totalSeconds != null &&
+    Object.keys(duration.errors).length === 0 &&
+    (!fields.has('title') || draft.title.trim() !== '')
+  );
 }
 
 function formatActivityDuration(seconds: number | null): string | null {
@@ -188,7 +219,10 @@ export function AdditionalActivitySheet({
         <Input label="Activity name" value={localDraft.title} onChangeText={(value) => update({ title: value })} />
       ) : null}
       {fields.has('duration') ? (
-        <Input label="Duration" unit="min" value={localDraft.durationMinutes} keyboardType="numeric" numeric onChangeText={(value) => update({ durationMinutes: value })} />
+        <DurationInput
+          value={localDraft.duration}
+          onChange={(duration) => update({ duration })}
+        />
       ) : null}
       {fields.has('distance') ? (
         <Input label="Distance" unit={localDraft.distanceUnit} value={localDraft.distanceValue} keyboardType="decimal-pad" numeric onChangeText={(value) => update({ distanceValue: value })} />

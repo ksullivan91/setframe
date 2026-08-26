@@ -108,7 +108,7 @@ describe('TodayAdditionalActivitySection', () => {
     renderSection();
 
     await user.click(await screen.findByRole('button', { name: 'Add activity' }));
-    await user.type(screen.getByLabelText('Duration (min)'), '15');
+    await user.type(screen.getByLabelText('Duration minutes (min)'), '15');
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() =>
@@ -117,7 +117,7 @@ describe('TodayAdditionalActivitySection', () => {
         expect.objectContaining({ localDate: '2026-08-24', activityType: 'walk', durationSeconds: 900 }),
       ),
     );
-    expect(screen.queryByLabelText('Duration (min)')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Duration minutes (min)')).not.toBeInTheDocument();
   });
 
   it('sends a UTC-qualified startedAt, not a bare local-time string the API would reject', async () => {
@@ -126,7 +126,7 @@ describe('TodayAdditionalActivitySection', () => {
     renderSection();
 
     await user.click(await screen.findByRole('button', { name: 'Add activity' }));
-    await user.type(screen.getByLabelText('Duration (min)'), '15');
+    await user.type(screen.getByLabelText('Duration minutes (min)'), '15');
     // <input type="time"> doesn't accept literal colon keystrokes the way
     // userEvent.type simulates them — set the value directly instead.
     fireEvent.change(screen.getByLabelText('Start time'), { target: { value: '14:30' } });
@@ -195,7 +195,7 @@ describe('TodayAdditionalActivitySection activity-type-driven fields', () => {
     await user.selectOptions(screen.getByLabelText('Activity'), 'other');
     expect(screen.getByLabelText('Activity name')).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText('Duration (min)'), '10');
+    await user.type(screen.getByLabelText('Duration minutes (min)'), '10');
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
 
     await user.type(screen.getByLabelText('Activity name'), 'Jump rope');
@@ -210,7 +210,7 @@ describe('TodayAdditionalActivitySection activity-type-driven fields', () => {
     await user.click(await screen.findByRole('button', { name: 'Add activity' }));
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
 
-    await user.type(screen.getByLabelText('Duration (min)'), '20');
+    await user.type(screen.getByLabelText('Duration minutes (min)'), '20');
     expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
   });
 
@@ -289,7 +289,7 @@ describe('TodayAdditionalActivitySection quick activity shortcuts', () => {
     await user.click(chip);
 
     expect(screen.getByLabelText('Activity')).toHaveValue('walk');
-    expect(screen.getByLabelText('Duration (min)')).toHaveValue(15);
+    expect(screen.getByLabelText('Duration minutes (min)')).toHaveValue('15');
     // Tapping a shortcut only prefills — it must not itself create anything.
     expect(mockPost).not.toHaveBeenCalled();
   });
@@ -335,7 +335,7 @@ describe('TodayAdditionalActivitySection quick activity shortcuts', () => {
     renderSection();
 
     await user.click(await screen.findByRole('button', { name: 'Add activity' }));
-    await user.type(screen.getByLabelText('Duration (min)'), '15');
+    await user.type(screen.getByLabelText('Duration minutes (min)'), '15');
     await user.type(screen.getByLabelText('Save as quick activity'), 'Post-meal walk');
     await user.click(screen.getByRole('button', { name: 'Save shortcut' }));
 
@@ -360,6 +360,87 @@ describe('TodayAdditionalActivitySection quick activity shortcuts', () => {
 
     await waitFor(() => expect(mockDel).toHaveBeenCalledWith('/additional-activity-presets/preset-1'));
     // Removing must not have prefilled the form as if the chip were tapped.
-    expect(screen.getByLabelText('Duration (min)')).toHaveValue(null);
+    expect(screen.getByLabelText('Duration minutes (min)')).toHaveValue('');
+  });
+});
+
+/**
+ * Story 63. A single `Duration (min)` field led a real user to type `2309`
+ * meaning 23:09. Persistence was already `durationSeconds`, so the model was
+ * never the problem — the form was, and it destroyed precision on every
+ * round-trip through `Math.round(seconds / 60)`.
+ */
+describe('TodayAdditionalActivitySection duration precision', () => {
+  it('saves minutes and seconds as canonical total seconds', async () => {
+    const user = userEvent.setup();
+    renderSection();
+    await user.click(await screen.findByRole('button', { name: 'Add activity' }));
+
+    await user.type(screen.getByLabelText('Duration minutes (min)'), '14');
+    await user.type(screen.getByLabelText('Duration seconds (sec)'), '37');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    // 14 * 60 + 37
+    await waitFor(() =>
+      expect(mockPost).toHaveBeenCalledWith(
+        '/additional-activities',
+        expect.objectContaining({ durationSeconds: 877 }),
+      ),
+    );
+  });
+
+  it('accepts a duration longer than an hour without an hours field', async () => {
+    const user = userEvent.setup();
+    renderSection();
+    await user.click(await screen.findByRole('button', { name: 'Add activity' }));
+
+    await user.type(screen.getByLabelText('Duration minutes (min)'), '75');
+    await user.type(screen.getByLabelText('Duration seconds (sec)'), '20');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() =>
+      expect(mockPost).toHaveBeenCalledWith(
+        '/additional-activities',
+        expect.objectContaining({ durationSeconds: 4520 }),
+      ),
+    );
+  });
+
+  it('accepts seconds alone', async () => {
+    const user = userEvent.setup();
+    renderSection();
+    await user.click(await screen.findByRole('button', { name: 'Add activity' }));
+
+    await user.type(screen.getByLabelText('Duration seconds (sec)'), '30');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() =>
+      expect(mockPost).toHaveBeenCalledWith(
+        '/additional-activities',
+        expect.objectContaining({ durationSeconds: 30 }),
+      ),
+    );
+  });
+
+  it('will not save a zero duration', async () => {
+    const user = userEvent.setup();
+    renderSection();
+    await user.click(await screen.findByRole('button', { name: 'Add activity' }));
+
+    await user.type(screen.getByLabelText('Duration minutes (min)'), '0');
+    await user.type(screen.getByLabelText('Duration seconds (sec)'), '0');
+
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+  });
+
+  it('names the two inputs distinctly for screen readers', async () => {
+    const user = userEvent.setup();
+    renderSection();
+    await user.click(await screen.findByRole('button', { name: 'Add activity' }));
+
+    // Two controls both announced as "Duration" are indistinguishable, and
+    // the user cannot tell which box they are in.
+    expect(screen.getByLabelText('Duration minutes (min)')).toBeInTheDocument();
+    expect(screen.getByLabelText('Duration seconds (sec)')).toBeInTheDocument();
   });
 });

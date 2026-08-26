@@ -9,6 +9,9 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
+- `setframe-workout-input-flow-redesign/` — stories 58-62, the Today workout
+  input flow rebuild. Renumbered on intake from 52-56, which collide with the
+  shipped mobile parity audit.
 - `WAIT-automated-visual-and-e2e-testing.md` — deferred by request. Filed so the
   gap is tracked, deliberately not started.
 - `WAIT-figma-accentsubtle-token-fix.md` — deferred by request. Fixes
@@ -157,6 +160,13 @@ alongside their stories, named `README-{range}-{review}.md`.
   real 1 lb move, and a 2-day weight average that is exactly the
   water-weight noise `body-weight-display-psychology.md` exists to
   suppress.
+- `completed/63-additional-activity-duration-seconds.md` — story 63,
+  minutes-and-seconds duration entry. The persistence layer already stored
+  `duration_seconds`, so no migration was needed — but the form read
+  `Math.round(seconds / 60)` and wrote `minutes * 60`, so opening an existing
+  877-second activity and saving it rewrote it to 900. Precision was not
+  merely unavailable, it was destroyed on every round-trip, and the list also
+  displayed it rounded.
 - `completed/README-52-56-mobile-parity-audit.md` — the mobile parity audit
   pack (stories 52-56), archived once all five shipped.
 - `completed/55-mobile-program-editing-capability.md` — story 55. Most of it

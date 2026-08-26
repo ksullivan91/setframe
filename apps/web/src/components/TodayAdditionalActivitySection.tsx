@@ -3,11 +3,32 @@ import styled from 'styled-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2, Pencil } from 'lucide-react';
 import type { AdditionalActivity, AdditionalActivityPreset, AdditionalActivityType, User } from '@setframe/schemas';
-import { deriveRecentActivitySuggestions, getAdditionalActivityFields, type RecentActivitySuggestion } from '@setframe/domain';
+import {
+  deriveRecentActivitySuggestions,
+  formatActivityDuration,
+  getAdditionalActivityFields,
+  secondsToDurationParts,
+  validateDurationDraft,
+  type DurationDraft,
+  type RecentActivitySuggestion,
+} from '@setframe/domain';
+
+/** Canonical seconds -> the two form fields, with empty for "no duration". */
+function toDurationDraft(totalSeconds: number | null | undefined): DurationDraft {
+  if (totalSeconds == null || totalSeconds <= 0) return { minutes: '', seconds: '' };
+  const parts = secondsToDurationParts(totalSeconds);
+  return {
+    minutes: String(parts.minutes),
+    // Blank rather than "0" so a whole-minute activity looks exactly as it
+    // did before seconds existed.
+    seconds: parts.seconds === 0 ? '' : String(parts.seconds),
+  };
+}
 import { radius, spacing } from '@setframe/design-tokens';
 import { Button } from './Button';
 import { Card } from './Card';
 import { IconButton } from './IconButton';
+import { DurationInput } from './DurationInput';
 import { Input } from './Input';
 import { Modal } from './Modal';
 import { Select } from './Select';
@@ -33,12 +54,6 @@ const activityTypeOptions = (Object.keys(activityTypeLabels) as AdditionalActivi
   label: activityTypeLabels[value],
 }));
 
-function formatActivityDuration(seconds: number | null): string | null {
-  if (seconds == null) return null;
-  const minutes = Math.round(seconds / 60);
-  return `${minutes} min`;
-}
-
 function formatActivityTime(startedAt: string | null): string | null {
   if (!startedAt) return null;
   return new Date(startedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
@@ -59,7 +74,7 @@ function suggestionLabel(suggestion: { activityType: AdditionalActivityType; tit
 interface ActivityDraft {
   activityType: AdditionalActivityType;
   title: string;
-  durationMinutes: string;
+  duration: DurationDraft;
   distanceValue: string;
   distanceUnit: 'm' | 'km' | 'mi';
   startTime: string;
@@ -67,7 +82,7 @@ interface ActivityDraft {
 }
 
 function emptyDraft(preferredDistanceUnit: 'km' | 'mi'): ActivityDraft {
-  return { activityType: 'walk', title: '', durationMinutes: '', distanceValue: '', distanceUnit: preferredDistanceUnit, startTime: '', notes: '' };
+  return { activityType: 'walk', title: '', duration: { minutes: '', seconds: '' }, distanceValue: '', distanceUnit: preferredDistanceUnit, startTime: '', notes: '' };
 }
 
 // The <input type="time"> field works in local wall-clock time, but
@@ -79,7 +94,10 @@ function draftFromActivity(activity: AdditionalActivity): ActivityDraft {
   return {
     activityType: activity.activityType,
     title: activity.title ?? '',
-    durationMinutes: activity.durationSeconds != null ? String(Math.round(activity.durationSeconds / 60)) : '',
+    /* Split, not rounded to minutes. The previous `Math.round(seconds / 60)`
+       meant opening an existing 877-second activity and saving it rewrote it
+       to 900 — precision was destroyed on every round-trip through this form. */
+    duration: toDurationDraft(activity.durationSeconds),
     distanceValue: activity.distanceValue != null ? String(activity.distanceValue) : '',
     distanceUnit: activity.distanceUnit ?? 'mi',
     startTime: local ? `${String(local.getHours()).padStart(2, '0')}:${String(local.getMinutes()).padStart(2, '0')}` : '',
@@ -333,7 +351,7 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
       ...prev,
       activityType: suggestion.activityType,
       title: suggestion.title ?? '',
-      durationMinutes: suggestion.durationSeconds != null ? String(Math.round(suggestion.durationSeconds / 60)) : '',
+      duration: toDurationDraft(suggestion.durationSeconds),
       distanceValue: suggestion.distanceValue != null ? String(suggestion.distanceValue) : '',
       distanceUnit: suggestion.distanceUnit ?? prev.distanceUnit,
     }));
@@ -352,7 +370,9 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
     return {
       activityType: draft.activityType,
       title: fields.has('title') ? draft.title || null : undefined,
-      durationSeconds: fields.has('duration') && draft.durationMinutes ? Math.round(Number(draft.durationMinutes) * 60) : undefined,
+      durationSeconds: fields.has('duration')
+        ? (validateDurationDraft(draft.duration).totalSeconds ?? undefined)
+        : undefined,
       distanceValue: fields.has('distance') && draft.distanceValue ? Number(draft.distanceValue) : undefined,
       distanceUnit: fields.has('distance') && draft.distanceValue ? draft.distanceUnit : undefined,
       // `${localDate}T${startTime}:00` (no offset) parses as local wall-clock
@@ -401,7 +421,9 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
       return api.post('/additional-activity-presets', {
         title: presetTitleDraft.trim(),
         activityType: draft.activityType,
-        defaultDurationSeconds: fields.has('duration') && draft.durationMinutes ? Math.round(Number(draft.durationMinutes) * 60) : undefined,
+        defaultDurationSeconds: fields.has('duration')
+          ? (validateDurationDraft(draft.duration).totalSeconds ?? undefined)
+          : undefined,
         defaultDistanceValue: fields.has('distance') && draft.distanceValue ? Number(draft.distanceValue) : undefined,
         defaultDistanceUnit: fields.has('distance') && draft.distanceValue ? draft.distanceUnit : undefined,
         defaultNotes: fields.has('notes') ? draft.notes || undefined : undefined,
@@ -426,7 +448,14 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
   // Conservative minimum, per the story's steering doc: duration alone is
   // enough for most activities; "Other" additionally needs a name since an
   // unnamed custom activity is meaningless.
-  const canSave = draft.durationMinutes.trim() !== '' && (!visibleFields.has('title') || draft.title.trim() !== '');
+  /* A duration of zero is not a duration. `validateDurationDraft` returns
+     null for an empty *or* all-zero draft, so both are blocked by the same
+     rule rather than by two checks that could disagree. */
+  const durationValidation = validateDurationDraft(draft.duration);
+  const canSave =
+    durationValidation.totalSeconds != null &&
+    Object.keys(durationValidation.errors).length === 0 &&
+    (!visibleFields.has('title') || draft.title.trim() !== '');
 
   return (
     <SectionCard aria-label="Additional activity">
@@ -550,13 +579,9 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
             />
           ) : null}
           {visibleFields.has('duration') ? (
-            <Input
-              label="Duration"
-              unit="min"
-              type="number"
-              inputMode="numeric"
-              value={draft.durationMinutes}
-              onChange={(event) => setDraft((prev) => ({ ...prev, durationMinutes: event.target.value }))}
+            <DurationInput
+              value={draft.duration}
+              onChange={(duration) => setDraft((prev) => ({ ...prev, duration }))}
             />
           ) : null}
           {visibleFields.has('distance') ? (

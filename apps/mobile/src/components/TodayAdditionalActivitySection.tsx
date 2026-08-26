@@ -4,12 +4,32 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Pencil, Trash2 } from 'lucide-react-native';
 import { spacing, radius } from '@setframe/design-tokens';
 import type { AdditionalActivity, AdditionalActivityPreset, User } from '@setframe/schemas';
-import { deriveRecentActivitySuggestions, getAdditionalActivityFields } from '@setframe/domain';
+import {
+  deriveRecentActivitySuggestions,
+  formatActivityDuration,
+  getAdditionalActivityFields,
+  secondsToDurationParts,
+  validateDurationDraft,
+  type DurationDraft,
+} from '@setframe/domain';
 import { useTheme } from '../theme/ThemeProvider';
 import { typeScale } from '../theme/getTheme';
 import { useApiClient } from '../lib/api-client';
 import { Card } from './Card';
 import { IconButton } from './IconButton';
+
+/** Canonical seconds -> the two form fields, with empty for "no duration". */
+function toDurationDraft(totalSeconds: number | null | undefined): DurationDraft {
+  if (totalSeconds == null || totalSeconds <= 0) return { minutes: '', seconds: '' };
+  const parts = secondsToDurationParts(totalSeconds);
+  return {
+    minutes: String(parts.minutes),
+    // Blank rather than "0" so a whole-minute activity looks exactly as it
+    // did before seconds existed.
+    seconds: parts.seconds === 0 ? '' : String(parts.seconds),
+  };
+}
+
 import { Skeleton } from './Skeleton';
 import { Button } from './Button';
 import { Toast } from './Toast';
@@ -20,11 +40,6 @@ import {
   emptyActivityDraft,
   type ActivityDraft,
 } from './AdditionalActivitySheet';
-
-function formatActivityDuration(seconds: number | null): string | null {
-  if (seconds == null) return null;
-  return `${Math.round(seconds / 60)} min`;
-}
 
 function formatActivityTime(startedAt: string | null): string | null {
   if (!startedAt) return null;
@@ -50,7 +65,9 @@ function buildBody(localDate: string, draft: ActivityDraft) {
   return {
     activityType: draft.activityType,
     title: fields.has('title') ? draft.title || null : undefined,
-    durationSeconds: fields.has('duration') && draft.durationMinutes ? Math.round(Number(draft.durationMinutes) * 60) : undefined,
+    durationSeconds: fields.has('duration')
+      ? (validateDurationDraft(draft.duration).totalSeconds ?? undefined)
+      : undefined,
     distanceValue: fields.has('distance') && draft.distanceValue ? Number(draft.distanceValue) : undefined,
     distanceUnit: fields.has('distance') && draft.distanceValue ? draft.distanceUnit : undefined,
     // `${localDate}T${startTime}:00` (no offset) parses as local wall-clock
@@ -162,7 +179,9 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
       return api.post('/additional-activity-presets', {
         title: presetTitleDraft.trim(),
         activityType: draft.activityType,
-        defaultDurationSeconds: fields.has('duration') && draft.durationMinutes ? Math.round(Number(draft.durationMinutes) * 60) : undefined,
+        defaultDurationSeconds: fields.has('duration')
+          ? (validateDurationDraft(draft.duration).totalSeconds ?? undefined)
+          : undefined,
         defaultDistanceValue: fields.has('distance') && draft.distanceValue ? Number(draft.distanceValue) : undefined,
         defaultDistanceUnit: fields.has('distance') && draft.distanceValue ? draft.distanceUnit : undefined,
         defaultNotes: fields.has('notes') ? draft.notes || undefined : undefined,
@@ -190,7 +209,7 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
       ...prev,
       activityType: suggestion.activityType,
       title: suggestion.title ?? '',
-      durationMinutes: suggestion.durationSeconds != null ? String(Math.round(suggestion.durationSeconds / 60)) : '',
+      duration: toDurationDraft(suggestion.durationSeconds),
       distanceValue: suggestion.distanceValue != null ? String(suggestion.distanceValue) : '',
       distanceUnit: suggestion.distanceUnit ?? prev.distanceUnit,
     }));
