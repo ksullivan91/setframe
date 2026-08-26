@@ -79,7 +79,14 @@ export function ExerciseEditModal({
   useEffect(() => setDraft(state), [state]);
 
   return (
-    <SharedModal open onClose={onClose} title="Edit exercise" description={draft.exerciseName} maxWidth={560}>
+    <SharedModal
+      open
+      onClose={onClose}
+      presentation="task"
+      title="Edit exercise"
+      description={draft.exerciseName}
+      maxWidth={560}
+    >
       <Select label="Prescription type" value={draft.prescription.kind} options={prescriptionOptions} disabled onChange={() => undefined} />
 
         {(draft.prescription.kind === 'sets_reps' ||

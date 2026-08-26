@@ -518,6 +518,7 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
       ) : null}
 
       <Modal
+        presentation="task"
         open={formOpen}
         onClose={() => setFormOpen(false)}
         title={editTarget ? 'Edit activity' : 'Add activity'}
@@ -642,6 +643,7 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
       </Modal>
 
       <Modal
+        presentation="compact"
         open={pendingDelete != null}
         onClose={() => setPendingDelete(null)}
         title="Remove this activity?"

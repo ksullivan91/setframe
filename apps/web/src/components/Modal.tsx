@@ -1,35 +1,52 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
 import { X } from 'lucide-react';
-import { spacing } from '@setframe/design-tokens';
-import { Card } from './Card';
+import { radius, spacing } from '@setframe/design-tokens';
 import { IconButton } from './IconButton';
+import { typeScale } from '../theme/typeScale';
 import { useScrollLock } from '../lib/useScrollLock';
 
-export interface ModalProps {
-  /** Whether the modal is currently shown. Nothing renders when false. */
-  open: boolean;
-  /** Called when the user requests to close (Esc, backdrop click, close button). */
-  onClose: () => void;
-  /** Rendered as the dialog's accessible name (`aria-labelledby`). */
-  title: ReactNode;
-  /** Optional supporting text under the title. */
-  description?: ReactNode;
-  children: ReactNode;
-  /** Max-width of the dialog card; defaults to 480px. */
-  maxWidth?: number;
-}
-
 /**
- * Below this width the dialog behaves as a near-full-screen bottom
- * sheet instead of a centered card (Story 05) — mobile Safari's
- * browser chrome eats into small-viewport centered dialogs, and a
- * sheet anchored to the bottom edge scrolls more predictably.
+ * Setframe's one web dialog primitive. See `docs/design/web-modal-standard.md`
+ * for the reasoning; this file implements it.
+ *
+ * Stories 64-66. The previous version chose its shape from the *breakpoint*:
+ * below 640px every dialog became a bottom sheet capped at 85dvh. That is
+ * correct for a short list of choices and wrong for everything else, and it
+ * produced the reported "two sheets" defect — a form that does not fill 85% of
+ * the viewport is a rounded white slab with the app's own white cards still
+ * visible above it. Two stacked light surfaces read as two sheets, because
+ * visually that is what they are.
+ *
+ * So the shape now follows the *task*. `presentation` is required rather than
+ * defaulted: a caller should not be able to produce a bottom-sheet form by
+ * omitting a prop, which is exactly how the old behaviour spread.
  */
-const MOBILE_SHEET_BREAKPOINT = 640;
 
-const Backdrop = styled.div`
+/** Below this width, presentation actually diverges. */
+const COMPACT_BREAKPOINT = 640;
+
+export type ModalPresentation =
+  /**
+   * Forms, searchable pickers, anything that raises the keyboard or grows
+   * dynamically. Fills the viewport on compact screens so there is no strip
+   * of application left to read as a second surface.
+   */
+  | 'task'
+  /**
+   * Confirmations and short decisions. Stays centred and sized to its content
+   * at every width — a two-sentence confirmation filling an iPhone is as
+   * wrong as a form crammed into a drawer.
+   */
+  | 'compact'
+  /**
+   * A short list of contextual choices tied to one action. The only
+   * presentation that is still a bottom sheet, and never a scrolling form.
+   */
+  | 'actions';
+
+const Backdrop = styled.div<{ $presentation: ModalPresentation }>`
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
@@ -39,86 +56,189 @@ const Backdrop = styled.div`
   padding: ${spacing[16]}px;
   z-index: 1000;
 
-  @media (max-width: ${MOBILE_SHEET_BREAKPOINT}px) {
-    align-items: flex-end;
-    padding: 0;
+  @media (max-width: ${COMPACT_BREAKPOINT}px) {
+    ${(p) =>
+      p.$presentation === 'actions'
+        ? css`
+            align-items: flex-end;
+            padding: 0;
+          `
+        : p.$presentation === 'task'
+          ? css`
+              padding: 0;
+            `
+          : css`
+              /* compact keeps its centred inset so a confirmation reads as
+                 a decision rather than as a destination. */
+              padding: ${spacing[16]}px;
+            `}
   }
 `;
 
-const DialogCard = styled(Card)<{ $maxWidth: number }>`
-  width: min(${(p) => p.$maxWidth}px, 100%);
-  /* vh first as a fallback for browsers without dvh support; dvh (where
-     supported) tracks the real visible viewport, so the sheet resizes
-     with the iOS keyboard/chrome instead of being cropped by them. */
-  max-height: 90vh;
-  max-height: 90dvh;
-  overflow: auto;
-  overscroll-behavior: contain;
+/**
+ * The dialog surface.
+ *
+ * Deliberately not built on `Card`. `Card` carries its own padding, radius
+ * and background, which is right for content in a page and wrong here: a
+ * full-viewport task dialog must have no radius and no outer padding, and its
+ * padding belongs to the scrolling region so a fixed header does not scroll
+ * its own inset away.
+ *
+ * `dvh` with a `vh` fallback, never `100vh` alone: in mobile Safari `100vh`
+ * is the viewport *without* browser chrome, so a `100vh` dialog is taller
+ * than the screen and its footer is unreachable.
+ */
+const Surface = styled.div<{ $presentation: ModalPresentation; $maxWidth: number }>`
   display: flex;
   flex-direction: column;
-  gap: ${spacing[16]}px;
+  /* min-height:0 so the scrolling child can actually shrink; without it a
+     flex item refuses to go below its content height and the *page* scrolls
+     instead of the content region. */
+  min-height: 0;
+  background: ${(p) => p.theme.surface.raised};
+  color: ${(p) => p.theme.text.primary};
+  border-radius: ${radius.large}px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
+  width: min(${(p) => p.$maxWidth}px, 100%);
+  max-height: 90vh;
+  max-height: 90dvh;
 
-  @media (max-width: ${MOBILE_SHEET_BREAKPOINT}px) {
-    width: 100%;
-    max-height: 85vh;
-    max-height: 85dvh;
-    border-radius: 16px 16px 0 0;
-    padding-bottom: max(${spacing[16]}px, env(safe-area-inset-bottom));
-    /* Story 29 — this used to floor at 0px instead of Card's own base
-       inset, so a notched device's safe-area-inset-left/right (usually 0
-       in portrait) replaced the horizontal padding entirely instead of
-       extending it, leaving content edge-to-edge. */
-    padding-left: max(${spacing[16]}px, env(safe-area-inset-left));
-    padding-right: max(${spacing[16]}px, env(safe-area-inset-right));
+  @media (max-width: ${COMPACT_BREAKPOINT}px) {
+    ${(p) =>
+      p.$presentation === 'task'
+        ? css`
+            /* One surface, the whole viewport. This is what removes the
+               "second sheet": there is no application left showing. */
+            width: 100%;
+            max-width: none;
+            height: 100vh;
+            height: 100dvh;
+            max-height: none;
+            border-radius: 0;
+            box-shadow: none;
+          `
+        : p.$presentation === 'actions'
+          ? css`
+              width: 100%;
+              max-height: 60vh;
+              max-height: 60dvh;
+              border-radius: ${radius.large}px ${radius.large}px 0 0;
+            `
+          : css`
+              width: min(${p.$maxWidth}px, 100%);
+              max-height: 85vh;
+              max-height: 85dvh;
+            `}
   }
 `;
 
+/** Fixed while the content scrolls beneath it, so Close is always reachable. */
 const Header = styled.div`
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: ${spacing[12]}px;
-
-  @media (max-width: ${MOBILE_SHEET_BREAKPOINT}px) {
-    position: sticky;
-    top: 0;
-    background: ${(p) => p.theme.surface.raised};
-    padding-bottom: ${spacing[8]}px;
-    z-index: 1;
-  }
+  flex: none;
+  padding: ${spacing[16]}px;
+  /* Safe-area insets *extend* the padding rather than replacing it. Using the
+     inset alone leaves content edge-to-edge in portrait, where it is 0 — a
+     bug this repo already fixed once (story 29). */
+  padding-left: max(${spacing[16]}px, env(safe-area-inset-left));
+  padding-right: max(${spacing[16]}px, env(safe-area-inset-right));
+  padding-top: max(${spacing[16]}px, env(safe-area-inset-top));
 `;
 
 const TitleGroup = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${spacing[4]}px;
+  min-width: 0;
 `;
 
 const Title = styled.h2`
   margin: 0;
-  font-size: 1.0625rem;
-  font-weight: 700;
+  font-size: ${typeScale.sectionTitle.fontSize}px;
+  font-weight: ${typeScale.sectionTitle.fontWeight};
+  /* A long exercise name must wrap rather than push the close button off. */
+  overflow-wrap: anywhere;
 `;
 
 const Description = styled.p`
   margin: 0;
   color: ${(p) => p.theme.text.secondary};
-  font-size: 0.875rem;
+  font-size: ${typeScale.compactBody.fontSize}px;
+`;
+
+/**
+ * The single scroll container. Exactly one element owns vertical scrolling
+ * for a dialog — nested scrolling is what produces "which thing am I
+ * scrolling" and the detached visual states this rework exists to remove.
+ */
+const Content = styled.div`
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: ${spacing[16]}px;
+  padding: 0 ${spacing[16]}px ${spacing[16]}px;
+  padding-left: max(${spacing[16]}px, env(safe-area-inset-left));
+  padding-right: max(${spacing[16]}px, env(safe-area-inset-right));
+`;
+
+/** Sticky actions for long task dialogs, kept clear of the home indicator. */
+const Footer = styled.div`
+  flex: none;
+  display: flex;
+  gap: ${spacing[8]}px;
+  justify-content: flex-end;
+  padding: ${spacing[12]}px ${spacing[16]}px;
+  padding-left: max(${spacing[16]}px, env(safe-area-inset-left));
+  padding-right: max(${spacing[16]}px, env(safe-area-inset-right));
+  padding-bottom: max(${spacing[12]}px, env(safe-area-inset-bottom));
+  border-top: 1px solid ${(p) => p.theme.border.subtle};
+  background: ${(p) => p.theme.surface.raised};
 `;
 
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-/**
- * Modal — reusable accessible dialog primitive (style guide follow-up:
- * previously every "modal" in the app was a page-local `styled(Card)`
- * with hand-rolled Esc/focus handling, e.g. TodayPage's Preview dialog).
- * Provides: `role="dialog"`/`aria-modal`/`aria-labelledby`/
- * `aria-describedby`, Esc-to-close, backdrop-click-to-close, focus
- * moved to the dialog on open, a rudimentary focus trap (Tab/Shift+Tab
- * wraps within the dialog), and focus restored to the trigger on close.
- */
-export function Modal({ open, onClose, title, description, children, maxWidth = 480 }: ModalProps) {
+export interface ModalProps {
+  /** Whether the modal is currently shown. Nothing renders when false. */
+  open: boolean;
+  /** Called when the user requests to close (Esc, backdrop click, close button). */
+  onClose: () => void;
+  /**
+   * How this dialog should present itself. Required on purpose — see the
+   * module comment. Pick from the task, not from the screen size.
+   */
+  presentation: ModalPresentation;
+  /** Rendered as the dialog's accessible name (`aria-labelledby`). */
+  title: ReactNode;
+  /** Optional supporting text under the title. */
+  description?: ReactNode;
+  children: ReactNode;
+  /**
+   * Actions pinned below the scrolling content. Use for a long task dialog
+   * whose primary action would otherwise be scrolled out of reach.
+   */
+  footer?: ReactNode;
+  /** Max-width for the centred presentations; ignored by a full-screen task. */
+  maxWidth?: number;
+}
+
+export function Modal({
+  open,
+  onClose,
+  presentation,
+  title,
+  description,
+  children,
+  footer,
+  maxWidth = 480,
+}: ModalProps) {
   const titleId = useId();
   const descriptionId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -168,14 +288,17 @@ export function Modal({ open, onClose, title, description, children, maxWidth = 
   if (!open) return null;
 
   return createPortal(
-    <Backdrop onClick={onClose}>
-      <DialogCard
+    <Backdrop $presentation={presentation} onClick={onClose} data-testid="modal-backdrop">
+      <Surface
         ref={dialogRef}
+        $presentation={presentation}
         $maxWidth={maxWidth}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
+        data-presentation={presentation}
+        data-testid="modal-surface"
         onClick={(event) => event.stopPropagation()}
       >
         <Header>
@@ -187,8 +310,9 @@ export function Modal({ open, onClose, title, description, children, maxWidth = 
             <X size={16} />
           </IconButton>
         </Header>
-        {children}
-      </DialogCard>
+        <Content data-testid="modal-content">{children}</Content>
+        {footer ? <Footer data-testid="modal-footer">{footer}</Footer> : null}
+      </Surface>
     </Backdrop>,
     document.body,
   );

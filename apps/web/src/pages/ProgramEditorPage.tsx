@@ -1185,6 +1185,7 @@ export function ProgramEditorPage() {
       </div>
 
       <SharedModal
+        presentation="compact"
         open={pendingWorkoutAction != null}
         onClose={() => setPendingWorkoutAction(null)}
         title={
@@ -1249,7 +1250,12 @@ export function ProgramEditorPage() {
       ) : null}
 
       {addExistingOpen ? (
-        <SharedModal open onClose={() => setAddExistingOpen(false)} title="Add an existing workout">
+        <SharedModal
+          open
+          onClose={() => setAddExistingOpen(false)}
+          presentation="task"
+          title="Add an existing workout"
+        >
           <Column>
             {addableDayTypes.length === 0 ? (
               <Small>Every workout you have is already part of this program.</Small>

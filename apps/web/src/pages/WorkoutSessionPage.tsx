@@ -1609,6 +1609,7 @@ export function WorkoutSessionPage() {
       </ExerciseList>
 
       <Modal
+        presentation="compact"
         open={pendingRemoval != null}
         onClose={() => setPendingRemoval(null)}
         title="Remove set?"
@@ -1629,6 +1630,7 @@ export function WorkoutSessionPage() {
       </Modal>
 
       <Modal
+        presentation="compact"
         open={pendingExerciseRemoval != null}
         onClose={() => setPendingExerciseRemoval(null)}
         title={
@@ -1665,6 +1667,7 @@ export function WorkoutSessionPage() {
           tap must not end the session outright — this is a new
           confirmation, since the button previously completed immediately. */}
       <Modal
+        presentation="compact"
         open={finishConfirmOpen}
         onClose={() => setFinishConfirmOpen(false)}
         title="Finish workout?"

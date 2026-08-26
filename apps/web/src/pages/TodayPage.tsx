@@ -1187,6 +1187,7 @@ export function TodayPage() {
       </Grid>
 
       <Modal
+        presentation="task"
         open={previewOpen}
         onClose={() => setPreviewOpen(false)}
         title={dayTypePreviewQuery.data?.name ?? "Today's plan"}
@@ -1214,6 +1215,7 @@ export function TodayPage() {
       </Modal>
 
       <Modal
+        presentation="task"
         open={exceptionOpen}
         onClose={() => setExceptionOpen(false)}
         title="Swap today's workout"

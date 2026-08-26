@@ -666,6 +666,7 @@ export function ProgramCreationWizardPage() {
 
               {pendingRemoval ? (
                 <Modal
+                  presentation="compact"
                   open
                   onClose={() => setPendingRemoval(null)}
                   title={`Remove ${pendingRemoval.workout.name}?`}

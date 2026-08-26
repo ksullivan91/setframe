@@ -127,7 +127,7 @@ export function AddExercisePicker({
 
   if (step === 'create') {
     return (
-      <SharedModal open onClose={onClose} title="Create custom exercise" maxWidth={420}>
+      <SharedModal open onClose={onClose} presentation="task" title="Create custom exercise" maxWidth={420}>
         <Column>
           <Input
             label="Exercise name"
@@ -167,7 +167,7 @@ export function AddExercisePicker({
 
   if (step === 'configure' && selectedExercise) {
     return (
-      <SharedModal open onClose={onClose} title={selectedExercise.name} maxWidth={480}>
+      <SharedModal open onClose={onClose} presentation="task" title={selectedExercise.name} maxWidth={480}>
         <Column>
           <Select label="Prescription" value={prescriptionKind} onChange={(e) => handlePrescriptionKindChange(e.target.value)} options={prescriptionOptions} />
 
@@ -286,7 +286,7 @@ export function AddExercisePicker({
   }
 
   return (
-    <SharedModal open onClose={onClose} title="Add exercise" maxWidth={480}>
+    <SharedModal open onClose={onClose} presentation="task" title="Add exercise" maxWidth={480}>
       <Column>
         <Input label="Search exercises" placeholder="Barbell Back Squat…" value={query} onChange={(e) => setQuery(e.target.value)} autoFocus disabled={exercisesLoading} />
         {/* `overscrollBehavior: contain` stops this nested scroll region
