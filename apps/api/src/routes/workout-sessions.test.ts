@@ -425,3 +425,138 @@ describe('workout session routes', () => {
     await app.close();
   });
 });
+
+/**
+ * Story 59 — Quick Log writes one set of exercise-level values across several
+ * sets in a single request, replacing N sequential client PATCHes.
+ */
+describe('POST /v1/workout-exercise-logs/:exerciseLogId/quick-log', () => {
+  /* Own reset, and a full one. This block is a sibling of the suite above, so
+     it inherits no beforeEach — and `clearAllMocks` would not be enough
+     anyway: it clears recorded calls but leaves queued `mockReturnValueOnce`
+     values in place, so a test whose route makes fewer queries than it queued
+     leaks the rest into the next test and shifts every positional mock. */
+  beforeEach(() => {
+    mockSelect.mockReset();
+    mockUpdate.mockReset();
+  });
+
+  const setA = { ...setRow, id: '77777777-0001-4000-8000-000000000001', loadValue: null, reps: 8, completed: false, setType: 'working' };
+  const setB = { ...setRow, id: '77777777-0002-4000-8000-000000000002', loadValue: null, reps: 8, completed: false, setType: 'working' };
+
+  function mockQuickLog(existingSets: unknown[], updated: unknown[]) {
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))                              // auth
+      .mockReturnValueOnce(selectChain([{ log: logRow, session: sessionRow }])) // getOwnedExerciseLog
+      .mockReturnValueOnce(selectChain(existingSets))                           // sets on this log
+      .mockReturnValue(selectChain([]));                                        // PR baseline
+    /* One `db.update` per target set. Returning by call index rather than by
+       id because the mock never sees the id — so the queue length must match
+       the number of targets the test passes. */
+    const queue = [...updated];
+    mockUpdate.mockImplementation(() => updateChain([queue.shift() ?? updated.at(-1)]));
+  }
+
+  it('applies the values to every named set and marks them performed', async () => {
+    mockQuickLog(
+      [setA, setB],
+      [
+        { ...setA, loadValue: '135', reps: 8, completed: true },
+        { ...setB, loadValue: '135', reps: 8, completed: true },
+      ],
+    );
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: `/v1/workout-exercise-logs/${logRow.id}/quick-log`,
+      headers: authHeader,
+      payload: { setIds: [setA.id, setB.id], values: { weightValue: 135, weightUnit: 'lb', reps: 8 } },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body).toHaveLength(2);
+    expect(body.map((set: { weightValue: number }) => set.weightValue)).toEqual([135, 135]);
+    /* `completed` is not part of the set response schema, so it is asserted on
+       the write rather than the body. Quick Log *is* the act of logging, and
+       without this the sets would stay `completed: false` and never become
+       PR-eligible — the same rule the single-set PATCH applies. */
+    for (const result of mockUpdate.mock.results) {
+      expect(result.value.set.mock.calls[0][0]).toMatchObject({ completed: true });
+    }
+    await app.close();
+  });
+
+  it('refuses a set id that does not belong to this exercise log', async () => {
+    /* A caller could otherwise pass someone else's set ids alongside their
+       own; ownership is checked per set, not just on the log. */
+    mockQuickLog([setA], [setA]);
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: `/v1/workout-exercise-logs/${logRow.id}/quick-log`,
+      headers: authHeader,
+      payload: { setIds: [setA.id, '99999999-9999-4999-8999-999999999999'], values: { reps: 8 } },
+    });
+
+    expect(response.statusCode).toBe(404);
+    await app.close();
+  });
+
+  it('rejects an empty target list rather than silently doing nothing', async () => {
+    mockSelect.mockReturnValueOnce(selectChain([userRow]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: `/v1/workout-exercise-logs/${logRow.id}/quick-log`,
+      headers: authHeader,
+      payload: { setIds: [], values: { reps: 8 } },
+    });
+
+    expect(response.statusCode).toBe(400);
+    await app.close();
+  });
+
+  it('keeps stored values for fields the representation does not carry', async () => {
+    /* A bodyweight quick log sends only reps. Nulling the other columns would
+       wipe a weight someone had entered by hand. */
+    const withWeight = { ...setA, loadValue: '45', loadUnit: 'lb' };
+    mockQuickLog([withWeight], [{ ...withWeight, reps: 12, completed: true }]);
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: `/v1/workout-exercise-logs/${logRow.id}/quick-log`,
+      headers: authHeader,
+      payload: { setIds: [withWeight.id], values: { reps: 12 } },
+    });
+
+    expect(response.statusCode).toBe(200);
+    /* Asserted on the write, not the response: the mock returns a fixed row
+       whatever the route does, so checking the body passed even when the
+       route nulled the column. Mutation testing caught that. */
+    const written = mockUpdate.mock.results[0]!.value.set.mock.calls[0][0];
+    expect(written.loadValue).toBe('45');
+    expect(written.reps).toBe(12);
+    await app.close();
+  });
+
+  it('never changes set type, which is per-set', async () => {
+    mockQuickLog([setA], [{ ...setA, loadValue: '135', completed: true }]);
+
+    const app = buildApp();
+    await app.inject({
+      method: 'POST',
+      url: `/v1/workout-exercise-logs/${logRow.id}/quick-log`,
+      headers: authHeader,
+      payload: { setIds: [setA.id], values: { weightValue: 135, reps: 8 } },
+    });
+
+    const written = mockUpdate.mock.results[0]!.value.set.mock.calls[0][0];
+    expect(written).not.toHaveProperty('setType');
+    await app.close();
+  });
+});

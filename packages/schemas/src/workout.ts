@@ -104,6 +104,35 @@ export const workoutSessionDetailSchema = workoutSessionSchema.extend({
 });
 export type WorkoutSessionDetail = z.infer<typeof workoutSessionDetailSchema>;
 
+/**
+ * Quick Log — apply one set of exercise-level values to several existing sets
+ * and mark them performed, in one request.
+ *
+ * Story 59. The exercise-level action used to only *populate* the set inputs;
+ * the user still had to expand the exercise and save each set. Doing that as N
+ * sequential client requests would also serialise the user behind the network,
+ * which is the specific complaint the pack raises.
+ *
+ * `setIds` is explicit rather than "all sets on this log" so the server writes
+ * exactly what the client showed the user it would write — a set logged or
+ * added between render and tap is not silently swept in. Because session start
+ * pre-creates one row per planned set, this only ever *updates* rows, so
+ * repeating the same request converges instead of duplicating.
+ */
+export const quickLogSetsSchema = z.object({
+  setIds: z.array(z.string().uuid()).min(1).max(50),
+  /** Only the fields the representation actually requires; RPE is never here. */
+  values: z.object({
+    weightValue: z.number().nonnegative().optional(),
+    weightUnit: z.enum(['lb', 'kg']).optional(),
+    reps: z.number().int().nonnegative().optional(),
+    durationSeconds: z.number().int().nonnegative().optional(),
+    distanceValue: z.number().nonnegative().optional(),
+    distanceUnit: z.enum(['m', 'km', 'mi']).optional(),
+  }),
+});
+export type QuickLogSetsInput = z.infer<typeof quickLogSetsSchema>;
+
 export const createWorkoutSetSchema = z.object({
   clientId: z.string().uuid(),
   setType: workoutLoggedSetTypeSchema.default('working'),

@@ -5,6 +5,7 @@ import { z } from 'zod';
 import {
   createWorkoutSessionSchema,
   createWorkoutSetSchema,
+  quickLogSetsSchema,
   prescriptionSchema,
   workoutExerciseLogSchema,
   workoutSessionDetailSchema,
@@ -890,6 +891,90 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
         sessionId: ownedSet.log.sessionId,
       });
       return toSetResponse({ ...rows[0]!, ...(flags.get(request.params.setId) ?? {}) });
+    },
+  );
+
+  /**
+   * Quick Log — write one set of exercise-level values across several sets.
+   *
+   * Story 59. Replaces N sequential client PATCHes, which serialised the user
+   * behind the network for the most common case in the product: an exercise
+   * whose planned sets all share the same weight and reps.
+   *
+   * Three properties worth stating, because each is load-bearing:
+   *
+   * - **Idempotent.** These rows already exist (session start creates one per
+   *   planned set), so this only ever updates. Repeating the request converges
+   *   rather than duplicating, which is what makes a double tap in a gym
+   *   harmless without a dedup token.
+   * - **Ownership is checked per set, not just on the log.** A caller could
+   *   otherwise pass set ids belonging to someone else's log alongside their
+   *   own; every id must resolve to *this* log.
+   * - **PR flags recalculate once, after all writes.** Doing it per set would
+   *   compute flags against a half-written exercise and be both wrong and N
+   *   times more work.
+   */
+  fastify.post(
+    '/v1/workout-exercise-logs/:exerciseLogId/quick-log',
+    {
+      preHandler: requireAuth,
+      schema: {
+        params: exerciseLogSetsParamsSchema,
+        body: quickLogSetsSchema,
+        response: { 200: z.array(workoutSetSchema) },
+      },
+    },
+    async (request) => {
+      const db = getDb();
+      const log = await getOwnedExerciseLog(db, request.params.exerciseLogId, request.userId!);
+
+      const existing = await db
+        .select()
+        .from(workoutSet)
+        .where(eq(workoutSet.exerciseLogId, log.id));
+      const byId = new Map(existing.map((row) => [row.id, row]));
+
+      const targets = request.body.setIds.map((setId) => {
+        const row = byId.get(setId);
+        // Not `forbidden`: from this log's perspective the set does not exist,
+        // and saying which of the two it is would leak whether it exists at all.
+        if (!row) throw notFound('Set not found on this exercise');
+        return row;
+      });
+
+      const { values } = request.body;
+      const updated = [];
+      for (const row of targets) {
+        const rows = await db
+          .update(workoutSet)
+          .set({
+            /* Absent means "not part of this representation", so the stored
+               value is kept rather than nulled — a bodyweight quick log must
+               not wipe a weight someone entered by hand. `setType` is never
+               touched: it is per-set by definition. */
+            loadValue: values.weightValue?.toString() ?? row.loadValue,
+            loadUnit: values.weightUnit ?? row.loadUnit,
+            reps: values.reps ?? row.reps,
+            durationSeconds: values.durationSeconds ?? row.durationSeconds,
+            distanceValue: values.distanceValue?.toString() ?? row.distanceValue,
+            distanceUnit: values.distanceUnit ?? row.distanceUnit,
+            // Quick Log *is* the act of logging, so these become performed —
+            // the same rule the single-set PATCH applies.
+            completed: true,
+            updatedAt: new Date(),
+          })
+          .where(eq(workoutSet.id, row.id))
+          .returning();
+        updated.push(rows[0]!);
+      }
+
+      const flags = await recalculateLogPrFlags({
+        db,
+        userId: request.userId!,
+        exerciseId: log.exerciseId,
+        sessionId: log.sessionId,
+      });
+      return updated.map((row) => toSetResponse({ ...row, ...(flags.get(row.id) ?? {}) }));
     },
   );
 
