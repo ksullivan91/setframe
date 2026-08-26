@@ -1,6 +1,6 @@
 import styled from 'styled-components';
 import { useEffect, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { calculateVolume, estimateOneRepMax } from '@setframe/domain';
 import { spacing } from '@setframe/design-tokens';
@@ -8,6 +8,8 @@ import { typeScale } from '../theme/typeScale';
 import { mq } from '../theme/breakpoints';
 import { Card, PRBadge, Select, Skeleton, SkeletonStack } from '../components';
 import { useApiClient } from '../lib/api-client';
+import { selectableMovementPatterns } from '@setframe/domain';
+import { useToast } from '../components/Toast';
 
 const Page = styled.div`
   display: grid;
@@ -105,9 +107,75 @@ const EmptyState = styled(Card)`
   gap: ${spacing[8]}px;
 `;
 
+
+/**
+ * Classifying an exercise by movement pattern.
+ *
+ * Progress's composition chart groups volume by this field, and before it was
+ * editable there was no way to fix an unclassified exercise from inside the
+ * product — the chart simply reported the volume as ungrouped forever. Story
+ * 57.
+ *
+ * Only the user's own custom exercises are offered: the API rejects edits to
+ * system exercises, and showing a control that always fails is worse than
+ * showing none. System exercises already carry a pattern.
+ *
+ * "Not set" stays a real choice rather than a value to be forced out of the
+ * user. A wrong pattern is worse than an honest unknown — it silently
+ * misfiles the work on every chart that groups by it, where an unset one is
+ * openly reported as ungrouped.
+ */
+function MovementPatternField({ exercise }: { exercise: ExerciseSummary }) {
+  const api = useApiClient();
+  const queryClient = useQueryClient();
+  const toast = useToast();
+
+  const mutation = useMutation({
+    mutationFn: (movementPattern: string | null) =>
+      api.patch(`/exercises/${exercise.id}`, { movementPattern }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['exercises'] });
+      // Composition is grouped by this field, so its chart is now stale.
+      queryClient.invalidateQueries({ queryKey: ['progress-overview'] });
+    },
+    onError: () =>
+      toast.show({ variant: 'error', message: 'Could not save that movement pattern.' }),
+  });
+
+  if (!exercise.isCustom) return null;
+
+  return (
+    <PickerRow>
+      <Select
+        label="Movement pattern"
+        value={exercise.movementPattern ?? ''}
+        disabled={mutation.isPending}
+        options={[
+          { value: '', label: 'Not set' },
+          ...selectableMovementPatterns.map((option) => ({
+            value: option.key,
+            label: option.label,
+          })),
+        ]}
+        onChange={(event) => mutation.mutate(event.target.value || null)}
+        data-testid="movement-pattern-select"
+      />
+      <MetaText data-testid="movement-pattern-help">
+        Groups this exercise&apos;s volume on Progress. Leave it unset rather than
+        guessing — unclassified work is reported separately, not hidden.
+      </MetaText>
+    </PickerRow>
+  );
+}
+
 interface ExerciseSummary {
   id: string;
   name: string;
+  /** `null` until classified; drives Progress composition grouping. */
+  movementPattern: string | null;
+  /** The list returns system exercises plus the user's own, so a custom one
+      here is always theirs — which is exactly what the API lets them edit. */
+  isCustom: boolean;
 }
 
 interface HistoryItem {
@@ -263,6 +331,8 @@ export function ExerciseHistoryPage() {
 
       {selectedExercise && (
         <>
+          <MovementPatternField exercise={selectedExercise} />
+
           <StatRow>
             <MobileStatsCard>
               <MobileStatRow>

@@ -3,6 +3,12 @@ import { z } from 'zod';
 export const exerciseSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1),
+  /**
+   * Free text, and `null` when unclassified. Drives the Progress composition
+   * chart's grouping; anything without one is reported as ungrouped rather
+   * than guessed into a category.
+   */
+  movementPattern: z.string().nullable(),
   isCustom: z.boolean(),
   ownerUserId: z.string().uuid().nullable(),
   archivedAt: z.string().datetime().nullable(),
@@ -13,6 +19,13 @@ export type Exercise = z.infer<typeof exerciseSchema>;
 
 export const createExerciseSchema = z.object({
   name: z.string().min(1).max(120),
+  /**
+   * Optional on create and explicitly nullable on update: "not set" is a
+   * legitimate value, not a field to be forced. A wrong pattern is worse
+   * than an honest unknown — it silently misfiles the work on every chart
+   * that groups by it.
+   */
+  movementPattern: z.string().min(1).max(60).nullable().optional(),
 });
 export type CreateExerciseInput = z.infer<typeof createExerciseSchema>;
 

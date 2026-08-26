@@ -39,6 +39,7 @@ const userRow = {
 const systemExerciseRow = {
   id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   name: 'Barbell Back Squat',
+  movementPattern: 'squat',
   isSystem: true,
   createdByUserId: null,
   archivedAt: null,
@@ -48,7 +49,9 @@ const systemExerciseRow = {
 
 const customExerciseRow = {
   id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  // Deliberately unclassified: the case story 57's editor exists to fix.
   name: 'Backyard Sled Push',
+  movementPattern: null,
   isSystem: false,
   createdByUserId: userRow.id,
   archivedAt: null,
@@ -77,7 +80,12 @@ describe('GET /v1/exercises', () => {
     expect(response.statusCode).toBe(200);
     const body = response.json();
     expect(body).toHaveLength(1);
-    expect(body[0]).toMatchObject({ id: systemExerciseRow.id, name: 'Barbell Back Squat', isCustom: false });
+    expect(body[0]).toMatchObject({
+      id: systemExerciseRow.id,
+      name: 'Barbell Back Squat',
+      isCustom: false,
+      movementPattern: 'squat',
+    });
     await app.close();
   });
 
@@ -105,6 +113,122 @@ describe('GET /v1/exercises', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual([]);
+    await app.close();
+  });
+});
+
+/**
+ * Story 57 — classifying an exercise by movement pattern.
+ *
+ * Progress's composition chart groups volume by this field. Before it was
+ * editable, ungrouped volume in production was larger than every named group
+ * combined and a user had no way to fix it from inside the product.
+ */
+describe('PATCH /v1/exercises/:exerciseId movement pattern', () => {
+  function updateChain(rows: unknown[]) {
+    return {
+      set: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue(rows) }),
+      }),
+    };
+  }
+
+  it('sets a movement pattern on the caller’s own custom exercise', async () => {
+    const updated = { ...customExerciseRow, movementPattern: 'hinge' };
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([customExerciseRow]));
+    (db as Record<string, unknown>).update = vi.fn().mockReturnValue(updateChain([updated]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/v1/exercises/${customExerciseRow.id}`,
+      headers: authHeader,
+      payload: { movementPattern: 'hinge' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().movementPattern).toBe('hinge');
+    await app.close();
+  });
+
+  it('accepts null to clear it, because "not set" is a real choice', async () => {
+    /* Forcing a value would be worse than leaving one unset: a wrong pattern
+       silently misfiles the work on every chart that groups by it, where an
+       unset one is openly reported as ungrouped. */
+    const cleared = { ...customExerciseRow, movementPattern: null };
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([{ ...customExerciseRow, movementPattern: 'hinge' }]));
+    (db as Record<string, unknown>).update = vi.fn().mockReturnValue(updateChain([cleared]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/v1/exercises/${customExerciseRow.id}`,
+      headers: authHeader,
+      payload: { movementPattern: null },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().movementPattern).toBeNull();
+    await app.close();
+  });
+
+  it('refuses to reclassify a system exercise', async () => {
+    // The clients hide the control for these; the API must not rely on that.
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([systemExerciseRow]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/v1/exercises/${systemExerciseRow.id}`,
+      headers: authHeader,
+      payload: { movementPattern: 'hinge' },
+    });
+
+    expect(response.statusCode).toBe(403);
+    await app.close();
+  });
+
+  it('refuses to reclassify another user’s custom exercise', async () => {
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(
+        selectChain([
+          { ...customExerciseRow, createdByUserId: '99999999-9999-4999-8999-999999999999' },
+        ]),
+      );
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/v1/exercises/${customExerciseRow.id}`,
+      headers: authHeader,
+      payload: { movementPattern: 'hinge' },
+    });
+
+    expect(response.statusCode).toBe(403);
+    await app.close();
+  });
+
+  it('rejects an empty-string pattern rather than storing one', async () => {
+    // `''` is not "unset" — null is. Storing it would create a pattern key
+    // that groups as its own nameless band.
+    mockSelect.mockReturnValueOnce(selectChain([userRow]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/v1/exercises/${customExerciseRow.id}`,
+      headers: authHeader,
+      payload: { movementPattern: '' },
+    });
+
+    expect(response.statusCode).toBe(400);
     await app.close();
   });
 });

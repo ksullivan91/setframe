@@ -230,3 +230,30 @@ export function applyRemainder(
   if (remainder > 0) result[remainderPatternKey] = remainder;
   return result;
 }
+
+
+export interface MovementPatternOption {
+  key: string;
+  label: string;
+  /** The group this pattern rolls up into on the composition chart. */
+  group: MovementPatternGroup;
+}
+
+/**
+ * The patterns a user may choose from, in canonical order.
+ *
+ * Derived from `canonicalOrder` rather than listed again, so the picker can
+ * never offer a pattern the chart does not know how to group — which would
+ * put the user's own choice straight into the "Other" band.
+ *
+ * `movement_pattern` is a free-text column and deliberately stays one: an
+ * import or a future taxonomy change must not be constrained by this list.
+ * The picker is the curated subset, not the schema.
+ */
+export const selectableMovementPatterns: readonly MovementPatternOption[] = canonicalOrder.map(
+  (key) => ({
+    key,
+    label: movementPatternLabel(key),
+    group: movementPatternGroupOf(key) ?? 'isolation',
+  }),
+);

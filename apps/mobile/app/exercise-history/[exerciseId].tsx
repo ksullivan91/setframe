@@ -1,11 +1,13 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, View, Text, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { calculateVolume, estimateOneRepMax } from '@setframe/domain';
 import type { Exercise, ExerciseHistoryResponse, ExerciseProgressResponse } from '@setframe/schemas';
 import { Card } from '../../src/components/Card';
 import { Select } from '../../src/components/Select';
+import { Toast } from '../../src/components/Toast';
+import { selectableMovementPatterns } from '@setframe/domain';
 import { SetRowReadOnly } from '../../src/components/SetRow';
 import { useApiClient } from '../../src/lib/api-client';
 import { useTheme } from '../../src/theme/ThemeProvider';
@@ -22,6 +24,71 @@ import { spacing, typeScale } from '../../src/theme/getTheme';
  * TODO: wire GET /v1/exercises/:exerciseId/history and
  * /v1/exercises/:exerciseId/progress (docs/api.md) once available.
  */
+
+/**
+ * Classifying an exercise by movement pattern — the mobile counterpart of
+ * web's `MovementPatternField`.
+ *
+ * Progress's composition chart groups volume by this field, and before it was
+ * editable there was no way to fix an unclassified exercise from inside the
+ * product. Story 57.
+ *
+ * Only the user's own custom exercises are offered: the API rejects edits to
+ * system exercises, and a control that always fails is worse than none.
+ *
+ * "Not set" stays a real choice. A wrong pattern is worse than an honest
+ * unknown — it silently misfiles the work on every chart that groups by it,
+ * where an unset one is openly reported as ungrouped.
+ */
+export function MovementPatternField({ exercise }: { exercise: Exercise }) {
+  const api = useApiClient();
+  const queryClient = useQueryClient();
+  const theme = useTheme();
+  const [toast, setToast] = useState<{ variant: 'error'; message: string } | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: (movementPattern: string | null) =>
+      api.patch(`/exercises/${exercise.id}`, { movementPattern }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['exercises'] });
+      // Composition is grouped by this field, so its chart is now stale.
+      queryClient.invalidateQueries({ queryKey: ['progress-overview'] });
+    },
+    onError: () =>
+      setToast({ variant: 'error', message: 'Could not save that movement pattern.' }),
+  });
+
+  if (!exercise.isCustom) return null;
+
+  return (
+    <View testID="movement-pattern-field">
+      <Select
+        label="Movement pattern"
+        value={exercise.movementPattern ?? ''}
+        testID="movement-pattern-select"
+        options={[
+          { value: '', label: 'Not set' },
+          ...selectableMovementPatterns.map((option) => ({
+            value: option.key,
+            label: option.label,
+          })),
+        ]}
+        onChange={(value) => mutation.mutate(value || null)}
+      />
+      <Text
+        style={[styles.stateText, { color: theme.text.secondary }]}
+        testID="movement-pattern-help"
+      >
+        Groups this exercise&apos;s volume on Progress. Leave it unset rather than
+        guessing — unclassified work is reported separately, not hidden.
+      </Text>
+      {toast ? (
+        <Toast variant={toast.variant} message={toast.message} onDismiss={() => setToast(null)} />
+      ) : null}
+    </View>
+  );
+}
+
 export default function ExerciseHistoryScreen() {
   const theme = useTheme();
   const api = useApiClient();
@@ -116,6 +183,8 @@ export default function ExerciseHistoryScreen() {
             options={exercisesQuery.data.map((exercise) => ({ value: exercise.id, label: exercise.name }))}
             onChange={(value) => router.replace(`/exercise-history/${value}`)}
           />
+
+          {selectedExercise ? <MovementPatternField exercise={selectedExercise} /> : null}
 
           {!exerciseId ? (
             <View style={styles.centeredState}>

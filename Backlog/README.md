@@ -9,10 +9,6 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
-- `57-movement-pattern-coverage.md` — story 57, found while shipping the
-  composition chart: ungrouped volume is larger than every named group
-  combined in production, and `movement_pattern` is not editable anywhere in
-  the product, so a user cannot fix it.
 - `WAIT-automated-visual-and-e2e-testing.md` — deferred by request. Filed so the
   gap is tracked, deliberately not started.
 - `WAIT-figma-accentsubtle-token-fix.md` — deferred by request. Fixes
@@ -161,6 +157,13 @@ alongside their stories, named `README-{range}-{review}.md`.
   real 1 lb move, and a 2-day weight average that is exactly the
   water-weight noise `body-weight-display-psychology.md` exists to
   suppress.
+- `completed/57-movement-pattern-coverage.md` — story 57, in two parts: a
+  hand-written migration backfilling `movement_pattern` (ungrouped volume in
+  production went from 15,725 lb to 0), and a Movement pattern select on the
+  exercise history screen, web and mobile, so classification is fixable from
+  inside the product. Auto-defaulting on creation was deliberately **not**
+  built: name-matching silently misfiles what it guesses wrong, and a wrong
+  pattern is worse than an honest unknown.
 - `completed/56-dependency-integrity-guard.md` — story 56, `npm run
   check:deps`: a dependency-free ~130-line guard that fails when a required
   peer is missing. It distinguishes runtime peers from type-only ones

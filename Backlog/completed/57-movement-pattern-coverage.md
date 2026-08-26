@@ -63,11 +63,20 @@ fix for it.
    of volume. The two judgement calls are recorded in the migration's own
    header: incline presses are `horizontal-push` (only overhead work is
    `vertical-push`), and dips are `vertical-push`.
-2. **Expose the field** so an exercise can be classified in the app —
-   minimally on the exercise edit surface, as a select over the known
-   patterns, with "not set" a legitimate value rather than a forced choice.
-3. **Default it on creation** where the name makes it obvious, or prompt for
-   it, so coverage does not decay again.
+2. ~~**Expose the field**~~ **Done** 2026-08-26 — a Movement pattern select
+   on the exercise history screen, web and mobile. It appears only for the
+   user's own custom exercises: the API rejects edits to system exercises
+   (all of which are already classified), and a control that always fails is
+   worse than none. "Not set" is a real option, and the help text says so.
+3. **Default it on creation** — *deliberately not done.* The obvious
+   implementation is name-matching ("RDLs" → hinge), and that silently
+   misfiles anything it guesses wrong. This repo's own migration comment
+   states the principle: a wrong pattern is worse than an honest unknown,
+   because an unset one is openly reported as ungrouped while a wrong one
+   corrupts every chart that groups by it. Coverage can now decay, but it is
+   *fixable* from inside the product, which is the property that matters.
+   Revisit only with a confident source (an exercise library with real
+   taxonomy data), not a heuristic.
 
 ## Not in scope
 
@@ -79,8 +88,11 @@ should not be bundled into fixing pattern coverage.
 
 - ~~Every exercise with logged volume in production carries a movement
   pattern.~~ Done — see above.
-- A user can set or change an exercise's movement pattern in the app, on both
-  web and mobile.
-- The composition chart's ungrouped disclosure reads as an exception rather
-  than as the largest number on the card.
-- The corrected "not editable in the app today" copy is updated once it is.
+- ~~A user can set or change an exercise's movement pattern in the app, on
+  both web and mobile.~~ Done.
+- ~~The composition chart's ungrouped disclosure reads as an exception rather
+  than as the largest number on the card.~~ Done — ungrouped volume in
+  production is 0.
+- ~~The corrected "not editable in the app today" copy is updated once it
+  is.~~ Done — both platforms now describe where patterns come from and how
+  to set one.

@@ -17,6 +17,7 @@ function toExerciseResponse(row: typeof exercise.$inferSelect) {
   return {
     id: row.id,
     name: row.name,
+    movementPattern: row.movementPattern,
     isCustom: !row.isSystem,
     ownerUserId: row.createdByUserId,
     archivedAt: row.archivedAt ? row.archivedAt.toISOString() : null,
@@ -76,6 +77,7 @@ export const exerciseRoutes: FastifyPluginAsyncZod = async (fastify) => {
         .insert(exercise)
         .values({
           name: request.body.name,
+          movementPattern: request.body.movementPattern ?? null,
           isSystem: false,
           createdByUserId: request.userId!,
         })
