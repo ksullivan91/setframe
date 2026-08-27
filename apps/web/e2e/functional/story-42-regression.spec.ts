@@ -87,6 +87,19 @@ function sessionFixture(options: {
   };
 }
 
+/**
+ * Opens the detail panel only if it is not already open.
+ *
+ * A session whose only exercise is complete still seeds that exercise as the
+ * active one, so it arrives expanded. Clicking the disclosure unconditionally
+ * *collapsed* it, and the assertions that followed were looking for set rows
+ * that had just been hidden.
+ */
+async function ensureExpanded(page: Parameters<typeof signInAs>[0]) {
+  const expand = page.getByRole('button', { name: /^Expand / }).first();
+  if (await expand.count()) await expand.click();
+}
+
 /** Structure-only sets, exactly as session start now creates them (42.1). */
 const emptySets = (count: number) => Array.from({ length: count }, () => ({}));
 
@@ -236,6 +249,91 @@ test.describe('story 42 regression matrix', () => {
     await expect(page.getByLabel(/^Quick log: Weight/)).toHaveValue('185');
     // And the card is reopened rather than left collapsed over a failure.
     await expect(page.getByTestId('set-row')).toHaveCount(2);
+  });
+
+  test('C — a manual exception survives, and quick log will not overwrite it', async ({ page }) => {
+    await signInAs(page, 'lifter', '/today');
+    await stubSession(
+      page,
+      sessionFixture({
+        prescription: { kind: 'sets_reps', sets: 3, repsMin: 8 },
+        /* Sets 1 and 2 already logged; set 3 corrected by hand to 6 reps.
+           This is the shape that matters: quick log must treat the exception
+           as done work, not as something to flatten back to the common
+           value. */
+        sets: [
+          { weightValue: 185, reps: 8 },
+          { weightValue: 185, reps: 8 },
+          { weightValue: 185, reps: 6 },
+        ],
+      }),
+    );
+    await page.goto(`/workout/${SESSION_ID}`);
+
+    /* Every set already counts as logged, so quick log has nothing left to
+       write and does not offer to. `quickLogTargets` skipping logged sets is
+       what stops a re-run silently overwriting the correction. */
+    await expect(page.getByRole('button', { name: /^Log/ })).toHaveCount(0);
+    await expect(page.getByText('3 sets completed')).toBeVisible();
+
+    // And the exception is still the value the user typed.
+    await ensureExpanded(page);
+    const repInputs = page.getByLabel(/^Reps/);
+    await expect(repInputs.nth(2)).toHaveValue('6');
+    await expect(repInputs.nth(0)).toHaveValue('8');
+  });
+
+  test('F — distance and duration complete together and derive a pace', async ({ page }) => {
+    await signInAs(page, 'lifter', '/today');
+    await stubSession(
+      page,
+      sessionFixture({
+        prescription: { kind: 'distanceDuration', distanceMiles: 5, durationMinutes: 30 },
+        sets: [{ distanceValue: 5, distanceUnit: 'mi', durationSeconds: 1800 }],
+        name: 'Outdoor Run',
+      }),
+    );
+    await page.goto(`/workout/${SESSION_ID}`);
+
+    await expect(page.getByText('1 set completed')).toBeVisible();
+    /* Representation-aware summary: distance, duration and a pace derived
+       from them — never weight × reps, and never a 0 lb volume. */
+    const metrics = page.getByTestId('completed-exercise-log-1-metrics');
+    await expect(metrics).toContainText('Distance');
+    await expect(metrics).toContainText('Pace');
+    await expect(metrics).toContainText('6:00 /mi');
+    await expect(metrics).not.toContainText('lb');
+  });
+
+  test('I — a completed exercise reopens and recalculates when edited', async ({ page }) => {
+    await signInAs(page, 'lifter', '/today');
+    await stubSession(
+      page,
+      sessionFixture({
+        prescription: { kind: 'sets_reps', sets: 2, repsMin: 8 },
+        sets: [
+          { weightValue: 185, reps: 8 },
+          { weightValue: 185, reps: 8 },
+        ],
+      }),
+    );
+    await page.goto(`/workout/${SESSION_ID}`);
+
+    await expect(page.getByText('2 sets completed')).toBeVisible();
+    /* Derived metrics, so the summary must already reflect the logged work:
+       2 × 185 × 8 = 2,960. */
+    await expect(page.getByTestId('completed-exercise-log-1-metrics')).toContainText('2,960 lb');
+
+    /* Completion is not a one-way door during an active workout. */
+    await ensureExpanded(page);
+    await expect(page.getByTestId('set-row')).toHaveCount(2);
+
+    const weight = page.getByLabel(/^Weight/).first();
+    await weight.fill('205');
+    /* The edit is offered for saving rather than silently applied — an
+       optimistic screen must not claim a correction the server has not
+       accepted. */
+    await expect(page.getByRole('button', { name: 'Save' }).first()).toBeEnabled();
   });
 
   test('J — a finished workout is a review surface, not a disabled editor', async ({ page }) => {

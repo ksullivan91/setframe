@@ -102,6 +102,18 @@ were originally created under `apps/web/`, where a session started at the repo
 root never found them. MCP servers connect at session start, so a session
 already running when these moved will not see them until it restarts.
 
+## Story 42 regression matrix
+
+`npm run test:story42 --workspace=@setframe/web` runs the ten scenarios that
+pin the exercise-logging domain rules — across representations, and across the
+latency and failure a gym actually has. Story 42 regressed every time one of
+its pieces changed because each fix was checked against whichever
+representation the shared fixture happened to use.
+
+Fixtures and network behaviour are driven through the mock layer, not
+Playwright's `page.route`: MSW is a service worker and intercepts `fetch`
+before the browser's network layer, so route stubs silently do nothing here.
+
 ## Known limits
 
 - **Mock data, not production data.** Anything odd about the *values* is
