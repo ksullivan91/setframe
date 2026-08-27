@@ -109,72 +109,61 @@ export function expandPrescriptionToSetDrafts(prescription: Prescription): Array
   distanceValue: number | null;
   distanceUnit: 'm' | 'km' | 'mi' | null;
 }> {
+  /* Story 42.1 — this returns the *shape* of the work, never its values.
+   *
+   * It used to copy the plan's reps/duration/distance straight onto the set
+   * rows it creates, which persisted a planned value as though it were logged
+   * performance. Completion is derived from whether a set carries its
+   * representation's required fields, so for every representation whose
+   * required fields the plan can supply, starting a workout marked the
+   * exercise complete before the user had done anything:
+   *
+   *   bodyweight_reps  requires reps                 → prefilled → complete
+   *   timed            requires duration             → prefilled → complete
+   *   distance         requires distance             → prefilled → complete
+   *   duration         requires duration             → prefilled → complete
+   *   distanceDuration requires distance + duration  → prefilled → complete
+   *
+   * Five of eight. The three weight-bearing kinds escaped only because weight
+   * happened not to be copied — an accident, not a design.
+   *
+   * The plan is not lost by this: it lives on the exercise log's snapshotted
+   * `prescription`, which is the single source of truth for intent (ADR 0005).
+   * The UI seeds its draft inputs from there. A seeded draft is not a logged
+   * actual, and that distinction is the whole point of the fix.
+   *
+   * `setType` stays, because it is structure rather than performance: a
+   * top_set_backoff plan genuinely produces top sets and backoff sets, and
+   * that shape is what the user is about to fill in.
+   */
+  const structureOnly = (setType: LoggedSetType) => ({
+    setType,
+    reps: null,
+    durationSeconds: null,
+    distanceValue: null,
+    distanceUnit: null,
+  });
+
   switch (prescription.kind) {
     case 'sets_reps':
     case 'per_side':
     case 'bodyweight_reps':
-      return Array.from({ length: prescription.sets ?? 0 }, () => ({
-        setType: 'working' as LoggedSetType,
-        reps: prescription.repsMin ?? null,
-        durationSeconds: null,
-        distanceValue: null,
-        distanceUnit: null,
-      }));
+      return Array.from({ length: prescription.sets ?? 0 }, () => structureOnly('working'));
     case 'top_set_backoff':
       return [
-        ...Array.from({ length: prescription.topSets ?? 0 }, () => ({
-          setType: 'top' as LoggedSetType,
-          reps: prescription.topRepsMin ?? null,
-          durationSeconds: null,
-          distanceValue: null,
-          distanceUnit: null,
-        })),
-        ...Array.from({ length: prescription.backoffSets ?? 0 }, () => ({
-          setType: 'backoff' as LoggedSetType,
-          reps: prescription.backoffRepsMin ?? null,
-          durationSeconds: null,
-          distanceValue: null,
-          distanceUnit: null,
-        })),
+        ...Array.from({ length: prescription.topSets ?? 0 }, () => structureOnly('top')),
+        ...Array.from({ length: prescription.backoffSets ?? 0 }, () => structureOnly('backoff')),
       ];
     case 'timed':
-      return Array.from({ length: prescription.sets ?? 0 }, () => ({
-        setType: 'working' as LoggedSetType,
-        reps: null,
-        durationSeconds: prescription.durationSeconds ?? null,
-        distanceValue: null,
-        distanceUnit: null,
-      }));
     case 'distance':
-      return Array.from({ length: prescription.sets ?? 0 }, () => ({
-        setType: 'working' as LoggedSetType,
-        reps: null,
-        durationSeconds: null,
-        distanceValue: prescription.distanceValue ?? null,
-        distanceUnit: prescription.distanceUnit,
-      }));
+      return Array.from({ length: prescription.sets ?? 0 }, () => structureOnly('working'));
     case 'duration':
-      if (prescription.durationMinutes == null) return [];
-      return [
-        {
-          setType: 'working' as LoggedSetType,
-          reps: null,
-          durationSeconds: prescription.durationMinutes * 60,
-          distanceValue: null,
-          distanceUnit: null,
-        },
-      ];
+      // A single continuous effort still needs a row to log into.
+      return prescription.durationMinutes == null ? [] : [structureOnly('working')];
     case 'distanceDuration':
-      if (prescription.durationMinutes == null && prescription.distanceMiles == null) return [];
-      return [
-        {
-          setType: 'working' as LoggedSetType,
-          reps: null,
-          durationSeconds: prescription.durationMinutes != null ? prescription.durationMinutes * 60 : null,
-          distanceValue: prescription.distanceMiles ?? null,
-          distanceUnit: 'mi',
-        },
-      ];
+      return prescription.durationMinutes == null && prescription.distanceMiles == null
+        ? []
+        : [structureOnly('working')];
   }
 }
 

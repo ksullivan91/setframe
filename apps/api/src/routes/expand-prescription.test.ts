@@ -1,20 +1,29 @@
 import { describe, expect, it } from 'vitest';
 import type { Prescription } from '@setframe/schemas';
+import { isExerciseComplete, isSessionSetLogged } from '@setframe/domain';
 import { expandPrescriptionToSetDrafts } from './workout-sessions';
 
 /**
- * Story 19 — every planned value is optional now. This is the function
- * that turns a template's prescription into the pre-filled draft sets a
- * session starts with; the real bug this guards is `undefined * 60`
- * silently becoming a stored `NaN` for an unplanned duration/distance
- * exercise, and confirms "no target" degrades to zero pre-filled sets
- * rather than throwing.
+ * Story 19 — every planned value is optional. This is the function that turns
+ * a template's prescription into the session's starting set rows, and it
+ * guards `undefined * 60` silently storing `NaN` for an unplanned
+ * duration/distance exercise, plus "no target" degrading to zero rows rather
+ * than throwing.
+ *
+ * Story 42.1 changed what it returns. These rows are *structure* — how many
+ * sets, of what type — and never planned values. Copying the plan onto them
+ * persisted intent as though it were performance, and since completion is
+ * derived from a set carrying its required fields, starting a workout marked
+ * five of the eight representations complete before the user touched
+ * anything. Several tests below previously asserted that copying, which is
+ * how the defect survived: they pinned it in place.
  */
 describe('expandPrescriptionToSetDrafts', () => {
   it('expands a fully-planned sets_reps prescription', () => {
     const drafts = expandPrescriptionToSetDrafts({ kind: 'sets_reps', sets: 3, repsMin: 8 } as Prescription);
     expect(drafts).toHaveLength(3);
-    expect(drafts[0]).toEqual({ setType: 'working', reps: 8, durationSeconds: null, distanceValue: null, distanceUnit: null });
+    // Structure only: three working sets, no planned reps written as actuals.
+    expect(drafts[0]).toEqual({ setType: 'working', reps: null, durationSeconds: null, distanceValue: null, distanceUnit: null });
   });
 
   it('produces zero draft sets for a sets_reps exercise with no planned sets count', () => {
@@ -22,7 +31,7 @@ describe('expandPrescriptionToSetDrafts', () => {
     expect(drafts).toEqual([]);
   });
 
-  it('fills reps as null, not a stale value, when only sets is planned', () => {
+  it('never carries a planned rep count onto a session set', () => {
     const drafts = expandPrescriptionToSetDrafts({ kind: 'sets_reps', sets: 2 } as Prescription);
     expect(drafts).toEqual([
       { setType: 'working', reps: null, durationSeconds: null, distanceValue: null, distanceUnit: null },
@@ -40,9 +49,11 @@ describe('expandPrescriptionToSetDrafts', () => {
       backoffSets: 2,
       backoffRepsMin: 10,
     } as Prescription);
+    /* Set *type* is structure and stays — a top/backoff plan really does
+       produce those two kinds of set. The planned reps do not. */
     expect(drafts).toEqual([
-      { setType: 'backoff', reps: 10, durationSeconds: null, distanceValue: null, distanceUnit: null },
-      { setType: 'backoff', reps: 10, durationSeconds: null, distanceValue: null, distanceUnit: null },
+      { setType: 'backoff', reps: null, durationSeconds: null, distanceValue: null, distanceUnit: null },
+      { setType: 'backoff', reps: null, durationSeconds: null, distanceValue: null, distanceUnit: null },
     ]);
   });
 
@@ -50,9 +61,9 @@ describe('expandPrescriptionToSetDrafts', () => {
     expect(expandPrescriptionToSetDrafts({ kind: 'duration' } as Prescription)).toEqual([]);
   });
 
-  it('expands a planned duration exercise to seconds', () => {
+  it('gives a planned duration exercise a row to log into, but no logged duration', () => {
     expect(expandPrescriptionToSetDrafts({ kind: 'duration', durationMinutes: 5 } as Prescription)).toEqual([
-      { setType: 'working', reps: null, durationSeconds: 300, distanceValue: null, distanceUnit: null },
+      { setType: 'working', reps: null, durationSeconds: null, distanceValue: null, distanceUnit: null },
     ]);
   });
 
@@ -60,11 +71,45 @@ describe('expandPrescriptionToSetDrafts', () => {
     expect(expandPrescriptionToSetDrafts({ kind: 'distanceDuration' } as Prescription)).toEqual([]);
   });
 
-  it('keeps the distanceDuration draft row when only one half is planned, nulling the rest', () => {
+  it('keeps the distanceDuration row when only one half is planned, with nothing logged', () => {
     const drafts = expandPrescriptionToSetDrafts({ kind: 'distanceDuration', distanceMiles: 4 } as Prescription);
     expect(drafts).toEqual([
-      { setType: 'working', reps: null, durationSeconds: null, distanceValue: 4, distanceUnit: 'mi' },
+      { setType: 'working', reps: null, durationSeconds: null, distanceValue: null, distanceUnit: null },
     ]);
+  });
+
+  /**
+   * Story 42.1's central regression, expressed against the domain rule it
+   * broke rather than against one representation's fields.
+   *
+   * A fully planned exercise of *any* representation must start with nothing
+   * logged. Checking each kind matters: the three weight-bearing ones escaped
+   * the original defect purely because weight was never copied, so a test
+   * covering only `sets_reps` would have passed throughout.
+   */
+  it('never produces a set that already counts as logged, for any representation', () => {
+    const fullyPlanned: Prescription[] = [
+      { kind: 'sets_reps', sets: 3, repsMin: 8 },
+      { kind: 'per_side', sets: 3, repsMin: 8 },
+      { kind: 'top_set_backoff', topSets: 1, topRepsMin: 3, backoffSets: 2, backoffRepsMin: 8 },
+      { kind: 'bodyweight_reps', sets: 3, repsMin: 10 },
+      { kind: 'timed', sets: 3, durationSeconds: 45 },
+      { kind: 'distance', sets: 1, distanceValue: 5, distanceUnit: 'mi' },
+      { kind: 'duration', durationMinutes: 20 },
+      { kind: 'distanceDuration', distanceMiles: 3, durationMinutes: 30 },
+    ] as Prescription[];
+
+    for (const prescription of fullyPlanned) {
+      const drafts = expandPrescriptionToSetDrafts(prescription);
+      expect(drafts.length, `${prescription.kind} should still produce rows`).toBeGreaterThan(0);
+      for (const draft of drafts) {
+        expect(isSessionSetLogged(prescription, draft), `${prescription.kind} started already logged`).toBe(false);
+      }
+      expect(
+        isExerciseComplete(prescription, drafts),
+        `${prescription.kind} was complete before the user did anything`,
+      ).toBe(false);
+    }
   });
 
   it('produces zero draft sets for an open distance prescription', () => {

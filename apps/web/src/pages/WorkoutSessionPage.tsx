@@ -608,12 +608,23 @@ function copyDraftKey<K extends keyof DraftValues>(target: Partial<DraftValues>,
   target[key] = source[key];
 }
 
-function getPlannedValue(set: WorkoutSet, index: number, exerciseLog: WorkoutSessionExerciseDetail) {
-  const planned = exerciseLog.sets[index];
-  if (!planned) return null;
-  const summary = formatSessionSet(exerciseLog.prescription, planned);
-  if (!summary) return summarizePrescription(exerciseLog.prescription).replace(/^Planned:\s*/, '');
-  return summary;
+/**
+ * What the plan asks for, from the plan.
+ *
+ * Story 42.1. This used to read `exerciseLog.sets[index]` — the *persisted set
+ * row* — and label whatever it found "Planned". Since session start copied
+ * planned values onto those rows, plan and actual were literally the same
+ * field, which is the conflation that let a planned value count as logged
+ * work. Now that rows start empty, reading them would show a blank plan.
+ *
+ * The prescription snapshot on the exercise log is the source of truth for
+ * intent (ADR 0005), and it is what a session renders from for exactly this
+ * reason: editing a template later must never change how a logged session
+ * reads.
+ */
+function getPlannedValue(exerciseLog: WorkoutSessionExerciseDetail) {
+  const summary = summarizePrescription(exerciseLog.prescription).replace(/^Planned:\s*/, '');
+  return summary === 'No target set' ? null : summary;
 }
 
 function getPreviousSet(
@@ -1545,7 +1556,7 @@ export function WorkoutSessionPage() {
                     ...draftValues,
                   });
                   const fieldErrors = validateSessionSet(exerciseLog.prescription, draftValues);
-                  const plannedValue = getPlannedValue(set, index, exerciseLog);
+                  const plannedValue = getPlannedValue(exerciseLog);
                   const previousValue = getPreviousSet(exerciseLog.previousSession?.sets[index], exerciseLog);
                   return (
                     <SetCard key={set.id} data-testid="set-row">
