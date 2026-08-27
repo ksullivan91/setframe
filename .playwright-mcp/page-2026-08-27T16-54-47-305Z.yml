@@ -1,0 +1,43 @@
+- generic [ref=f6e2]:
+  - generic [ref=f6e3]:
+    - navigation "Primary" [ref=f6e4]:
+      - button "Open user menu" [ref=f6e7] [cursor=pointer]:
+        - img "Lee Lifter's logo" [ref=f6e10]
+      - link "Today" [ref=f6e12] [cursor=pointer]:
+        - /url: /today
+      - link "Training" [ref=f6e16] [cursor=pointer]:
+        - /url: /training
+      - link "Progress" [ref=f6e23] [cursor=pointer]:
+        - /url: /progress
+      - link "Settings" [ref=f6e27] [cursor=pointer]:
+        - /url: /settings
+    - main [ref=f6e31]:
+      - generic [ref=f6e33]:
+        - generic [ref=f6e34]:
+          - generic [ref=f6e35]:
+            - heading "Training" [level=1] [ref=f6e36]
+            - paragraph [ref=f6e37]: Manage the workouts and schedule in your program.
+          - link [ref=f6e38] [cursor=pointer]:
+            - /url: /training/new
+            - button "Guided setup" [ref=f6e39]
+        - tablist "Training views" [ref=f6e41]:
+          - tab "Programs" [selected] [ref=f6e42] [cursor=pointer]
+          - tab "Workouts" [ref=f6e43] [cursor=pointer]
+          - tab "Schedule" [ref=f6e44] [cursor=pointer]
+        - tabpanel "Programs" [ref=f6e130]:
+          - generic [ref=f6e132]:
+            - heading "Your programs" [level=2] [ref=f6e133]
+            - paragraph [ref=f6e134]: Select a program to view or edit it. Only one program is active at a time — that's the one Today follows.
+            - generic [ref=f6e136]:
+              - generic [ref=f6e156]:
+                - generic [ref=f6e157]:
+                  - generic [ref=f6e158]: Program name
+                  - textbox "Program name" [ref=f6e161]: 5-Day Upper/Lower Split v2
+                - generic [ref=f6e162]:
+                  - button "Save" [ref=f6e163] [cursor=pointer]
+                  - button "Cancel" [ref=f6e165] [cursor=pointer]
+              - generic [ref=f6e147]:
+                - button "Viewing" [disabled] [ref=f6e148]
+                - button "Active" [disabled] [ref=f6e150]
+  - status [ref=f6e167]:
+    - generic [ref=f6e168]: Could not rename that program.

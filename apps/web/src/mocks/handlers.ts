@@ -80,14 +80,28 @@ const mockPrograms = [
 
 /* Exercises for a day type, and a weekly schedule assigning those day
    types to days — both needed for Training to render under `dev:mock`. */
+/* `exerciseId` must be an id `/v1/exercises` actually returns.
+   These referenced a `20000000-…` namespace that exists nowhere else, so
+   Training's name lookup — `exercises.find(item => item.id === exerciseId)` —
+   missed every time and fell back to rendering the raw UUID. Playwright's
+   planner agent found it while exploring and reported it as a product defect;
+   it is a fixture bug, and the distinction matters because the two have
+   completely different fixes.
+
+   The rows also carried an `exercise: { id, name }` object, which
+   `dayTypeExerciseSchema` does not define and the API does not return
+   (`toDayTypeExerciseResponse` maps the row with no join). A mock that invents
+   fields the contract lacks teaches every reader — human or agent — a shape
+   that does not exist; the agent duly proposed "just use the embedded name",
+   which would work here and break in production. Removed. */
 const mockDayTypeExercises = [
   {
     id: '50000000-0000-0000-0000-000000000001',
     dayTypeId: '30000000-0000-0000-0000-000000000001',
-    exerciseId: '20000000-0000-0000-0000-000000000001',
-    exercise: { id: '20000000-0000-0000-0000-000000000001', name: 'Barbell Bench Press' },
+    exerciseId: '10000000-0000-0000-0000-000000000001',
     sortOrder: 0,
     prescription: { kind: 'sets_reps', sets: 3, repsMin: 8, repsMax: 10 },
+    progressionRuleId: null,
     notes: null,
     createdAt: now(),
     updatedAt: now(),
@@ -95,10 +109,10 @@ const mockDayTypeExercises = [
   {
     id: '50000000-0000-0000-0000-000000000002',
     dayTypeId: '30000000-0000-0000-0000-000000000001',
-    exerciseId: '20000000-0000-0000-0000-000000000002',
-    exercise: { id: '20000000-0000-0000-0000-000000000002', name: 'Pull-Up' },
+    exerciseId: '10000000-0000-0000-0000-000000000002',
     sortOrder: 1,
-    prescription: { kind: 'bodyweight_reps', sets: 3, repsMin: 6 },
+    prescription: { kind: 'sets_reps', sets: 3, repsMin: 6, repsMax: null },
+    progressionRuleId: null,
     notes: null,
     createdAt: now(),
     updatedAt: now(),
