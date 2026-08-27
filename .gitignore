@@ -19,5 +19,8 @@ playwright-report/
 ux-tests/reports/*
 !ux-tests/reports/.gitkeep
 
-# Playwright MCP scratch (snapshots/console logs from agent exploration)
-apps/web/.playwright-mcp/
+# Playwright MCP scratch (snapshots/console logs from agent exploration).
+# Written next to the cwd the MCP server runs in, which is the repo root, not
+# the workspace the config lives in — an earlier ignore rule guessed the latter
+# and duly committed 20-odd scratch files.
+.playwright-mcp/
