@@ -7,6 +7,13 @@ export interface IconButtonProps {
   icon: LucideIcon;
   onPress?: (event: GestureResponderEvent) => void;
   variant?: 'default' | 'subtle';
+  /**
+   * For a control that shows and hides something. Story 42.2 — the native
+   * half of the disclosure contract: web gets `aria-expanded` from React
+   * Aria, and VoiceOver needs the same state announced here rather than left
+   * to be inferred from a chevron's direction, which it cannot see.
+   */
+  expanded?: boolean;
   size?: number;
   accessibilityLabel: string;
   testID?: string;
@@ -33,6 +40,7 @@ export function IconButton({
   accessibilityLabel,
   testID,
   disabled = false,
+  expanded,
 }: IconButtonProps) {
   const theme = useTheme();
   /* `disabled` is handed to Pressable rather than used to null `onPress`:
@@ -45,7 +53,7 @@ export function IconButton({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      accessibilityState={{ disabled }}
+      accessibilityState={{ disabled, ...(expanded === undefined ? {} : { expanded }) }}
       disabled={disabled}
       hitSlop={8}
       style={({ pressed }) => [

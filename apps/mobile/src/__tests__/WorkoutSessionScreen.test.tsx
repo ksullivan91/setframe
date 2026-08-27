@@ -713,6 +713,70 @@ describe('WorkoutSessionScreen write failures', () => {
  * whether the sets are showing or not; and controls that would only render
  * disabled are removed rather than greyed out.
  */
+/**
+ * Story 42.2 — the native half of the disclosure contract.
+ *
+ * React Native has no React Aria, so parity here means equivalent *behaviour*
+ * and semantics, not the same primitive: one dedicated control that announces
+ * its state, and nothing else that toggles detail.
+ */
+describe('WorkoutSessionScreen exercise disclosure', () => {
+  function disclosureFor(rendered: ReactTestRenderer, name: string) {
+    return rendered.root.findAll((node) => {
+      const label = node.props?.accessibilityLabel;
+      return (
+        typeof label === 'string' &&
+        new RegExp(`^(Expand|Collapse) ${name}$`).test(label) &&
+        node.props?.accessibilityState !== undefined
+      );
+    });
+  }
+
+  it('announces expanded state rather than leaving it to a chevron', async () => {
+    /* A chevron's direction is invisible to VoiceOver. Web gets this from
+       React Aria's aria-expanded; native has to say it explicitly. */
+    mockSessionPayload = baseSession({ sets: [baseSet()] });
+    const rendered = await renderScreen();
+
+    const [control] = disclosureFor(rendered, 'Outdoor Cycle');
+    expect(control).toBeDefined();
+    expect(control!.props.accessibilityState).toMatchObject({ expanded: true });
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Collapse Outdoor Cycle')[0]!.props.onPress();
+    });
+
+    const [collapsed] = disclosureFor(rendered, 'Outdoor Cycle');
+    expect(collapsed!.props.accessibilityState).toMatchObject({ expanded: false });
+  });
+
+  it('does not toggle detail when a quick-log field is focused', async () => {
+    /* The defect behind "Claude is doing too much here", asserted natively:
+       touching the fast path must not open the editor. */
+    mockSessionPayload = baseSession({ sets: [baseSet({ durationSeconds: null, distanceValue: null })] });
+    const rendered = await renderScreen();
+
+    await act(async () => {
+      pressablesByLabel(rendered, 'Collapse Outdoor Cycle')[0]!.props.onPress();
+    });
+    expect(pressablesByLabel(rendered, 'Expand Outdoor Cycle').length).toBeGreaterThan(0);
+
+    const field = rendered.root.findAll(
+      (node) => typeof node.props?.accessibilityLabel === 'string' &&
+        /^Quick log/.test(node.props.accessibilityLabel) &&
+        typeof node.props?.onFocus === 'function',
+    )[0];
+    if (field) {
+      await act(async () => {
+        field.props.onFocus();
+      });
+    }
+
+    // Still collapsed: only the chevron changes disclosure.
+    expect(pressablesByLabel(rendered, 'Expand Outdoor Cycle').length).toBeGreaterThan(0);
+  });
+});
+
 describe('WorkoutSessionScreen completed-workout review', () => {
   it('drops the overflow control once the workout is complete', async () => {
     mockSessionPayload = baseSession({ sets: [baseSet()], status: 'completed' });

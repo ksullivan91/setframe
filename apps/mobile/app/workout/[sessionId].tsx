@@ -823,34 +823,47 @@ export default function WorkoutSessionScreen() {
                  during an active workout. The ellipsis is dropped once the
                  workout is complete because every action behind it is gone;
                  an inert control is worse than no control. */
+              /* Story 42.2 — the disclosure control is always present, on
+                 every state of the card. It used to appear only once the
+                 workout was finished; during an active workout a completed
+                 exercise had no chevron at all and could only be reopened by
+                 tapping the card, so "can this be opened?" depended on state
+                 the user had to already know. The overflow menu sits beside
+                 it while the workout is still active. */
               actions={
-                sessionComplete ? (
+                <View style={styles.exerciseHeaderActions}>
+                  {sessionComplete ? null : (
+                    <IconButton
+                      icon={MoreVertical}
+                      variant="subtle"
+                      accessibilityLabel={`${exerciseLog.exercise.name} actions`}
+                      onPress={() => {
+                        activateExercise(exerciseLog.id);
+                        confirmRemoveExercise(exerciseLog.id, exerciseLog.exercise.name, loggedSetCount);
+                      }}
+                    />
+                  )}
                   <IconButton
                     icon={isExpanded ? ChevronUp : ChevronDown}
                     variant="subtle"
+                    expanded={isExpanded}
                     accessibilityLabel={isExpanded ? `Collapse ${exerciseLog.exercise.name}` : `Expand ${exerciseLog.exercise.name}`}
                     onPress={() => toggleActiveExercise(exerciseLog.id)}
                   />
-                ) : (
-                  <IconButton
-                    icon={MoreVertical}
-                    variant="subtle"
-                    accessibilityLabel={`${exerciseLog.exercise.name} actions`}
-                    onPress={() => {
-                      activateExercise(exerciseLog.id);
-                      confirmRemoveExercise(exerciseLog.id, exerciseLog.exercise.name, loggedSetCount);
-                    }}
-                  />
-                )
+                </View>
               }
             />
           ) : (
           <>
           <View style={styles.exerciseHeader}>
             <View style={styles.exerciseTitleRow}>
+              {/* Story 42.2 — the one control that toggles detail, and the
+                  only one. `expanded` is what VoiceOver announces; a chevron's
+                  direction is not something a screen-reader user can see. */}
               <IconButton
                 icon={isExpanded ? ChevronUp : ChevronDown}
                 variant="subtle"
+                expanded={isExpanded}
                 accessibilityLabel={isExpanded ? `Collapse ${exerciseLog.exercise.name}` : `Expand ${exerciseLog.exercise.name}`}
                 onPress={() => toggleActiveExercise(exerciseLog.id)}
               />
@@ -989,10 +1002,13 @@ export default function WorkoutSessionScreen() {
               variant="secondary"
               fullWidth={false}
               disabled={addSetMutation.isPending}
-              onPress={() => {
-                activateExercise(exerciseLog.id);
-                addSetMutation.mutate({ exerciseLogId: exerciseLog.id, sourceSet: exerciseLog.sets.at(-1) });
-              }}
+              /* Story 42.2 — no `activateExercise` here. Add set only exists
+                 inside an already-open panel, so activating was at best a
+                 no-op and at worst a second control quietly changing
+                 disclosure state. Only the chevron does that now. */
+              onPress={() =>
+                addSetMutation.mutate({ exerciseLogId: exerciseLog.id, sourceSet: exerciseLog.sets.at(-1) })
+              }
             />
             )}
           </View>
