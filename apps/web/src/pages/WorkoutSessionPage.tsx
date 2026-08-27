@@ -805,6 +805,17 @@ export function WorkoutSessionPage() {
    * One request rather than N sequential PATCHes, so the user is not
    * serialised behind the network for the most common case in the product.
    */
+  /**
+   * Story 42.4 — which exercises are mid-commit.
+   *
+   * `useMutation`'s own `isPending` is a single page-wide boolean, so quick
+   * logging one exercise disabled the action on every other one. Mid-workout
+   * that serialises the user behind the network in the place that least
+   * tolerates it — the same defect story 60 fixed for per-set saves, still
+   * present on the batch path.
+   */
+  const [quickLogPending, setQuickLogPending] = useState<Record<string, boolean>>({});
+
   const quickLogMutation = useMutation({
     mutationFn: ({
       exerciseLogId,
@@ -815,8 +826,41 @@ export function WorkoutSessionPage() {
       setIds: string[];
       values: Record<string, unknown>;
     }) => api.post<WorkoutSet[]>(`/workout-exercise-logs/${exerciseLogId}/quick-log`, { setIds, values }),
+    /**
+     * Optimistic commit. The user is between sets; waiting on a round trip
+     * before the card acknowledges them is exactly the friction this story
+     * exists to remove.
+     *
+     * The previous cache is snapshotted and restored on failure, so a rejected
+     * write cannot leave the screen claiming work that was never saved —
+     * "completion is never presented as durable when persistence failed".
+     */
+    onMutate: async (variables) => {
+      setQuickLogPending((prev) => ({ ...prev, [variables.exerciseLogId]: true }));
+      await queryClient.cancelQueries({ queryKey: ['workout-session', sessionId] });
+      const previous = queryClient.getQueryData<WorkoutSessionDetail>(['workout-session', sessionId]);
+
+      queryClient.setQueryData<WorkoutSessionDetail>(['workout-session', sessionId], (current) => {
+        if (!current) return current;
+        const targets = new Set(variables.setIds);
+        return {
+          ...current,
+          exercises: current.exercises.map((exerciseLog) =>
+            exerciseLog.id !== variables.exerciseLogId
+              ? exerciseLog
+              : {
+                  ...exerciseLog,
+                  sets: exerciseLog.sets.map((set) =>
+                    targets.has(set.id) ? { ...set, ...(variables.values as Partial<WorkoutSet>) } : set,
+                  ),
+                },
+          ),
+        };
+      });
+
+      return { previous };
+    },
     onSuccess: async (_, variables) => {
-      await refreshSession();
       /* The drafts these sets were showing are now stale — the server holds
          the truth. Clearing them stops a half-typed local value from
          reappearing over what was just logged. */
@@ -826,9 +870,24 @@ export function WorkoutSessionPage() {
         return next;
       });
       setHeaderTouchedKeys((prev) => ({ ...prev, [variables.exerciseLogId]: [] }));
+      await refreshSession();
     },
-    onError: () =>
-      toast.show({ variant: 'error', message: 'Could not log those sets. Your values are still here — try again.' }),
+    onError: (_error, _variables, context) => {
+      /* Roll back to exactly what was on screen before, so an optimistic
+         update never outlives the request that justified it. Drafts are
+         untouched — the user's typing survives a failed save. */
+      if (context?.previous) {
+        queryClient.setQueryData(['workout-session', sessionId], context.previous);
+      }
+      toast.show({ variant: 'error', message: 'Could not log those sets. Your values are still here — try again.' });
+    },
+    onSettled: (_data, _error, variables) => {
+      setQuickLogPending((prev) => {
+        const next = { ...prev };
+        delete next[variables.exerciseLogId];
+        return next;
+      });
+    },
   });
 
   const addSetMutation = useMutation({
@@ -1502,7 +1561,7 @@ export function WorkoutSessionPage() {
                   }
                   disabled={
                     !quickLogReady ||
-                    quickLogMutation.isPending ||
+                    quickLogPending[exerciseLog.id] === true ||
                     query.data.status === 'completed'
                   }
                   data-testid={`quick-log-${exerciseLog.id}`}

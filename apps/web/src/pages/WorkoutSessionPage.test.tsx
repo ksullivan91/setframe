@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import { ThemeProvider } from 'styled-components';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { Prescription } from '@setframe/schemas';
 import { getTheme } from '../theme/getTheme';
@@ -1123,6 +1123,88 @@ describe('WorkoutSessionPage per-set save state', () => {
     expect(screen.getAllByLabelText('Reps')[0]).toHaveValue('10');
     expect(screen.getAllByRole('button', { name: 'Save' })[0]).toBeEnabled();
   });
+});
+
+/**
+ * Story 42.4 — the commit should feel immediate and stay truthful.
+ *
+ * Mid-workout the user is between sets. Waiting on a round trip before the
+ * card acknowledges them is the friction this story removes; claiming work
+ * that was never saved is the failure it must not introduce.
+ */
+describe('WorkoutSessionPage quick log persistence', () => {
+  /* These tests deliberately install a `mockPost` that never settles or always
+     rejects, which is the only way to observe an optimistic update. Left in
+     place it leaks into every later test in the file — the same
+     shared-mock-state trap this suite has been bitten by before — so the
+     default is restored after each one. */
+  afterEach(() => {
+    mockPost.mockReset();
+    mockPost.mockResolvedValue({});
+  });
+
+  function renderTwoUnloggedSets() {
+    const session = buildSession({ kind: 'sets_reps', sets: 2, repsMin: 8 }) as unknown as {
+      exercises: { sets: unknown[] }[];
+    };
+    session.exercises[0]!.sets = [0, 1].map((index) => ({
+      id: `set-${index + 1}`,
+      exerciseLogId: 'log-1',
+      clientId: `9999999${index}-1111-4111-8111-111111111111`,
+      sortOrder: index,
+      setType: 'working',
+      weightValue: null,
+      weightUnit: 'lb',
+      reps: null,
+      durationSeconds: null,
+      distanceValue: null,
+      distanceUnit: null,
+      rpe: null,
+      isPrWeight: false,
+      isPrReps: false,
+      createdAt: '2026-08-22T15:00:00.000Z',
+      updatedAt: '2026-08-22T15:00:00.000Z',
+    }));
+    mockGet = (path: string) => {
+      if (path.startsWith('/workout-sessions/')) return Promise.resolve(session);
+      if (path === '/exercises') return Promise.resolve([]);
+      return Promise.resolve(null);
+    };
+    return renderPage();
+  }
+
+  it('reflects the commit before the request resolves', async () => {
+    const user = userEvent.setup();
+    /* A request that never settles. Anything the card shows after this is
+       optimistic by definition. */
+    mockPost.mockReset();
+    mockPost.mockImplementation(() => new Promise(() => {}));
+    renderTwoUnloggedSets();
+
+    await user.type(await screen.findByLabelText(/^Quick log: Weight/), '185');
+    await user.type(screen.getByLabelText(/^Quick log: Reps/), '8');
+    await user.click(screen.getByRole('button', { name: 'Log all 2 sets' }));
+
+    // The exercise reads as done without the server having answered.
+    expect(await screen.findByText('2 sets completed')).toBeInTheDocument();
+  });
+
+  it('rolls back rather than claiming work that failed to save', async () => {
+    const user = userEvent.setup();
+    mockPost.mockReset();
+    mockPost.mockRejectedValue(new Error('offline'));
+    renderTwoUnloggedSets();
+
+    await user.type(await screen.findByLabelText(/^Quick log: Weight/), '185');
+    await user.type(screen.getByLabelText(/^Quick log: Reps/), '8');
+    await user.click(screen.getByRole('button', { name: 'Log all 2 sets' }));
+
+    /* Completion must never outlive the request that justified it. */
+    await waitFor(() => expect(screen.getByText('0 of 2 sets complete')).toBeInTheDocument());
+    // …and the typing survives, so the retry costs nothing.
+    expect(screen.getByLabelText(/^Quick log: Weight/)).toHaveValue('185');
+  });
+
 });
 
 /**
