@@ -18,8 +18,8 @@ test.describe('UX review — progress payoff', () => {
   test('data-motivated user asks whether twelve weeks meant anything', async ({ page }) => {
     test.setTimeout(180_000);
 
-    const review = new ReviewSession(page, 'progress', 'analyst');
-    review.watchConsole();
+    const review = new ReviewSession(page, 'progress', 'analyst', 'payoff', 2);
+    review.watch();
 
     await signInAs(page, 'analyst', '/progress');
     await page.waitForTimeout(2500);
@@ -62,6 +62,9 @@ test.describe('UX review — progress payoff', () => {
        accurate numbers that never renders a verdict is a spreadsheet. */
     const hasCharts = await page.locator('svg').count();
     review.note(`Progress rendered ${hasCharts} chart element(s).`);
+    /* This journey does look at whether entered data is repaid, so it says so
+       — which is what lets the payoff gate apply at all. */
+    review.assess('dataPayoff');
     if (hasCharts === 0 && !looksEmpty) {
       review.find({
         severity: 'P1',
@@ -78,6 +81,16 @@ test.describe('UX review — progress payoff', () => {
        number the user has to take on faith. */
     const explainers = await page.getByRole('button', { name: /what|about|info|explain/i }).count();
     review.note(`Found ${explainers} metric explainer control(s).`);
+    if (explainers === 0) {
+      review.find({
+        severity: 'P2',
+        dimension: 'dataPayoff',
+        title: 'Metrics come with no way to ask what they mean',
+        observed: 'No metric explainer control was found on Progress.',
+        impact:
+          'Estimated 1RM, adherence and composition are not self-evident. A number the user must take on faith is not a payoff.',
+      } as never);
+    }
 
     /* Measured before any interaction, so a layout problem can be attributed
        to the screen itself rather than to whatever the reviewer touched. */

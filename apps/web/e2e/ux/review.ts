@@ -3,6 +3,14 @@ import { dirname, join } from 'node:path';
 import type { Page } from '@playwright/test';
 import type { PersonaKey } from './auth';
 import { personaAccounts } from './auth';
+import { NetworkWatcher } from './network';
+import {
+  evaluateGate,
+  formatScorecard,
+  scoreWorkflow,
+  type ScoredFinding,
+  type WorkflowKind,
+} from './score';
 
 /**
  * The evidence half of the review system.
@@ -48,6 +56,10 @@ export interface JourneyReport {
   screenshots: string[];
   findings: Finding[];
   notes: string[];
+  kind: WorkflowKind;
+  expectedInteractions?: number;
+  /** Dimensions this journey genuinely evaluated. */
+  assessed?: Partial<Record<import('./score').ScoreDimension, boolean>>;
 }
 
 /** Wraps a page so every click the journey makes is counted. */
@@ -56,14 +68,21 @@ export class ReviewSession {
   readonly findings: Finding[] = [];
   readonly notes: string[] = [];
   private count = 0;
+  private readonly assessed: Partial<Record<import('./score').ScoreDimension, boolean>> = {};
 
   private readonly viewport: string;
+
+  /** Wire-level observation, so defects invisible on screen still surface. */
+  readonly network: NetworkWatcher;
 
   constructor(
     private readonly page: Page,
     private readonly journey: string,
     private readonly persona: PersonaKey,
+    private readonly kind: WorkflowKind = 'general',
+    private readonly expectedInteractions?: number,
   ) {
+    this.network = new NetworkWatcher(page);
     /* Read from the page, never passed in. A hardcoded label meant the
        desktop project wrote its report over the mobile one — the same journey
        at two widths silently became one report, which is precisely the
@@ -123,6 +142,18 @@ export class ReviewSession {
     this.findings.push(finding);
   }
 
+  /**
+   * Declares that this journey actually evaluated a dimension.
+   *
+   * Without this, `delight` and `dataPayoff` default to "not assessed" and
+   * therefore cannot fail the gate — which quietly disables the story's
+   * deliberate rule that a Progress screen scoring below 4 on Data payoff is
+   * a failure. A journey that genuinely looks at the payoff says so here.
+   */
+  assess(dimension: import('./score').ScoreDimension, didAssess = true): void {
+    this.assessed[dimension] = didAssess;
+  }
+
   note(text: string): void {
     this.notes.push(text);
   }
@@ -134,6 +165,12 @@ export class ReviewSession {
    * a screenshot; a page that looks fine while throwing on every render is a
    * finding the reviewer would otherwise miss entirely.
    */
+  /** Starts console *and* network observation. */
+  watch(): void {
+    this.watchConsole();
+    this.network.start();
+  }
+
   watchConsole(): void {
     this.page.on('pageerror', (error) => {
       this.find({
@@ -146,14 +183,22 @@ export class ReviewSession {
   }
 
   toReport(): JourneyReport {
+    /* Network findings are merged in at report time rather than as they
+       happen, because most of them are only visible once the whole journey's
+       traffic can be compared against itself. */
+    const networkFindings = this.network.findings();
+    this.notes.push(this.network.summary());
     return {
       journey: this.journey,
       persona: this.persona,
       viewport: this.viewport,
       interactions: this.count,
       screenshots: this.screenshots,
-      findings: this.findings,
+      findings: [...this.findings, ...networkFindings],
       notes: this.notes,
+      kind: this.kind,
+      expectedInteractions: this.expectedInteractions,
+      assessed: this.assessed,
     };
   }
 }
@@ -191,6 +236,15 @@ export function writeReport(report: JourneyReport): string {
       if (finding.evidence) lines.push(`![${finding.title}](./${finding.evidence})`, '');
     }
   }
+
+  const card = scoreWorkflow({
+    findings: sorted as ScoredFinding[],
+    interactions: report.interactions,
+    expectedInteractions: report.expectedInteractions,
+    kind: report.kind,
+    assessed: report.assessed,
+  });
+  lines.push(...formatScorecard(card, evaluateGate(card, report.kind)));
 
   if (report.notes.length) {
     lines.push('## Notes', '');

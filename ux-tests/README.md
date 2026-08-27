@@ -71,6 +71,18 @@ generator and healer agent definitions under `apps/web/.claude/agents/` plus an
 specs, repairing broken ones. The UX reviewer sits on top of them and is a
 separate thing: it judges experience, which no generator can do for you.
 
+## Scores and the gate
+
+Each report ends with a nine-dimension scorecard and a pass/fail gate, derived
+from the findings rather than typed in. Dimensions no automated check can
+honestly judge report as *not assessed* instead of taking a default.
+
+## Network review
+
+`review.watch()` records API traffic alongside console errors, so defects that
+never appear on screen still surface: failed mutations, repeated mutations,
+saves serialised behind one another, slow writes with no optimistic path.
+
 ## Known limits
 
 - **Mock data, not production data.** Anything odd about the *values* is

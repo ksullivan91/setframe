@@ -18,8 +18,8 @@ test.describe('UX review — first program', () => {
   test('novice arrives with no program and tries to get started', async ({ page }) => {
     test.setTimeout(180_000);
 
-    const review = new ReviewSession(page, 'first-program', 'novice');
-    review.watchConsole();
+    const review = new ReviewSession(page, 'first-program', 'novice', 'general', 3);
+    review.watch();
 
     await signInAs(page, 'novice', '/today');
     await page.waitForTimeout(1500);

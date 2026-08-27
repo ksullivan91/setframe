@@ -18,8 +18,8 @@ test.describe('UX review — active workout session', () => {
   test('experienced lifter logs today’s workout on a phone', async ({ page }) => {
     test.setTimeout(180_000);
 
-    const review = new ReviewSession(page, 'workout-session', 'lifter');
-    review.watchConsole();
+    const review = new ReviewSession(page, 'workout-session', 'lifter', 'gym', 6);
+    review.watch();
 
     await signInAs(page, 'lifter', '/today');
     await page.waitForTimeout(1500);

@@ -622,6 +622,18 @@ export const handlers = [
     }),
   ),
 
+  /* Quick Log (stories 58/59). Absent until the UX reviewer walked the core
+     journey and reported a P0 for a 400 — which was this fixture missing, not
+     the product. A mock that 404s the primary action makes the main flow
+     un-reviewable end to end. */
+  http.post('*/v1/workout-exercise-logs/:exerciseLogId/quick-log', async ({ request, params }) => {
+    const body = (await request.json()) as { setIds?: string[] };
+    return HttpResponse.json({
+      exerciseLogId: params.exerciseLogId,
+      updated: body.setIds?.length ?? 0,
+    });
+  }),
+
   http.post('*/v1/workout-sessions', () => {
     mockSessionCounter += 1;
     return HttpResponse.json(

@@ -128,6 +128,34 @@ product. Say which you believe it is.
 rewrites the product produces no record of what was wrong or why, and mixes
 opinion into a diff nobody asked for. Fix only what you were asked to fix.
 
+## Scores, and the gate
+
+Every report ends with a scorecard across nine dimensions and a pass/fail
+gate. **Scores are derived from findings, never typed in** — a number chosen
+by feel is "looks good" wearing a costume, and worse because it looks
+defensible. Argue with a score by disputing the finding underneath it.
+
+A dimension no automated check can honestly judge reports as *not assessed*
+rather than taking a flattering default. A rubric that silently awards 5/5 for
+things it never measured launders ignorance as confidence. If your journey
+genuinely does evaluate one, call `review.assess('dataPayoff')` — that is what
+lets the gate apply to it.
+
+The gate: nothing below 3; Task clarity ≥4 always; Mobile ergonomics ≥4 for
+gym workflows; Error recovery ≥4 for data entry; Data payoff ≥4 for Progress.
+
+## The network is part of the experience
+
+`review.watch()` records API traffic as well as console errors. A whole class
+of defect is invisible on screen and obvious on the wire — a save that blocks
+the next one, a mutation fired twice, a request that failed while the UI moved
+on. "Saving set 1 blocks set 2 for 1.4 seconds" is a UX defect, not an
+implementation detail.
+
+Scope matters here too: the watcher is origin-scoped because Clerk's API is
+also versioned under `/v1/`, and a bare path match reported findings about the
+auth provider's internals.
+
 ## Evidence a finding must carry
 
 - **Severity** (`severity-rubric.md`)
