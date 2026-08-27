@@ -12,7 +12,10 @@
     "test": "vitest run",
     "lint": "eslint . --max-warnings 0",
     "test:e2e": "playwright test",
-    "ux:review": "playwright test --project=ux-mobile --project=ux-desktop"
+    "ux:review": "playwright test --project=ux-mobile --project=ux-desktop",
+    "ux:review:watch": "playwright test --project=ux-mobile --headed --workers=1",
+    "ux:review:ui": "playwright test --project=ux-mobile --ui",
+    "ux:report": "node ../../scripts/open-ux-report.mjs"
   },
   "dependencies": {
     "@clerk/clerk-react": "5.61.3",

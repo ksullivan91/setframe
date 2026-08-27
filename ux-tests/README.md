@@ -4,8 +4,23 @@ Autonomous UX review of the running application. Not a regression suite — see
 `apps/web/e2e/*.spec.ts` for that.
 
 ```bash
-npm run ux:review --workspace=@setframe/web   # 390px and 1440px
+npm run ux:review --workspace=@setframe/web         # headless, both viewports
+npm run ux:review:watch --workspace=@setframe/web   # watch a real browser do it
+npm run ux:review:ui --workspace=@setframe/web      # step through it, time-travel
+npm run ux:report --workspace=@setframe/web         # open the last run's evidence
 ```
+
+No environment setup: the Clerk keys and the review password are read from the
+apps' own gitignored `.env` files, and the dev server starts itself.
+
+- **`ux:review`** — headless, both viewports, ~17s. What you want normally.
+- **`ux:review:watch`** — opens a visible browser at phone size and drives it
+  in front of you, one worker so two runs are not racing on screen.
+- **`ux:review:ui`** — Playwright's UI mode. Every step is a row you can click
+  to see the DOM before and after; re-run a single journey without restarting.
+- **`ux:report`** — renders the newest reports and their screenshots into one
+  page and opens it. Markdown beside PNGs is the right thing to diff and the
+  wrong thing to read.
 
 Output lands in `reports/<journey>/<viewport>/`: numbered screenshots plus a
 `report.md` with ranked findings and a measured interaction count.

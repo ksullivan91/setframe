@@ -23,9 +23,14 @@ substituting a guess.
 ## How to run a review
 
 ```bash
-npm run ux:review --workspace=@setframe/web            # both viewports
-npx playwright test --project=ux-mobile                # 390px only
+npm run ux:review --workspace=@setframe/web         # headless, both viewports
+npm run ux:review:watch --workspace=@setframe/web   # visible browser, phone size
+npm run ux:review:ui --workspace=@setframe/web      # step through, time-travel
+npm run ux:report --workspace=@setframe/web         # open the evidence
 ```
+
+No environment setup is required; keys are read from the apps' `.env` files
+and the dev server starts itself.
 
 Reports and screenshots land in `ux-tests/reports/<journey>/<viewport>/`.
 
