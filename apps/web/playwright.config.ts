@@ -63,6 +63,14 @@ export default defineConfig({
       testMatch: '**/ux/*.ux.spec.ts',
       use: { ...devices['iPhone 13'], browserName: 'chromium', baseURL: 'http://localhost:5199' },
     },
+    /* Functional coverage: does the workflow still work? Asserts and fails,
+       unlike the UX projects, which walk a flow and report. Chromium at phone
+       size because that is the shape the product is used in. */
+    {
+      name: 'functional',
+      testMatch: '**/functional/*.spec.ts',
+      use: { ...devices['iPhone 13'], browserName: 'chromium', baseURL: 'http://localhost:5199' },
+    },
     /* Phase 2's WebKit slice. Mobile Safari is where this repo's layout and
        input defects have actually shipped — `100vh` meaning something else,
        inputs zooming on focus, sticky chrome eating the bottom of the page —

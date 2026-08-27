@@ -83,6 +83,25 @@ honestly judge report as *not assessed* instead of taking a default.
 never appear on screen still surface: failed mutations, repeated mutations,
 saves serialised behind one another, slow writes with no optimistic path.
 
+## Functional coverage is a separate thing
+
+`npm run test:functional --workspace=@setframe/web` asserts that the core
+workflows still work; the UX review judges whether they are good. Conflating
+them gives you a suite that is either too noisy to trust or too permissive to
+catch a regression.
+
+Functional specs live in `apps/web/e2e/functional/`. They were written by
+exploring the running application, not by reading components — the same
+discipline the reviewer follows, and for the same reason.
+
+## Playwright's own agents
+
+`.claude/agents/` (repo root) holds planner, generator and healer definitions,
+and `.mcp.json` declares the `playwright-test` MCP server they depend on. Both
+were originally created under `apps/web/`, where a session started at the repo
+root never found them. MCP servers connect at session start, so a session
+already running when these moved will not see them until it restarts.
+
 ## Known limits
 
 - **Mock data, not production data.** Anything odd about the *values* is

@@ -4,7 +4,10 @@
       "command": "npx",
       "args": [
         "playwright",
-        "run-test-mcp-server"
+        "run-test-mcp-server",
+        "--config",
+        "apps/web/playwright.config.ts",
+        "--headless"
       ]
     }
   }

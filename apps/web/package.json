@@ -17,7 +17,8 @@
     "ux:review:ui": "playwright test --project=ux-mobile --ui",
     "ux:report": "node ../../scripts/open-ux-report.mjs",
     "ux:review:webkit": "playwright test --project=ux-webkit --workers=1",
-    "ux:review:all": "playwright test --project=ux-mobile --project=ux-webkit --project=ux-desktop --workers=1"
+    "ux:review:all": "playwright test --project=ux-mobile --project=ux-webkit --project=ux-desktop --workers=1",
+    "test:functional": "playwright test --project=functional --workers=1"
   },
   "dependencies": {
     "@clerk/clerk-react": "5.61.3",
