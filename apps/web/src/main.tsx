@@ -28,6 +28,10 @@ async function prepare() {
        first API handler arrives too late (see mocks/persona-state.ts). */
     const { capturePersonaFromUrl } = await import('./mocks/persona-state');
     capturePersonaFromUrl();
+    /* Story 42.7 — lets a regression scenario pin a session shape or make a
+       save slow/fail. Behind `useMocks`, so it never exists in production. */
+    const { exposeMockControl } = await import('./mocks/mock-control');
+    exposeMockControl();
     const { worker } = await import('./mocks/browser');
     await worker.start({ onUnhandledRequest: 'bypass' });
   }

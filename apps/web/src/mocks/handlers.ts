@@ -18,6 +18,7 @@
 import { http, HttpResponse } from 'msw';
 
 import { completedSessionsToday, currentPersona, hasProgram } from './persona-state';
+import { mockControl } from './mock-control';
 
 const now = () => new Date().toISOString();
 const today = () => new Date().toISOString().slice(0, 10);
@@ -594,8 +595,11 @@ export const handlers = [
     HttpResponse.json({ status: 'ok', lastSuccessAt: now() }),
   ),
 
+  /* Story 42.7 — a regression scenario may pin an exact session shape, so it
+     can drive one exercise through several representations without every
+     other test inheriting the change. */
   http.get('*/v1/workout-sessions/:sessionId', ({ params }) =>
-    HttpResponse.json({
+    HttpResponse.json(mockControl.sessionOverride() ?? {
       id: params.sessionId,
       userId: mockUserId,
       templateId: '30000000-0000-0000-0000-000000000003',
@@ -642,6 +646,13 @@ export const handlers = [
      un-reviewable end to end. */
   http.post('*/v1/workout-exercise-logs/:exerciseLogId/quick-log', async ({ request, params }) => {
     const body = (await request.json()) as { setIds?: string[] };
+    /* Deterministic latency and failure, so the optimistic path and its
+       rollback can be observed rather than hoped for (story 42.7). */
+    const behaviour = mockControl.quickLogBehaviour();
+    if (behaviour?.delayMs) await new Promise((resolve) => setTimeout(resolve, behaviour.delayMs));
+    if (behaviour?.fail) {
+      return HttpResponse.json({ error: { code: 'MOCK_FAILURE', message: 'Simulated failure' } }, { status: 500 });
+    }
     return HttpResponse.json({
       exerciseLogId: params.exerciseLogId,
       updated: body.setIds?.length ?? 0,
