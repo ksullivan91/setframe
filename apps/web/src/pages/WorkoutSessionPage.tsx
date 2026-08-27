@@ -432,13 +432,26 @@ const SetList = styled.div`
   gap: ${spacing[12]}px;
 `;
 
+/**
+ * One set, as a row rather than a card.
+ *
+ * Story 42.6 — "the accordion still looks awful once expanded". Three sets
+ * took roughly 1,900px at phone width, because each was a bordered card with
+ * its own padding, its own repeated planned pill, its own helper sentence and
+ * its own three-button action row. A five-exercise workout was unusable.
+ *
+ * A hairline separator instead of a border box: sets are a list of the same
+ * thing, and boxing each one implies a hierarchy that is not there.
+ */
 const SetCard = styled.div`
-  border: 1px solid ${(p) => p.theme.border.subtle};
-  border-radius: ${radius.small}px;
-  padding: ${spacing[12]}px;
   display: flex;
   flex-direction: column;
-  gap: ${spacing[12]}px;
+  gap: ${spacing[8]}px;
+  padding: ${spacing[12]}px 0;
+
+  & + & {
+    border-top: 1px solid ${(p) => p.theme.border.subtle};
+  }
 `;
 
 const SetCardHeader = styled.div`
@@ -1633,10 +1646,24 @@ export function WorkoutSessionPage() {
                   const draftValues = draftToValues(draft, definition);
                   // Union of the prescription's fields and anything this set
                   // already stores, so legacy values stay editable.
+                  /* Story 42.6 — required fields first.
+                     `sessionFieldOrder` puts `setType` at the front, so the
+                     grid read [Type][Weight] / [Reps][RPE]: the two values the
+                     user is actually here to type sat diagonally opposite,
+                     each sharing a row with something optional or rarely
+                     changed. Ordering by the domain's own required/optional
+                     split puts Weight and Reps together at the top, without
+                     hardcoding a field order per representation. */
                   const visibleFields = resolveSessionFields(exerciseLog.prescription, {
                     ...set,
                     ...draftValues,
-                  });
+                  })
+                    .slice()
+                    .sort(
+                      (a, b) =>
+                        Number(!definition.requiredFields.includes(a)) -
+                        Number(!definition.requiredFields.includes(b)),
+                    );
                   const fieldErrors = validateSessionSet(exerciseLog.prescription, draftValues);
                   const plannedValue = getPlannedValue(exerciseLog);
                   const previousValue = getPreviousSet(exerciseLog.previousSession?.sets[index], exerciseLog);
@@ -1645,10 +1672,22 @@ export function WorkoutSessionPage() {
                       <SetCardHeader>
                         <SetTitleGroup>
                           <SetTitle>Set {index + 1}</SetTitle>
-                          <SupportingText>{set.setType === 'working' ? 'Working set' : `${setTypeOptions.find((option) => option.value === set.setType)?.label ?? set.setType}`}</SupportingText>
+                          {/* Story 42.6 — only a *non-default* set type is
+                              worth a line here. "Working set" repeated under
+                              every set restated what the Type field directly
+                              below already said, three times per exercise. */}
+                          {set.setType === 'working' ? null : (
+                            <SupportingText>
+                              {setTypeOptions.find((option) => option.value === set.setType)?.label ?? set.setType}
+                            </SupportingText>
+                          )}
                         </SetTitleGroup>
                         <Chips>
-                          {plannedValue ? <CuePill>Planned: {plannedValue}</CuePill> : null}
+                          {/* Story 42.6 — the plan belongs to the exercise, not
+                              to each set, and the card header already carries
+                              it. Repeating the identical pill on every set was
+                              the loudest thing in the expanded panel while
+                              telling the user nothing new. */}
                           {previousValue ? <CuePill>Prev: {previousValue}</CuePill> : null}
                           {/* PR flags come straight from the server, which
                               resolves them against all-time history for the
@@ -1752,9 +1791,9 @@ export function WorkoutSessionPage() {
                       </SetGrid>
 
                       <SetFooter>
-                        <SupportingText>
-                          {plannedValue ? 'Planned beside actual for quick comparison.' : 'Log what you actually did.'}
-                        </SupportingText>
+                        {/* Story 42.6 — this sentence appeared under every set,
+                            identically, and told the user nothing they could
+                            act on. Removed rather than restyled. */}
                         <SetActions>
                           {/* Story 42B, reconciled with story 23. Correcting a
                               logged value after completion is deliberately

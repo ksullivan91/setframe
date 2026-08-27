@@ -157,6 +157,15 @@ alongside their stories, named `README-{range}-{review}.md`.
   real 1 lb move, and a 2-day weight average that is exactly the
   water-weight noise `body-weight-display-psychology.md` exists to
   suppress.
+- `completed/README-42.1-42.7-final-rework-pack.md` — the story 42 corrective
+  rework (42.1–42.7). The P0 was a domain-invariant violation, not styling:
+  session start persisted planned values as actuals, so five of eight
+  representations were complete before the user touched anything. The rest
+  replaced the hand-rolled accordion with a React Aria disclosure, moved
+  quick-log seeding onto the prescription, made the commit optimistic and
+  per-exercise, tied completion and disclosure together on failure, compacted
+  the expanded set list, and added a browser regression matrix that walks
+  several representations rather than the one a fixture happens to use.
 - `completed/README-42A-42C-story-42-follow-up.md` — the story 42 follow-up
   (42A–42C). A completed *workout* is a review surface, so the overflow menu
   and the disabled Save/Copy/Delete/Add-set controls are removed rather than
