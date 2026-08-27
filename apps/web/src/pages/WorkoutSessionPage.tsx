@@ -47,7 +47,8 @@ import {
   type SessionField,
 } from '../lib/prescription';
 import { typeScale } from '../theme/typeScale';
-import { CompletedExerciseCard } from '../components/CompletedExerciseCard';
+import { CompletedExerciseSummary } from '../components/CompletedExerciseCard';
+import { ExerciseWorkCard } from '../components/ExerciseWorkCard';
 import { mq } from '../theme/breakpoints';
 
 type SetType = WorkoutSet['setType'];
@@ -278,6 +279,25 @@ const ExerciseCard = styled(Card)<{ $complete?: boolean }>`
   ${mq.tablet} {
     scroll-margin-bottom: ${spacing[16]}px;
   }
+`;
+
+/**
+ * The completion stamp, in the card's leading slot.
+ *
+ * Story 42A put status on the left and navigation on the right so the two
+ * never trade places; the work card keeps that arrangement.
+ */
+const CompletionMark = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: ${radius.full}px;
+  background: ${(p) => p.theme.status.success};
+  color: ${(p) => p.theme.action.primaryText};
+  box-shadow: 0 0 0 4px ${(p) => p.theme.status.successSubtle};
 `;
 
 const ExerciseHeader = styled.div`
@@ -1071,6 +1091,16 @@ export function WorkoutSessionPage() {
   }
 
   /**
+   * Story 42.2 — the collapse half of controlled expansion.
+   *
+   * Guarded on identity so a stale collapse from a card that is no longer the
+   * active one cannot close whichever exercise the user has since opened.
+   */
+  function collapseExercise(exerciseLogId: string) {
+    setActiveExerciseId((prev) => (prev === exerciseLogId ? null : prev));
+  }
+
+  /**
    * Story 37: applies the header's quick-entry values onto every set's own
    * draft. Explicit and only ever fired by this button — the cascade never
    * runs on its own, so a set the user already edited by hand is never
@@ -1291,109 +1321,65 @@ export function WorkoutSessionPage() {
             />
           );
           return (
-          <ExerciseCard
+          <ExerciseWorkCard
             key={exerciseLog.id}
-            $complete={isComplete}
-            data-testid={isComplete ? 'exercise-card-complete' : 'exercise-card'}
-            ref={(node) => {
+            id={exerciseLog.id}
+            name={exerciseLog.exercise.name}
+            containerRef={(node: HTMLDivElement | null) => {
               exerciseCardRefs.current[exerciseLog.id] = node;
             }}
-            // Story 39: any focus landing inside this card — a quick-entry
-            // field, a per-set input, an action button — means the user is
-            // now working with this exercise, whether or not they touched
-            // the chevron first. A modal opened from within this card
-            // moves focus outside every card (it's rendered via a portal),
-            // so it never triggers this and can't unexpectedly collapse
-            // the exercise it was opened from.
-            onFocus={() => activateExercise(exerciseLog.id)}
-          >
-{/* Story 42 — a finished exercise stops being a form. While it is
-                collapsed it renders as a record of what happened; reopening it
-                returns the ordinary header and the full editor, so completion
-                stays reversible. */}
-            {showCompletedCard ? (
-              <CompletedExerciseCard
-                name={exerciseLog.exercise.name}
-                readout={completedReadout}
-                setCountLabel={completedSetCountLabel(exerciseLog.sets)}
-                onReopen={() => toggleActiveExercise(exerciseLog.id)}
-                expanded={isExpanded}
-                testId={`completed-exercise-${exerciseLog.id}`}
-                /* Story 42A — a chevron in review mode, the overflow menu
-                   during an active workout. The ellipsis is dropped once the
-                   workout is complete because every action behind it is
-                   gone; an inert menu is worse than no menu. */
-                actions={
-                  sessionComplete ? (
-                    <IconButton
-                      aria-label={isExpanded ? `Collapse ${exerciseLog.exercise.name}` : `Expand ${exerciseLog.exercise.name}`}
-                      onFocus={(event) => event.stopPropagation()}
-                      onClick={() => toggleActiveExercise(exerciseLog.id)}
-                    >
-                      {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                    </IconButton>
-                  ) : (
-                    renderExerciseMenu()
-                  )
-                }
-              />
-            ) : (
-            <ExerciseHeader>
-              <ExerciseTitleRow>
-                <IconButton
-                  aria-label={isExpanded ? `Collapse ${exerciseLog.exercise.name}` : `Expand ${exerciseLog.exercise.name}`}
-                  // Stops this button's own focus (from a click, or a Tab
-                  // arriving via keyboard) from reaching the card's
-                  // `onFocus` and activating early — see
-                  // `toggleActiveExercise`'s comment for why that matters.
-                  onFocus={(event) => event.stopPropagation()}
-                  onClick={() => toggleActiveExercise(exerciseLog.id)}
-                >
-                  {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                </IconButton>
-                <div>
-                  <ExerciseTitle>{exerciseLog.exercise.name}</ExerciseTitle>
-                  <SupportingText>{summarizePrescription(exerciseLog.prescription)}</SupportingText>
-                  {/* Story 38: completion is derived from every set's own
-                      required-field completeness (isExerciseComplete),
-                      never a UI flag toggled on collapse.
+            data-testid={isComplete ? 'exercise-card-complete' : 'exercise-card'}
+            testId={isComplete ? 'exercise-card-complete' : 'exercise-card'}
+            tone={isComplete ? 'complete' : 'neutral'}
+            planLabel={summarizePrescription(exerciseLog.prescription)}
+            /* Story 42.1 — this counts *logged* sets. It reads
+               "0 of 3 sets complete" on a freshly started workout, because a
+               planned value is no longer written onto a session set. */
+            progressLabel={
+              isComplete
+                ? completedSetCountLabel(exerciseLog.sets)
+                : exerciseLog.sets.length > 0
+                  ? `${loggedSetCount} of ${exerciseLog.sets.length} sets complete`
+                  : undefined
+            }
+            status={
+              isComplete ? (
+                <CompletionMark aria-hidden="true">
+                  <Check size={20} strokeWidth={3} />
+                </CompletionMark>
+              ) : null
+            }
+            /* Story 42A — the overflow menu is gone once the workout is
+               complete, because every action behind it is gone with it. The
+               disclosure control is the card's own and is always present. */
+            actions={sessionComplete ? null : renderExerciseMenu()}
+            summary={
+              completedReadout ? (
+                <CompletedExerciseSummary
+                  readout={completedReadout}
+                  testId={`completed-exercise-${exerciseLog.id}`}
+                />
+              ) : null
+            }
+            expanded={isExpanded}
+            /* Story 42.2 — expansion is controlled here, which is what makes
+               opening one exercise close the previous one. The card never
+               expands itself, and nothing nested inside it can. */
+            onExpandedChange={(next: boolean) =>
+              next ? activateExercise(exerciseLog.id) : collapseExercise(exerciseLog.id)
+            }
+            /* Story 58/59 — the fast path for the normal case, where every
+               planned set shares the same values. It persists; it does not
+               merely populate the set inputs.
 
-                      Story 42 removed the `✓ Complete` badge that used to sit
-                      here. This header now only renders while the exercise is
-                      being *edited*, where progress through the sets is the
-                      useful readout; the completed state is a card of its own
-                      and says so through structure rather than a label
-                      competing with the exercise name. */}
-                  {exerciseLog.sets.length > 0 ? (
-                    <SupportingText>
-                      {loggedSetCount} of {exerciseLog.sets.length} sets complete
-                    </SupportingText>
-                  ) : null}
-                </div>
-              </ExerciseTitleRow>
-              <ExerciseHeaderActions>
-                {/* Story 58: `Add set` has moved into Detailed Sets. It
-                    customises the set list, so it belongs beside the sets
-                    rather than competing with the quick path for the header. */}
-                {renderExerciseMenu()}
-              </ExerciseHeaderActions>
-            </ExerciseHeader>
-            )}
-
-            {/* Story 58/59 — Quick Log: the fast path for the normal case,
-                where every planned set shares the same values. It persists;
-                it does not merely populate the set inputs.
-
-                `onFocus` stops here. The card activates an exercise when
-                focus lands inside it, which meant tabbing into a quick-entry
-                box expanded the whole accordion and destroyed the lightweight
-                path — the specific complaint the gym test raised. Detailed
-                Sets now open only through the explicit control. */}
-            {quickLogTargets.length > 0 && supportsQuickLog(exerciseLog.prescription) ? (
-            <QuickLogPanel
-              aria-label={`Quick log ${exerciseLog.exercise.name}`}
-              onFocus={(event) => event.stopPropagation()}
-            >
+               It no longer needs `onFocus={stopPropagation}`. That existed
+               because the card activated an exercise whenever focus landed
+               inside it, so tabbing into a quick-entry box opened the whole
+               editor. The disclosure primitive removes the cause, so the
+               workaround goes with it (story 42.2). */
+            quickLog={
+              quickLogTargets.length > 0 && supportsQuickLog(exerciseLog.prescription) ? (
+            <QuickLogPanel aria-label={`Quick log ${exerciseLog.exercise.name}`}>
               <QuickLogHeading>Quick log</QuickLogHeading>
               <QuickLogFields>
               {quickLogFields(exerciseLog.prescription).map((field) => {
@@ -1500,8 +1486,14 @@ export function WorkoutSessionPage() {
                 </Button>
               </QuickLogAction>
             </QuickLogPanel>
-            ) : null}
-
+              ) : null
+            }
+          >
+            {/* Still gated on `isExpanded`, deliberately. React Aria keeps a
+                collapsed panel mounted and hidden, which is right for a small
+                panel and wrong here: a workout with eight exercises would
+                mount forty set editors, each with its own draft state and
+                inputs, for content nobody has asked to see. */}
             {isExpanded ? (
               <>
             {/* Story 58 — Detailed Sets. `Add set` lives here now: it
@@ -1748,7 +1740,7 @@ export function WorkoutSessionPage() {
             )}
               </>
             ) : null}
-          </ExerciseCard>
+          </ExerciseWorkCard>
           );
         })}
       </ExerciseList>

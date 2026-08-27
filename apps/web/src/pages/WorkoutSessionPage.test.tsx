@@ -574,8 +574,7 @@ describe('WorkoutSessionPage session-only exercise removal', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Outdoor Cycle actions' })).toBeInTheDocument());
   });
 
-  it('disables the remove action once the session is completed', async () => {
-    const user = userEvent.setup();
+  it('offers no remove action once the session is completed', async () => {
     mockGet = (path: string) => {
       if (path.startsWith('/workout-sessions/')) return Promise.resolve(buildSession({ kind: 'distanceDuration', distanceMiles: 5, durationMinutes: 30 }, {}, 'completed'));
       if (path === '/exercises') return Promise.resolve([]);
@@ -583,8 +582,14 @@ describe('WorkoutSessionPage session-only exercise removal', () => {
     };
     renderPage();
 
-    await user.click(await screen.findByRole('button', { name: 'Outdoor Cycle actions' }));
-    expect(await screen.findByText('Remove from today’s workout')).toHaveAttribute('disabled');
+    /* This asserted a *disabled* menu item. Story 42A removed the overflow
+       control entirely once the workout is complete — a menu that opens onto
+       nothing is worse than no menu — so the assertion is now absence. It
+       survived that change because the fixture happened to route through the
+       completed-card branch, which had already dropped the menu for its own
+       reasons. */
+    await screen.findByText('Outdoor Cycle');
+    expect(screen.queryByRole('button', { name: 'Outdoor Cycle actions' })).not.toBeInTheDocument();
   });
 });
 
@@ -820,7 +825,7 @@ describe('WorkoutSessionPage quick log', () => {
     /* This exercise is fully logged, so collapsing it reveals story 42's
        completed card rather than a chevron — and the card itself is what
        reopens the editor. */
-    await user.click(screen.getByRole('button', { name: /Outdoor Cycle, completed/ }));
+    await user.click(screen.getByRole('button', { name: 'Expand Outdoor Cycle' }));
     expect(await screen.findByLabelText('Reps')).toBeInTheDocument();
   });
 });
@@ -1181,9 +1186,11 @@ describe('WorkoutSessionPage completed-workout review header', () => {
     expect(await screen.findAllByTestId('set-row')).toHaveLength(1);
   });
 
-  it('hands over to the editing header when the workout is still active', async () => {
-    /* The active-workout contract from story 42 is unchanged: reopening a
-       finished exercise returns the full editor rather than a summary. */
+  it('opens a neutral editable panel beneath the summary during an active workout', async () => {
+    /* The active-workout contract is unchanged in substance — a finished
+       exercise reopens for editing — but story 42.2 changed the shape: the
+       editor now appears *below* the summary in the same card rather than
+       replacing it. */
     const user = userEvent.setup();
     renderSession(
       { kind: 'sets_reps', sets: 1, repsMin: 8 },
@@ -1196,8 +1203,9 @@ describe('WorkoutSessionPage completed-workout review header', () => {
     await user.click(screen.getByRole('button', { name: /^Collapse/ }));
     await screen.findByTestId('completed-exercise-log-1');
 
-    await user.click(screen.getByRole('button', { name: /Outdoor Cycle, completed/ }));
-    expect(screen.queryByTestId('completed-exercise-log-1')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Expand Outdoor Cycle' }));
+    expect(screen.getByTestId('completed-exercise-log-1')).toBeInTheDocument();
+    expect(await screen.findAllByTestId('set-row')).toHaveLength(1);
   });
 });
 
@@ -1294,9 +1302,11 @@ describe('WorkoutSessionPage exercise completion experience', () => {
 
   it('announces completion to assistive tech rather than relying on colour', async () => {
     await renderCompletedAndCollapse([{ weightValue: 135, reps: 8 }]);
-    expect(
-      await screen.findByRole('button', { name: /Outdoor Cycle, completed, 1 set completed/ }),
-    ).toBeInTheDocument();
+    /* Story 42.2 — completion is announced by the card's own text, not by a
+       second pressable wrapping the whole card. The check mark is decorative
+       (`aria-hidden`), so this line is what carries the state to a screen
+       reader, and it is what stops colour being the only signal. */
+    expect(await screen.findByText('1 set completed')).toBeInTheDocument();
   });
 
   it('shows no comparison when there is no history to compare against', async () => {
@@ -1356,16 +1366,18 @@ describe('WorkoutSessionPage exercise completion experience', () => {
   it('reopens a completed exercise from the card itself', async () => {
     const user = await renderCompletedAndCollapse([{ weightValue: 135, reps: 8 }]);
 
-    /* The whole card is the reopen target: mid-workout, one-handed, a small
-       chevron is a poor one. */
     await screen.findByTestId('completed-exercise-log-1');
     expect(screen.queryAllByTestId('set-row')).toHaveLength(0);
 
-    await user.click(screen.getByRole('button', { name: /Outdoor Cycle, completed/ }));
+    await user.click(screen.getByRole('button', { name: 'Expand Outdoor Cycle' }));
 
     // Completion is never a one-way door.
     expect(await screen.findAllByTestId('set-row')).toHaveLength(1);
-    expect(screen.queryByTestId('completed-exercise-log-1')).not.toBeInTheDocument();
+    /* Story 42.2 — one card, not two presentations swapping places. The
+       achievement summary stays put above a neutral editable panel; it used to
+       be replaced wholesale by an editing header, which is what made the card
+       feel like it jumped between two different components. */
+    expect(screen.getByTestId('completed-exercise-log-1')).toBeInTheDocument();
   });
 });
 
@@ -1422,7 +1434,7 @@ describe('WorkoutSessionPage focus and overrides', () => {
     // control that reopens the editor.
     await screen.findByTestId('exercise-card-complete');
     await user.click(screen.getByRole('button', { name: /^Collapse/ }));
-    await user.click(screen.getByRole('button', { name: /Outdoor Cycle, completed/ }));
+    await user.click(screen.getByRole('button', { name: 'Expand Outdoor Cycle' }));
 
     const thirdSet = within((await screen.findAllByTestId('set-row'))[2]!);
     await user.clear(thirdSet.getByLabelText('Reps'));

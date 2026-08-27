@@ -140,8 +140,16 @@ export interface ExerciseWorkCardProps {
   status?: ReactNode;
   /** Overflow menu. Rendered beside the trigger; never toggles it. */
   actions?: ReactNode;
+  /**
+   * What was achieved, once there is something to show. Sits under the header
+   * and above the fast path, so a finished exercise reads as a record without
+   * the detail panel having to be open.
+   */
+  summary?: ReactNode;
   /** The fast path. Stays usable while details are collapsed. */
   quickLog?: ReactNode;
+  /** For scrolling a newly-active card into view. */
+  containerRef?: (node: HTMLDivElement | null) => void;
   /** The escape hatch: per-set editing. */
   children?: ReactNode;
   expanded: boolean;
@@ -157,7 +165,9 @@ export function ExerciseWorkCard({
   progressLabel,
   status,
   actions,
+  summary,
   quickLog,
+  containerRef,
   children,
   expanded,
   onExpandedChange,
@@ -166,7 +176,7 @@ export function ExerciseWorkCard({
 }: ExerciseWorkCardProps) {
   return (
     <Disclosure id={id} isExpanded={expanded} onExpandedChange={onExpandedChange}>
-      <Card $tone={tone} data-testid={testId}>
+      <Card $tone={tone} data-testid={testId} ref={containerRef}>
         <HeaderRow>
           {status}
           <TitleBlock>
@@ -177,14 +187,17 @@ export function ExerciseWorkCard({
           <Actions>
             {actions}
             {/* React Aria wires aria-expanded/aria-controls and the keyboard
-                behaviour; the accessible name is ours because "Barbell Bench
-                Press details" is what a screen-reader user needs, not
-                "expand". */}
-            <Trigger slot="trigger" aria-label={`${expanded ? 'Hide' : 'Show'} ${name} details`}>
+                behaviour; the accessible name is ours, and deliberately keeps
+                the wording the product already uses everywhere else. A new
+                primitive is not a reason to rename a control the user has
+                already learned. */}
+            <Trigger slot="trigger" aria-label={`${expanded ? 'Collapse' : 'Expand'} ${name}`}>
               <ChevronDown size={18} aria-hidden="true" />
             </Trigger>
           </Actions>
         </HeaderRow>
+
+        {summary}
 
         {/* Outside the panel on purpose: the fast path must work without
             opening anything, which is the whole point of the card. */}

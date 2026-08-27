@@ -37,7 +37,7 @@ function renderCard(overrides: Partial<Parameters<typeof ExerciseWorkCard>[0]> =
   return render(<Harness />);
 }
 
-const trigger = () => screen.getByRole('button', { name: /details$/ });
+const trigger = () => screen.getByRole('button', { name: /^(Expand|Collapse) Barbell Bench Press$/ });
 
 describe('ExerciseWorkCard disclosure', () => {
   it('always offers a dedicated control, collapsed or expanded', async () => {

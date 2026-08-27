@@ -244,6 +244,50 @@ export interface CompletedExerciseCardProps {
   testId?: string;
 }
 
+/**
+ * The achievement half of a completed exercise, without the card around it.
+ *
+ * Story 42.2 moved the header — name, status, disclosure — into
+ * `ExerciseWorkCard`, so what remains here is the part that says *what
+ * happened*: the metric tiles and the honest comparison. Extracted rather
+ * than duplicated, so the two renderings cannot drift.
+ */
+export function CompletedExerciseSummary({
+  readout,
+  testId,
+}: {
+  readout: CompletedExerciseReadout;
+  testId?: string;
+}) {
+  const { metrics, comparison } = readout;
+  const ComparisonIcon =
+    comparison?.direction === 'up' ? ArrowUp : comparison?.direction === 'down' ? ArrowDown : Minus;
+
+  if (!metrics.length && !comparison) return null;
+
+  return (
+    <div data-testid={testId}>
+      {metrics.length ? (
+        <MetricRow data-testid={testId ? `${testId}-metrics` : undefined}>
+          {metrics.map((metric) => (
+            <MetricTile key={metric.key}>
+              <MetricLabel>{metric.label}</MetricLabel>
+              <MetricValue>{metric.value}</MetricValue>
+            </MetricTile>
+          ))}
+        </MetricRow>
+      ) : null}
+      {comparison ? (
+        <Comparison $direction={comparison.direction}>
+          <ComparisonIcon size={14} aria-hidden="true" />
+          <span aria-hidden="true">{comparison.label}</span>
+          <VisuallyHidden>{comparison.accessibleLabel}</VisuallyHidden>
+        </Comparison>
+      ) : null}
+    </div>
+  );
+}
+
 export function CompletedExerciseCard({
   name,
   readout,
