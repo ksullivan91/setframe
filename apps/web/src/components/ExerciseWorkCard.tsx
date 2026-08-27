@@ -77,6 +77,28 @@ const Meta = styled.p`
   color: ${(p) => p.theme.text.secondary};
 `;
 
+/**
+ * The planned target, as one pill in the header.
+ *
+ * Story 42C asked for planned values to read as accent purple on white,
+ * state-independent — it means *planned target*, not *done*, so it never turns
+ * green on completion. Story 42.6 then removed the per-set copies, which were
+ * the same pill repeated three times for a plan that belongs to the exercise.
+ *
+ * Both hold at once by keeping exactly one, here: 42C's visual language
+ * survives, and it is said once rather than once per set.
+ */
+const PlanPill = styled.span`
+  align-self: flex-start;
+  padding: 2px ${spacing[8]}px;
+  border-radius: ${radius.full}px;
+  background: ${(p) => p.theme.action.primary};
+  color: ${(p) => p.theme.action.primaryText};
+  font-size: ${typeScale.caption.fontSize}px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+`;
+
 const Actions = styled.div`
   display: flex;
   align-items: center;
@@ -181,7 +203,7 @@ export function ExerciseWorkCard({
           {status}
           <TitleBlock>
             <Name>{name}</Name>
-            {planLabel ? <Meta>{planLabel}</Meta> : null}
+            {planLabel ? <PlanPill>{planLabel}</PlanPill> : null}
             {progressLabel ? <Meta>{progressLabel}</Meta> : null}
           </TitleBlock>
           <Actions>

@@ -1008,7 +1008,12 @@ export default function WorkoutSessionScreen() {
             </View>
           </View>
 
-          <Text style={[styles.prescription, { color: theme.text.secondary }]}>{summarizePrescription(exerciseLog.prescription)}</Text>
+          {/* Story 42C's purple planned pill, said once. */}
+          <View style={[styles.plannedPill, { backgroundColor: theme.action.primary }]}>
+            <Text style={[styles.plannedPillLabel, { color: theme.action.primaryText }]}>
+              {summarizePrescription(exerciseLog.prescription)}
+            </Text>
+          </View>
 
           {/* Story 38: completion is derived from every set's own
               required-field completeness (isExerciseComplete), never a UI flag
@@ -1156,23 +1161,22 @@ export default function WorkoutSessionScreen() {
             // save. Guessing on the client used a different, narrower baseline
             // and produced badges that contradicted the persisted state.
             const isPr = set.isPrWeight || set.isPrReps;
-            const planned = summarizePrescription(exerciseLog.prescription).replace(/^Planned:\s*/, '');
 
             return (
-              <View key={set.id} style={styles.setBlock}>
+              <View
+                key={set.id}
+                style={[
+                  styles.setBlock,
+                  index > 0 ? [styles.setBlockDivider, { borderTopColor: theme.border.subtle }] : null,
+                ]}
+              >
+                {/* Story 42.6 — the planned pill used to repeat here on every
+                    set. The plan belongs to the exercise, not to each set, and
+                    the card header carries it once (story 42C's purple pill
+                    lives there now). Three identical pills were the loudest
+                    thing in the expanded list while saying nothing new. */}
                 <View style={styles.setBlockHeader}>
                   <Text style={[styles.setMeta, { color: theme.text.secondary }]}>Set {index + 1}</Text>
-                  {/* Story 42C — the planned target as a pill, matching web:
-                      accent purple, white text, the same in every state. It
-                      never turns green on completion; it means *planned
-                      target*, not *done*, and a plan that changes colour
-                      would read as a second status signal competing with the
-                      real one. */}
-                  <View style={[styles.plannedPill, { backgroundColor: theme.action.primary }]}>
-                    <Text style={[styles.plannedPillLabel, { color: theme.action.primaryText }]}>
-                      Planned: {planned}
-                    </Text>
-                  </View>
                 </View>
                 <SetRowEditable
                   setLabel={`Set ${index + 1}`}
@@ -1498,6 +1502,12 @@ const styles = StyleSheet.create({
   },
   setBlock: {
     gap: spacing[8],
+    paddingVertical: spacing[12],
+  },
+  /* A separator rather than a box per set: sets are a list of the same thing,
+     and boxing each implies a hierarchy that is not there (story 42.6). */
+  setBlockDivider: {
+    borderTopWidth: 1,
   },
   setBlockHeader: {
     flexDirection: 'row',
