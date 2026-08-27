@@ -1205,6 +1205,50 @@ describe('WorkoutSessionPage quick log persistence', () => {
     expect(screen.getByLabelText(/^Quick log: Weight/)).toHaveValue('185');
   });
 
+  it('reopens the exercise when an optimistic completion is rolled back', async () => {
+    const user = userEvent.setup();
+    mockPost.mockReset();
+    /* Rejected *asynchronously*, so React commits the optimistic state and
+       the auto-collapse effect runs before the failure arrives. A synchronous
+       rejection resolves inside the same tick, the collapse never happens,
+       and the test passes whether or not the reopen exists — which is exactly
+       what a first version of this test did. */
+    mockPost.mockImplementation(
+      () => new Promise((_resolve, reject) => setTimeout(() => reject(new Error('offline')), 20)),
+    );
+    renderTwoUnloggedSets();
+
+    await user.type(await screen.findByLabelText(/^Quick log: Weight/), '185');
+    await user.type(screen.getByLabelText(/^Quick log: Reps/), '8');
+    await user.click(screen.getByRole('button', { name: 'Log all 2 sets' }));
+
+    /* Story 42.5 — the optimistic completion auto-collapsed the card. Rolling
+       back leaves it incomplete again, and a collapsed card would hide both
+       the failure and the values needed to retry. Completion state and
+       disclosure state have to fail together. */
+    await waitFor(() => expect(screen.getByText('0 of 2 sets complete')).toBeInTheDocument());
+    expect(await screen.findAllByTestId('set-row')).toHaveLength(2);
+  });
+
+  it('returns an exercise to incomplete when required data is cleared', async () => {
+    const user = userEvent.setup();
+    /* Completion is derived, not stored, so removing a required value must
+       un-complete the exercise with no extra bookkeeping. */
+    renderSession(
+      { kind: 'sets_reps', sets: 1, repsMin: 8 },
+      { weightValue: 135, weightUnit: 'lb', reps: 8 },
+      [],
+      'in_progress',
+    );
+
+    await screen.findByText('1 set completed');
+    await user.clear(await screen.findByLabelText(/^Weight/));
+
+    /* The draft alone does not un-complete it — completion reads what the
+       server holds — but the Save that would persist the clearing is offered. */
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+  });
+
 });
 
 /**

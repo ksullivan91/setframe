@@ -879,6 +879,12 @@ export function WorkoutSessionPage() {
       if (context?.previous) {
         queryClient.setQueryData(['workout-session', sessionId], context.previous);
       }
+/* Story 42.5 — reopen it. The optimistic completion auto-collapsed the
+         exercise; rolling back leaves it incomplete again, and a collapsed
+         card would hide both the failure and the values the user still needs
+         to retry. Completion state and disclosure state have to fail
+         together. */
+      activateExercise(_variables.exerciseLogId);
       toast.show({ variant: 'error', message: 'Could not log those sets. Your values are still here — try again.' });
     },
     onSettled: (_data, _error, variables) => {
