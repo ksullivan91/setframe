@@ -33,6 +33,29 @@ through hides everything behind it, which is exactly what a review must not do.
 `.gitkeep`. Re-run the review rather than reading a stale report; a screenshot
 of a version nobody is running is worse than none.
 
+## Personas have different products (phase 2)
+
+Each journey signs in as one persona and selects that persona's seeded state
+via `?ux-persona=`, read once at boot by `apps/web/src/mocks/persona-state.ts`.
+
+| Persona   | Program | History  | Today          |
+|-----------|---------|----------|----------------|
+| `novice`  | none    | none     | guided setup   |
+| `lifter`  | active  | 3 weeks  | ready to start |
+| `analyst` | active  | 12 weeks | already trained|
+
+Phase 1 gave every persona its own account and then served all three the same
+fixture, which made the personas cosmetic — a "novice" arrived to a configured
+program, so the one journey that matters for them could not be reviewed at all.
+
+## Playwright agents (phase 3)
+
+`npx playwright init-agents --loop=claude` has been run, adding planner,
+generator and healer agent definitions under `apps/web/.claude/agents/` plus an
+`.mcp.json`. They cover *functional* coverage — exploring the app, generating
+specs, repairing broken ones. The UX reviewer sits on top of them and is a
+separate thing: it judges experience, which no generator can do for you.
+
 ## Known limits
 
 - **Mock data, not production data.** Anything odd about the *values* is

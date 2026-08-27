@@ -23,6 +23,11 @@ if (!rootElement) throw new Error('Root element not found');
  */
 async function prepare() {
   if (env.useMocks) {
+    /* Read `?ux-persona=` now, while it is still on the URL. The app navigates
+       client-side immediately after sign-in, so a param read lazily by the
+       first API handler arrives too late (see mocks/persona-state.ts). */
+    const { capturePersonaFromUrl } = await import('./mocks/persona-state');
+    capturePersonaFromUrl();
     const { worker } = await import('./mocks/browser');
     await worker.start({ onUnhandledRequest: 'bypass' });
   }

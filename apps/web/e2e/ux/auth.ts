@@ -101,7 +101,12 @@ export async function signInAs(page: Page, persona: PersonaKey, landOn = '/today
   const account = personaAccounts[persona];
 
   await setupClerkTestingToken({ page });
-  await page.goto('/sign-in');
+  /* Phase 2 — select the persona's seeded state before the app boots. The
+     param is read once and kept for the tab (see mocks/persona-state.ts),
+     because the app navigates client-side and a query string does not survive
+     a route change. Without this the three accounts all met the same fixture,
+     which made the personas cosmetic. */
+  await page.goto(`/sign-in?ux-persona=${persona}`);
   await page.waitForFunction(() => Boolean((window as never as { Clerk?: { loaded?: boolean } }).Clerk?.loaded), null, {
     timeout: 30_000,
   });

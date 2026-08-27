@@ -101,6 +101,20 @@ an *already complete* session is right; on an active one it is a P1. Check
 which state you are in before you judge the control. This has already happened
 once and produced a confident, wrong P1.
 
+**Suspect your own selector before the product.** A "missing" control is the
+easiest false positive to produce and the most embarrassing to file. Building
+this system produced three, and only one was a product problem:
+
+- judging a *completed* session for lacking "Finish workout", where its
+  absence is correct;
+- a persona whose seeded state silently failed to apply, so a novice was
+  reviewed against a fully configured program;
+- a regex that matched `create|get started` and therefore missed
+  **"Start guided setup"** — the largest thing on the screen.
+
+Before reporting anything absent, look at the screenshot you just captured and
+confirm it is absent *there*.
+
 **Separate seeded-data artefacts from product defects.** Reviews run against
 `dev:mock`, so anything odd about the *data* is usually the fixture, not the
 product. Say which you believe it is.

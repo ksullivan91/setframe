@@ -17,6 +17,8 @@
  */
 import { http, HttpResponse } from 'msw';
 
+import { completedSessionsToday, currentPersona, hasProgram } from './persona-state';
+
 const now = () => new Date().toISOString();
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -158,10 +160,25 @@ let mockExerciseLogCounter = 0;
 export const handlers = [
   http.get('*/v1/health', () => HttpResponse.json({ status: 'ok' })),
 
+  /* Persona-aware (UX review, phase 2). A novice has no program at all —
+     without that, "create your first program" cannot be reviewed, because the
+     account already has one. The analyst has already trained today, so the
+     completed-review surface is what they land on. */
   http.get('*/v1/dashboard/today', () =>
     HttpResponse.json({
       localDate: today(),
-      sessions: [],
+      sessions: completedSessionsToday()
+        ? [
+            {
+              id: 'session-analyst-1',
+              status: 'completed',
+              templateId: '30000000-0000-0000-0000-000000000003',
+              startedAt: now(),
+              completedAt: now(),
+              updatedAt: now(),
+            },
+          ]
+        : [],
       manualEntry: null,
       activitySummary: {
         steps: 8412,
@@ -171,11 +188,11 @@ export const handlers = [
       },
       nutritionSnapshot: { caloriesKcal: '2180' },
       syncState: { status: 'ok', lastSuccessfulSyncAt: now(), lastAttemptAt: now(), latestCompleteLocalDate: today() },
-      weekLabel: 'Week 2',
-      dayLabel: 'Day 3',
-      dayTypeId: '30000000-0000-0000-0000-000000000003',
-      estimatedDurationMinutes: 50,
-      scheduleSource: 'program',
+      weekLabel: hasProgram() ? 'Week 2' : null,
+      dayLabel: hasProgram() ? 'Day 3' : null,
+      dayTypeId: hasProgram() ? '30000000-0000-0000-0000-000000000003' : null,
+      estimatedDurationMinutes: hasProgram() ? 50 : null,
+      scheduleSource: hasProgram() ? 'program' : 'none',
       override: null,
     }),
   ),
@@ -470,7 +487,7 @@ export const handlers = [
     });
   }),
 
-  http.get('*/v1/programs', () => HttpResponse.json(mockPrograms)),
+  http.get('*/v1/programs', () => HttpResponse.json(hasProgram() ? mockPrograms : [])),
   http.post('*/v1/programs', async ({ request }) => {
     const body = (await request.json()) as { name: string };
     return HttpResponse.json(
@@ -570,9 +587,14 @@ export const handlers = [
       templateId: '30000000-0000-0000-0000-000000000003',
       localDate: today(),
       timezone: 'America/Chicago',
-      status: 'completed',
+      /* Only the analyst arrives at a finished session. Returning `completed`
+         for everyone meant "Start workout" landed straight on the review
+         surface, so the core logging loop could not be exercised at all —
+         and the first UX review run duly reported a missing "Finish workout"
+         that was correctly absent. */
+      status: completedSessionsToday() ? 'completed' : 'in_progress',
       startedAt: now(),
-      completedAt: now(),
+      completedAt: completedSessionsToday() ? now() : null,
       notes: null,
       createdAt: now(),
       updatedAt: now(),
@@ -591,9 +613,9 @@ export const handlers = [
           prescription: { kind: 'sets_reps', sets: 3, repsMin: 8, repsMax: null },
           previousSession: null,
           sets: [
-            { id: 'set-1', exerciseLogId: 'exercise-log-1', clientId: crypto.randomUUID(), sortOrder: 0, setType: 'working', weightValue: 185, weightUnit: 'lb', reps: 8, durationSeconds: null, distanceValue: null, distanceUnit: null, rpe: null, isPrWeight: false, isPrReps: false, createdAt: now(), updatedAt: now() },
-            { id: 'set-2', exerciseLogId: 'exercise-log-1', clientId: crypto.randomUUID(), sortOrder: 1, setType: 'working', weightValue: 185, weightUnit: 'lb', reps: 8, durationSeconds: null, distanceValue: null, distanceUnit: null, rpe: null, isPrWeight: false, isPrReps: false, createdAt: now(), updatedAt: now() },
-            { id: 'set-3', exerciseLogId: 'exercise-log-1', clientId: crypto.randomUUID(), sortOrder: 2, setType: 'working', weightValue: 185, weightUnit: 'lb', reps: 8, durationSeconds: null, distanceValue: null, distanceUnit: null, rpe: null, isPrWeight: false, isPrReps: false, createdAt: now(), updatedAt: now() },
+            { id: 'set-1', exerciseLogId: 'exercise-log-1', clientId: crypto.randomUUID(), sortOrder: 0, setType: 'working', weightValue: completedSessionsToday() ? 185 : null, weightUnit: 'lb', reps: completedSessionsToday() ? 8 : null, durationSeconds: null, distanceValue: null, distanceUnit: null, rpe: null, isPrWeight: false, isPrReps: false, createdAt: now(), updatedAt: now() },
+            { id: 'set-2', exerciseLogId: 'exercise-log-1', clientId: crypto.randomUUID(), sortOrder: 1, setType: 'working', weightValue: completedSessionsToday() ? 185 : null, weightUnit: 'lb', reps: completedSessionsToday() ? 8 : null, durationSeconds: null, distanceValue: null, distanceUnit: null, rpe: null, isPrWeight: false, isPrReps: false, createdAt: now(), updatedAt: now() },
+            { id: 'set-3', exerciseLogId: 'exercise-log-1', clientId: crypto.randomUUID(), sortOrder: 2, setType: 'working', weightValue: completedSessionsToday() ? 185 : null, weightUnit: 'lb', reps: completedSessionsToday() ? 8 : null, durationSeconds: null, distanceValue: null, distanceUnit: null, rpe: null, isPrWeight: false, isPrReps: false, createdAt: now(), updatedAt: now() },
           ],
         },
       ],

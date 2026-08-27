@@ -104,6 +104,7 @@ test.describe('UX review — active workout session', () => {
        already complete — where its absence is correct. A reviewer that cannot
        tell a legitimate state from a defect trains people to ignore it, so
        the state is checked before the control is judged. */
+    const finish = page.getByRole('button', { name: /finish workout/i }).first();
     const alreadyComplete = await page.getByRole('heading', { name: /workout complete/i }).count();
     if (alreadyComplete) {
       review.note(
