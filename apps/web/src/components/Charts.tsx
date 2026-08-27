@@ -38,8 +38,24 @@ const Figure = styled.figure`
   gap: ${spacing[8]}px;
 `;
 
+/**
+ * The measured box every chart sizes itself from.
+ *
+ * `min-width: 0` is load-bearing, not tidiness. A grid or flex item defaults
+ * to `min-width: auto`, meaning it refuses to shrink below its content — and
+ * this element's content is an `<svg>` whose width comes from measuring this
+ * element. That closes a loop: a wide SVG widens the track, the wider track
+ * widens the frame, the ResizeObserver reads the new width and widens the SVG
+ * again. The autonomous UX reviewer caught it running away to ~45,000px on
+ * Progress at a 390px viewport.
+ *
+ * Deliberately *not* `overflow: hidden`, which would also stop the runaway and
+ * would clip the tooltips these charts position against this box.
+ */
 const Frame = styled.div`
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   position: relative;
 `;
 
@@ -927,14 +943,27 @@ export function StackedChart({
   );
 }
 
+/**
+ * The measured box for the small-multiples panels.
+ *
+ * This element is what the ResizeObserver observes, so its track must be
+ * capped: a grid's default auto track is floored at its content's min-content
+ * width, which let each panel's SVG widen the track, which widened the
+ * measurement, which widened the SVG. On Progress that ran away to a 9,000px
+ * button inside a 390px viewport. See Frame for the same trap.
+ */
 const PanelGrid = styled.div`
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: ${spacing[4]}px;
 `;
 
 const PanelRow = styled.div<{ $selected: boolean }>`
   display: grid;
-  grid-template-columns: 1fr;
+  /* minmax(0, …) so a panel's own chart cannot push the row wider than the
+     grid that contains it. */
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   gap: 2px;
   padding: ${spacing[8]}px;
   border-radius: 10px;

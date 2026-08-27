@@ -472,6 +472,10 @@ function AdherenceSection({
 
 const Page = styled.div`
   display: grid;
+  /* minmax(0, 1fr), not a bare 1fr: a 1fr track is floored at its content's
+     min-content width, so one over-wide chart drags the whole page wider
+     instead of being constrained by it. */
+  grid-template-columns: minmax(0, 1fr);
   gap: ${spacing[24]}px;
 `;
 
@@ -555,6 +559,7 @@ const TwoColumn = styled.div`
 
 const Stack = styled.div<{ $gap?: number }>`
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: ${(p) => p.$gap ?? spacing[12]}px;
 `;
 
