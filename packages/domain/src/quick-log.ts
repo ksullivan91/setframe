@@ -163,3 +163,62 @@ export function describeQuickLogAction(targetCount: number, totalCount: number):
   }
   return targetCount === 1 ? 'Log remaining set' : `Log remaining ${targetCount} sets`;
 }
+
+/**
+ * The values a quick-log draft starts from, taken from the plan.
+ *
+ * Story 42.3, and the other half of 42.1. Session sets no longer carry planned
+ * values — copying intent onto them is what let a plan count as performance —
+ * so the draft has to seed from the prescription instead. That is the
+ * distinction the architecture insists on:
+ *
+ *     planned  →  may seed a draft  →  never proof of performed work
+ *
+ * Seeding is a convenience, not a claim. Nothing here is persisted, and
+ * `isSessionSetLogged` still reads only what the server holds, so a seeded
+ * field cannot make an exercise look complete.
+ *
+ * Weight is deliberately absent. The model has no planned weight — a
+ * prescription says "3 × 8", not "3 × 8 at 135 lb" — and inventing one would
+ * put a number in front of the user that nothing in their plan justifies.
+ * It is also the single field most likely to differ from last time, which is
+ * the whole reason the user is here.
+ */
+export function plannedQuickLogSeed(
+  prescription: Prescription | PrescriptionKind | null | undefined,
+): QuickLogValues {
+  const seed: QuickLogValues = {};
+  if (prescription == null || typeof prescription === 'string') return seed;
+
+  switch (prescription.kind) {
+    case 'sets_reps':
+    case 'per_side':
+    case 'bodyweight_reps':
+      if (prescription.repsMin != null) seed.reps = prescription.repsMin;
+      return seed;
+    case 'top_set_backoff':
+      // No single seed is honest here: top and backoff sets plan different
+      // reps, so one value would be wrong for at least one group. This is the
+      // same reason `supportsQuickLog` excludes the kind outright.
+      return seed;
+    case 'timed':
+      if (prescription.durationSeconds != null) seed.durationSeconds = prescription.durationSeconds;
+      return seed;
+    case 'distance':
+      if (prescription.distanceValue != null) {
+        seed.distanceValue = prescription.distanceValue;
+        seed.distanceUnit = prescription.distanceUnit ?? null;
+      }
+      return seed;
+    case 'duration':
+      if (prescription.durationMinutes != null) seed.durationSeconds = prescription.durationMinutes * 60;
+      return seed;
+    case 'distanceDuration':
+      if (prescription.distanceMiles != null) {
+        seed.distanceValue = prescription.distanceMiles;
+        seed.distanceUnit = 'mi';
+      }
+      if (prescription.durationMinutes != null) seed.durationSeconds = prescription.durationMinutes * 60;
+      return seed;
+  }
+}

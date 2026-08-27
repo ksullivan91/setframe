@@ -10,6 +10,7 @@ import {
   estimateOneRepMax,
   isExerciseComplete,
   isQuickLogComplete,
+  plannedQuickLogSeed,
   quickLogFields,
   isCurrentAttempt,
   isSaving,
@@ -129,17 +130,36 @@ function buildDraft(set: WorkoutSet, definition: PrescriptionDefinition, prescri
 }
 
 /**
- * Story 37: the quick-entry header's starting point. The first set already
- * carries the template's prefill (session-start expands the prescription
- * onto every set — weight left blank, everything else pre-populated), so
- * reusing it here means the header never has to re-derive prescription
- * defaults on its own. An exercise with no sets yet just starts blank.
+ * The quick-entry header's starting point.
+ *
+ * Story 37 read this from the first set, which worked only because session
+ * start wrote the plan onto every set row — the conflation story 42.1
+ * removed. With rows now empty, the plan is read from the prescription.
+ *
+ * Seeding is a convenience, never a claim: nothing here is persisted, and
+ * completion is still derived from what the server holds. An already-logged
+ * set still wins, so reopening shows what was done rather than what was
+ * planned.
  */
 function getHeaderDraft(exerciseLog: WorkoutSessionDetail['exercises'][number], definition: PrescriptionDefinition): SetDraft {
   const firstSet = exerciseLog.sets[0];
-  return firstSet
-    ? buildDraft(firstSet, definition, exerciseLog.prescription)
-    : { values: { setType: 'working' }, distanceUnit: definition.units.distance, completed: false };
+  if (firstSet && isSessionSetLogged(exerciseLog.prescription, firstSet)) {
+    return buildDraft(firstSet, definition, exerciseLog.prescription);
+  }
+
+  const seed = plannedQuickLogSeed(exerciseLog.prescription);
+  return {
+    values: {
+      setType: 'working',
+      weight: '',
+      reps: seed.reps != null ? String(seed.reps) : '',
+      duration: seed.durationSeconds != null ? secondsToDisplay(seed.durationSeconds, definition) : '',
+      distance: seed.distanceValue != null ? String(seed.distanceValue) : '',
+      rpe: '',
+    },
+    distanceUnit: seed.distanceUnit ?? definition.units.distance,
+    completed: false,
+  };
 }
 
 function draftToValues(draft: SetDraft, definition: PrescriptionDefinition) {

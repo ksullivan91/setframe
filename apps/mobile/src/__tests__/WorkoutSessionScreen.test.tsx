@@ -492,12 +492,57 @@ describe('WorkoutSessionScreen quick log', () => {
   });
 
   it('will not log until every required value is present', async () => {
-    mockSessionPayload = baseSession({ sets: [unlogged()] });
+    /* A weighted exercise, deliberately. The base fixture is a
+       distance+duration ride, and story 42.3 seeds the draft from the plan —
+       which for that representation supplies *both* required fields, so the
+       action is legitimately ready straight away. Weight is the one required
+       field a plan never supplies ("3 × 8", not "3 × 8 at 135 lb"), so this is
+       the case that still has something missing. */
+    const session = baseSession({ sets: [unlogged()] });
+    mockSessionPayload = {
+      ...session,
+      exercises: [
+        {
+          ...session.exercises[0]!,
+          prescription: { kind: 'sets_reps', sets: 1, repsMin: 8, repsMax: null },
+        },
+      ],
+    } as unknown as WorkoutSessionDetail;
     const rendered = await renderScreen();
 
     // Writing sets that still would not count as logged looks like a
     // silent failure.
     expect(pressablesByLabel(rendered, 'Log 1 set')[0]!.props.accessibilityState?.disabled).toBe(true);
+  });
+
+  it('seeds the plan into the draft without that counting as logged', async () => {
+    /* Story 42.3 — planned values may seed a draft. Story 42.1 — a seeded
+       draft is not performed work. Both at once: reps arrive prefilled from
+       the plan, and the exercise is still reported as nothing logged. */
+    const session = baseSession({ sets: [unlogged()] });
+    mockSessionPayload = {
+      ...session,
+      exercises: [
+        {
+          ...session.exercises[0]!,
+          prescription: { kind: 'bodyweight_reps', sets: 2, repsMin: 12, repsMax: null },
+          sets: [unlogged(), { ...unlogged(), id: 'set-2', sortOrder: 1 }],
+        },
+      ],
+    } as unknown as WorkoutSessionDetail;
+    const rendered = await renderScreen();
+
+    const texts = rendered.root
+      .findAll((node) => typeof node.type === 'string')
+      .flatMap((node) => ([] as unknown[]).concat(node.props?.children))
+      .filter((child): child is string => typeof child === 'string');
+    expect(texts).toContain('0 of 2 sets complete');
+
+    const repsField = rendered.root.findAll(
+      (node) => typeof node.props?.accessibilityLabel === 'string' &&
+        /^Quick log: Reps/.test(node.props.accessibilityLabel),
+    )[0];
+    expect(repsField?.props.value).toBe('12');
   });
 
   it('disappears once there is nothing left to log', async () => {

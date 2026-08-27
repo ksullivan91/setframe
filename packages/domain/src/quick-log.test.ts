@@ -4,10 +4,12 @@ import {
   describeQuickLogAction,
   isQuickLogComplete,
   quickLogFields,
+  plannedQuickLogSeed,
   quickLogTargets,
   supportsQuickLog,
   type QuickLogSet,
 } from './quick-log';
+import { isSessionSetLogged } from './prescription-fields';
 
 const setsReps: Prescription = { kind: 'sets_reps', sets: 3, repsMin: 8 };
 const bodyweight: Prescription = { kind: 'bodyweight_reps', sets: 3, repsMin: 10 };
@@ -139,5 +141,61 @@ describe('describeQuickLogAction', () => {
     for (const [target, total] of [[3, 3], [2, 3], [1, 1], [0, 3]] as const) {
       expect(describeQuickLogAction(target, total).toLowerCase()).not.toContain('apply');
     }
+  });
+});
+
+describe('plannedQuickLogSeed', () => {
+  it('seeds reps from the plan for a strength exercise', () => {
+    expect(plannedQuickLogSeed({ kind: 'sets_reps', sets: 3, repsMin: 8 })).toEqual({ reps: 8 });
+  });
+
+  it('never seeds a weight, because the plan does not have one', () => {
+    /* A prescription says "3 × 8", not "3 × 8 at 135 lb". Inventing a weight
+       would put a number in front of the user that nothing justifies — and it
+       is the field most likely to differ from last time, which is the whole
+       reason they are here. */
+    expect(plannedQuickLogSeed({ kind: 'sets_reps', sets: 3, repsMin: 8 })).not.toHaveProperty('weightValue');
+  });
+
+  it('refuses to seed top_set_backoff, where no single value is honest', () => {
+    /* Top and backoff sets plan different reps, so one seed is wrong for at
+       least one group — the same reason quick log excludes the kind. */
+    expect(
+      plannedQuickLogSeed({ kind: 'top_set_backoff', topSets: 1, topRepsMin: 3, backoffSets: 2, backoffRepsMin: 8 }),
+    ).toEqual({});
+  });
+
+  it('converts planned minutes to the seconds the field stores', () => {
+    expect(plannedQuickLogSeed({ kind: 'duration', durationMinutes: 20 })).toEqual({ durationSeconds: 1200 });
+    expect(plannedQuickLogSeed({ kind: 'timed', sets: 3, durationSeconds: 45 })).toEqual({ durationSeconds: 45 });
+  });
+
+  it('seeds distance with the unit the plan was written in', () => {
+    expect(plannedQuickLogSeed({ kind: 'distance', sets: 1, distanceValue: 5, distanceUnit: 'km' })).toEqual({
+      distanceValue: 5,
+      distanceUnit: 'km',
+    });
+    expect(plannedQuickLogSeed({ kind: 'distanceDuration', distanceMiles: 3, durationMinutes: 30 })).toEqual({
+      distanceValue: 3,
+      distanceUnit: 'mi',
+      durationSeconds: 1800,
+    });
+  });
+
+  it('seeds nothing from an open prescription', () => {
+    expect(plannedQuickLogSeed({ kind: 'sets_reps' })).toEqual({});
+    expect(plannedQuickLogSeed(null)).toEqual({});
+  });
+
+  /**
+   * The invariant 42.1 exists to protect, restated where the seed is built:
+   * seeding is a convenience, never a claim about what was performed.
+   */
+  it('produces a seed that does not make a set count as logged', () => {
+    const prescription = { kind: 'bodyweight_reps', sets: 3, repsMin: 10 } as const;
+    const seed = plannedQuickLogSeed(prescription);
+    expect(seed.reps).toBe(10);
+    // A seeded value lives in the draft. What the server holds is still empty.
+    expect(isSessionSetLogged(prescription, { setType: 'working' })).toBe(false);
   });
 });

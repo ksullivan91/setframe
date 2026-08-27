@@ -22,6 +22,7 @@ import {
   hasSyncError,
   isCurrentAttempt,
   isSaving,
+  plannedQuickLogSeed,
   quickLogTargets as quickLogTargetsFor,
   settleSync,
   buildCompletedExerciseReadout,
@@ -614,11 +615,35 @@ function getDraft(set: WorkoutSet, definition: PrescriptionDefinition): DraftVal
  * defaults on its own and can't drift from what "Add set" already does.
  * An exercise with no sets yet just starts blank.
  */
+/**
+ * The quick-log draft's starting values.
+ *
+ * Story 42.3. This used to copy the first *set row*, which worked only
+ * because session start wrote planned values onto those rows — the very
+ * conflation 42.1 removed. With rows now empty, copying one seeds nothing, so
+ * the plan is read from the prescription instead.
+ *
+ * Seeding is a convenience, never a claim: nothing here is persisted, and
+ * completion is still derived from what the server holds. An already-logged
+ * set still wins, so reopening an exercise shows what was actually done
+ * rather than what was planned.
+ */
 function getHeaderDraft(exerciseLog: WorkoutSessionExerciseDetail, definition: PrescriptionDefinition): DraftValues {
   const firstSet = exerciseLog.sets[0];
-  return firstSet
-    ? getDraft(firstSet, definition)
-    : { setType: 'working', weightValue: '', reps: '', durationSeconds: '', distanceValue: '', distanceUnit: definition.units.distance, rpe: '' };
+  const fromSet = firstSet ? getDraft(firstSet, definition) : null;
+  if (fromSet && isSessionSetLogged(exerciseLog.prescription, firstSet!)) return fromSet;
+
+  const seed = plannedQuickLogSeed(exerciseLog.prescription);
+  return {
+    setType: 'working',
+    weightValue: '',
+    reps: seed.reps != null ? String(seed.reps) : '',
+    durationSeconds:
+      seed.durationSeconds != null ? secondsToDisplay(seed.durationSeconds, definition) : '',
+    distanceValue: seed.distanceValue != null ? String(seed.distanceValue) : '',
+    distanceUnit: seed.distanceUnit ?? definition.units.distance,
+    rpe: '',
+  };
 }
 
 /** Copies one key from a source DraftValues onto a patch, preserving its
