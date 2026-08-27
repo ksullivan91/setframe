@@ -98,7 +98,17 @@ export class ReviewSession {
       .replace(/^-|-$/g, '')}.png`;
     const file = join(REPORT_ROOT, this.journey, this.viewport, slug);
     mkdirSync(dirname(file), { recursive: true });
-    await this.page.screenshot({ path: file, fullPage: true });
+    try {
+      await this.page.screenshot({ path: file, fullPage: true });
+    } catch {
+      /* A very tall page — Progress, with several charts — can exceed the
+         browser's snapshot limit and throw `Could not capture snapshot`.
+         Losing the whole review because one screenshot was too big is the
+         wrong trade: capture the viewport instead and say so. Evidence that
+         is merely partial still beats a run that died. */
+      await this.page.screenshot({ path: file, fullPage: false });
+      this.note(`${slug} captured at viewport size — the full page was too tall to snapshot.`);
+    }
     this.screenshots.push(slug);
     return slug;
   }
