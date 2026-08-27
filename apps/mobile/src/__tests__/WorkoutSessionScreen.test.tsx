@@ -765,6 +765,51 @@ describe('WorkoutSessionScreen write failures', () => {
  * and semantics, not the same primitive: one dedicated control that announces
  * its state, and nothing else that toggles detail.
  */
+/**
+ * Story 42.4 / 42B revised — native matches web on post-completion edits.
+ *
+ * Native used to disable Save outright once the workout was finished, so 42B
+ * removed the row as a dead control. Web kept it, because story 23
+ * deliberately allows correcting a logged value afterwards. The platforms now
+ * agree: corrections stay possible, and the control appears only when there
+ * is something to save.
+ */
+describe('WorkoutSessionScreen corrections after completion', () => {
+  function labelsIn(rendered: ReactTestRenderer): string[] {
+    return rendered.root
+      .findAll((node) => typeof node.type === 'string')
+      .flatMap((node) => ([] as unknown[]).concat(node.props?.children))
+      .filter((child): child is string => typeof child === 'string');
+  }
+
+  it('offers no Save on a finished workout until something is edited', async () => {
+    mockSessionPayload = baseSession({ sets: [baseSet()], status: 'completed' });
+    const rendered = await renderScreen();
+
+    // Nothing edited yet: a permanently disabled button would say nothing.
+    expect(labelsIn(rendered)).not.toContain('Save');
+  });
+
+  it('offers Save once a logged value is corrected on a finished workout', async () => {
+    mockSessionPayload = baseSession({ sets: [baseSet()], status: 'completed' });
+    const rendered = await renderScreen();
+
+    const field = rendered.root.findAll(
+      (node) => typeof node.props?.accessibilityLabel === 'string' &&
+        /^Distance/.test(node.props.accessibilityLabel) &&
+        typeof node.props?.onChangeText === 'function',
+    )[0];
+    expect(field).toBeDefined();
+
+    await act(async () => {
+      field!.props.onChangeText('7');
+    });
+
+    /* Story 23's capability, now on native too: completed is not immutable. */
+    expect(labelsIn(rendered)).toContain('Save');
+  });
+});
+
 describe('WorkoutSessionScreen exercise disclosure', () => {
   function disclosureFor(rendered: ReactTestRenderer, name: string) {
     return rendered.root.findAll((node) => {

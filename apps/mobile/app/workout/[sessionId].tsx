@@ -196,6 +196,37 @@ function buildSetPatch(set: WorkoutSet, draft: SetDraft, visible: SessionField[]
   return patch;
 }
 
+/**
+ * Whether the draft differs from what the server holds.
+ *
+ * Story 42B removed the save row from a completed workout because native had
+ * always disabled Save outright there, so it was a dead control. Web kept it,
+ * because story 23 deliberately allows correcting a logged value after
+ * completion — a genuine capability, not an oversight — and simply hides the
+ * button until there is an edit to save.
+ *
+ * Native now matches: corrections stay possible, and the control appears only
+ * when it would do something. The two platforms no longer disagree about
+ * whether a finished workout is editable.
+ */
+function setHasChanges(
+  set: WorkoutSet,
+  draft: SetDraft,
+  visible: SessionField[],
+  definition: PrescriptionDefinition,
+): boolean {
+  const patch = buildSetPatch(set, draft, visible, definition) as Record<string, unknown>;
+  const compare: Array<[string, unknown]> = [
+    ['setType', set.setType],
+    ['weightValue', set.weightValue],
+    ['reps', set.reps],
+    ['durationSeconds', set.durationSeconds],
+    ['distanceValue', set.distanceValue],
+    ['rpe', set.rpe],
+  ];
+  return compare.some(([key, current]) => key in patch && (patch[key] ?? null) !== (current ?? null));
+}
+
 function getPreviousLabels(
   set: WorkoutSetLike | undefined,
   definition: PrescriptionDefinition,
@@ -344,6 +375,16 @@ export default function WorkoutSessionScreen() {
    * One request rather than N sequential PATCHes, so the user is not
    * serialised behind the network for the most common case in the product.
    */
+  /**
+   * Story 42.4 — which exercises are mid-commit.
+   *
+   * `useMutation`'s `isPending` is one screen-wide boolean, so quick-logging
+   * one exercise disabled the action on every other. Mid-workout that
+   * serialises the user behind the network in the place that least tolerates
+   * it — the same defect story 60 fixed for per-set saves.
+   */
+  const [quickLogPending, setQuickLogPending] = useState<Record<string, boolean>>({});
+
   const quickLogMutation = useMutation({
     mutationFn: ({
       exerciseLogId,
@@ -354,8 +395,46 @@ export default function WorkoutSessionScreen() {
       setIds: string[];
       values: Record<string, unknown>;
     }) => api.post<WorkoutSet[]>(`/workout-exercise-logs/${exerciseLogId}/quick-log`, { setIds, values }),
+    /**
+     * Story 42.4 — optimistic, and honest about it.
+     *
+     * The user is between sets; waiting on a round trip before the card
+     * acknowledges them is the friction this story removes. The previous
+     * cache is snapshotted so a rejected write cannot leave the screen
+     * claiming work that was never saved.
+     */
+    onMutate: async (variables) => {
+      setQuickLogPending((prev) => ({ ...prev, [variables.exerciseLogId]: true }));
+      await queryClient.cancelQueries({ queryKey: ['workout-session', resolvedSessionId] });
+      const previous = queryClient.getQueryData<WorkoutSessionDetail>([
+        'workout-session',
+        resolvedSessionId,
+      ]);
+
+      queryClient.setQueryData<WorkoutSessionDetail>(
+        ['workout-session', resolvedSessionId],
+        (current) => {
+          if (!current) return current;
+          const targets = new Set(variables.setIds);
+          return {
+            ...current,
+            exercises: current.exercises.map((exerciseLog) =>
+              exerciseLog.id !== variables.exerciseLogId
+                ? exerciseLog
+                : {
+                    ...exerciseLog,
+                    sets: exerciseLog.sets.map((set) =>
+                      targets.has(set.id) ? { ...set, ...(variables.values as Partial<WorkoutSet>) } : set,
+                    ),
+                  },
+            ),
+          };
+        },
+      );
+
+      return { previous };
+    },
     onSuccess: async (_, variables) => {
-      await refreshSession();
       /* The drafts these sets were showing are now stale — the server holds
          the truth. Clearing them stops a half-typed local value from
          reappearing over what was just logged. */
@@ -365,9 +444,21 @@ export default function WorkoutSessionScreen() {
         return next;
       });
       setHeaderTouchedKeys((prev) => ({ ...prev, [variables.exerciseLogId]: [] }));
+      await refreshSession();
     },
-    onError: () =>
-      setToast({ variant: 'error', message: 'Could not log those sets. Your values are still here — try again.' }),
+    onError: (_error, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['workout-session', resolvedSessionId], context.previous);
+      }
+      setToast({ variant: 'error', message: 'Could not log those sets. Your values are still here — try again.' });
+    },
+    onSettled: (_data, _error, variables) => {
+      setQuickLogPending((prev) => {
+        const next = { ...prev };
+        delete next[variables.exerciseLogId];
+        return next;
+      });
+    },
   });
 
   const addSetMutation = useMutation({
@@ -995,9 +1086,11 @@ export default function WorkoutSessionScreen() {
               label={describeQuickLogAction(quickLogTargets.length, loggableSetCount)}
               testID={`quick-log-${exerciseLog.id}`}
               disabled={
-                !quickLogReady || quickLogMutation.isPending || sessionQuery.data.status === 'completed'
+                !quickLogReady ||
+                quickLogPending[exerciseLog.id] === true ||
+                sessionQuery.data.status === 'completed'
               }
-              loading={quickLogMutation.isPending}
+              loading={quickLogPending[exerciseLog.id] === true}
               onPress={() =>
                 quickLogMutation.mutate({
                   exerciseLogId: exerciseLog.id,
@@ -1111,14 +1204,13 @@ export default function WorkoutSessionScreen() {
                           ])
                   }
                 />
-                {/* Story 42B — the whole save row goes once the workout is
-                    complete. Native has always disabled Save outright after
-                    completion, so unlike web there is no post-completion
-                    correction path to preserve here; leaving a permanently
-                    dead button and the instruction to use it would be worse
-                    than removing both. The web/native difference in whether
-                    corrections are possible predates this story. */}
-                {sessionComplete ? null : (
+                {/* Story 42B, revised: corrections after completion are now
+                    possible on native too, matching web and story 23. The row
+                    appears only when there is an edit to save — no dead
+                    control, no lost capability — and during an active workout
+                    it stays put so it does not flicker while the user types
+                    between sets. */}
+                {sessionComplete && !setHasChanges(set, draft, visibleFields, definition) ? null : (
                 <View style={styles.saveRow}>
                   <Text style={[styles.helperNote, { color: theme.text.secondary }]}>Log actual performance, then save to sync the session.</Text>
                   <Button
