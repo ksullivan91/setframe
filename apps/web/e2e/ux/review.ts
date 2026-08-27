@@ -67,9 +67,15 @@ export class ReviewSession {
     /* Read from the page, never passed in. A hardcoded label meant the
        desktop project wrote its report over the mobile one — the same journey
        at two widths silently became one report, which is precisely the
-       comparison the two viewports exist to enable. */
+       comparison the two viewports exist to enable.
+
+       The browser is part of the label for the same reason. `ux-mobile` and
+       `ux-webkit` deliberately share the iPhone viewport and differ only in
+       engine, so size alone made WebKit overwrite Chromium — hiding exactly
+       the WebKit-only regressions that project exists to catch. */
     const size = page.viewportSize();
-    this.viewport = size ? `${size.width}x${size.height}` : 'unknown-viewport';
+    const dimensions = size ? `${size.width}x${size.height}` : 'unknown-viewport';
+    this.viewport = `${page.context().browser()?.browserType().name() ?? 'browser'}-${dimensions}`;
   }
 
   /** A click, counted. Use this instead of `page.click` inside a journey. */

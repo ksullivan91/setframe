@@ -1,6 +1,8 @@
 import { test as base, type Page } from '@playwright/test';
 import { clerkSetup, setupClerkTestingToken } from '@clerk/testing/playwright';
-import { readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 /**
  * Signing the UX reviewer in, unattended.
@@ -95,12 +97,69 @@ export function loadClerkEnv(): { password: string } {
   return { password };
 }
 
+/**
+ * Where a persona's authenticated browser state is cached.
+ *
+ * Signing in per test meant nine sign-ins for three journeys across three
+ * projects, which trips the development instance's rate limit — Clerk returns
+ * `429 too_many_requests` and the whole review fails for a reason that has
+ * nothing to do with the product. Caching the session state means one sign-in
+ * per persona per run instead.
+ *
+ * In the OS temp directory, not the repo: this is credential material, and it
+ * is per-run scratch rather than anything worth keeping.
+ */
+const stateDir = join(tmpdir(), 'setframe-ux-review-state');
+
+function statePathFor(persona: PersonaKey): string {
+  return join(stateDir, `${persona}.json`);
+}
+
+/** Replays a cached session, or reports that there is nothing to replay. */
+async function restoreSession(page: Page, persona: PersonaKey): Promise<boolean> {
+  const file = statePathFor(persona);
+  if (!existsSync(file)) return false;
+  try {
+    const state = JSON.parse(readFileSync(file, 'utf8')) as {
+      cookies: Parameters<ReturnType<Page['context']>['addCookies']>[0];
+      origins: { origin: string; localStorage: { name: string; value: string }[] }[];
+    };
+    await page.context().addCookies(state.cookies);
+    /* localStorage has to be written with the origin already loaded, so this
+       runs after a navigation rather than before one. */
+    await page.goto('/sign-in');
+    for (const origin of state.origins) {
+      await page.evaluate((entries) => {
+        for (const entry of entries) window.localStorage.setItem(entry.name, entry.value);
+      }, origin.localStorage);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Signs `page` in as one persona and leaves it on an authenticated route. */
 export async function signInAs(page: Page, persona: PersonaKey, landOn = '/today'): Promise<void> {
   const { password } = loadClerkEnv();
   const account = personaAccounts[persona];
 
-  await setupClerkTestingToken({ page });
+  if (await restoreSession(page, persona)) {
+    await page.goto(`/sign-in?ux-persona=${persona}`);
+    const signedIn = await page
+      .waitForFunction(() => Boolean((window as never as { Clerk?: { user?: unknown } }).Clerk?.user), null, {
+        timeout: 10_000,
+      })
+      .then(() => true)
+      .catch(() => false);
+    if (signedIn) {
+      await page.goto(landOn);
+      await page.waitForLoadState('networkidle');
+      return;
+    }
+    /* A stale cache is not an error — fall through and sign in properly. */
+  }
+
   /* Phase 2 — select the persona's seeded state before the app boots. The
      param is read once and kept for the tab (see mocks/persona-state.ts),
      because the app navigates client-side and a query string does not survive
@@ -131,6 +190,15 @@ export async function signInAs(page: Page, persona: PersonaKey, landOn = '/today
     // are different instance settings with different fixes, and a bare
     // "sign-in failed" sent the last attempt down the wrong path entirely.
     throw new Error(`Clerk sign-in did not complete for ${persona} (status: ${outcome.status}).`);
+  }
+
+  /* Cache for the rest of the run. Written after a *successful* sign-in only,
+     so a failed attempt never poisons later tests with a half-state. */
+  try {
+    mkdirSync(stateDir, { recursive: true });
+    writeFileSync(statePathFor(persona), JSON.stringify(await page.context().storageState()));
+  } catch {
+    /* A cache that cannot be written is a slower review, not a broken one. */
   }
 
   await page.goto(landOn);

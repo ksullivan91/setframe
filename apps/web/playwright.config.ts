@@ -52,8 +52,24 @@ export default defineConfig({
        1440px is where it is usually built. A finding that only exists on one
        of them is still a finding, so they are separate projects rather than
        one run that quietly favours whichever ran last. */
+    /* Chromium at phone size — mobile-web on Android, and the engine most
+       development is done in. `browserName` is set explicitly because
+       `devices['iPhone 13']` carries `defaultBrowserType: 'webkit'`: without
+       this line the "mobile" and "webkit" projects were the same engine at the
+       same width, silently overwriting each other's reports and adding no
+       coverage at all. */
     {
       name: 'ux-mobile',
+      testMatch: '**/ux/*.ux.spec.ts',
+      use: { ...devices['iPhone 13'], browserName: 'chromium', baseURL: 'http://localhost:5199' },
+    },
+    /* Phase 2's WebKit slice. Mobile Safari is where this repo's layout and
+       input defects have actually shipped — `100vh` meaning something else,
+       inputs zooming on focus, sticky chrome eating the bottom of the page —
+       and none of it reproduces on Chromium. The same journeys run here so a
+       WebKit-only regression cannot hide behind a green Chromium run. */
+    {
+      name: 'ux-webkit',
       testMatch: '**/ux/*.ux.spec.ts',
       use: { ...devices['iPhone 13'], baseURL: 'http://localhost:5199' },
     },
