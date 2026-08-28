@@ -120,6 +120,18 @@ this system produced three, and only one was a product problem:
 Before reporting anything absent, look at the screenshot you just captured and
 confirm it is absent *there*.
 
+**Attribute before you score.** A vendor's script failing is worth reporting —
+the user still meets it — but it is not a measure of these screens. Clerk's SDK
+failing to fetch one of its own chunks in WebKit scored *our* error recovery
+1/5 and failed the gate on all three journeys, which said something untrue
+about screens that were working. Third-party findings are listed in full and
+excluded from the scorecard.
+
+Watch for errors that carry no attribution of their own: WebKit reports a
+failed dynamic import as a bare "Importing a module script failed", with no URL
+and no usable stack. It is correlated with the chunk failure reported alongside
+it rather than charged to the product by default.
+
 **Separate seeded-data artefacts from product defects.** Reviews run against
 `dev:mock`, so anything odd about the *data* is usually the fixture, not the
 product. Say which you believe it is.

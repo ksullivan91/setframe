@@ -33,6 +33,17 @@ export type Severity = 'P0' | 'P1' | 'P2' | 'P3';
 
 export interface Finding {
   severity: Severity;
+  /**
+   * Whose defect this is.
+   *
+   * A third-party failure is still worth reporting — a broken vendor script
+   * breaks the product for the user regardless of whose repository it lives
+   * in — but it must not be scored against our own workflow quality. Clerk's
+   * SDK failing to fetch one of its chunks in WebKit drove "Error recovery"
+   * to 1/5 and failed the gate on all three journeys, which says something
+   * untrue about screens that were working correctly.
+   */
+  source?: 'product' | 'third-party';
   title: string;
   /** What the reviewer saw, in the user's terms rather than the DOM's. */
   observed: string;
@@ -172,17 +183,86 @@ export class ReviewSession {
   }
 
   watchConsole(): void {
+    /* Hosts whose failures are not this codebase's to fix. Named explicitly
+       rather than inferred as "not our origin", because a bundled dependency
+       still fails from our origin and *is* ours. */
+    const thirdPartyHost = /clerk\.(accounts\.dev|com)|clerk-telemetry|googleapis|gstatic/i;
+
+    const attribute = (text: string): 'product' | 'third-party' =>
+      thirdPartyHost.test(text) ? 'third-party' : 'product';
+
+
+
     this.page.on('pageerror', (error) => {
+      const text = `${error.message ?? error} ${error.stack ?? ''}`;
+      const source = attribute(text);
       this.find({
         severity: 'P1',
-        title: 'Uncaught error while using the app',
+        source,
+        title:
+          source === 'third-party'
+            ? 'A third-party script failed while using the app'
+            : 'Uncaught error while using the app',
         observed: String(error.message ?? error),
-        impact: 'The screen may look correct while its behaviour is already broken.',
+        impact:
+          source === 'third-party'
+            ? 'Not this codebase, but the user still meets it. Worth chasing with the vendor rather than scoring against these screens.'
+            : 'The screen may look correct while its behaviour is already broken.',
+      });
+    });
+
+    /* Console errors carry the failing URL that `pageerror` does not, which is
+       the only thing that distinguished "our bundle is broken" from "Clerk's
+       CDN chunk 404'd". Without it the same message was reported for three
+       runs as an unattributed product defect. */
+    this.page.on('console', (message) => {
+      if (message.type() !== 'error') return;
+      const text = message.text();
+      if (!/ChunkLoadError|Failed to fetch|Importing a module script failed/i.test(text)) return;
+      const source = attribute(`${text} ${message.location().url}`);
+      this.find({
+        severity: source === 'third-party' ? 'P2' : 'P1',
+        source,
+        title:
+          source === 'third-party'
+            ? `A third-party script failed to load (${new URL(message.location().url || 'https://unknown/').host})`
+            : 'A script failed to load',
+        observed: text.slice(0, 300),
+        impact:
+          source === 'third-party'
+            ? 'The vendor SDK could not fetch part of itself. In this engine that may break flows which depend on it, such as a hosted sign-in form.'
+            : 'Part of the application never arrived, so the screen is running on whatever loaded.',
       });
     });
   }
 
+  /**
+   * WebKit reports a failed dynamic import as a bare
+   * "TypeError: Importing a module script failed" — no URL, no usable stack —
+   * so it cannot be attributed on its own. The paired `ChunkLoadError` does
+   * name the host.
+   *
+   * Correlated here rather than as the events arrive, because `pageerror`
+   * fires *before* the console error that identifies the vendor: a flag set
+   * during the run is always still false when it is needed. Attributing at
+   * report time sees the whole run at once.
+   */
+  private correlateUnattributedModuleErrors(): void {
+    const sawThirdParty = this.findings.some((finding) => finding.source === 'third-party');
+    if (!sawThirdParty) return;
+    for (const finding of this.findings) {
+      if (finding.source === 'third-party') continue;
+      if (!/Importing a module script failed/i.test(finding.observed)) continue;
+      finding.source = 'third-party';
+      finding.title = 'A third-party script failed while using the app';
+      finding.observed += ' — no URL of its own; correlated with the third-party chunk failure in the same run.';
+      finding.impact =
+        'Not this codebase, but the user still meets it. Worth chasing with the vendor rather than scoring against these screens.';
+    }
+  }
+
   toReport(): JourneyReport {
+    this.correlateUnattributedModuleErrors();
     /* Network findings are merged in at report time rather than as they
        happen, because most of them are only visible once the whole journey's
        traffic can be compared against itself. */
@@ -230,15 +310,20 @@ export function writeReport(report: JourneyReport): string {
     lines.push('No findings. The journey completed without anything worth raising.', '');
   } else {
     for (const finding of sorted) {
-      lines.push(`### ${finding.severity} — ${finding.title}`, '');
+      const tag = finding.source === 'third-party' ? ' _(third-party — not scored)_' : '';
+      lines.push(`### ${finding.severity} — ${finding.title}${tag}`, '');
       lines.push(`**Observed.** ${finding.observed}`, '');
       lines.push(`**Impact.** ${finding.impact}`, '');
       if (finding.evidence) lines.push(`![${finding.title}](./${finding.evidence})`, '');
     }
   }
 
+  /* Third-party failures are listed in full but excluded from scoring: they
+     are not a measure of this product's workflow quality, and letting them
+     drive the gate reports something untrue about screens that work. */
+  const ourFindings = sorted.filter((finding) => finding.source !== 'third-party');
   const card = scoreWorkflow({
-    findings: sorted as ScoredFinding[],
+    findings: ourFindings as ScoredFinding[],
     interactions: report.interactions,
     expectedInteractions: report.expectedInteractions,
     kind: report.kind,
