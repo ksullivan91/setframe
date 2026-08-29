@@ -921,7 +921,18 @@ export default function WorkoutSessionScreen() {
              the card's contents rather than its fill. */
           style={
             isComplete
-              ? { borderWidth: 1, borderColor: theme.status.success, backgroundColor: theme.status.successSubtle }
+              ? /* Matches Today's completed-workout card exactly: the same
+                   success tint and softened border, so an exercise finishing
+                   and a workout finishing read as the same kind of event at
+                   different scales.
+
+                   Web uses a green-to-white gradient there; React Native has
+                   no gradient without `expo-linear-gradient`, and adding a
+                   native dependency plus a prebuild for one background is a
+                   poor trade. Today already made this call — its native card
+                   is the flat tint — so this matches the platform's own
+                   answer rather than inventing a second one. */
+                { borderWidth: 1, borderColor: `${theme.status.success}66`, backgroundColor: `${theme.status.success}1F` }
               : undefined
           }
         >
@@ -932,7 +943,7 @@ export default function WorkoutSessionScreen() {
             <CompletedExerciseCard
               name={exerciseLog.exercise.name}
               readout={completedReadout}
-              setCountLabel={completedSetCountLabel(exerciseLog.sets)}
+              setCountLabel={completedSetCountLabel(exerciseLog.prescription, exerciseLog.sets)}
               onReopen={() => toggleActiveExercise(exerciseLog.id)}
               testID={`completed-exercise-${exerciseLog.id}`}
               expanded={isExpanded}

@@ -34,6 +34,15 @@ import { typeScale } from '../theme/typeScale';
  * previous one. We take its semantics and state, never its visuals.
  */
 
+/**
+ * Bottom navigation plus the sticky session action bar, both of which float
+ * over content on a phone. The real heights are 72 and 68 in
+ * `WorkoutSessionPage`; duplicated rather than imported because a shared
+ * component reaching back into a page for a layout constant is the wrong
+ * direction of dependency.
+ */
+const STICKY_ACTIONS_CLEARANCE_PX = 72 + 68;
+
 const Card = styled.div<{ $tone: 'neutral' | 'complete' }>`
   display: flex;
   flex-direction: column;
@@ -41,12 +50,32 @@ const Card = styled.div<{ $tone: 'neutral' | 'complete' }>`
   padding: ${spacing[16]}px;
   border-radius: ${radius.large}px;
   border: 1px solid
-    ${(p) => (p.$tone === 'complete' ? p.theme.status.success : p.theme.border.subtle)};
+    ${(p) => (p.$tone === 'complete' ? `${p.theme.status.success}66` : p.theme.border.subtle)};
+  /* A completed exercise borrows Today's completed-workout surface: a
+     success-tinted gradient fading to the ordinary card colour, rather than a
+     flat block of green. The two completions then read as the same kind of
+     event at different scales — an exercise done, and a workout done — which
+     is the reward hierarchy story 42 set out (tiny → small → strongest).
+     Still tint-based, never a saturated fill: this is completion semantics,
+     not a new primary colour. */
   background: ${(p) =>
-    p.$tone === 'complete' ? p.theme.status.successSubtle : p.theme.surface.raised};
+    p.$tone === 'complete'
+      ? `linear-gradient(145deg, ${p.theme.status.success}24 0%, ${p.theme.status.success}0F 45%, ${p.theme.surface.raised} 100%)`
+      : p.theme.surface.raised};
   /* The card sits in a grid; without this a wide child can widen the track.
      Charts already taught this lesson the expensive way. */
   min-width: 0;
+
+  /* Story 39, carried over from the card this replaced: the page scrolls a
+     newly-active exercise into view, and the sticky session action bar floats
+     over content below tablet width. Without this the exercise the user was
+     just sent to lands underneath it. Deleting the old styled component
+     almost took this behaviour with it. */
+  scroll-margin-bottom: ${STICKY_ACTIONS_CLEARANCE_PX}px;
+
+  @media (min-width: 768px) {
+    scroll-margin-bottom: ${spacing[16]}px;
+  }
 `;
 
 const HeaderRow = styled.div`

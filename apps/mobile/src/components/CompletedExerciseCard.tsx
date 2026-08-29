@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
-import { ArrowDown, ArrowUp, Check, Minus } from 'lucide-react-native';
+import { ArrowDown, ArrowUp, CheckCircle2, Minus } from 'lucide-react-native';
 import type { CompletedExerciseReadout } from '@setframe/domain';
 import { useTheme } from '../theme/ThemeProvider';
 import { radius, spacing, typeScale } from '../theme/getTheme';
@@ -105,8 +105,11 @@ export function CompletedExerciseCard({
         accessibilityState={{ expanded }}
         style={styles.reopen}
       >
-        <View style={[styles.checkCircle, { backgroundColor: theme.status.success, borderColor: theme.status.successSubtle }]}>
-          <Check size={20} strokeWidth={3} color={theme.action.primaryText} />
+        {/* Matches Today's "Workout complete" badge: a green mark on a light
+            surface with a soft green halo, rather than a solid green disc with
+            a white tick. One completion language across the product. */}
+        <View style={[styles.checkCircle, { backgroundColor: theme.surface.raised, borderColor: theme.status.successSubtle }]}>
+          <CheckCircle2 size={26} strokeWidth={2.5} color={theme.status.success} />
         </View>
         <View style={styles.titleBlock}>
           <Text style={[styles.name, { color: theme.text.primary }]}>{name}</Text>

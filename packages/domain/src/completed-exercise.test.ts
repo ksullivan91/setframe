@@ -65,15 +65,17 @@ describe('completedExerciseMetrics', () => {
     expect(metricValue(metrics, 'topSet')).toBe('185 lb × 8');
   });
 
-  it('excludes warmups from every figure', () => {
-    /* A warmup at 45 lb is preparation, not achievement — counting it would
-       both inflate the set count and drag the volume figure. */
+  it('includes warmups in the figures, matching the session summary', () => {
+    /* Story 42.8. Warmups were excluded here while the Session summary above
+       the card summed every set, so identical work reported two different
+       volumes on one screen. The card follows the session. A warmup still
+       cannot be the top set, because the top set is the heaviest. */
     const metrics = completedExerciseMetrics(setsReps, [
       set({ setType: 'warmup', weightValue: 45, reps: 10 }),
       set({ weightValue: 135, reps: 8 }),
     ]);
     expect(metricValue(metrics, 'topSet')).toBe('135 lb × 8');
-    expect(metricValue(metrics, 'volume')).toBe('1,080 lb');
+    expect(metricValue(metrics, 'volume')).toBe('1,530 lb'); // 450 + 1,080
   });
 
   it('reports reps for bodyweight work and never a 0 lb volume', () => {
@@ -147,16 +149,15 @@ describe('completedExerciseMetrics', () => {
     expect(metricValue(mixed, 'totalReps')).toBe('5');
     // The zero-rep set still counts toward the caption's set tally.
     expect(
-      completedSetCountLabel([
+      completedSetCountLabel(bodyweight, [
         set({ weightValue: null, reps: 0 }),
         set({ weightValue: null, reps: 5 }),
       ]),
     ).toBe('2 sets completed');
   });
 
-  it('has nothing to say about an exercise with no performed sets', () => {
+  it('has nothing to say about an exercise with no sets', () => {
     expect(completedExerciseMetrics(setsReps, [])).toEqual([]);
-    expect(completedExerciseMetrics(setsReps, [set({ setType: 'warmup' })])).toEqual([]);
   });
 });
 
@@ -229,6 +230,7 @@ describe('buildCompletedExerciseReadout', () => {
   });
 
   it('does not treat a warmup PR flag as an exercise PR', () => {
+    /* Warmups count toward the figures now, but a PR is still never one. */
     const readout = buildCompletedExerciseReadout(setsReps, [set({ setType: 'warmup', isPrWeight: true }), set()], null);
     expect(readout.isPersonalRecord).toBe(false);
   });
@@ -242,10 +244,44 @@ describe('buildCompletedExerciseReadout', () => {
 });
 
 describe('completedSetCountLabel', () => {
-  it('counts only performed sets', () => {
-    expect(completedSetCountLabel([set(), set()])).toBe('2 sets completed');
-    expect(completedSetCountLabel([set()])).toBe('1 set completed');
-    expect(completedSetCountLabel([set({ setType: 'warmup' }), set()])).toBe('1 set completed');
+  it('counts every logged set, warmups included', () => {
+    expect(completedSetCountLabel(setsReps, [set(), set()])).toBe('2 sets completed');
+    expect(completedSetCountLabel(setsReps, [set()])).toBe('1 set completed');
+  });
+
+  /**
+   * Story 42.8 — the reported bug, as its own case.
+   *
+   * Five planned Romanian deadlifts plus one added mid-workout, two of them
+   * warmups. The old rule filtered by set type and reported four for six sets
+   * the user had performed and saved.
+   */
+  it('reports six for five planned sets, one added, two of them warmups', () => {
+    const sets = [
+      set({ setType: 'warmup', weightValue: 95, reps: 8 }),
+      set({ setType: 'warmup', weightValue: 135, reps: 5 }),
+      set({ weightValue: 225, reps: 8 }),
+      set({ weightValue: 225, reps: 8 }),
+      set({ weightValue: 225, reps: 8 }),
+      set({ weightValue: 225, reps: 8 }),
+    ];
+    expect(completedSetCountLabel(setsReps, sets)).toBe('6 sets completed');
+  });
+
+  it('does not count a set that was never logged', () => {
+    /* The second half of the same defect: the old rule counted *rows*, not
+       completed work, so a planned-but-empty set counted as done. */
+    expect(completedSetCountLabel(setsReps, [set(), set({ weightValue: null, reps: null })])).toBe(
+      '1 set completed',
+    );
+  });
+
+  it('reconciles with the session summary, which also counts warmups', () => {
+    /* The card and the summary above it must not report different volumes for
+       the same work — they did, and only a render showed it. */
+    const sets = [set({ setType: 'warmup', weightValue: 95, reps: 10 }), set({ weightValue: 225, reps: 8 })];
+    expect(completedSetCountLabel(setsReps, sets)).toBe('2 sets completed');
+    expect(completedExerciseMetrics(setsReps, sets).find((m) => m.key === 'volume')?.value).toBe('2,750 lb');
   });
 });
 

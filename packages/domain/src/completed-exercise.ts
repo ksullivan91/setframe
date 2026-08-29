@@ -28,6 +28,7 @@
 import type { Prescription } from '@setframe/schemas';
 import {
   getPrescriptionDefinition,
+  isSessionSetLogged,
   type PrescriptionKind,
   type SessionSetValues,
 } from './prescription-fields';
@@ -71,6 +72,8 @@ export interface CompletedExerciseReadout {
   comparison: CompletedComparison | null;
   /** True when the server flagged any set in this exercise as a PR. */
   isPersonalRecord: boolean;
+  /** Completed sets by the canonical rule — every type, warmups included. */
+  completedSetCount: number;
 }
 
 const numberFormat = new Intl.NumberFormat('en-US');
@@ -100,8 +103,55 @@ export function formatCompletedDuration(totalSeconds: number): string {
   return `${hours}h ${String(minutes % 60).padStart(2, '0')}m`;
 }
 
-/** Sets that were actually performed. Warmups never describe an achievement. */
+/**
+ * The canonical completed-set rule.
+ *
+ * Story 42.8. One function, used everywhere a completed-set total is shown, so
+ * a card and its own progress line cannot disagree — they did.
+ *
+ * A set counts when it carries the data its representation requires. That is
+ * the *only* condition: set type is not part of it.
+ *
+ * What this replaces, and why it was wrong twice over:
+ *
+ *     sets.filter(set => set.setType !== 'warmup').length
+ *
+ * First, it dropped warmups. Five planned Romanian deadlifts plus one added
+ * mid-workout, two of them warmups, reported "4 sets completed" for six sets
+ * the user had performed and saved. A warmup is preparation rather than
+ * training volume, which is a defensible thing to say about *volume* — it is
+ * not a reason to tell someone they did fewer sets than they did.
+ *
+ * Second, it never checked whether a set was logged at all, so it counted
+ * planned-but-empty rows as completed. That stayed invisible only because the
+ * caption renders when everything is already logged.
+ */
+export function completedSessionSets(
+  prescription: Prescription | PrescriptionKind | null | undefined,
+  sets: readonly CompletedExerciseSet[],
+): CompletedExerciseSet[] {
+  return sets.filter((set) => isSessionSetLogged(prescription, set));
+}
+
+/**
+ * The sets every figure on the card is derived from.
+ *
+ * I first kept warmups out of volume while counting them as sets, on the
+ * argument that a warmup is not training volume. Rendering it disproved that:
+ * the Session summary above the card already sums *every* set, so the same
+ * work read "Volume 8,635 lb" at the top of the screen and "7,200 lb" on the
+ * card. Two numbers for one thing is worse than either convention, and the
+ * product had already picked one.
+ *
+ * So the card follows the session: one rule, warmups included, no special
+ * cases to explain.
+ */
 function performedSets(sets: readonly CompletedExerciseSet[]): CompletedExerciseSet[] {
+  return [...sets];
+}
+
+/** PR flags never belong to a warmup, whatever the figures include. */
+function prCandidates(sets: readonly CompletedExerciseSet[]): CompletedExerciseSet[] {
   return sets.filter((set) => set.setType !== 'warmup');
 }
 
@@ -392,17 +442,22 @@ export function buildCompletedExerciseReadout(
   return {
     metrics: completedExerciseMetrics(prescription, sets),
     comparison: compareWithPreviousSession(prescription, sets, previousSets),
-    isPersonalRecord: performed.some((set) => set.isPrWeight === true || set.isPrReps === true),
+    isPersonalRecord: prCandidates(performed).some(
+      (set) => set.isPrWeight === true || set.isPrReps === true,
+    ),
+    completedSetCount: completedSessionSets(prescription, sets).length,
   };
 }
 
 /**
- * How many sets were performed, for the card's secondary line.
+ * How many sets were completed, for the card's secondary line.
  *
- * Separate from the metrics because it is a caption rather than a figure, and
- * because warmups are excluded here for the same reason they are everywhere
- * else in this module: they are preparation, not achievement.
+ * Reads the canonical rule, so this caption and the "n of m sets complete"
+ * progress line above it can no longer disagree about the same exercise.
  */
-export function completedSetCountLabel(sets: readonly CompletedExerciseSet[]): string {
-  return `${setLabel(performedSets(sets).length)} completed`;
+export function completedSetCountLabel(
+  prescription: Prescription | PrescriptionKind | null | undefined,
+  sets: readonly CompletedExerciseSet[],
+): string {
+  return `${setLabel(completedSessionSets(prescription, sets).length)} completed`;
 }

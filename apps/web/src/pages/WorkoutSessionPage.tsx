@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { Check, ChevronDown, ChevronUp, Copy, Plus, Trash2 } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronUp, Copy, Plus, Trash2 } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import type {
@@ -248,41 +248,6 @@ const ExerciseList = styled.div`
 `;
 
 /**
- * Story 61, corrected by story 42.
- *
- * The completed surface used to be `action.accentSubtle` — the lavender that
- * means *selected* everywhere else in the product — with a hairline success
- * border. Two things were wrong with that. Semantically it said "this one is
- * picked", not "this one is done". Visually the tint was the loudest thing on
- * the screen, so finished work drew more attention than the exercise the user
- * still had to do.
- *
- * It is now a genuine success tint, and the state is carried mostly by the
- * card's *contents* (see `CompletedExerciseCard`) rather than by its fill, so
- * colour is a reinforcement rather than the message.
- */
-const ExerciseCard = styled(Card)<{ $complete?: boolean }>`
-  display: flex;
-  flex-direction: column;
-  gap: ${spacing[16]}px;
-  border: 1px solid ${(p) => (p.$complete ? p.theme.status.success : 'transparent')};
-  background: ${(p) => (p.$complete ? p.theme.status.successSubtle : p.theme.surface.raised)};
-  transition: background 160ms ease-out, border-color 160ms ease-out;
-
-  @media (prefers-reduced-motion: reduce) {
-    transition: none;
-  }
-  /* Story 39: scrollIntoView's target for a newly-active exercise stays
-     clear of the sticky session action bar (Story 36), which only
-     floats over content below tablet width. */
-  scroll-margin-bottom: calc(${BOTTOM_NAV_HEIGHT_PX}px + ${SESSION_ACTION_BAR_HEIGHT_PX}px);
-
-  ${mq.tablet} {
-    scroll-margin-bottom: ${spacing[16]}px;
-  }
-`;
-
-/**
  * The completion stamp, in the card's leading slot.
  *
  * Story 42A put status on the left and navigation on the right so the two
@@ -296,28 +261,14 @@ const CompletionMark = styled.span`
   width: 36px;
   height: 36px;
   border-radius: ${radius.full}px;
-  background: ${(p) => p.theme.status.success};
-  color: ${(p) => p.theme.action.primaryText};
-  box-shadow: 0 0 0 4px ${(p) => p.theme.status.successSubtle};
-`;
-
-const ExerciseHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  gap: ${spacing[12]}px;
-  align-items: flex-start;
-  flex-wrap: wrap;
-`;
-
-const ExerciseTitle = styled.h2`
-  margin: 0;
-  font-size: ${typeScale.sectionTitle.fontSize}px;
-`;
-
-const ExerciseTitleRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: ${spacing[8]}px;
+  /* Matches Today's "Workout complete" badge: a green mark on a light
+     surface with a soft green halo, rather than a solid green disc with a
+     white tick. One completion language across the product — the same shape
+     means the same thing whether an exercise or a whole workout just
+     finished. */
+  background: ${(p) => p.theme.surface.raised};
+  color: ${(p) => p.theme.status.success};
+  box-shadow: 0 0 0 5px ${(p) => p.theme.status.success}1F;
 `;
 
 const SupportingText = styled.p`
@@ -532,17 +483,6 @@ const SetActions = styled.div`
 `;
 
 const AddSetButtonWrap = styled.div`
-  width: 100%;
-
-  ${mq.tablet} {
-    width: auto;
-  }
-`;
-
-const ExerciseHeaderActions = styled.div`
-  display: flex;
-  align-items: center;
-  gap: ${spacing[8]}px;
   width: 100%;
 
   ${mq.tablet} {
@@ -1094,7 +1034,7 @@ export function WorkoutSessionPage() {
   // Story 39: scrolls a newly-active exercise into view — but only for a
   // genuine switch between two exercises, never the initial seed above
   // (null → first) or a manual collapse (→ null), neither of which should
-  // jump the page. `scroll-margin-bottom` on `ExerciseCard` keeps this
+  // jump the page. `scroll-margin-bottom` on `ExerciseWorkCard` keeps this
   // clear of the sticky session action bar from Story 36.
   const previousActiveExerciseId = useRef<string | null>(null);
   useEffect(() => {
@@ -1167,7 +1107,8 @@ export function WorkoutSessionPage() {
 
   /**
    * Story 39: fired by focusing anything inside this exercise's card (see
-   * `ExerciseCard`'s `onFocus` below) — always activates, never toggles,
+   * story 42.2 removed the card's focus-activation, so this is now only
+   * called deliberately) — always activates, never toggles,
    * so focus already inside the active exercise can't accidentally
    * collapse it.
    */
@@ -1440,7 +1381,7 @@ export function WorkoutSessionPage() {
                planned value is no longer written onto a session set. */
             progressLabel={
               isComplete
-                ? completedSetCountLabel(exerciseLog.sets)
+                ? completedSetCountLabel(exerciseLog.prescription, exerciseLog.sets)
                 : exerciseLog.sets.length > 0
                   ? `${loggedSetCount} of ${exerciseLog.sets.length} sets complete`
                   : undefined
@@ -1448,7 +1389,7 @@ export function WorkoutSessionPage() {
             status={
               isComplete ? (
                 <CompletionMark aria-hidden="true">
-                  <Check size={20} strokeWidth={3} />
+                  <CheckCircle2 size={26} strokeWidth={2.5} />
                 </CompletionMark>
               ) : null
             }
