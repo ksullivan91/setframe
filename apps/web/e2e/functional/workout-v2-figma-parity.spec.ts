@@ -127,7 +127,7 @@ test.describe('workout v2 — Figma geometry parity', () => {
       (window as unknown as { __setframeMocks?: { setSession: (s: unknown) => void } })
         .__setframeMocks?.setSession(session);
     }, PINNED_SESSION);
-    await page.goto('/workout/v2/session-v2');
+    await page.goto('/workout/session-v2');
     await expect(page.getByTestId('workout-v2')).toBeVisible();
   });
 
@@ -249,6 +249,33 @@ test.describe('workout v2 — Figma geometry parity', () => {
     await expect(page.getByLabel('Personal record')).toHaveCount(1);
     await expect(page.locator('[data-status="pr"]')).toHaveCount(1);
     await expect(page.locator('[data-status="saved"]')).toHaveCount(2);
+  });
+
+  test('completion does not move anything, and shows the banner', async ({ page }) => {
+    /* The claim the redesign turns on: the completed card is the same height
+       and position as the active one, so finishing an exercise does not
+       reflow the thing the user is looking at. */
+    const card = page.locator('[data-testid^="exercise-card-"]').first();
+    const before = await card.boundingBox();
+
+    await page.evaluate(() => {
+      const control = (window as unknown as {
+        __setframeMocks?: { setSession: (s: unknown) => void };
+      }).__setframeMocks;
+      const raw = window.sessionStorage.getItem('setframe.mock-overrides');
+      const session = raw ? JSON.parse(raw).session : null;
+      control?.setSession({ ...session, status: 'completed', completedAt: new Date().toISOString() });
+    });
+    await page.reload();
+
+    await expect(page.getByTestId('completion-banner')).toBeVisible();
+    await expect(page.getByTestId('result-pill')).toBeVisible();
+
+    const after = await card.boundingBox();
+    expect(after?.height).toBe(before?.height);
+    expect(after?.width).toBe(before?.width);
+
+    await page.screenshot({ path: 'ux-tests/reports/workout-v2/built-complete-390.png' });
   });
 
   test('evidence for side-by-side review against the Figma frames', async ({ page }) => {

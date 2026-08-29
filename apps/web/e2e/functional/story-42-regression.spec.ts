@@ -130,7 +130,17 @@ async function stubSession(
   );
 }
 
-test.describe('story 42 regression matrix', () => {
+/**
+ * v1 ONLY. Skipped since the canonical /workout/:sessionId route began
+ * rendering the v2 table logger (ADR 0011).
+ *
+ * Every assertion here is against v1's accordion UI — "0 of 3 sets complete",
+ * the per-set Save control, the quick-log panel — none of which exist in v2
+ * by design. Kept rather than deleted because v1 is still in the tree pending
+ * approval of v2; delete this spec with the v1 page, and cover the same
+ * behaviours for v2 in workout-v2-figma-parity.spec.ts.
+ */
+test.describe.skip('story 42 regression matrix', () => {
   test.afterEach(async ({ page }) => {
     await page
       .evaluate(() => {

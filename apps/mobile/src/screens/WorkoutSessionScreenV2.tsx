@@ -20,14 +20,14 @@ import {
   visibleSessionExercises,
   type SessionField,
 } from '@setframe/domain';
-import { useApiClient } from '../../src/lib/api-client';
-import { useTheme } from '../../src/theme/ThemeProvider';
-import { ExerciseTableCard, CARD_WIDTH } from '../../src/components/workout-v2/ExerciseTableCard';
+import { useApiClient } from '../lib/api-client';
+import { useTheme } from '../theme/ThemeProvider';
+import { ExerciseTableCard, CARD_WIDTH } from '../components/workout-v2/ExerciseTableCard';
 import {
   SetRowV2,
   type SetRowStatus,
   type SetRowValues,
-} from '../../src/components/workout-v2/SetRowV2';
+} from '../components/workout-v2/SetRowV2';
 
 /**
  * Today's Workout, v2 — the table-format logger, native.
@@ -126,27 +126,74 @@ export default function WorkoutSessionV2Screen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.surface.canvas }]} testID="workout-v2">
-      <View
-        style={[
-          styles.header,
-          { backgroundColor: theme.surface.raised, borderBottomColor: theme.border.subtle },
-        ]}
-      >
-        <View style={styles.headerRow}>
-          <View style={styles.titleGroup}>
+      {sessionComplete ? (
+        /* The session's strongest reward, and the only place a green wash
+           appears — the completed exercise cards deliberately stay white with
+           a tinted border so this stays distinct from them. */
+        <View
+          style={[
+            styles.banner,
+            {
+              backgroundColor: theme.status.success + '1F',
+              borderBottomColor: theme.status.success + '40',
+            },
+          ]}
+          testID="completion-banner"
+        >
+          <View style={styles.headerRow}>
+            <View style={styles.bannerMark}>
+              <View
+                style={[
+                  styles.bannerRing,
+                  { backgroundColor: theme.surface.raised, borderColor: theme.status.success },
+                ]}
+              >
+                <Text style={[styles.bannerCheck, { color: theme.status.success }]}>✓</Text>
+              </View>
+              <Text style={[styles.bannerTitle, { color: theme.text.primary }]}>
+                Workout complete
+              </Text>
+            </View>
             <Pressable
               onPress={() => router.back()}
+              style={[styles.finish, { backgroundColor: theme.action.primary }]}
               accessibilityRole="button"
-              accessibilityLabel="Back to Today"
-              style={styles.back}
+              accessibilityLabel="Done"
             >
-              <Text style={[styles.backGlyph, { color: theme.text.secondary }]}>‹</Text>
+              <Text style={[styles.finishText, { color: theme.action.primaryText }]}>Done</Text>
             </Pressable>
-            <Text style={[styles.title, { color: theme.text.primary }]} numberOfLines={1}>
-              {sessionComplete ? 'Workout complete' : 'Workout session'}
-            </Text>
           </View>
-          {sessionComplete ? null : (
+          <Text style={[styles.meta, { color: theme.text.secondary }]} testID="session-meta">
+            {loggedSets} sets
+          </Text>
+          <View style={styles.bannerTotal}>
+            <Text style={[styles.bannerTotalValue, { color: theme.text.primary }]}>
+              {totalVolume.toLocaleString('en-US')}
+            </Text>
+            <Text style={[styles.bannerTotalUnit, { color: theme.text.secondary }]}>lb total</Text>
+          </View>
+        </View>
+      ) : (
+        <View
+          style={[
+            styles.header,
+            { backgroundColor: theme.surface.raised, borderBottomColor: theme.border.subtle },
+          ]}
+        >
+          <View style={styles.headerRow}>
+            <View style={styles.titleGroup}>
+              <Pressable
+                onPress={() => router.back()}
+                accessibilityRole="button"
+                accessibilityLabel="Back to Today"
+                style={styles.back}
+              >
+                <Text style={[styles.backGlyph, { color: theme.text.secondary }]}>‹</Text>
+              </Pressable>
+              <Text style={[styles.title, { color: theme.text.primary }]} numberOfLines={1}>
+                Workout session
+              </Text>
+            </View>
             <Pressable
               onPress={() => finish.mutate()}
               style={[styles.finish, { backgroundColor: theme.action.primary }]}
@@ -154,12 +201,12 @@ export default function WorkoutSessionV2Screen() {
             >
               <Text style={[styles.finishText, { color: theme.action.primaryText }]}>Finish</Text>
             </Pressable>
-          )}
+          </View>
+          <Text style={[styles.meta, { color: theme.text.secondary }]} testID="session-meta">
+            {totalVolume.toLocaleString('en-US')} lb · {loggedSets} of {plannedSets} sets
+          </Text>
         </View>
-        <Text style={[styles.meta, { color: theme.text.secondary }]} testID="session-meta">
-          {totalVolume.toLocaleString('en-US')} lb · {loggedSets} of {plannedSets} sets
-        </Text>
-      </View>
+      )}
 
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         {exercises.map((log) => {
@@ -315,6 +362,21 @@ const styles = StyleSheet.create({
   finish: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
   finishText: { fontSize: 13, fontWeight: '600' },
   meta: { fontSize: 12 },
+  banner: { gap: 8, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 16, borderBottomWidth: 1 },
+  bannerMark: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
+  bannerRing: {
+    width: 26,
+    height: 26,
+    borderRadius: 999,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bannerCheck: { fontSize: 14, fontWeight: '600' },
+  bannerTitle: { fontSize: 22, fontWeight: '600', flexShrink: 1 },
+  bannerTotal: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
+  bannerTotalValue: { fontSize: 32, fontWeight: '600' },
+  bannerTotalUnit: { fontSize: 13, fontWeight: '500' },
   body: { alignItems: 'center', gap: 12, padding: 16 },
   bottomBar: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 20, borderTopWidth: 1, alignItems: 'center' },
   addExercise: { width: CARD_WIDTH, height: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },

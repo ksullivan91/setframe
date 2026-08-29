@@ -3,7 +3,10 @@ import { Alert } from 'react-native';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '../theme/ThemeProvider';
-import WorkoutSessionScreen from '../../app/workout/[sessionId]';
+/* v1. The canonical route now renders v2, so this imports the screen
+   directly rather than through the route — the v1 regression matrix stays
+   runnable while v1 is still in the tree awaiting approval of v2. */
+import WorkoutSessionScreen from '../screens/WorkoutSessionScreenV1';
 import type { WorkoutSessionDetail } from '@setframe/schemas';
 
 const mockReplace = jest.fn();

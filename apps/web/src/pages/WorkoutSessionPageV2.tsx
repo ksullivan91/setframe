@@ -172,10 +172,11 @@ const BannerTop = styled.div`
   gap: 8px;
 `;
 
-const BannerMark = styled.span`
+const BannerMark = styled.h1`
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  margin: 0;
   font-size: 22px;
   font-weight: 600;
   color: ${({ theme }) => theme.text.primary};
