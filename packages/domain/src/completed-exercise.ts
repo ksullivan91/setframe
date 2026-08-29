@@ -63,6 +63,12 @@ export interface CompletedComparison {
   label: string;
   /** Spelled out for assistive tech, e.g. "Up 10 lb versus last session". */
   accessibleLabel: string;
+  /**
+   * Just the delta, e.g. "+10 lb", for surfaces where "vs last" is already
+   * implied by context — the v2 result pill sits inside the exercise it
+   * describes, so the comparison target needs no naming.
+   */
+  compactLabel: string;
 }
 
 export interface CompletedExerciseReadout {
@@ -310,6 +316,8 @@ export function compareWithPreviousSession(
       direction: 'same',
       label: 'Matched last session',
       accessibleLabel: `Matched last session on ${current.noun}`,
+      /* No delta to shorten, and "Matched" alone loses what was matched. */
+      compactLabel: 'Matched last session',
     };
   }
 
@@ -318,6 +326,7 @@ export function compareWithPreviousSession(
   return {
     direction: up ? 'up' : 'down',
     label: `${up ? '+' : '−'}${magnitude} vs last`,
+    compactLabel: `${up ? '+' : '−'}${magnitude}`,
     accessibleLabel: `${up ? 'Up' : 'Down'} ${magnitude} versus last session`,
   };
 }

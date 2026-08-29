@@ -11,6 +11,7 @@ import {
   ProgressPage,
   SettingsPage,
   WorkoutSessionPage,
+  WorkoutSessionPageV2,
 } from './pages';
 
 function AuthenticatedApp() {
@@ -20,6 +21,10 @@ function AuthenticatedApp() {
         <Route path="/today" element={<TodayPage />} />
         <Route path="/training" element={<ProgramEditorPage />} />
         <Route path="/training/new" element={<ProgramCreationWizardPage />} />
+        {/* v2 is routed alongside v1 rather than replacing it, so the two can
+            be compared on real session data before v1 is retired. Ordered
+            first so "v2" is not swallowed by the :sessionId param. */}
+        <Route path="/workout/v2/:sessionId" element={<WorkoutSessionPageV2 />} />
         <Route path="/workout/:sessionId" element={<WorkoutSessionPage />} />
         <Route path="/history" element={<ExerciseHistoryPage />} />
         <Route path="/history/:exerciseId" element={<ExerciseHistoryPage />} />

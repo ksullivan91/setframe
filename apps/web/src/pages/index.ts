@@ -3,6 +3,7 @@ export * from './SignUpPage';
 export * from './TodayPage';
 export * from './WorkoutLoggerPage';
 export * from './WorkoutSessionPage';
+export { default as WorkoutSessionPageV2 } from './WorkoutSessionPageV2';
 export * from './ProgramEditorPage';
 export * from './ExerciseHistoryPage';
 export * from './ProgressPage';

@@ -80,6 +80,40 @@ function formatDuration(seconds: number, unit: 'seconds' | 'minutes'): string {
  * mirroring `resolveSessionFields` — a stale value the user can see is far
  * better than one that silently disappears from their history.
  */
+/**
+ * Last session's numbers, for the PREVIOUS column of the v2 logger.
+ *
+ * `formatSessionSet` is the verbose form — "225lb · 8 reps" — which is right
+ * for a summary line and two lines too tall for a 74px column in a 44px row.
+ * This is the compact form the table needs: "225 × 8".
+ *
+ * Lives here rather than in either app because web and mobile must render the
+ * same column identically; see docs/design/workout-logging-table.md §2.1.
+ *
+ * `distanceDuration` deliberately reports distance alone. Both values will not
+ * fit the column, and distance is already that kind's `summaryMetric` — the
+ * figure it is judged on.
+ */
+export function formatPreviousSetCompact(
+  prescription: Prescription | null | undefined,
+  set: FormattableSet,
+): string | null {
+  const definition = getPrescriptionDefinition(prescription);
+
+  if (set.weightValue != null && set.reps != null) {
+    return `${set.weightValue} × ${set.reps}`;
+  }
+  if (set.weightValue != null) return `${set.weightValue}${set.weightUnit ?? ''}`;
+  if (set.reps != null) return `${set.reps} reps`;
+  if (set.distanceValue != null) {
+    return `${set.distanceValue} ${set.distanceUnit ?? definition.units.distance}`;
+  }
+  if (set.durationSeconds != null) {
+    return formatDuration(set.durationSeconds, definition.units.duration);
+  }
+  return null;
+}
+
 export function formatSessionSet(
   prescription: Prescription | null | undefined,
   set: FormattableSet,
