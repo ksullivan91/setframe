@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import styled, { css } from 'styled-components';
 import type { SessionField } from '@setframe/domain';
+import { workoutTable } from '@setframe/design-tokens';
 
 /**
  * One logged set, as a row in a table.
@@ -19,17 +20,14 @@ import type { SessionField } from '@setframe/domain';
  * likely way to get this component wrong.
  */
 
-export const SET_ROW_WIDTH = 334;
-export const SET_ROW_HEIGHT = 44;
-export const COLUMN_WIDTHS = {
-  setChip: 34,
-  previous: 74,
-  prSlot: 24,
-  input: 70,
-  mark: 24,
-} as const;
-export const COLUMN_GAP = 6;
-export const ROW_PADDING_X = 4;
+/* Re-exported from the shared token so this file stays the one place the
+   card imports from, while the numbers live in @setframe/design-tokens and
+   cannot drift from mobile's copy. */
+export const SET_ROW_WIDTH = workoutTable.rowWidth;
+export const SET_ROW_HEIGHT = workoutTable.rowHeight;
+export const COLUMN_WIDTHS = workoutTable.columns;
+export const COLUMN_GAP = workoutTable.columnGap;
+export const ROW_PADDING_X = workoutTable.rowPaddingX;
 
 export type SetRowStatus = 'empty' | 'pending' | 'saved' | 'pr' | 'error';
 
@@ -49,7 +47,7 @@ const Row = styled.div<{ $status: SetRowStatus }>`
   width: ${SET_ROW_WIDTH}px;
   max-width: 100%;
   height: ${SET_ROW_HEIGHT}px;
-  border-radius: 10px;
+  border-radius: ${workoutTable.rowRadius}px;
   /* Tints are literal low-alpha washes, not theme tokens: a token would paint
      at full opacity and drown the row. Figma carries the same literals. */
   background: ${({ $status, theme }) =>
@@ -68,7 +66,7 @@ const Row = styled.div<{ $status: SetRowStatus }>`
 const SetChip = styled.button`
   flex: 0 0 ${COLUMN_WIDTHS.setChip}px;
   width: ${COLUMN_WIDTHS.setChip}px;
-  height: 34px;
+  height: ${workoutTable.setChipSize}px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -133,15 +131,15 @@ const PrBadge = styled.span`
 const ValueInput = styled.input<{ $filled: boolean }>`
   flex: 0 0 ${COLUMN_WIDTHS.input}px;
   width: ${COLUMN_WIDTHS.input}px;
-  height: 40px;
-  border-radius: 8px;
+  height: ${workoutTable.inputHeight}px;
+  border-radius: ${workoutTable.inputRadius}px;
   border: 1px solid ${({ theme }) => theme.border.default};
   background: ${({ theme }) => theme.surface.canvas};
   text-align: center;
   font-variant-numeric: tabular-nums;
   /* 16px is not a style choice: below it iOS Safari zooms the viewport on
      focus and never zooms back. Story 28. */
-  font-size: 16px;
+  font-size: ${workoutTable.inputFontSize}px;
   padding: 0;
   color: ${({ theme, $filled }) => ($filled ? theme.text.primary : theme.text.disabled)};
   font-weight: ${({ $filled }) => ($filled ? 600 : 400)};

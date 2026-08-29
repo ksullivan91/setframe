@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import styled from 'styled-components';
 import type { SessionField } from '@setframe/domain';
+import { workoutTable } from '@setframe/design-tokens';
 import { COLUMN_GAP, COLUMN_WIDTHS, ROW_PADDING_X, SET_ROW_WIDTH } from './SetRowV2';
 
 /**
@@ -15,7 +16,7 @@ import { COLUMN_GAP, COLUMN_WIDTHS, ROW_PADDING_X, SET_ROW_WIDTH } from './SetRo
  * See docs/design/workout-logging-table.md §6.1.
  */
 
-export const CARD_WIDTH = 358;
+export const CARD_WIDTH = workoutTable.cardWidth;
 
 /** Column order matches SetRowV2 exactly, or the labels stop sitting over their columns. */
 const HEADER_COLUMNS: { key: string; label: string; width: number }[] = [
