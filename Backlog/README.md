@@ -9,6 +9,10 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
+- `68-exercise-catalog-cache-policy.md` — cache the exercise catalog for 24h
+  on both clients, route custom-exercise creation through one helper, and
+  retire the deferred `?q=` trigram search. Enabling work for expanding the
+  system catalog beyond its current 33 exercises; adds no exercises itself.
 - `WAIT-automated-visual-and-e2e-testing.md` — deferred by request. Filed so the
   gap is tracked, deliberately not started.
 - `WAIT-figma-accentsubtle-token-fix.md` — deferred by request. Fixes

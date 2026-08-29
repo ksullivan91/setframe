@@ -921,3 +921,78 @@ independent of the raw-ramp-value drift fixed above:
   most of the dark-mode mismatches have limited current visual impact since
   no screen in the file has been screenshot-verified in Dark mode yet (see
   "What's intentionally not done yet" above).
+
+---
+
+## Today's Workout — table logging (2026-08-29)
+
+`Screen/Mobile/WorkoutLogger` (`15:2`) is superseded for the active
+session by a new set of frames built around a table rather than a form.
+They are additive — `15:2` is left in place as the record of the shipped
+design until the rework lands.
+
+New frames: `SetRow/Mobile` (`96:57`), `Screen/Mobile/WorkoutLoggerV2 —
+Active` (`99:2`), `— Logging` (`107:179`), `— Exercise complete`
+(`102:58`), `— Workout complete` (`106:117`), `— Scrolled` (`122:294`,
+the only frame showing the fixed header and bottom bar with content
+passing under them), `— Set type sheet` (`123:377`), `— Exercise actions`
+(`124:439`), `Spec/Mobile/WorkoutLoggerV2 — Interactions` (`125:501`),
+`Spec/Mobile/WorkoutLoggerV2`
+(`108:217`), `Screen/Web/WorkoutLoggerV2` (`110:2`), and the two
+`Screen/WebMobile/*` parity clones (`120:398`, `120:462`).
+
+The parity clones are re-cloned from the mobile frames whenever `SetRow`
+changes, so their node IDs move. Treat `docs/design/workout-logging-table.md`
+§1 as the current index rather than these IDs.
+
+Measurements, states, the per-prescription column model and the save
+model are specified in `docs/design/workout-logging-table.md`; the
+decision and its alternatives are in
+`docs/adr/0011-set-logging-interaction-model.md`. Per-control behaviour —
+hit targets, the save lifecycle, focus order, the two sheets, motion,
+haptics and accessibility — is in
+`docs/design/workout-logging-interactions.md`, mirroring the Interactions
+board.
+
+Two notes for anyone editing these frames:
+
+- `setBoundVariableForPaint` seeds the paint with whatever base colour you
+  hand it, and that base is what renders if the binding does not resolve.
+  Passing `{r:0,g:0,b:0}` as a placeholder left three web `SET` chips solid
+  black while reporting a correct `Semantic/Surface/Sunken` binding. Always
+  seed the paint with the variable's **resolved** value.
+- Row tints use **literal low-alpha colours, not bound variables**.
+  `setBoundVariableForPaint` forces a paint's opacity to 1, so a 12%
+  success wash cannot be expressed as a bound `Semantic/Status/Success`
+  fill. Every other colour in these frames is bound normally.
+- The PR treatment is a **solid `Semantic/Action/Primary` badge with
+  inverse text** (6.10:1). It was briefly amber (`Semantic/Status/Caution`)
+  on the reasoning that purple means planned and green means done — but
+  amber measured **1.63:1** against a completed row. Purple is reused and
+  distinguished by *form* instead: a solid badge against the plan pill's
+  subtle `Accent/100` tint. Amber survives as the Down result pill's
+  background wash (`#F5A623` @ 16% under `Text/Primary`, 16.16:1) — the
+  rule is that amber never carries text colour, only a wash under dark
+  text.
+- Every text/background pair in these frames was measured against AA. Two
+  **pre-existing** token pairings failed and were left unchanged because
+  they appear app-wide: `Text/Secondary` on `Surface/Sunken` (3.11:1) and
+  `Text/Disabled` on `Surface/Sunken` (1.46:1). See
+  `docs/design/workout-logging-table.md` §9.
+
+### Exploration — exercise examples (2026-08-29)
+
+A separate Figma **section** on the 📱 Mobile page, deliberately placed
+below the agreed logger frames and titled
+`🔬 Exploration — Exercise examples (not signed off)`. It holds
+`Explore/Mobile/ExercisePicker` (`129:513`), `Explore/Mobile/ExerciseDetail`
+(`130:512`), `Explore/Mobile/WorkoutLoggerV2 + thumbnails` (`131:512`) and
+`Explore/Spec/ExerciseExamples` (`132:574`).
+
+Nothing in the agreed design changes for it; the frames are additive and
+the logger variant is a clone, not an edit. Write-up:
+`docs/design/exercise-examples-exploration.md`.
+
+The line drawings in these frames are **schematic placeholders** authored
+as inline SVG to occupy the slot, not proposed artwork. Do not treat them
+as a style direction.
