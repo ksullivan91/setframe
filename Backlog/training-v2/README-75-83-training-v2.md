@@ -99,13 +99,36 @@ flows that fill it.
 |---|---|---|
 | 75 | Shared geometry tokens + overview domain helpers | — ✅ **Shipped** 2026-08-30 |
 | 76 | Training overview, replacing the tabs | 75 ✅ **Shipped** 2026-08-30 |
-| 77 | The three empty states | 76 |
-| 78 | Multi-select exercise picker, extracted as one shared surface | 75 |
-| 79 | Workout editor (pushed) + prescription sheet | 76, 78 |
-| 80 | Schedule + assign-a-day sheet | 76 |
-| 81 | Plans list + switching | 76 |
-| 82 | Just start training, incl. the save-as-workout endpoint | 76, 78 |
-| 83 | Build your own, guided setup | 76, 78, 79, 80 |
+| 77 | The three empty states | 76 | ✅ **Shipped** |
+| 78 | Multi-select exercise picker, extracted as one shared surface | 75 | ✅ **Shipped** |
+| 79 | Workout editor (pushed) + prescription sheet | 76, 78 | ✅ **Shipped** |
+| 80 | Schedule + assign-a-day sheet | 76 | ✅ **Shipped** |
+| 81 | Plans list + switching | 76 | ✅ **Shipped** |
+| 82 | Just start training, incl. the save-as-workout endpoint | 76, 78 | ✅ **Shipped** |
+| 83 | Build your own, guided setup | 76, 78, 79, 80 | ✅ **Shipped (picker only)** |
+
+## What is still open
+
+All nine stories are built. These are the gaps found while building them,
+recorded rather than quietly left:
+
+- **Replace exercise** in the prescription sheet is a no-op. Opening the
+  picker there would *add* rather than replace, which is the wrong operation.
+- **Repeat-mode chips** on the schedule are a readout, not a control —
+  switching modes needs a `cycle_length_weeks` mutation.
+- **Per-date overrides** are stated on the schedule ("swapping one date does
+  not change the weekly pattern") but the existing rows are not listed.
+- **Drag-to-reorder** in the workout editor shows a grip but does not yet
+  write `sortOrder`.
+- **`weekNumber` in block mode.** The assign sheet always writes `null`
+  (repeats every week). Pinning a slot to one week of a block is the only
+  part of the schedule model still undesigned.
+- **Guided setup's chrome** still uses its own four-step layout rather than
+  the Build 1-7 frames; only the picker was unified.
+- **Start from a template** has no data behind it and is badged accordingly.
+- **The week-strip caption truncates** with realistic workout names — the
+  Figma frame used "Upper A", and "Day 1 — Push" becomes "Day 1 —…" in a
+  42px column.
 
 **75 and 76 are live in production** (API on Railway, web on Cloudflare
 Pages, verified against the live bundle). `/training` renders the overview on
