@@ -13,6 +13,8 @@ import {
   WorkoutSessionPageV2,
   TrainingPageV2,
   WorkoutEditorPage,
+  SchedulePage,
+  PlansPage,
 } from './pages';
 
 function AuthenticatedApp() {
@@ -22,6 +24,8 @@ function AuthenticatedApp() {
         <Route path="/today" element={<TodayPage />} />
         <Route path="/training" element={<TrainingPageV2 />} />
         <Route path="/training/workouts/:dayTypeId" element={<WorkoutEditorPage />} />
+        <Route path="/training/schedule" element={<SchedulePage />} />
+        <Route path="/training/plans" element={<PlansPage />} />
         {/* The three-tab editor, still reachable while stories 80-81 build
             the remaining pushed screens. */}
         <Route path="/training/manage" element={<ProgramEditorPage />} />

@@ -11,3 +11,5 @@ export * from './ProgressPage';
 export * from './SettingsPage';
 export * from './ProgramCreationWizardPage';
 export { default as WorkoutEditorPage } from './WorkoutEditorPage';
+export { default as SchedulePage } from './SchedulePage';
+export { default as PlansPage } from './PlansPage';

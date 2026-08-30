@@ -76,13 +76,12 @@ const Empty = styled.p`
 `;
 
 /**
- * Where the overview's controls point until their own screens exist.
+ * Creating a workout still goes through the old editor.
  *
- * Stories 79-81 build the pushed workout editor, the schedule and the plans
- * list. Until then every control lands on the editor that already works,
- * because a live-looking control that 404s is worse than one that goes
- * somewhere plain — the same reasoning behind badging templates "Coming
- * soon" rather than leaving the button enabled.
+ * Every other control now reaches its own pushed screen (stories 79-81).
+ * Creating a *new* workout is guided setup's job, which story 83 rebuilds —
+ * until then this lands on the editor that already works, because a
+ * live-looking control that 404s is worse than one that goes somewhere plain.
  */
 const MANAGE_ROUTE = '/training/manage';
 
@@ -193,14 +192,14 @@ export default function TrainingPageV2() {
             programName={activeProgram.name}
             meta={formatProgramMeta(progress, scheduledDays)}
             progress={progress}
-            onChange={() => navigate(MANAGE_ROUTE)}
+            onChange={() => navigate('/training/plans')}
           />
         ) : null}
 
         <Card data-testid="this-week-card">
           <CardHeadRow>
             <CardLabel>This week</CardLabel>
-            <CardAction onClick={() => navigate(MANAGE_ROUTE)}>Edit schedule</CardAction>
+            <CardAction onClick={() => navigate('/training/schedule')}>Edit schedule</CardAction>
           </CardHeadRow>
           <WeekStrip
             days={strip}

@@ -30,8 +30,13 @@ import { Card, CardAction, CardHeadRow, CardLabel, ListRow } from '../components
  * because of.
  */
 
-/** Where controls point until the pushed screens (stories 79-81) exist. */
-const MANAGE_ROUTE = '/program-editor';
+/**
+ * Creating a workout still goes through the old editor.
+ *
+ * Every other control now reaches its own pushed screen. Creating a *new*
+ * workout is guided setup's job, which story 83 rebuilds.
+ */
+const MANAGE_ROUTE = '/training-manage';
 
 function todayLocalDate(): string {
   const now = new Date();
@@ -131,14 +136,14 @@ export function TrainingScreenV2() {
           programName={activeProgram.name}
           meta={formatProgramMeta(progress, scheduledDays)}
           progress={progress}
-          onChange={() => router.push(MANAGE_ROUTE)}
+          onChange={() => router.push('/plans')}
         />
       ) : null}
 
       <Card testID="this-week-card">
         <CardHeadRow>
           <CardLabel>This week</CardLabel>
-          <CardAction label="Edit schedule" onPress={() => router.push(MANAGE_ROUTE)} />
+          <CardAction label="Edit schedule" onPress={() => router.push('/schedule')} />
         </CardHeadRow>
         <WeekStrip
           days={strip}
