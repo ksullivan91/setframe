@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, View, Text, Alert, StyleSheet } from 'react-native';
+import { ActivityIndicator, ScrollView, View, Text, Alert, StyleSheet,
+  Modal,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { MoreVertical } from 'lucide-react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -12,7 +14,7 @@ import { Sheet } from '../src/components/Sheet';
 import { Button } from '../src/components/Button';
 import { Input } from '../src/components/Input';
 import { Select, type SelectOption } from '../src/components/Select';
-import { AddExercisePicker } from '../src/components/AddExercisePicker';
+import { ExercisePickerV2 } from '../src/components/exercise-picker/ExercisePickerV2';
 import { WeekScheduleEditor } from '../src/components/WeekScheduleEditor';
 import { useApiClient } from '../src/lib/api-client';
 import { useScreenTopPadding, useStackBottomPadding } from '../src/lib/useScreenInsets';
@@ -260,6 +262,24 @@ export default function ProgramWizardScreen() {
     },
     // Errors surface inline inside AddExercisePicker (which preserves the
     // typed name for retry) rather than as a modal Alert.
+  });
+
+  /**
+   * Adds every picked exercise in the order picked. Sequential, because
+   * sortOrder comes from insertion order server-side and the picker promises
+   * that order.
+   */
+  const addExercisesToWorkout = useMutation({
+    mutationFn: async (exerciseIds: string[]) => {
+      const dayTypeId = selectedWorkout!.dayTypeId;
+      for (const exerciseId of exerciseIds) {
+        await api.post(`/day-types/${dayTypeId}/exercises`, { exerciseId });
+      }
+    },
+    onSuccess: async () => {
+      setAddExerciseOpen(false);
+      await queryClient.invalidateQueries({ queryKey: ['day-type', selectedWorkout!.dayTypeId] });
+    },
   });
 
   const addExercise = useMutation({
@@ -744,22 +764,24 @@ export default function ProgramWizardScreen() {
       />
     ) : null}
 
-    {selectedWorkout && addExerciseOpen ? (
-      <AddExercisePicker
-        open
-        exercises={exercises}
-        exercisesLoading={exercisesLoading}
-        exercisesError={exercisesError}
-        onRetryExercises={() => refetchExercises()}
-        onClose={() => setAddExerciseOpen(false)}
-        onCreateExercise={(name) => createExercise.mutateAsync({ name })}
-        isCreatingExercise={createExercise.isPending}
-        onAddExercise={(exerciseId, prescription) =>
-          addExercise.mutate({ dayTypeId: selectedWorkout.dayTypeId, exerciseId, prescription })
-        }
-        isAddingExercise={addExercise.isPending}
-      />
-    ) : null}
+    {/* The shared multi-select picker (story 78), replacing the single-select
+        one that added one exercise and closed — building a day meant
+        reopening it per exercise. */}
+    <Modal
+      visible={!!selectedWorkout && addExerciseOpen}
+      animationType="slide"
+      onRequestClose={() => setAddExerciseOpen(false)}
+    >
+      {selectedWorkout ? (
+        <ExercisePickerV2
+          exercises={exercises}
+          title={`Add to ${selectedWorkout.name ?? 'workout'}`}
+          onCancel={() => setAddExerciseOpen(false)}
+          onAdd={(ids) => addExercisesToWorkout.mutate(ids)}
+          busy={addExercisesToWorkout.isPending}
+        />
+      ) : null}
+    </Modal>
     </>
   );
 }

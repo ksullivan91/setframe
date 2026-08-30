@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { spacing, radius } from '@setframe/design-tokens';
 import type { DayType, DayTypeExercise, Exercise, Prescription, ProgramScheduleSlot, TrainingProgram } from '@setframe/schemas';
 import { Button, Card, Input, Menu, Modal, Select, Stepper, WeekScheduleEditor, useToast } from '../components';
-import { AddExercisePicker } from '../components/AddExercisePicker';
+import { ExercisePickerV2 } from '../components/exercise-picker/ExercisePickerV2';
 import { ExerciseEditModal, type EditState } from '../components/ExerciseEditModal';
 import { restoreExerciseOrder } from '@setframe/domain';
 import { useApiClient } from '../lib/api-client';
@@ -36,6 +36,16 @@ const steps = [
   { key: 'exercises', title: 'Exercises', description: 'What you perform inside the selected workout.' },
   { key: 'schedule', title: 'Schedule', description: 'Assign workouts to your week.' },
 ];
+
+/* Covers the shell, including its nav — the picker is a task surface, and
+   leaving the tab bar tappable underneath invites losing a half-made
+   selection to a stray tap. */
+const PickerOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: ${({ theme }) => theme.surface.canvas};
+`;
 
 const Page = styled.div`
   display: flex;
@@ -439,6 +449,28 @@ export function ProgramCreationWizardPage() {
       toast.show({ variant: 'success', message: 'Exercise added.' });
     },
     onError: () => toast.show({ variant: 'error', message: 'Could not add exercise.' }),
+  });
+
+  /**
+   * Adds every picked exercise, in the order they were picked.
+   *
+   * Sequential rather than parallel: `sortOrder` is assigned from insertion
+   * order server-side, and the picker's footer promises they are added in the
+   * order chosen — parallel posts would race that promise.
+   */
+  const addExercisesToWorkout = useMutation({
+    mutationFn: async (exerciseIds: string[]) => {
+      const dayTypeId = selectedWorkout!.dayTypeId;
+      for (const exerciseId of exerciseIds) {
+        await api.post(`/day-types/${dayTypeId}/exercises`, { exerciseId });
+      }
+    },
+    onSuccess: async () => {
+      setAddExerciseOpen(false);
+      await queryClient.invalidateQueries({ queryKey: ['day-type', selectedWorkout!.dayTypeId] });
+      toast.show({ variant: 'success', message: 'Exercises added.' });
+    },
+    onError: () => toast.show({ variant: 'error', message: 'Could not add exercises.' }),
   });
 
   /**
@@ -897,20 +929,21 @@ export function ProgramCreationWizardPage() {
         />
       ) : null}
 
+      {/* The shared multi-select picker (story 78), replacing the
+          single-select one that added one exercise and closed — so building a
+          day meant reopening it per exercise. §2.4 of the Training
+          exploration: one add-exercise surface for the session, the workout
+          editor and guided setup alike. */}
       {addExerciseOpen && selectedWorkout ? (
-        <AddExercisePicker
-          exercises={exercises}
-          exercisesLoading={exercisesLoading}
-          exercisesError={exercisesError}
-          onRetryExercises={refetchExercises}
-          onClose={() => setAddExerciseOpen(false)}
-          isCreatingExercise={createExercise.isPending}
-          onCreateExercise={(name) => createExercise.mutateAsync({ name })}
-          isAddingExercise={addExercise.isPending}
-          onAddExercise={(exerciseId, prescription) =>
-            addExercise.mutate({ dayTypeId: selectedWorkout.dayTypeId, exerciseId, prescription })
-          }
-        />
+        <PickerOverlay role="dialog" aria-modal="true" aria-label="Add exercises">
+          <ExercisePickerV2
+            exercises={exercises}
+            title={`Add to ${selectedWorkout.name ?? 'workout'}`}
+            onCancel={() => setAddExerciseOpen(false)}
+            onAdd={(ids) => addExercisesToWorkout.mutate(ids)}
+            busy={addExercisesToWorkout.isPending}
+          />
+        </PickerOverlay>
       ) : null}
     </Page>
   );
