@@ -744,7 +744,19 @@ export default function WorkoutSessionPageV2() {
 
                 return (
                   <SetRowV2
-                    key={set.id}
+                    /* Keyed on clientId, NOT id.
+                    
+                       An optimistic row is created with the clientId as its
+                       id; the server then assigns a real uuid. Keying on `id`
+                       therefore changed the key when the save landed, so
+                       React unmounted the row and built a new one — taking
+                       the focused input with it. Typing into a freshly added
+                       set threw focus elsewhere and jumped the scroll.
+                    
+                       clientId is stable from the optimistic row through to
+                       the persisted one, which is the whole reason it is
+                       client-generated. */
+                    key={set.clientId}
                     setId={set.id}
                     label={set.setType === 'warmup' ? 'W' : String(workingIndex(log.sets, index))}
                     status={status}

@@ -185,6 +185,67 @@ test.describe('logger regressions', () => {
     await expect(page.locator('[data-testid^="set-row-"]')).toHaveCount(before + 1);
   });
 
+
+  test('focus survives adding a set while typing — the reported focus jump', async ({ page }) => {
+    /* The exact reported sequence: enter a set quickly, blur it by hitting
+       "+ Add set", then IMMEDIATELY type into the new row.
+    
+       The refetch has to land while the field is focused, which is the whole
+       race — so the session read is slowed to hold that window open. Without
+       that the refetch resolves before any typing starts and the bug cannot
+       reproduce; an earlier version of this test passed with the fix
+       reverted, which is worth more than the test itself. */
+    await page.evaluate(() => {
+      (window as unknown as { __setframeMocks?: { setSlowReads: (ms: number) => void } })
+        .__setframeMocks?.setSlowReads(1500);
+    });
+
+    const rows = page.locator('[data-testid^="set-row-"]');
+    const first = rows.first();
+    await first.getByRole('textbox').first().fill('225');
+    await first.getByRole('textbox').nth(1).fill('8');
+
+    await page.getByRole('button', { name: '+ Add set' }).click();
+    /* The optimistic row is there straight away — no waiting for the API. */
+    await expect(rows).toHaveCount(2, { timeout: 2000 });
+
+    const newWeight = rows.nth(1).getByRole('textbox').first();
+    await newWeight.click();
+    await newWeight.type('185', { delay: 20 });
+
+    /* Now let the slow refetch land underneath the focused field. */
+    await page.waitForTimeout(2500);
+
+    /* Same input, still focused, still holding what was typed. Before the
+       fix the key changed from clientId to the server uuid, React replaced
+       the element, and focus fell back to <body>. */
+    await expect(newWeight).toBeFocused();
+    await expect(newWeight).toHaveValue('185');
+  });
+
+  test('the newly added row is not replaced when its save resolves', async ({ page }) => {
+    /* Pins the mechanism rather than the symptom: the same DOM node before
+       and after, which is what keeps focus and scroll position.
+    
+       It has to probe the ADDED row, not the first one. Only the optimistic
+       row's id changes (clientId then server uuid); the pre-existing row came
+       from the server already and keys identically either way — probing it
+       passed with the bug still in place. */
+    await page.evaluate(() => {
+      (window as unknown as { __setframeMocks?: { setSlowReads: (ms: number) => void } })
+        .__setframeMocks?.setSlowReads(1500);
+    });
+
+    const rows = page.locator('[data-testid^="set-row-"]');
+    await page.getByRole('button', { name: '+ Add set' }).click();
+    await expect(rows).toHaveCount(2, { timeout: 2000 });
+
+    await rows.nth(1).evaluate((el) => el.setAttribute('data-identity-probe', 'original'));
+    await page.waitForTimeout(2500);
+
+    await expect(rows.nth(1)).toHaveAttribute('data-identity-probe', 'original');
+  });
+
   test('an exercise added mid-session gets weight and reps columns, not every column', async ({ page }) => {
     /* With no prescription the log falls back to `unprescribedDefinition`,
        which declares EVERY field — the card rendered
