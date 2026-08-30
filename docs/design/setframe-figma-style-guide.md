@@ -1001,9 +1001,11 @@ as a style direction.
 
 A third Figma **section** on the 📱 Mobile page, below the exercise-examples
 exploration and titled `🔬 Exploration — Training page redesign (not signed
-off)`. Holds `Explore/Mobile/Training — Overview` (`146:709`),
-`— Workout editor` (`147:708`), `— No program yet` (`148:708`) and
-`Explore/Spec/TrainingRedesign` (`149:708`).
+off)`. Holds eight screens laid out left to right as a **walkthrough** — a fresh
+user with no plan through to a full plan with the week scheduled — plus two
+reference boards after them. The step number is in each frame name so the
+order survives someone dragging a frame. Node IDs are indexed in
+`docs/design/training-page-exploration.md` §1.
 
 Notable because **mobile Training had no frame in this file at all** before
 this — it was built (1,143 lines) and never designed. The web equivalent,

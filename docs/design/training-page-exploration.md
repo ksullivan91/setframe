@@ -5,17 +5,35 @@
 **Builds on:** `docs/design/exercise-examples-exploration.md`, the Hevy
 teardown (`Backlog/research/`), and ADR 0011's table-logging language.
 
-| Frame | Node |
-|---|---|
-| `Explore/Mobile/Training — Overview` | `146:709` |
-| `Explore/Mobile/Training — Workout editor` | `147:708` |
-| `Explore/Mobile/Training — No program yet` | `148:708` |
-| `Explore/Mobile/Training — Schedule` | `150:708` |
-| `Explore/Mobile/Training — Programs` | `151:708` |
-| `Explore/Mobile/Training — Prescription sheet` | `152:708` |
-| `Explore/Mobile/Training — Assign a day` | `156:708` |
-| `Explore/Spec/TrainingRedesign` | `149:708` |
-| `Explore/Spec/TrainingEmptyStates` | `152:824` |
+| # | Frame | Node |
+|---|---|---|
+| 1 | `Training 1 · No plan yet` | `148:708` |
+| 2 | `Training 2 · A plan, nothing in it` | `158:708` |
+| 3 | `Training 3 · Build a workout` | `147:708` |
+| 4 | `Training 4 · Set an exercise's targets` | `152:708` |
+| 5 | `Training 5 · Plan the week` | `150:708` |
+| 6 | `Training 6 · Assign a day` | `156:708` |
+| 7 | `Training 7 · Set up, and training` | `146:709` |
+| 8 | `Training 8 · Later — switch plans` | `151:708` |
+| — | `Training — Recommendations and interactions` | `149:708` |
+| — | `Training — Empty states` | `152:824` |
+
+**The frames are laid out left to right as a walkthrough**, in the order a
+fresh user actually moves through them, and the step number is in each frame
+name so the sequence survives someone dragging a frame on the canvas. The two
+reference boards sit after the journey rather than inside it.
+
+Steps 1–7 are one continuous path: no plan → a plan with nothing in it →
+build a workout → set its targets → plan the week → assign a day → training.
+Step 8 is a separate, later journey — switching plans is not part of setup.
+
+**Step 2 is a bridge that was missing.** Without it the walkthrough jumped
+from "no plan" straight to a fully populated overview, with nothing showing
+what the page looks like in the state a user is actually in for the first ten
+minutes. It also puts two of the catalogued empty states where they are
+really met, rather than only as cards on a spec board — and it orders them
+**workouts before schedule**, because there is nothing to schedule until a
+workout exists.
 
 Together these cover every path the overview offers: the three tabs it
 replaces, the editor it pushes to, the sheet that edits a prescription, and
