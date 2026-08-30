@@ -121,6 +121,60 @@ export const exercisePicker = {
 } as const;
 
 /**
+ * Geometry for the pushed workout editor and its prescription sheet.
+ *
+ * Figma: `Explore/Mobile/Training 3 · Build a workout` (`147:708`) and
+ * `Training 4 · Set an exercise's targets` (`152:708`).
+ *
+ * Master/detail on a phone is a **push, not an accordion** — the page this
+ * replaces appended the editor below the list, so you scrolled past the list
+ * you had just used to reach what you selected.
+ */
+export const workoutEditor = {
+  header: { paddingTop: 16, paddingBottom: 12, paddingX: 16, gap: 6, titleSize: 18, metaSize: 12, backSize: 22, moreSize: 18 },
+  /** The list card. Narrower padding than an overview card so a 334px row
+      sits inside a 358px card. */
+  listPaddingX: 12,
+  listPaddingY: 4,
+  listRadius: 16,
+  row: {
+    width: 334,
+    height: 64,
+    paddingY: 10,
+    gap: 10,
+    gripWidth: 18,
+    gripSize: 15,
+    tileSize: 36,
+    tileRadius: 8,
+    nameSize: 15,
+    metaSize: 11,
+    textGap: 1,
+    pillPaddingX: 8,
+    pillPaddingY: 3,
+    pillRadius: 999,
+    pillLabelSize: 11,
+    moreWidth: 22,
+    moreSize: 16,
+  },
+  addButton: { height: 46, radius: 8, labelSize: 14 },
+  hintSize: 12,
+
+  sheet: {
+    paddingTop: 10,
+    paddingBottom: 24,
+    grabberWidth: 36,
+    grabberHeight: 4,
+    header: { paddingTop: 8, paddingBottom: 12, paddingX: 16, gap: 4, titleSize: 17, subtitleSize: 12 },
+    kind: { paddingBottom: 12, gap: 8, pillPaddingX: 10, pillPaddingY: 4, pillLabelSize: 12, noteSize: 11 },
+    field: { width: 104, gap: 10, labelGap: 6, labelSize: 10, inputHeight: 44, inputRadius: 8, valueSize: 16 },
+    hintSize: 12,
+    actionHeight: 50,
+    actionPaddingY: 14,
+    actionLabelSize: 15,
+  },
+} as const;
+
+/**
  * Height of the workouts card for a given number of workouts.
  *
  * Padding + label row + n rows + the gaps between them. Exposed so a test can

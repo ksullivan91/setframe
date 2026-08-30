@@ -229,7 +229,7 @@ export default function TrainingPageV2() {
                 badge={nextUp?.workoutName === dayType.name ? 'Next up' : undefined}
                 divided={index > 0}
                 testId={`workout-row-${dayType.id}`}
-                onClick={() => navigate(MANAGE_ROUTE)}
+                onClick={() => navigate(`/training/workouts/${dayType.id}`)}
               />
             ))
           )}

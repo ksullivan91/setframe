@@ -10,3 +10,4 @@ export * from './ExerciseHistoryPage';
 export * from './ProgressPage';
 export * from './SettingsPage';
 export * from './ProgramCreationWizardPage';
+export { default as WorkoutEditorPage } from './WorkoutEditorPage';

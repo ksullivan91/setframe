@@ -12,6 +12,7 @@ import {
   SettingsPage,
   WorkoutSessionPageV2,
   TrainingPageV2,
+  WorkoutEditorPage,
 } from './pages';
 
 function AuthenticatedApp() {
@@ -20,8 +21,9 @@ function AuthenticatedApp() {
       <Routes>
         <Route path="/today" element={<TodayPage />} />
         <Route path="/training" element={<TrainingPageV2 />} />
-        {/* The three-tab editor, still reachable while stories 79-81 build
-            the pushed screens the overview replaces it with. */}
+        <Route path="/training/workouts/:dayTypeId" element={<WorkoutEditorPage />} />
+        {/* The three-tab editor, still reachable while stories 80-81 build
+            the remaining pushed screens. */}
         <Route path="/training/manage" element={<ProgramEditorPage />} />
         <Route path="/training/new" element={<ProgramCreationWizardPage />} />
         {/* The canonical workout route renders v2. Versioning lives in the

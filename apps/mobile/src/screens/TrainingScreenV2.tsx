@@ -166,7 +166,7 @@ export function TrainingScreenV2() {
               badge={nextUp?.workoutName === dayType.name ? 'Next up' : undefined}
               divided={index > 0}
               testID={`workout-row-${dayType.id}`}
-              onPress={() => router.push(MANAGE_ROUTE)}
+              onPress={() => router.push(`/workout-editor?dayTypeId=${dayType.id}`)}
             />
           ))
         )}
