@@ -177,7 +177,6 @@ export function WorkoutEditorScreen() {
           prescription={active.prescription ?? null}
           onClose={() => setSheetFor(null)}
           onSave={(prescription) => savePrescription.mutate({ id: active.id, prescription })}
-          onReplace={() => setSheetFor(null)}
           onRemove={() => removeExercise.mutate(active.id)}
         />
       ) : null}

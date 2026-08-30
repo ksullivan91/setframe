@@ -99,12 +99,15 @@ test.describe('workout editor — Figma geometry parity', () => {
     expect(px(size)).toBeGreaterThanOrEqual(16);
   });
 
-  test('replace and remove are distinct actions', async ({ page }) => {
-    /* Replacing keeps the prescription; remove-then-add loses it. */
+  test('the sheet contains no control that does nothing', async ({ page }) => {
+    /* "Replace exercise" is in the design (152:708) but was never wired. A
+       row that does nothing is the defect being removed everywhere else this
+       week, so it is absent until it works. */
     await openEditor(page);
     await page.getByRole('button', { name: /^Actions for / }).first().click();
-    await expect(page.getByTestId('prescription-replace')).toBeVisible();
     await expect(page.getByTestId('prescription-remove')).toBeVisible();
+    await expect(page.getByTestId('prescription-replace')).toHaveCount(0);
+    await expect(page.getByTestId('prescription-sheet')).not.toContainText('Replace exercise');
   });
 
   test('the editor add button opens the shared picker', async ({ page }) => {

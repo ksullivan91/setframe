@@ -278,12 +278,6 @@ export default function WorkoutEditorPage() {
           prescription={active.prescription ?? null}
           onClose={() => setSheetFor(null)}
           onSave={(prescription) => savePrescription.mutate({ id: active.id, prescription })}
-          onReplace={() => {
-            /* Replace keeps the prescription — it swaps which exercise the
-               slot points at. Not built yet; opening the picker here would
-               add rather than replace, which is the wrong operation. */
-            setSheetFor(null);
-          }}
           onRemove={() => removeExercise.mutate(active.id)}
         />
       ) : null}

@@ -194,7 +194,6 @@ export interface PrescriptionSheetProps {
   prescription: Prescription | null;
   onClose: () => void;
   onSave: (prescription: Prescription) => void;
-  onReplace: () => void;
   onRemove: () => void;
 }
 
@@ -204,7 +203,6 @@ export function PrescriptionSheet({
   prescription,
   onClose,
   onSave,
-  onReplace,
   onRemove,
 }: PrescriptionSheetProps) {
   const kind = prescription?.kind ?? 'sets_reps';
@@ -277,10 +275,9 @@ export function PrescriptionSheet({
         <Hint>Leave any of these blank to log it freely — planned targets are optional.</Hint>
 
         <Divider />
-        {/* Replace keeps the prescription; remove-then-add would lose it. */}
-        <Action type="button" onClick={onReplace} data-testid="prescription-replace">
-          Replace exercise
-        </Action>
+        {/* "Replace exercise" is in the design (152:708) and is NOT here: it
+            was never wired, and a row that does nothing is the defect we are
+            removing everywhere else this week. It returns when it works. */}
         <Action type="button" $destructive onClick={onRemove} data-testid="prescription-remove">
           Remove from this workout
         </Action>

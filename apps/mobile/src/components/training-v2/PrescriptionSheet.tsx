@@ -49,7 +49,6 @@ export interface PrescriptionSheetProps {
   prescription: Prescription | null;
   onClose: () => void;
   onSave: (prescription: Prescription) => void;
-  onReplace: () => void;
   onRemove: () => void;
 }
 
@@ -59,7 +58,6 @@ export function PrescriptionSheet({
   prescription,
   onClose,
   onSave,
-  onReplace,
   onRemove,
 }: PrescriptionSheetProps) {
   const theme = useTheme();
@@ -146,9 +144,9 @@ export function PrescriptionSheet({
 
           <View style={[styles.divider, { backgroundColor: theme.surface.sunken }]} />
 
-          <Pressable onPress={onReplace} testID="prescription-replace" style={styles.action}>
-            <Text style={[styles.actionLabel, { color: theme.text.primary }]}>Replace exercise</Text>
-          </Pressable>
+          {/* "Replace exercise" is in the design and is NOT here: it was
+              never wired, and a row that does nothing is the defect being
+              removed everywhere else. It returns when it works. */}
           <Pressable onPress={onRemove} testID="prescription-remove" style={styles.action}>
             <Text style={[styles.actionLabel, { color: theme.status.error }]}>
               Remove from this workout
