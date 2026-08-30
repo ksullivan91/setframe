@@ -46,7 +46,7 @@ last done 20 Aug").
 | Show RPE column | Toggle. Adds the optional RPE field to every set in this exercise. |
 | Replace exercise | Swap the movement, keeping logged sets. |
 | Reorder exercises | Enters reorder mode for the session. |
-| Remove exercise | Destructive, below a divider. |
+| Remove exercise | Destructive, below a divider. **Soft delete** — sets `skipped: true`, which `visibleSessionExercises` filters out. It must be paired with the restore in story 74, or removal becomes one-way. |
 
 "Add a note" writing to the session and never the template is ADR 0005 in
 miniature.
@@ -70,7 +70,9 @@ was visible is never dropped when it is hidden again.
 4. An exercise can be removed and replaced from `⋯`.
 5. Turning on RPE adds a column to that exercise only, and the row still sums
    to `workoutTable.rowWidth` with the extra column present.
-6. Web and mobile offer identical operations, verified by screenshot.
+6. Removing an exercise is undoable — see story 74, which owns the restore
+   mutation. Do not ship removal without it.
+7. Web and mobile offer identical operations, verified by screenshot.
 
 ## Notes
 

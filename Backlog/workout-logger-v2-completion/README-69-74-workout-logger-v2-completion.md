@@ -1,4 +1,4 @@
-# Workout Logger v2 — Completion Pack (69–73)
+# Workout Logger v2 — Completion Pack (69–74)
 
 ## Purpose
 
@@ -22,13 +22,21 @@ were read out of the file programmatically, not transcribed.
 
 ## What is actually broken today
 
-Two of these are regressions against v1, not merely missing polish:
+Found by diffing v1's mutations against v2's — **v1 has nine, v2 has three**.
+These are regressions against v1, not missing polish:
 
 - **A set cannot be deleted.** The `SET` chip is the only path to the set-type
   sheet, which is the only path to delete. The chip does nothing.
 - **An exercise cannot be removed or replaced.** The `⋯` does nothing.
+- **An exercise cannot be added.** `+ Add exercise` sits in a sticky bottom
+  bar with no handler at all — not a stub, no `onClick`.
+- **An exercise cannot be created.** With a 33-exercise catalog, adding a
+  movement that is not in it is the common path, not an edge case.
+- **A removed exercise cannot be restored.** Removal is a soft delete
+  (`skipped: true`) and `visibleSessionExercises` filters those out, so
+  anything removed is invisible with no way back.
 
-Both shipped in v1. Story 69 is therefore the highest priority in the pack.
+Stories 69 and 74 cover these and are the top of the pack.
 
 ## Stories
 
@@ -39,9 +47,14 @@ Both shipped in v1. Story 69 is therefore the highest priority in the pack.
 | 71 | Sticky regions and the keyboard | P1 |
 | 72 | The save lifecycle | P1 |
 | 73 | Retire v1 and remove Quick Log | P1 |
+| 74 | Adding an exercise mid-session | **P0** |
 
-Order matters only in that **69 and 70 precede 73** — v1 must not be deleted
-while v2 is still missing operations v1 had.
+Order matters only in that **69, 70 and 74 precede 73** — v1 must not be
+deleted while v2 is still missing operations v1 had.
+
+The one operation deliberately not restored is Quick Log. Everything else in
+v1's nine mutations is either already in v2 or covered above; the diff is
+recorded in story 74 so nobody has to redo it.
 
 ## Quick Log is removed, not ported
 
