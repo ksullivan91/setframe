@@ -17,6 +17,7 @@ import { ActiveProgramCard } from '../components/training-v2/ActiveProgramCard';
 import { WeekStrip } from '../components/training-v2/WeekStrip';
 import { Card, CardAction, CardHeadRow, CardLabel, ListRow } from '../components/training-v2/TrainingCards';
 import { NoPlanRoutes } from '../components/training-v2/NoPlanRoutes';
+import { ListRowsSkeleton, WeekStripSkeleton } from '../components/training-v2/TrainingSkeletons';
 
 /**
  * Training v2 — one scrollable screen, replacing three tabs.
@@ -61,13 +62,13 @@ export function TrainingScreenV2() {
     [programs],
   );
 
-  const { data: dayTypes = [] } = useQuery({
+  const { data: dayTypes = [], isPending: dayTypesPending } = useQuery({
     queryKey: ['program-day-types', activeProgram?.id],
     queryFn: () => api.get<DayType[]>(`/programs/${activeProgram!.id}/day-types`),
     enabled: !!activeProgram,
   });
 
-  const { data: slots = [] } = useQuery({
+  const { data: slots = [], isPending: slotsPending } = useQuery({
     queryKey: ['schedule-slots', activeProgram?.id],
     queryFn: () => api.get<ProgramScheduleSlot[]>(`/programs/${activeProgram!.id}/schedule-slots`),
     enabled: !!activeProgram,
@@ -182,12 +183,17 @@ export function TrainingScreenV2() {
           <CardLabel>This week</CardLabel>
           <CardAction label="Edit schedule" onPress={() => router.push('/schedule')} />
         </CardHeadRow>
+        {/* Without this the strip reads every day as "Rest" while the slots
+            load — it briefly tells a user with a full week that they have
+            nothing scheduled. */}
+        {slotsPending ? <WeekStripSkeleton /> : (
         <WeekStrip
           days={strip}
           /* Navigates only. The strip never starts a session — ADR 0009: a
              mount effect that POSTed one is what destroyed real data. */
           onSelectDay={() => router.push('/(tabs)/today')}
         />
+        )}
       </Card>
 
       <Card testID="workouts-card">
@@ -195,7 +201,9 @@ export function TrainingScreenV2() {
           <CardLabel>Workouts</CardLabel>
           <CardAction label="+ New" onPress={() => router.push(MANAGE_ROUTE)} />
         </CardHeadRow>
-        {dayTypes.length === 0 ? (
+        {dayTypesPending ? (
+          <ListRowsSkeleton />
+        ) : dayTypes.length === 0 ? (
           <Text style={[styles.empty, { color: theme.text.secondary }]}>
             Nothing in this plan yet. A workout is a training day you can put on the calendar
             and repeat.

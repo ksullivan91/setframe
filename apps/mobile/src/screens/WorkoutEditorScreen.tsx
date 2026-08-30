@@ -10,6 +10,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { ExercisePickerV2 } from '../components/exercise-picker/ExercisePickerV2';
 import { PrescriptionSheet } from '../components/training-v2/PrescriptionSheet';
 import { WorkoutExerciseRow } from '../components/training-v2/WorkoutExerciseRow';
+import { EditorRowsSkeleton } from '../components/training-v2/TrainingSkeletons';
 
 /**
  * The workout editor. Counterpart of `apps/web/src/pages/WorkoutEditorPage.tsx`.
@@ -36,13 +37,13 @@ export function WorkoutEditorScreen() {
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['day-type', dayTypeId] });
 
-  const { data: dayType } = useQuery({
+  const { data: dayType, isPending: dayTypePending } = useQuery({
     queryKey: ['day-type', dayTypeId],
     queryFn: () => api.get<DayType & { exercises?: EditorExercise[] }>(`/day-types/${dayTypeId}`),
     enabled: !!dayTypeId,
   });
 
-  const { data: catalogue = [] } = useQuery({
+  const { data: catalogue = [], isPending: cataloguePending } = useQuery({
     queryKey: ['exercises'],
     queryFn: () => api.get<PickableExercise[]>('/exercises'),
   });
@@ -97,7 +98,12 @@ export function WorkoutEditorScreen() {
 
       <ScrollView contentContainerStyle={styles.body}>
         <View style={[styles.list, { backgroundColor: theme.surface.raised }]} testID="editor-list">
-          {exercises.length === 0 ? (
+          {/* An empty state is a claim about the data. Rendering it while the
+              query is in flight told a user opening a workout for the first
+              time that it had no exercises — which reads as data loss. */}
+          {dayTypePending ? (
+            <EditorRowsSkeleton />
+          ) : exercises.length === 0 ? (
             <Text style={[styles.empty, { color: theme.text.secondary }]}>
               Nothing in here yet. Add the first exercise to start building it.
             </Text>
@@ -141,6 +147,7 @@ export function WorkoutEditorScreen() {
           onCancel={() => setPickerOpen(false)}
           onAdd={(ids) => addExercises.mutate(ids)}
           busy={addExercises.isPending}
+          loading={cataloguePending}
         />
       </Modal>
 

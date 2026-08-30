@@ -11,6 +11,7 @@ import {
   type PickableExercise,
 } from '@setframe/domain';
 import { exercisePicker } from '@setframe/design-tokens';
+import { PickerRowsSkeleton } from '../training-v2/TrainingSkeletons';
 import { useTheme } from '../../theme/ThemeProvider';
 
 /**
@@ -35,6 +36,8 @@ export interface ExercisePickerV2Props {
   onCreateNew?: () => void;
   onAdd: (exerciseIds: string[]) => void;
   busy?: boolean;
+  /** True while the catalogue is still being fetched. */
+  loading?: boolean;
 }
 
 export function ExercisePickerV2({
@@ -45,6 +48,7 @@ export function ExercisePickerV2({
   onCreateNew,
   onAdd,
   busy = false,
+  loading = false,
 }: ExercisePickerV2Props) {
   const theme = useTheme();
   const [query, setQuery] = useState('');
@@ -129,6 +133,11 @@ export function ExercisePickerV2({
         </View>
       </View>
 
+      {/* "Nothing matches" is a claim about the catalogue, so it must not
+          appear while the catalogue is still loading. */}
+      {loading ? (
+        <PickerRowsSkeleton />
+      ) : (
       <FlatList
         data={results}
         keyExtractor={(item) => item.id}
@@ -184,6 +193,7 @@ export function ExercisePickerV2({
           );
         }}
       />
+      )}
 
       <View style={[styles.footer, { backgroundColor: theme.surface.raised }]}>
         <Pressable

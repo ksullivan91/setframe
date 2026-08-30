@@ -30,6 +30,7 @@ import { ExerciseTableCard, CARD_WIDTH } from '../components/workout-v2/Exercise
 import { SetRowV2, type SetRowStatus, type SetRowValues } from '../components/workout-v2/SetRowV2';
 import { ExercisePickerV2 } from '../components/exercise-picker/ExercisePickerV2';
 import { SaveAsWorkoutCard } from '../components/training-v2/SaveAsWorkoutCard';
+import { ExerciseCardsSkeleton } from '../components/training-v2/TrainingSkeletons';
 
 /**
  * Today's Workout, v2 — the table-format logger.
@@ -296,7 +297,7 @@ export default function WorkoutSessionPageV2() {
     onSuccess: invalidate,
   });
 
-  const { data: catalogue = [] } = useQuery({
+  const { data: catalogue = [], isPending: cataloguePending } = useQuery({
     queryKey: ['exercises'],
     /* Only fetched once the picker is opened. The catalogue is large and the
        logger does not otherwise need it. */
@@ -346,14 +347,35 @@ export default function WorkoutSessionPageV2() {
     }));
   }, [exercises]);
 
-  if (query.isLoading || !session) {
+  if (!session) {
+    /* Two things this fixes. The header is chrome, not data, so rendering it
+       immediately means the screen does not visibly reflow when the session
+       lands and there is a back affordance during a slow load — matching what
+       mobile already did. And loading is distinguished from not-found: the
+       previous branch was `isLoading || !session`, so a session that genuinely
+       does not exist showed "Loading…" forever. */
+    const failed = query.isError || (!query.isLoading && !query.isPending);
     return (
-      <Screen>
+      /* Deliberately NOT `workout-v2` — that testid is how specs wait for the
+         loaded screen, and reusing it here let them proceed while the
+         skeleton was still up, looking for cards that had not arrived. */
+      <Screen data-testid="workout-v2-loading">
         <Header>
           <HeaderRow>
-            <Title>Loading…</Title>
+            <TitleGroup>
+              <BackButton type="button" onClick={() => navigate('/today')} aria-label="Back to Today">
+                ‹
+              </BackButton>
+              <Title>Workout session</Title>
+            </TitleGroup>
           </HeaderRow>
+          <Meta>{failed ? "Couldn't load this workout." : 'Loading…'}</Meta>
         </Header>
+        {failed ? null : (
+          <Body>
+            <ExerciseCardsSkeleton />
+          </Body>
+        )}
       </Screen>
     );
   }
@@ -556,6 +578,7 @@ export default function WorkoutSessionPageV2() {
             onCancel={() => setPickerOpen(false)}
             onAdd={(ids) => addExercises.mutate(ids)}
             busy={addExercises.isPending}
+            loading={cataloguePending}
           />
         </PickerOverlay>
       ) : null}

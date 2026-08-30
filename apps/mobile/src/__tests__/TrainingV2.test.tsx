@@ -1,11 +1,16 @@
 import React from 'react';
 import { StyleSheet } from 'react-native';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { training } from '@setframe/design-tokens';
+import { exercisePicker, training, workoutEditor } from '@setframe/design-tokens';
 import { buildWeekStrip } from '@setframe/domain';
 import { ThemeProvider } from '../theme/ThemeProvider';
 import { WeekStrip } from '../components/training-v2/WeekStrip';
 import { ListRow } from '../components/training-v2/TrainingCards';
+import {
+  EditorRowsSkeleton,
+  PickerRowsSkeleton,
+  WeekStripSkeleton,
+} from '../components/training-v2/TrainingSkeletons';
 
 /**
  * Mobile's half of the Training v2 geometry contract.
@@ -111,5 +116,55 @@ describe('ListRow (mobile)', () => {
     const row = findAllByTestIdPrefix(tree.toJSON() as Json, 'row-1')[0]!;
     expect(flatten(row.props.style).paddingVertical).toBe(training.workoutRow.paddingY);
     expect(JSON.stringify(tree.toJSON())).toContain('Next up');
+  });
+});
+
+/**
+ * Loading states. The bug: opening a workout for the first time rendered the
+ * *empty* state while the query was in flight — "Nothing in here yet" for a
+ * second or two, which reads as data loss rather than as loading.
+ *
+ * These assert the skeleton is the same height as the content it replaces,
+ * because a skeleton of the wrong height makes the page jump at the moment
+ * the user starts reading it.
+ */
+describe('Training v2 skeletons (mobile)', () => {
+  const render = (node: React.ReactElement) => {
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = create(<ThemeProvider>{node}</ThemeProvider>);
+    });
+    return tree;
+  };
+
+  it('an editor skeleton row is the height of a real editor row', () => {
+    const tree = render(<EditorRowsSkeleton rows={2} />);
+    const root = findAllByTestIdPrefix(tree.toJSON() as Json, 'editor-rows-skeleton')[0]!;
+    const rows = (root.children ?? []).filter(
+      (c): c is Extract<Json, { type: string }> => typeof c === 'object' && c !== null,
+    );
+    expect(rows).toHaveLength(2);
+    expect(flatten(rows[0]!.props.style).height).toBe(workoutEditor.row.height);
+  });
+
+  it('a week-strip skeleton has seven chips at the real chip size', () => {
+    /* Seven, because six would visibly resize the card when the real strip
+       arrives. */
+    const tree = render(<WeekStripSkeleton />);
+    const root = findAllByTestIdPrefix(tree.toJSON() as Json, 'week-strip-skeleton')[0]!;
+    const days = (root.children ?? []).filter(
+      (c): c is Extract<Json, { type: string }> => typeof c === 'object' && c !== null,
+    );
+    expect(days).toHaveLength(7);
+    expect(flatten(days[0]!.props.style).width).toBe(training.weekStrip.dayWidth);
+  });
+
+  it('a picker skeleton row is the height of a real picker row', () => {
+    const tree = render(<PickerRowsSkeleton rows={3} />);
+    const root = findAllByTestIdPrefix(tree.toJSON() as Json, 'picker-rows-skeleton')[0]!;
+    const rows = (root.children ?? []).filter(
+      (c): c is Extract<Json, { type: string }> => typeof c === 'object' && c !== null,
+    );
+    expect(flatten(rows[0]!.props.style).height).toBe(exercisePicker.rowHeight);
   });
 });

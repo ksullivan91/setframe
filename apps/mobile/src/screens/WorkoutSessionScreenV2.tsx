@@ -30,6 +30,7 @@ import { useApiClient } from '../lib/api-client';
 import { useTheme } from '../theme/ThemeProvider';
 import { ExerciseTableCard, CARD_WIDTH } from '../components/workout-v2/ExerciseTableCard';
 import { ExercisePickerV2 } from '../components/exercise-picker/ExercisePickerV2';
+import { ExerciseCardsSkeleton } from '../components/training-v2/TrainingSkeletons';
 import {
   SetRowV2,
   type SetRowStatus,
@@ -131,7 +132,7 @@ export default function WorkoutSessionV2Screen() {
        screen does not visibly reflow when the session arrives, and there is a
        back affordance during a slow load rather than a bare word. */
     return (
-      <View style={[styles.screen, { backgroundColor: theme.surface.canvas }]} testID="workout-v2">
+      <View style={[styles.screen, { backgroundColor: theme.surface.canvas }]} testID="workout-v2-loading">
         <View
           style={[
             styles.header,
@@ -159,6 +160,14 @@ export default function WorkoutSessionV2Screen() {
             {query.isError ? "Couldn't load this workout." : 'Loading…'}
           </Text>
         </View>
+        {/* Content-shaped, so the body is not simply blank while the session
+            loads — and sized so the real cards land where the placeholders
+            were. */}
+        {query.isError ? null : (
+          <View style={{ padding: 16 }}>
+            <ExerciseCardsSkeleton />
+          </View>
+        )}
       </View>
     );
   }

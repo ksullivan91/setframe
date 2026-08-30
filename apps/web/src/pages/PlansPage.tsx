@@ -7,6 +7,7 @@ import { describeRepeatMode, planBadge, planSwitchLabel } from '@setframe/domain
 import { training, workoutEditor } from '@setframe/design-tokens';
 import { useApiClient } from '../lib/api-client';
 import { Card } from '../components/training-v2/TrainingCards';
+import { CardSkeleton } from '../components/training-v2/TrainingSkeletons';
 
 /**
  * "Your plans" — reached from the overview's Change, not from a tab.
@@ -159,7 +160,7 @@ export default function PlansPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const { data: programs = [] } = useQuery({
+  const { data: programs = [], isPending: programsPending } = useQuery({
     queryKey: ['programs'],
     queryFn: () => api.get<TrainingProgram[]>('/programs'),
   });
@@ -190,6 +191,7 @@ export default function PlansPage() {
       </Header>
 
       <Body>
+        {programsPending ? <CardSkeleton label="Your plans" height={44} /> : null}
         {sorted.map((program) => {
           const badge = planBadge(program.isActive);
           return (

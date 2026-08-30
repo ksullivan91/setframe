@@ -942,6 +942,7 @@ export function ProgramCreationWizardPage() {
             onCancel={() => setAddExerciseOpen(false)}
             onAdd={(ids) => addExercisesToWorkout.mutate(ids)}
             busy={addExercisesToWorkout.isPending}
+            loading={exercisesLoading}
           />
         </PickerOverlay>
       ) : null}

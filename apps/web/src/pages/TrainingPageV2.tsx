@@ -16,6 +16,7 @@ import { ActiveProgramCard } from '../components/training-v2/ActiveProgramCard';
 import { WeekStrip } from '../components/training-v2/WeekStrip';
 import { Card, CardAction, CardHeadRow, CardLabel, ListRow } from '../components/training-v2/TrainingCards';
 import { NoPlanRoutes } from '../components/training-v2/NoPlanRoutes';
+import { ListRowsSkeleton, WeekStripSkeleton } from '../components/training-v2/TrainingSkeletons';
 
 /**
  * Training v2 — one scrollable page, replacing three tabs.
@@ -113,13 +114,13 @@ export default function TrainingPageV2() {
     [programs],
   );
 
-  const { data: dayTypes = [] } = useQuery({
+  const { data: dayTypes = [], isPending: dayTypesPending } = useQuery({
     queryKey: ['program-day-types', activeProgram?.id],
     queryFn: () => api.get<DayType[]>(`/programs/${activeProgram!.id}/day-types`),
     enabled: !!activeProgram,
   });
 
-  const { data: slots = [] } = useQuery({
+  const { data: slots = [], isPending: slotsPending } = useQuery({
     queryKey: ['schedule-slots', activeProgram?.id],
     queryFn: () => api.get<ProgramScheduleSlot[]>(`/programs/${activeProgram!.id}/schedule-slots`),
     enabled: !!activeProgram,
@@ -236,6 +237,10 @@ export default function TrainingPageV2() {
             <CardLabel>This week</CardLabel>
             <CardAction onClick={() => navigate('/training/schedule')}>Edit schedule</CardAction>
           </CardHeadRow>
+          {/* Without this the strip reads every day as "Rest" while the slots
+              load, which is not merely empty — it briefly tells a user with a
+              full week that they have nothing scheduled. */}
+          {slotsPending ? <WeekStripSkeleton /> : (
           <WeekStrip
             days={strip}
             onSelectDay={(day) => {
@@ -245,6 +250,7 @@ export default function TrainingPageV2() {
               navigate(day.localDate === today ? '/today' : `/today?date=${day.localDate}`);
             }}
           />
+          )}
         </Card>
 
         <Card data-testid="workouts-card">
@@ -252,7 +258,9 @@ export default function TrainingPageV2() {
             <CardLabel>Workouts</CardLabel>
             <CardAction onClick={() => navigate(MANAGE_ROUTE)}>+ New</CardAction>
           </CardHeadRow>
-          {dayTypes.length === 0 ? (
+          {dayTypesPending ? (
+            <ListRowsSkeleton />
+          ) : dayTypes.length === 0 ? (
             /* "A plan with no workouts" — the most common way to meet an
                empty Training page, and until now a card with nothing in it. */
             <Empty>

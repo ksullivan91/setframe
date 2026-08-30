@@ -8,6 +8,7 @@ import { training, workoutEditor } from '@setframe/design-tokens';
 import { useApiClient } from '../lib/api-client';
 import { Card, CardLabel } from '../components/training-v2/TrainingCards';
 import { AssignDaySheet } from '../components/training-v2/AssignDaySheet';
+import { ScheduleDaysSkeleton } from '../components/training-v2/TrainingSkeletons';
 
 /**
  * The weekly schedule — what replaces the Schedule tab.
@@ -167,7 +168,7 @@ export default function SchedulePage() {
     enabled: !!program,
   });
 
-  const { data: slots = [] } = useQuery({
+  const { data: slots = [], isPending: slotsPending } = useQuery({
     queryKey: ['schedule-slots', program?.id],
     queryFn: () => api.get<ProgramScheduleSlot[]>(`/programs/${program!.id}/schedule-slots`),
     enabled: !!program,
@@ -241,7 +242,9 @@ export default function SchedulePage() {
 
         <Card data-testid="weekly-template-card">
           <CardLabel>Each week</CardLabel>
-          {days.map((day, index) => (
+          {/* Every day would read "Rest" while the slots load — a claim, not
+              an absence. */}
+          {slotsPending ? <ScheduleDaysSkeleton /> : days.map((day, index) => (
             <DayRow
               key={day.dayIndex}
               type="button"

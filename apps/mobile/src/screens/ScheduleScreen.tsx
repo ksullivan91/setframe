@@ -9,6 +9,7 @@ import { useApiClient } from '../lib/api-client';
 import { useTheme } from '../theme/ThemeProvider';
 import { Card, CardLabel } from '../components/training-v2/TrainingCards';
 import { AssignDaySheet } from '../components/training-v2/AssignDaySheet';
+import { ScheduleDaysSkeleton } from '../components/training-v2/TrainingSkeletons';
 
 /**
  * The weekly schedule. Counterpart of `apps/web/src/pages/SchedulePage.tsx`.
@@ -41,7 +42,7 @@ export function ScheduleScreen() {
     enabled: !!program,
   });
 
-  const { data: slots = [] } = useQuery({
+  const { data: slots = [], isPending: slotsPending } = useQuery({
     queryKey: ['schedule-slots', program?.id],
     queryFn: () => api.get<ProgramScheduleSlot[]>(`/programs/${program!.id}/schedule-slots`),
     enabled: !!program,
@@ -135,7 +136,9 @@ export function ScheduleScreen() {
 
         <Card testID="weekly-template-card">
           <CardLabel>Each week</CardLabel>
-          {days.map((day, index) => (
+          {/* Every day would read "Rest" while the slots load — a claim,
+              not an absence. */}
+          {slotsPending ? <ScheduleDaysSkeleton /> : days.map((day, index) => (
             <Pressable
               key={day.dayIndex}
               onPress={() => setAssigning(day.dayIndex)}

@@ -9,6 +9,7 @@ import { useApiClient } from '../lib/api-client';
 import { summarizePrescription } from '../lib/prescription';
 import { EditorCard, WorkoutExerciseRow } from '../components/training-v2/WorkoutExerciseRow';
 import { PrescriptionSheet } from '../components/training-v2/PrescriptionSheet';
+import { EditorRowsSkeleton } from '../components/training-v2/TrainingSkeletons';
 import { ExercisePickerV2 } from '../components/exercise-picker/ExercisePickerV2';
 
 /**
@@ -141,13 +142,13 @@ export default function WorkoutEditorPage() {
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ['day-type', dayTypeId] });
 
-  const { data: dayType } = useQuery({
+  const { data: dayType, isPending: dayTypePending } = useQuery({
     queryKey: ['day-type', dayTypeId],
     queryFn: () => api.get<DayType & { exercises?: EditorExercise[] }>(`/day-types/${dayTypeId}`),
     enabled: !!dayTypeId,
   });
 
-  const { data: catalogue = [] } = useQuery({
+  const { data: catalogue = [], isPending: cataloguePending } = useQuery({
     queryKey: ['exercises'],
     queryFn: () => api.get<PickableExercise[]>('/exercises'),
   });
@@ -202,7 +203,13 @@ export default function WorkoutEditorPage() {
 
       <Body>
         <EditorCard data-testid="editor-list">
-          {exercises.length === 0 ? (
+          {/* An empty state is a claim about the data. Rendering it while the
+              query is still in flight told a user opening a workout for the
+              first time that it had no exercises — which reads as data loss,
+              not as loading. */}
+          {dayTypePending ? (
+            <EditorRowsSkeleton />
+          ) : exercises.length === 0 ? (
             <Empty>Nothing in here yet. Add the first exercise to start building it.</Empty>
           ) : (
             exercises.map((item, index) => {
@@ -240,6 +247,7 @@ export default function WorkoutEditorPage() {
             onCancel={() => setPickerOpen(false)}
             onAdd={(ids) => addExercises.mutate(ids)}
             busy={addExercises.isPending}
+            loading={cataloguePending}
           />
         </PickerOverlay>
       ) : null}

@@ -11,6 +11,7 @@ import {
   type PickableExercise,
 } from '@setframe/domain';
 import { exercisePicker } from '@setframe/design-tokens';
+import { PickerRowsSkeleton } from '../training-v2/TrainingSkeletons';
 
 /**
  * The exercise picker — one surface, used everywhere something adds an
@@ -256,6 +257,8 @@ export interface ExercisePickerV2Props {
   onCreateNew?: () => void;
   onAdd: (exerciseIds: string[]) => void;
   busy?: boolean;
+  /** True while the catalogue is still being fetched. */
+  loading?: boolean;
 }
 
 export function ExercisePickerV2({
@@ -266,6 +269,7 @@ export function ExercisePickerV2({
   onCreateNew,
   onAdd,
   busy = false,
+  loading = false,
 }: ExercisePickerV2Props) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState(ALL_FILTER.key);
@@ -326,7 +330,11 @@ export function ExercisePickerV2({
       </Header>
 
       <Results>
-        {results.length === 0 ? (
+        {/* "Nothing matches" is a claim about the catalogue, so it must not
+            appear while the catalogue is still loading. */}
+        {loading ? (
+          <PickerRowsSkeleton />
+        ) : results.length === 0 ? (
           <EmptyState>
             Nothing matches “{query}”. Try a different search, or add it as a new exercise.
           </EmptyState>

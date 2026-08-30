@@ -201,6 +201,17 @@ let mockSets: Record<string, unknown>[] = [];
 let mockSessionCounter = 0;
 let mockExerciseLogCounter = 0;
 
+/**
+ * Honours the slow-reads override, so a test can observe a loading frame.
+ *
+ * Applied only to the reads the Training surfaces depend on — a blanket delay
+ * would slow every unrelated spec that shares this mock layer.
+ */
+const slowRead = async () => {
+  const ms = mockControl.slowReadsMs();
+  if (ms) await new Promise((resolve) => setTimeout(resolve, ms));
+};
+
 export const handlers = [
   http.get('*/v1/health', () => HttpResponse.json({ status: 'ok' })),
 
@@ -241,7 +252,10 @@ export const handlers = [
     }),
   ),
 
-  http.get('*/v1/exercises', () => HttpResponse.json(mockExercises)),
+  http.get('*/v1/exercises', async () => {
+    await slowRead();
+    return HttpResponse.json(mockExercises);
+  }),
 
   http.get('*/v1/exercises/:exerciseId/history', () =>
     HttpResponse.json({
@@ -557,12 +571,19 @@ export const handlers = [
      its queries under `dev:mock` and sat on its loading skeleton forever —
      which is why nobody could design-review the screen, and part of why
      mobile's Training was allowed to diverge from it unnoticed. */
-  http.get('*/v1/programs/:programId/day-types', () => HttpResponse.json(mockTemplates)),
-  http.get('*/v1/day-types/:dayTypeId', ({ params }) => {
+  http.get('*/v1/programs/:programId/day-types', async () => {
+    await slowRead();
+    return HttpResponse.json(mockTemplates);
+  }),
+  http.get('*/v1/day-types/:dayTypeId', async ({ params }) => {
+    await slowRead();
     const dayType = mockTemplates.find((t) => t.id === params.dayTypeId) ?? mockTemplates[0];
     return HttpResponse.json({ ...dayType, exercises: mockDayTypeExercises });
   }),
-  http.get('*/v1/programs/:programId/schedule-slots', () => HttpResponse.json(mockScheduleSlots)),
+  http.get('*/v1/programs/:programId/schedule-slots', async () => {
+    await slowRead();
+    return HttpResponse.json(mockScheduleSlots);
+  }),
 
   http.get('*/v1/programs/:programId/workouts', () => HttpResponse.json(mockTemplates)),
   http.post('*/v1/programs/:programId/workouts', async ({ request }) => {
@@ -627,8 +648,9 @@ export const handlers = [
   /* Story 42.7 — a regression scenario may pin an exact session shape, so it
      can drive one exercise through several representations without every
      other test inheriting the change. */
-  http.get('*/v1/workout-sessions/:sessionId', ({ params }) =>
-    HttpResponse.json(mockControl.sessionOverride() ?? {
+  http.get('*/v1/workout-sessions/:sessionId', async ({ params }) => {
+    await slowRead();
+    return HttpResponse.json(mockControl.sessionOverride() ?? {
       id: params.sessionId,
       userId: mockUserId,
       templateId: '30000000-0000-0000-0000-000000000003',
@@ -666,8 +688,8 @@ export const handlers = [
           ],
         },
       ],
-    }),
-  ),
+    });
+  }),
 
   /* Quick Log (stories 58/59). Absent until the UX reviewer walked the core
      journey and reported a P0 for a 400 — which was this fixture missing, not

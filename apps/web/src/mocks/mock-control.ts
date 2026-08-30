@@ -25,6 +25,14 @@ export interface QuickLogBehaviour {
 interface MockOverrides {
   session?: unknown;
   quickLog?: QuickLogBehaviour;
+  /**
+   * Delay applied to read endpoints, so a test can observe a loading frame.
+   *
+   * `page.route` cannot do this — MSW is a service worker and intercepts
+   * fetch before Playwright sees it, which is the same reason the rest of
+   * this module exists.
+   */
+  slowReadsMs?: number;
 }
 
 /**
@@ -71,12 +79,20 @@ export const mockControl = {
     else delete next.quickLog;
     write(next);
   },
+  /** Makes read endpoints slow, so a loading state can be asserted. */
+  setSlowReads(ms: number | undefined) {
+    const next = read();
+    if (ms) next.slowReadsMs = ms;
+    else delete next.slowReadsMs;
+    write(next);
+  },
   /** Back to the shared fixture. */
   reset() {
     write({});
   },
   sessionOverride: () => read().session,
   quickLogBehaviour: () => read().quickLog,
+  slowReadsMs: () => read().slowReadsMs,
 };
 
 /** Exposes the handle to Playwright. Called only when mocks are enabled. */
