@@ -9,6 +9,11 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
+- `workout-logger-v2-completion/` — stories 69–73. The v2 table logger is live
+  on the canonical route but unfinished: the SET chip and the exercise `⋯` are
+  no-ops, so **a set cannot be deleted and an exercise cannot be removed** —
+  both regressions against v1. Closes that gap, then retires v1 and removes
+  Quick Log.
 - `68-exercise-catalog-cache-policy.md` — cache the exercise catalog for 24h
   on both clients, route custom-exercise creation through one helper, and
   retire the deferred `?q=` trigram search. Enabling work for expanding the

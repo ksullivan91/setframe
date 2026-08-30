@@ -185,13 +185,19 @@ and the hint says so rather than leaving it to be discovered.
 
 | State | Reached by |
 |---|---|
+| **No plan at all** | A brand-new account, and again by anyone who archives their last plan. **The outermost case** — a user here cannot reach any of the three below it. Designed as a whole screen (`148:708`) rather than a card, because it is the one empty state someone can meet before they have ever succeeded at anything, and because the teardown's biggest structural finding lives in it. |
 | Plan with no workouts | Immediately after creating a plan — the most common way to meet an empty Training page. |
 | Workout with no exercises | Creating a workout, **and** removing the last exercise from one. The second path matters: it is a state you fall into rather than start in. |
 | Week with nothing scheduled | A plan with workouts but no slots, which guided setup can exit into. |
 
-Shared shape: one sentence saying what the thing is for, then one button
-naming the action. No illustration — these are transient states on the way
-somewhere, not destinations worth decorating.
+The last three share a shape: one sentence saying what the thing is for, then
+one button naming the action. No illustration — they are transient states on
+the way somewhere, not destinations worth decorating.
+
+**The first deliberately does not share that shape.** It is not a card inside
+a page; it *is* the page, and it offers three routes out rather than one
+button. It gets one design, referenced from the catalogue rather than
+redrawn — two designs for one state is how they drift apart.
 
 ---
 
