@@ -79,6 +79,11 @@ test.describe('logger regressions', () => {
       (window as unknown as { __setframeMocks?: { setSession: (s: unknown) => void } })
         .__setframeMocks?.setSession(session);
     }, PINNED_SESSION);
+    /* Kept on the page so a test can vary one field without restating the
+       whole fixture. */
+    await page.evaluate((session) => {
+      (window as unknown as { __pinned: unknown }).__pinned = session;
+    }, PINNED_SESSION);
     await page.goto('/workout/session-regress');
     await expect(page.getByTestId('workout-v2')).toBeVisible();
   });
@@ -244,6 +249,49 @@ test.describe('logger regressions', () => {
     await page.waitForTimeout(2500);
 
     await expect(rows.nth(1)).toHaveAttribute('data-identity-probe', 'original');
+  });
+
+
+  test('a session started from a saved workout does NOT offer to save it again', async ({ page }) => {
+    /* Reported: finishing a planned workout offered "Do this one again?",
+       which invites creating a duplicate of a workout you already have — a
+       second "Lower A" alongside the first. The offer is only meaningful for
+       an UNPLANNED session, which is the whole premise of Just start
+       training: intent authored from fact. `templateId` is null exactly when
+       the session did not come from a day type. */
+    await page.evaluate(() => {
+      const mocks = (window as unknown as { __setframeMocks?: { setSession: (s: unknown) => void } })
+        .__setframeMocks;
+      mocks?.setSession({
+        ...(window as unknown as { __pinned: Record<string, unknown> }).__pinned,
+        templateId: '30000000-0000-0000-0000-000000000001',
+        status: 'completed',
+        completedAt: new Date().toISOString(),
+      });
+    });
+    await page.reload();
+    await expect(page.getByTestId('workout-v2')).toBeVisible();
+
+    await expect(page.getByTestId('save-as-workout')).toHaveCount(0);
+  });
+
+  test('an unplanned session still offers it', async ({ page }) => {
+    /* The other half of the same rule — gating must not remove the offer
+       from the flow it exists for. */
+    await page.evaluate(() => {
+      const mocks = (window as unknown as { __setframeMocks?: { setSession: (s: unknown) => void } })
+        .__setframeMocks;
+      mocks?.setSession({
+        ...(window as unknown as { __pinned: Record<string, unknown> }).__pinned,
+        templateId: null,
+        status: 'completed',
+        completedAt: new Date().toISOString(),
+      });
+    });
+    await page.reload();
+    await expect(page.getByTestId('workout-v2')).toBeVisible();
+
+    await expect(page.getByTestId('save-as-workout')).toBeVisible();
   });
 
   test('an exercise added mid-session gets weight and reps columns, not every column', async ({ page }) => {

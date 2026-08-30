@@ -114,6 +114,15 @@ export default function TrainingPageV2() {
     [programs],
   );
 
+  /* Every workout the user owns, regardless of plan membership. A workout
+     saved out of a session belongs to the USER (day_type has no program
+     column), so without this it is saved and unreachable — reported as
+     "it didn't appear in my Training tab". */
+  const { data: ownedDayTypes = [] } = useQuery({
+    queryKey: ['day-types'],
+    queryFn: () => api.get<DayType[]>('/day-types'),
+  });
+
   const { data: dayTypes = [], isPending: dayTypesPending } = useQuery({
     queryKey: ['program-day-types', activeProgram?.id],
     queryFn: () => api.get<DayType[]>(`/programs/${activeProgram!.id}/day-types`),
@@ -194,6 +203,47 @@ export default function TrainingPageV2() {
   });
 
   if (programsLoading) return <Screen aria-busy="true" />;
+
+  /* No plan, but workouts exist — the "Workouts, still no plan" state
+     (Figma 169:883). day_type belongs to the user rather than to a plan, so
+     this is a legitimate place to stay, not a half-finished setup. Without
+     it a workout saved from a session had nowhere to appear. */
+  if (!activeProgram && ownedDayTypes.length > 0) {
+    return (
+      <Screen data-testid="training-no-plan-with-workouts">
+        <Header>
+          <Title>Training</Title>
+          <Subtitle>
+            {ownedDayTypes.length === 1 ? 'One workout' : `${ownedDayTypes.length} workouts`}, no
+            plan. That is a perfectly good place to stay.
+          </Subtitle>
+        </Header>
+        <Body>
+          <Card data-testid="workouts-card">
+            <CardHeadRow>
+              <CardLabel>Your workouts</CardLabel>
+              <CardAction onClick={() => startAdHoc.mutate()}>+ Start</CardAction>
+            </CardHeadRow>
+            {ownedDayTypes.map((dayType, index) => (
+              <ListRow
+                key={dayType.id}
+                name={dayType.name}
+                meta={formatWorkoutMeta(dayType)}
+                divided={index > 0}
+                testId={`workout-row-${dayType.id}`}
+                onClick={() => navigate(`/training/workouts/${dayType.id}`)}
+              />
+            ))}
+          </Card>
+          <NoPlanRoutes
+            onJustStart={() => startAdHoc.mutate()}
+            onBuildYourOwn={() => navigate('/training/new')}
+            busy={startAdHoc.isPending}
+          />
+        </Body>
+      </Screen>
+    );
+  }
 
   /* The outermost empty state: a user here cannot reach any of the others.
      It is not a card inside the page — it IS the page. */

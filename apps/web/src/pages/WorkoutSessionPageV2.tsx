@@ -523,6 +523,20 @@ export default function WorkoutSessionPageV2() {
   );
   const sessionComplete = session?.status === 'completed';
 
+  /**
+   * Whether this session came from a saved workout.
+   *
+   * "Do this one again?" only makes sense for an UNPLANNED session — that is
+   * the whole premise of Just start training, where intent is authored from
+   * fact. Offering it after a session started from a day type invites the
+   * user to create a duplicate of a workout they already have, which is what
+   * happened: a second "Lower A" alongside the first.
+   *
+   * `templateId` is null exactly when the session was not started from a day
+   * type, which the schema comments call out as the ad hoc case.
+   */
+  const isUnplanned = session?.templateId == null;
+
   /* What "save as a workout" would copy, computed from the same performed
      sets the server will read — so the preview cannot promise something the
      endpoint would not produce. */
@@ -671,7 +685,7 @@ export default function WorkoutSessionPageV2() {
         {/* Under the banner, never over it: the workout is already recorded,
             so the offer must not block the acknowledgement of what was just
             done. */}
-        {sessionComplete && !saveOfferDismissed ? (
+        {sessionComplete && isUnplanned && !saveOfferDismissed ? (
           savedWorkoutName ? (
             <SavedNotice data-testid="saved-workout-notice">
               Saved as <strong>{savedWorkoutName}</strong>. You can start it from Training whenever

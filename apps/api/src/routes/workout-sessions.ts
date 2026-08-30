@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
-import { and, eq, inArray, isNotNull, ne } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, max, ne } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   createWorkoutSessionSchema,
@@ -23,6 +23,8 @@ import {
 import {
   dayType,
   dayTypeExercise,
+  programDayType,
+  trainingProgram,
   dayTypeExercisePlannedSet,
   exercise,
   workoutExerciseLog,
@@ -807,6 +809,42 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
           prescription: item.prescription,
         })),
       );
+
+      /* Make it findable.
+      
+         `day_type` is keyed on `userId` and needs no plan to exist, which is
+         what lets an unplanned session become a workout at all. But Training
+         lists workouts through `program_day_type` membership (story 25), so a
+         saved workout with no membership row is saved and INVISIBLE — it was
+         reported as "I'm not sure it actually saved".
+      
+         When the user has an active plan, the workout joins it. That is not
+         creating a plan, which ADR 0005 and the Just-start design rule out;
+         it is putting a new workout where the user will look for it. With no
+         active plan there is nothing to join, and the overview lists
+         unaffiliated workouts directly. */
+      const [active] = await db
+        .select({ id: trainingProgram.id })
+        .from(trainingProgram)
+        .where(
+          and(eq(trainingProgram.userId, request.userId!), eq(trainingProgram.isActive, true)),
+        )
+        .limit(1);
+
+      if (active) {
+        const [highest] = await db
+          .select({ value: max(programDayType.sortOrder) })
+          .from(programDayType)
+          .where(eq(programDayType.trainingProgramId, active.id));
+        await db
+          .insert(programDayType)
+          .values({
+            trainingProgramId: active.id,
+            dayTypeId: created!.id,
+            sortOrder: (highest?.value ?? -1) + 1,
+          })
+          .onConflictDoNothing();
+      }
 
       reply.status(201);
       return {

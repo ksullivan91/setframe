@@ -54,6 +54,11 @@ function insertNoReturningChain() {
   return { values: vi.fn().mockResolvedValue(undefined) };
 }
 
+/** `insert().values().onConflictDoNothing()` — the program membership row. */
+function insertOnConflictChain() {
+  return { values: vi.fn().mockReturnValue({ onConflictDoNothing: vi.fn().mockResolvedValue(undefined) }) };
+}
+
 function updateChain(rows: unknown[]) {
   return { set: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue(rows) }) }) };
 }
@@ -613,10 +618,13 @@ describe('POST /v1/workout-sessions/:sessionId/save-as-workout', () => {
     mockSelect
       .mockReturnValueOnce(selectChain([userRow])) // auth
       .mockReturnValueOnce(selectChain([sessionRow])) // getOwnedSession
-      .mockReturnValueOnce(selectChain([performedRow(), performedRow(), performedRow()]));
+      .mockReturnValueOnce(selectChain([performedRow(), performedRow(), performedRow()]))
+      /* Active-plan lookup, then its highest sortOrder. */
+      .mockReturnValue(selectChain([]));
     mockInsert
       .mockReturnValueOnce(insertChain([savedDayType])) // day_type
-      .mockReturnValueOnce(insertNoReturningChain()); // day_type_exercise batch
+      .mockReturnValueOnce(insertNoReturningChain()) // day_type_exercise batch
+      .mockReturnValueOnce(insertOnConflictChain()); // program_day_type membership
 
     const app = buildApp();
     const response = await app.inject({
@@ -640,6 +648,70 @@ describe('POST /v1/workout-sessions/:sessionId/save-as-workout', () => {
       },
     ]);
     expect(JSON.stringify(values)).not.toContain('225');
+    await app.close();
+  });
+
+
+  it('joins the saved workout to the active plan, so it is findable', async () => {
+    /* Reported as "it didn't appear in my Training tab, so I'm not sure it
+       actually saved". It had saved — day_type belongs to the USER and needs
+       no plan — but Training lists workouts through program_day_type
+       membership (story 25), so with no membership row it was saved and
+       invisible. */
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow])) // auth
+      .mockReturnValueOnce(selectChain([sessionRow])) // getOwnedSession
+      .mockReturnValueOnce(selectChain([performedRow()])) // performed sets
+      .mockReturnValueOnce(selectChain([{ id: '66666666-6666-4666-8666-666666666666' }])) // active plan
+      .mockReturnValue(selectChain([{ value: 2 }])); // highest sortOrder
+    mockInsert
+      .mockReturnValueOnce(insertChain([savedDayType]))
+      .mockReturnValueOnce(insertNoReturningChain())
+      .mockReturnValueOnce(insertOnConflictChain());
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: `/v1/workout-sessions/${sessionRow.id}/save-as-workout`,
+      headers: authHeader,
+      payload: { name: 'Lower A' },
+    });
+
+    expect(response.statusCode).toBe(201);
+    const membership = mockInsert.mock.results[2]!.value.values.mock.calls[0][0];
+    expect(membership).toMatchObject({
+      trainingProgramId: '66666666-6666-4666-8666-666666666666',
+      dayTypeId: savedDayType.id,
+      sortOrder: 3,
+    });
+    await app.close();
+  });
+
+  it('saves fine with no active plan, and joins nothing', async () => {
+    /* A workout with no plan is a legitimate state — the overview lists
+       unaffiliated workouts directly. Nothing is created to hold it. */
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([sessionRow]))
+      .mockReturnValueOnce(selectChain([performedRow()]))
+      .mockReturnValueOnce(selectChain([])) // no active plan
+      .mockReturnValue(selectChain([]));
+    mockInsert
+      .mockReturnValueOnce(insertChain([savedDayType]))
+      .mockReturnValueOnce(insertNoReturningChain());
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: `/v1/workout-sessions/${sessionRow.id}/save-as-workout`,
+      headers: authHeader,
+      payload: { name: 'Lower A' },
+    });
+
+    expect(response.statusCode).toBe(201);
+    /* Two inserts only: the day type and its exercises. No membership, and
+       above all no plan conjured to hold it. */
+    expect(mockInsert).toHaveBeenCalledTimes(2);
     await app.close();
   });
 
@@ -669,7 +741,8 @@ describe('POST /v1/workout-sessions/:sessionId/save-as-workout', () => {
     mockSelect
       .mockReturnValueOnce(selectChain([userRow]))
       .mockReturnValueOnce(selectChain([fromTemplate]))
-      .mockReturnValueOnce(selectChain([performedRow()]));
+      .mockReturnValueOnce(selectChain([performedRow()]))
+      .mockReturnValue(selectChain([]));
     mockInsert
       .mockReturnValueOnce(insertChain([savedDayType]))
       .mockReturnValueOnce(insertNoReturningChain());
@@ -699,7 +772,8 @@ describe('POST /v1/workout-sessions/:sessionId/save-as-workout', () => {
           performedRow(),
           performedRow({ logId: 'skipped-log', skipped: true, exerciseId: 'gone' }),
         ]),
-      );
+      )
+      .mockReturnValue(selectChain([]));
     mockInsert
       .mockReturnValueOnce(insertChain([savedDayType]))
       .mockReturnValueOnce(insertNoReturningChain());
