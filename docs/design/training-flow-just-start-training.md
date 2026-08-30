@@ -92,27 +92,53 @@ and the banner reads a bare `lb total` — which is exactly what
 `formatSessionTotalSuffix` already returns when `volumeDelta` is `null`. The
 code was right; the design had to catch up to it.
 
-**PRs on a first-ever session** then became a real question. With no history,
-every working set is technically a record, so a first workout would be
-wall-to-wall PR badges. These frames show none. Whether the suppression
-belongs on the server (which computes `isPrWeight`/`isPrReps` on set
-create/update) or in the logger is undecided.
+**PRs on a first-ever session** then became a real question — and the answer
+was already in the code. `resolveSessionPRs` (`packages/domain/src/session-pr.ts`,
+rule 5) returns all-false flags the moment the baseline is empty:
+
+```ts
+// Rule 5 — an exercise with no qualifying history has no record to break.
+if (!baseline.length) return flags;
+```
+
+So an exercise with no previously completed session earns **no badges at
+all** — including for a set that beat an earlier set in the same session,
+since the early return happens before the running baseline is consulted. The
+frames were right by accident, and are now right on purpose.
+
+Worth noting the mechanism, because the obvious alternative is worse. The
+tempting design is "flag it on the server since it technically is a record,
+then hide the badge in the logger". Setframe never sets the flag. That
+matters beyond the logger: `apps/api/src/routes/progress.ts` counts stored
+flags into a session's `prCount`, so a stored-but-hidden PR would make
+Progress report records the logger refused to show, and the two surfaces
+would disagree with no way to tell which was lying. Not storing it keeps
+every reader honest at once.
 
 ---
 
-## 5. Still open
+## 5. Decided
 
-- **Streaks and `weeksTrained`.** Does an unplanned session count? It is a
-  real session, so probably yes — but it is a product call with consequences
-  in `packages/domain/src/training-trends.ts`. Carried over from the parent
-  exploration, still unanswered.
-- **PRs on a first-ever session**, per §4.
+**An unplanned session counts** toward streaks and `weeksTrained`, like any
+other. No code needed — see the parent exploration's §3 table for why it is
+already true, and why it is worth recording anyway.
+
+**No PR badges without history**, per §4. Also already true, one layer
+earlier than the obvious design.
+
+Both were settled by reading the code rather than changing it, which is the
+useful outcome: the decision is now written down next to the behaviour, so a
+later refactor that breaks either one reads as a regression instead of a
+tidy-up.
+
+## 6. Still open
+
 - **Naming the saved workout.** Step 5 pre-fills nothing. A suggestion built
   from the exercises performed ("Squat + RDL") is tempting and probably worse
   than a blank field with the keyboard already up.
 - **Repeat without saving.** Someone who taps "Not now" three weeks running
   has clearly got a routine. Whether we notice and re-offer, or leave them
   alone, is undecided.
-- **"Start from a template"** — the third route off the empty page. Not
-  drawn, and with no data behind it: the starter templates it needs do not
-  exist yet.
+- **"Start from a template"** — now badged "Coming soon" on the no-plan
+  screen, with a muted button, and moved below "Build your own" so the two
+  live routes come first. Still undrawn, and still with no data behind it.

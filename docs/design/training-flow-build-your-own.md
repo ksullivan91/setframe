@@ -79,10 +79,11 @@ to train.
 
 Found by drawing the flow rather than by reasoning about it.
 
-1. **The other two routes.** "Just start training" and "Start from a template"
-   both come off step 1 of the reference walkthrough and neither is drawn.
-   Template also has **no data behind it** — starter plans do not exist as
-   records.
+1. **"Start from a template".** The remaining undrawn route off step 1, and
+   the one with **no data behind it** — starter plans do not exist as records.
+   It is now badged "Coming soon" on the no-plan screen and sits last, below
+   this flow. ("Just start training", the other route, is drawn in
+   `docs/design/training-flow-just-start-training.md`.)
 2. **Creating an exercise that is not in the catalogue.** The picker has a
    "New" affordance in the corner and no screen behind it. With **33 system
    exercises** this is the common path, not an edge case — and it is the same

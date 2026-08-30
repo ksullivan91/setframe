@@ -136,6 +136,51 @@ describe('GET /v1/progress/overview training summary', () => {
 });
 
 /**
+ * An unplanned session counts toward streaks and `weeksTrained`, exactly like
+ * a scheduled one. This is a product decision, not an accident of the query:
+ * see `docs/design/training-flow-just-start-training.md` §5.
+ *
+ * It holds today because this route never looks at `templateId` — it joins
+ * workoutSession -> workoutExerciseLog -> workoutSet and scopes by user,
+ * status and date, and `summarizeTrainingTrends` only ever receives
+ * `{ localDate, volume }`. Nothing structurally prevents someone from later
+ * "fixing" the overview by joining through to a program, which would silently
+ * erase every ad hoc session from a user's history. This pins it so that
+ * change fails a named assertion instead.
+ */
+describe('GET /v1/progress/overview ad hoc sessions', () => {
+  it('counts a session with no template toward the training summary', async () => {
+    /* `templateId: null` is what the schema calls an ad hoc session — the
+       column is nullable precisely so a session can exist without a day
+       type. The row is otherwise identical to the scheduled fixture. */
+    const adHocRow = { ...sessionSetRow, templateId: null, sessionName: "Today's workout" };
+
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow])) // auth
+      .mockReturnValueOnce(selectChain([adHocRow])) // setRows
+      .mockReturnValueOnce(selectChain([])) // restRows
+      .mockReturnValueOnce(selectChain([{ localDate: '2026-08-24' }])) // firstSession
+      .mockReturnValue(selectChain([])); // bodyWeightRows
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'GET',
+      url: '/v1/progress/overview?weeks=4&localDate=2026-08-24',
+      headers: authHeader,
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.training.totalCompleted).toBe(1);
+    expect(body.training.weeksTrained).toBe(1);
+    expect(body.training.days).toEqual([
+      { localDate: '2026-08-24', completedCount: 1, volume: 1080 },
+    ]);
+    await app.close();
+  });
+});
+
+/**
  * Story 50 — the daily rollup the sub-weekly ranges chart from, and the bound
  * that decides where an empty period may honestly be drawn as zero.
  */

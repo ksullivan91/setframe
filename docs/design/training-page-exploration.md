@@ -87,13 +87,21 @@ both from data we already have and neither currently shown.
 
 ### 2.2 Fix the blank page
 
-Three routes out, **ordered by how soon the user gets to train** rather than
-by how complete the resulting data is:
+Three routes out, **live ones first, then what does not exist yet**:
 
 1. **Just start training** — primary. Log now, pick exercises as you go.
-2. **Start from a template** — Upper/Lower, PPL, Full Body 3-day, with real
-   exercises and targets already filled in.
-3. **Build your own** — guided setup, for people who know what they want.
+2. **Build your own** — guided setup, for people who know what they want.
+3. **Start from a template** — Upper/Lower, PPL, Full Body 3-day, with real
+   exercises and targets already filled in. **Badged "Coming soon"**, with a
+   muted button: the starter templates it needs do not exist yet, and an
+   enabled control that leads nowhere is the defect the badge exists to
+   prevent. The badge uses the logger's caution pill exactly — amber at 16%
+   under dark text (`status.caution + '29'`), never amber as a foreground.
+
+The earlier ordering put templates second, on the reasoning that it gets a
+user training soonest. That holds only for a route that works; until the
+template data exists, the honest order is the two that do, then the one that
+does not.
 
 ### 2.3 Push the editor, don't append it
 
@@ -129,7 +137,7 @@ Taken from the teardown's **Adapt**, not its Adopt, and the wording matters:
 | How exercises get in | The picker, mid-session, exactly as in a planned session. Nothing new to build. |
 | Afterwards | "Save as a workout" offers to create a `day_type` from what was performed. **Intent authored from fact** — the reverse of the usual direction, and the reason this is a design question. |
 | What it must not do | Write back to an existing `day_type`, or turn the session into a template implicitly. ADR 0005 keeps intent and fact separate; this creates *new* intent on request and never mutates existing intent. |
-| **Open question** | Whether an unplanned session counts toward streaks and `weeksTrained`. It is a real session, so probably yes — but that is a product call with consequences in `packages/domain/src/training-trends.ts`. |
+| **Decided** | An unplanned session **counts** toward streaks and `weeksTrained`, like any other. This needed no code: `summarizeTrainingTrends` only ever receives `{ localDate, volume }`, and the query behind it (`apps/api/src/routes/progress.ts`) joins session → log → set with no reference to `templateId` or any program. Recorded so nobody "fixes" it back by joining to a program. |
 
 **Now drawn**, in `docs/design/training-flow-just-start-training.md`. Two
 schema facts settled it and neither needed a migration: `templateId` is
