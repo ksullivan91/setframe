@@ -6,6 +6,7 @@ import { buildWeekStrip } from '@setframe/domain';
 import { ThemeProvider } from '../theme/ThemeProvider';
 import { WeekStrip } from '../components/training-v2/WeekStrip';
 import { ListRow } from '../components/training-v2/TrainingCards';
+import { SaveAsWorkoutCard } from '../components/training-v2/SaveAsWorkoutCard';
 import {
   EditorRowsSkeleton,
   PickerRowsSkeleton,
@@ -166,5 +167,86 @@ describe('Training v2 skeletons (mobile)', () => {
       (c): c is Extract<Json, { type: string }> => typeof c === 'object' && c !== null,
     );
     expect(flatten(rows[0]!.props.style).height).toBe(exercisePicker.rowHeight);
+  });
+});
+
+/**
+ * The save-as-workout flow, which existed only on web until now. Mobile had
+ * no offer at all — so the "it shows for a planned workout" bug could not
+ * occur there, because the feature was missing.
+ */
+describe('SaveAsWorkoutCard (mobile)', () => {
+  const derived = [
+    {
+      exerciseId: 'a',
+      sortOrder: 0,
+      prescription: { kind: 'sets_reps' as const, sets: 3, repsMin: 8 },
+      name: 'Back Squat',
+    },
+  ];
+
+  const render = (needsProgram: boolean, onSave = jest.fn()) => {
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = create(
+        <ThemeProvider>
+          <SaveAsWorkoutCard
+            derived={derived}
+            needsProgram={needsProgram}
+            onSave={onSave}
+            onDismiss={jest.fn()}
+          />
+        </ThemeProvider>,
+      );
+    });
+    return tree;
+  };
+
+  const press = (tree: ReactTestRenderer, testID: string) => {
+    const node = tree.root.findAll(
+      (n) => n.props?.testID === testID && typeof n.props?.onPress === 'function',
+    )[0];
+    if (!node) throw new Error(`no pressable ${testID}`);
+    act(() => node.props.onPress());
+  };
+
+  const type = (tree: ReactTestRenderer, testID: string, value: string) => {
+    const node = tree.root.findAll(
+      (n) => n.props?.testID === testID && typeof n.props?.onChangeText === 'function',
+    )[0]!;
+    act(() => node.props.onChangeText(value));
+  };
+
+  it('asks for a plan name first when there is no plan', () => {
+    /* A workout saved with no plan is legal but was invisible in Training.
+       Naming the plan first is what makes the outcome findable. */
+    const tree = render(true);
+    press(tree, 'save-as-workout-open');
+    expect(findAllByTestIdPrefix(tree.toJSON() as Json, 'save-as-program-form')).toHaveLength(1);
+  });
+
+  it('explains what a plan is, rather than just demanding a name', () => {
+    const tree = render(true);
+    press(tree, 'save-as-workout-open');
+    const text = JSON.stringify(tree.toJSON());
+    expect(text).toContain('A plan is where your workouts live');
+  });
+
+  it('skips straight to the workout name when a plan already exists', () => {
+    const tree = render(false);
+    press(tree, 'save-as-workout-open');
+    expect(findAllByTestIdPrefix(tree.toJSON() as Json, 'save-as-program-form')).toHaveLength(0);
+    expect(findAllByTestIdPrefix(tree.toJSON() as Json, 'save-as-workout-form')).toHaveLength(1);
+  });
+
+  it('hands back both names so the plan can be created first', () => {
+    const onSave = jest.fn();
+    const tree = render(true, onSave);
+    press(tree, 'save-as-workout-open');
+    type(tree, 'save-as-program-name', 'My training');
+    press(tree, 'save-as-program-continue');
+    type(tree, 'save-as-workout-name', 'Lower A');
+    press(tree, 'save-as-workout-confirm');
+    expect(onSave).toHaveBeenCalledWith({ workoutName: 'Lower A', programName: 'My training' });
   });
 });

@@ -62,6 +62,14 @@ export function TrainingScreenV2() {
     [programs],
   );
 
+  /* Every workout the user owns, regardless of plan membership — a workout
+     saved from a session belongs to the USER, so without this it can be
+     saved and unreachable. */
+  const { data: ownedDayTypes = [] } = useQuery({
+    queryKey: ['day-types'],
+    queryFn: () => api.get<DayType[]>('/day-types'),
+  });
+
   const { data: dayTypes = [], isPending: dayTypesPending } = useQuery({
     queryKey: ['program-day-types', activeProgram?.id],
     queryFn: () => api.get<DayType[]>(`/programs/${activeProgram!.id}/day-types`),
@@ -132,6 +140,47 @@ export function TrainingScreenV2() {
   });
 
   if (isLoading) return <View style={{ flex: 1, backgroundColor: theme.surface.canvas }} />;
+
+  /* No plan, but workouts exist — the "Workouts, still no plan" state
+     (Figma 169:883), so a saved workout always has somewhere to appear. */
+  if (!activeProgram && ownedDayTypes.length > 0) {
+    return (
+      <ScrollView
+        style={{ backgroundColor: theme.surface.canvas }}
+        contentContainerStyle={styles.content}
+        testID="training-no-plan-with-workouts"
+      >
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: theme.text.primary }]}>Training</Text>
+          <Text style={[styles.subtitle, { color: theme.text.secondary }]}>
+            {ownedDayTypes.length === 1 ? 'One workout' : `${ownedDayTypes.length} workouts`}, no
+            plan. That is a perfectly good place to stay.
+          </Text>
+        </View>
+        <Card testID="workouts-card">
+          <CardHeadRow>
+            <CardLabel>Your workouts</CardLabel>
+            <CardAction label="+ Start" onPress={() => startAdHoc.mutate()} />
+          </CardHeadRow>
+          {ownedDayTypes.map((dayType, index) => (
+            <ListRow
+              key={dayType.id}
+              name={dayType.name}
+              meta={formatWorkoutMeta(dayType)}
+              divided={index > 0}
+              testID={`workout-row-${dayType.id}`}
+              onPress={() => router.push(`/workout-editor?dayTypeId=${dayType.id}`)}
+            />
+          ))}
+        </Card>
+        <NoPlanRoutes
+          onJustStart={() => startAdHoc.mutate()}
+          onBuildYourOwn={() => router.push('/program-wizard')}
+          busy={startAdHoc.isPending}
+        />
+      </ScrollView>
+    );
+  }
 
   /* The outermost empty state — it IS the page, not a card inside it. */
   if (!activeProgram) {

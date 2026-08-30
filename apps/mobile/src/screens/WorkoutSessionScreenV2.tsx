@@ -12,6 +12,7 @@ import type {
 import {
   buildCompletedExerciseReadout,
   buildCompletedSessionReadout,
+  deriveWorkoutFromSession,
   formatPreviousSetCompact,
   formatSessionDuration,
   formatSessionMeta,
@@ -34,6 +35,7 @@ import { ExercisePickerV2 } from '../components/exercise-picker/ExercisePickerV2
 import { ExerciseCardsSkeleton } from '../components/training-v2/TrainingSkeletons';
 import { SetTypeSheet } from '../components/workout-v2/SetTypeSheet';
 import { ExerciseActionsSheet } from '../components/workout-v2/ExerciseActionsSheet';
+import { SaveAsWorkoutCard } from '../components/training-v2/SaveAsWorkoutCard';
 import {
   SetRowV2,
   type SetRowStatus,
@@ -119,6 +121,8 @@ export default function WorkoutSessionV2Screen() {
   const [setSheetFor, setSetSheetFor] = useState<string | null>(null);
   const [actionsFor, setActionsFor] = useState<string | null>(null);
   const [rpeShownFor, setRpeShownFor] = useState<Record<string, boolean>>({});
+  const [saveOfferDismissed, setSaveOfferDismissed] = useState(false);
+  const [savedWorkoutName, setSavedWorkoutName] = useState<string | null>(null);
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ['workout-session', sessionId] });
@@ -295,6 +299,23 @@ export default function WorkoutSessionV2Screen() {
     onSuccess: invalidate,
   });
 
+  const saveAsWorkout = useMutation({
+    /* With no plan yet the plan is created FIRST and the workout joins it — a
+       new program is created active, and save-as-workout attaches to whatever
+       is active. That ordering is what stops a saved workout landing
+       somewhere the user never looks. */
+    mutationFn: async ({ workoutName, programName }: { workoutName: string; programName?: string }) => {
+      if (programName) {
+        await api.post('/programs', { name: programName });
+        await queryClient.invalidateQueries({ queryKey: ['programs'] });
+      }
+      return api.post<{ name: string }>(`/workout-sessions/${sessionId}/save-as-workout`, {
+        name: workoutName,
+      });
+    },
+    onSuccess: (created) => setSavedWorkoutName(created.name),
+  });
+
   const finish = useMutation({
     mutationFn: () => api.post(`/workout-sessions/${sessionId}/complete`),
     onSuccess: invalidate,
@@ -368,6 +389,32 @@ export default function WorkoutSessionV2Screen() {
   })();
 
   const sessionComplete = session.status === 'completed';
+
+  /* "Do this one again?" only makes sense for an UNPLANNED session — offering
+     it after a planned one invites duplicating a workout you already have. */
+  const isUnplanned = session.templateId == null;
+
+  /* Only consulted when the offer is shown. */
+  const { data: programs = [] } = useQuery({
+    queryKey: ['programs'],
+    queryFn: () => api.get<{ id: string; isActive: boolean }[]>('/programs'),
+    enabled: sessionComplete && isUnplanned,
+  });
+  const hasActiveProgram = programs.some((program) => program.isActive);
+
+  const derivedWorkout = (() => {
+    const names = new Map(exercises.map((log) => [log.exerciseId, log.exercise.name]));
+    return deriveWorkoutFromSession(
+      exercises.map((log) => ({
+        exerciseId: log.exerciseId,
+        sets: log.sets.map((set) => ({
+          setType: set.setType,
+          reps: set.reps,
+          weightValue: set.weightValue,
+        })),
+      })),
+    ).map((item) => ({ ...item, name: names.get(item.exerciseId) ?? 'Exercise' }));
+  })();
   /* The same shared readout web uses — the banner is the most prominent
      surface in the product and its numbers must not differ by platform. */
   const sessionReadout = buildCompletedSessionReadout(exercises);
@@ -496,6 +543,24 @@ export default function WorkoutSessionV2Screen() {
       )}
 
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+        {/* Under the banner, never over it: the workout is already recorded,
+            so the offer must not block the acknowledgement of what was just
+            done. */}
+        {sessionComplete && isUnplanned && !saveOfferDismissed ? (
+          savedWorkoutName ? (
+            <Text style={[styles.savedNotice, { color: theme.text.secondary }]} testID="saved-workout-notice">
+              Saved as {savedWorkoutName}. You can start it from Training whenever you like.
+            </Text>
+          ) : (
+            <SaveAsWorkoutCard
+              derived={derivedWorkout}
+              needsProgram={!hasActiveProgram}
+              onSave={(input) => saveAsWorkout.mutate(input)}
+              onDismiss={() => setSaveOfferDismissed(true)}
+              busy={saveAsWorkout.isPending}
+            />
+          )
+        ) : null}
         {exercises.map((log) => {
           const definition = getPrescriptionDefinition(log.prescription);
           /* RPE is off by default and toggled per exercise from its ⋯
@@ -728,4 +793,5 @@ const styles = StyleSheet.create({
   bottomBar: { paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1, alignItems: 'center' },
   addExercise: { width: CARD_WIDTH, height: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   addExerciseText: { fontSize: 14, fontWeight: '600' },
+  savedNotice: { fontSize: 13, paddingVertical: 14, paddingHorizontal: 16 },
 });

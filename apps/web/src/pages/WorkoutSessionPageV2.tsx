@@ -413,8 +413,25 @@ export default function WorkoutSessionPageV2() {
   });
 
   const saveAsWorkout = useMutation({
-    mutationFn: (name: string) =>
-      api.post<{ name: string }>(`/workout-sessions/${sessionId}/save-as-workout`, { name }),
+    /* With no plan yet, the plan is created FIRST and the workout then joins
+       it — a new program is created active, and save-as-workout attaches to
+       whatever is active. Doing it in this order is what stops a saved
+       workout landing somewhere the user never looks. */
+    mutationFn: async ({
+      workoutName,
+      programName,
+    }: {
+      workoutName: string;
+      programName?: string;
+    }) => {
+      if (programName) {
+        await api.post('/programs', { name: programName });
+        await queryClient.invalidateQueries({ queryKey: ['programs'] });
+      }
+      return api.post<{ name: string }>(`/workout-sessions/${sessionId}/save-as-workout`, {
+        name: workoutName,
+      });
+    },
     onSuccess: (created) => setSavedWorkoutName(created.name),
   });
 
@@ -536,6 +553,15 @@ export default function WorkoutSessionPageV2() {
    * type, which the schema comments call out as the ad hoc case.
    */
   const isUnplanned = session?.templateId == null;
+
+  /* Whether a plan exists at all. Only consulted when the save offer is
+     shown, so it is fetched with the session rather than on every screen. */
+  const { data: programs = [] } = useQuery({
+    queryKey: ['programs'],
+    queryFn: () => api.get<{ id: string; isActive: boolean }[]>('/programs'),
+    enabled: sessionComplete && isUnplanned,
+  });
+  const hasActiveProgram = programs.some((program) => program.isActive);
 
   /* What "save as a workout" would copy, computed from the same performed
      sets the server will read — so the preview cannot promise something the
@@ -694,7 +720,8 @@ export default function WorkoutSessionPageV2() {
           ) : (
             <SaveAsWorkoutCard
               derived={derivedWorkout}
-              onSave={(name) => saveAsWorkout.mutate(name)}
+              needsProgram={!hasActiveProgram}
+              onSave={(input) => saveAsWorkout.mutate(input)}
               onDismiss={() => setSaveOfferDismissed(true)}
               busy={saveAsWorkout.isPending}
             />

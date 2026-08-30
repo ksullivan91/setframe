@@ -132,16 +132,33 @@ const PreviewMeta = styled.span`
 export interface SaveAsWorkoutCardProps {
   /** What will be copied, derived from the session. */
   derived: readonly (DerivedExercise & { name: string })[];
-  onSave: (name: string) => void;
+  /**
+   * True when the user has no plan yet.
+   *
+   * Saving then creates the plan first, so the workout has somewhere to live
+   * and cannot end up somewhere the user never looks. A workout saved with no
+   * plan is legal in the schema but was reported as "I'm not sure it actually
+   * saved" — the naming step is what makes the outcome visible.
+   */
+  needsProgram?: boolean;
+  onSave: (input: { workoutName: string; programName?: string }) => void;
   onDismiss: () => void;
   busy?: boolean;
 }
 
-export function SaveAsWorkoutCard({ derived, onSave, onDismiss, busy }: SaveAsWorkoutCardProps) {
-  const [naming, setNaming] = useState(false);
+export function SaveAsWorkoutCard({
+  derived,
+  needsProgram = false,
+  onSave,
+  onDismiss,
+  busy,
+}: SaveAsWorkoutCardProps) {
+  /* `offer` → (`program`, only with no plan) → `workout`. */
+  const [step, setStep] = useState<'offer' | 'program' | 'workout'>('offer');
   const [name, setName] = useState('');
+  const [programName, setProgramName] = useState('');
 
-  if (!naming) {
+  if (step === 'offer') {
     return (
       <Card data-testid="save-as-workout">
         <Title>Do this one again?</Title>
@@ -150,7 +167,11 @@ export function SaveAsWorkoutCard({ derived, onSave, onDismiss, busy }: SaveAsWo
           of the week.
         </Body>
         <Row>
-          <Primary type="button" onClick={() => setNaming(true)} data-testid="save-as-workout-open">
+          <Primary
+            type="button"
+            onClick={() => setStep(needsProgram ? 'program' : 'workout')}
+            data-testid="save-as-workout-open"
+          >
             Save as a workout
           </Primary>
           <Secondary type="button" onClick={onDismiss} data-testid="save-as-workout-dismiss">
@@ -160,6 +181,39 @@ export function SaveAsWorkoutCard({ derived, onSave, onDismiss, busy }: SaveAsWo
         {/* Says the session is already safe, so the offer cannot read as a
             condition of keeping it. */}
         <Note>Either way, this workout is already saved to your history.</Note>
+      </Card>
+    );
+  }
+
+  if (step === 'program') {
+    return (
+      <Card data-testid="save-as-program-form">
+        <Title>First, name your plan</Title>
+        {/* Says what a plan IS and why this step exists. Asking a novice to
+            name something they have never heard of, with no explanation, is
+            the kind of wall this whole flow was designed to avoid. */}
+        <Body>
+          A plan is where your workouts live. It is what puts them on days of the week, so Today
+          knows what is next and your history stays grouped with the training it came from.
+        </Body>
+        <Label>Plan name</Label>
+        <Input
+          value={programName}
+          onChange={(event) => setProgramName(event.target.value)}
+          placeholder="My training"
+          aria-label="Plan name"
+          data-testid="save-as-program-name"
+          autoFocus
+        />
+        <Note>You only do this once. You can rename it, or add more plans, whenever you like.</Note>
+        <Primary
+          type="button"
+          disabled={!programName.trim()}
+          onClick={() => setStep('workout')}
+          data-testid="save-as-program-continue"
+        >
+          Continue
+        </Primary>
       </Card>
     );
   }
@@ -193,7 +247,12 @@ export function SaveAsWorkoutCard({ derived, onSave, onDismiss, busy }: SaveAsWo
       <Primary
         type="button"
         disabled={!name.trim() || busy}
-        onClick={() => onSave(name.trim())}
+        onClick={() =>
+          onSave({
+            workoutName: name.trim(),
+            programName: needsProgram ? programName.trim() : undefined,
+          })
+        }
         data-testid="save-as-workout-confirm"
       >
         Save workout
