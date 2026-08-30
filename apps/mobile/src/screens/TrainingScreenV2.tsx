@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import type { DayType, ProgramScheduleSlot, TrainingProgram } from '@setframe/schemas';
 import {
   buildWeekStrip,
@@ -16,6 +16,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { ActiveProgramCard } from '../components/training-v2/ActiveProgramCard';
 import { WeekStrip } from '../components/training-v2/WeekStrip';
 import { Card, CardAction, CardHeadRow, CardLabel, ListRow } from '../components/training-v2/TrainingCards';
+import { NoPlanRoutes } from '../components/training-v2/NoPlanRoutes';
 
 /**
  * Training v2 — one scrollable screen, replacing three tabs.
@@ -116,7 +117,43 @@ export function TrainingScreenV2() {
     [overviewSlots],
   );
 
+  /**
+   * Creates a real `workout_session` with a null `templateId` — which the
+   * schema already permits and explicitly blesses with a comment.
+   */
+  const startAdHoc = useMutation({
+    mutationFn: () =>
+      api.post<{ id: string }>('/workout-sessions', {
+        localDate: today,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      }),
+    onSuccess: (session) => router.push(`/workout/${session.id}`),
+  });
+
   if (isLoading) return <View style={{ flex: 1, backgroundColor: theme.surface.canvas }} />;
+
+  /* The outermost empty state — it IS the page, not a card inside it. */
+  if (!activeProgram) {
+    return (
+      <ScrollView
+        style={{ backgroundColor: theme.surface.canvas }}
+        contentContainerStyle={styles.content}
+        testID="training-no-plan"
+      >
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: theme.text.primary }]}>Training</Text>
+          <Text style={[styles.subtitle, { color: theme.text.secondary }]}>
+            Three ways in. None of them is a form you have to finish first.
+          </Text>
+        </View>
+        <NoPlanRoutes
+          onJustStart={() => startAdHoc.mutate()}
+          onBuildYourOwn={() => router.push('/program-wizard')}
+          busy={startAdHoc.isPending}
+        />
+      </ScrollView>
+    );
+  }
 
   return (
     <ScrollView
@@ -160,7 +197,8 @@ export function TrainingScreenV2() {
         </CardHeadRow>
         {dayTypes.length === 0 ? (
           <Text style={[styles.empty, { color: theme.text.secondary }]}>
-            No workouts yet. Add one to start building your week.
+            Nothing in this plan yet. A workout is a training day you can put on the calendar
+            and repeat.
           </Text>
         ) : (
           dayTypes.map((dayType, index) => (

@@ -11,9 +11,15 @@ import {
   workoutSessionDetailSchema,
   workoutSessionSchema,
   workoutSetSchema,
+  dayTypeSchema,
   type Prescription,
 } from '@setframe/schemas';
-import { resolveSessionPRs, toPrBaseline, type HistoricalSet } from '@setframe/domain';
+import {
+  deriveWorkoutFromSession,
+  resolveSessionPRs,
+  toPrBaseline,
+  type HistoricalSet,
+} from '@setframe/domain';
 import {
   dayType,
   dayTypeExercise,
@@ -171,6 +177,11 @@ const sessionParamsSchema = z.object({ sessionId: z.string().uuid() });
 const exerciseLogParamsSchema = z.object({ id: z.string().uuid() });
 const setParamsSchema = z.object({ setId: z.string().uuid() });
 const exerciseLogSetsParamsSchema = z.object({ exerciseLogId: z.string().uuid() });
+
+/** Body for saving a performed session as a reusable workout. */
+const saveAsWorkoutSchema = z.object({
+  name: z.string().min(1).max(120),
+});
 
 const addExerciseLogSchema = z.object({
   exerciseId: z.string().uuid(),
@@ -660,6 +671,102 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
         .where(eq(workoutSession.id, request.params.sessionId))
         .returning();
       return toSessionResponse(rows[0]!);
+    },
+  );
+
+  /**
+   * Save a performed session as a reusable workout.
+   *
+   * The only new backend surface Training v2 needed. This is **intent
+   * authored from fact** — the reverse of the usual direction, and the reason
+   * "Just start training" was a design question rather than a button.
+   *
+   * ADR 0005 is the constraint: this creates a NEW `day_type` and never
+   * writes back into one the session started from. A session with a
+   * `templateId` can still be saved this way; it produces a separate workout
+   * rather than mutating the original, which is exactly the separation the
+   * ADR exists to preserve.
+   *
+   * `day_type` has no program reference — it is keyed on `userId` alone — so
+   * the saved workout needs no plan to live in, and none is created.
+   */
+  fastify.post(
+    '/v1/workout-sessions/:sessionId/save-as-workout',
+    {
+      preHandler: requireAuth,
+      schema: {
+        params: sessionParamsSchema,
+        body: saveAsWorkoutSchema,
+        response: { 201: dayTypeSchema },
+      },
+    },
+    async (request, reply) => {
+      const db = getDb();
+      await getOwnedSession(db, request.params.sessionId, request.userId!);
+
+      const rows = await db
+        .select({
+          logId: workoutExerciseLog.id,
+          exerciseId: workoutExerciseLog.exerciseId,
+          sortOrder: workoutExerciseLog.sortOrder,
+          skipped: workoutExerciseLog.skipped,
+          setType: workoutSet.setType,
+          reps: workoutSet.reps,
+          loadValue: workoutSet.loadValue,
+          completed: workoutSet.completed,
+        })
+        .from(workoutExerciseLog)
+        .leftJoin(workoutSet, eq(workoutSet.exerciseLogId, workoutExerciseLog.id))
+        .where(eq(workoutExerciseLog.sessionId, request.params.sessionId))
+        .orderBy(workoutExerciseLog.sortOrder, workoutSet.sortOrder);
+
+      /* Group sets under their exercise, preserving log order. A skipped
+         exercise never happened (story 34) and must not reach the template. */
+      const grouped = new Map<string, { exerciseId: string; sets: { setType: string; reps: number | null; weightValue: number | null; completed: boolean }[] }>();
+      for (const row of rows) {
+        if (row.skipped) continue;
+        const entry = grouped.get(row.logId) ?? { exerciseId: row.exerciseId, sets: [] };
+        if (row.setType) {
+          entry.sets.push({
+            setType: row.setType,
+            reps: row.reps,
+            weightValue: row.loadValue == null ? null : Number(row.loadValue),
+            completed: row.completed ?? true,
+          });
+        }
+        grouped.set(row.logId, entry);
+      }
+
+      const derived = deriveWorkoutFromSession([...grouped.values()]);
+      if (derived.length === 0) {
+        throw badRequest('This session has no performed sets to save as a workout');
+      }
+
+      const [created] = await db
+        .insert(dayType)
+        .values({ userId: request.userId!, name: request.body.name })
+        .returning();
+
+      await db.insert(dayTypeExercise).values(
+        derived.map((item) => ({
+          dayTypeId: created!.id,
+          exerciseId: item.exerciseId,
+          sortOrder: item.sortOrder,
+          prescription: item.prescription,
+        })),
+      );
+
+      reply.status(201);
+      return {
+        id: created!.id,
+        userId: created!.userId,
+        name: created!.name,
+        description: created!.description,
+        estimatedDurationMinutes: created!.estimatedDurationMinutes,
+        createdAt: created!.createdAt.toISOString(),
+        updatedAt: created!.updatedAt.toISOString(),
+        exerciseCount: derived.length,
+      };
     },
   );
 

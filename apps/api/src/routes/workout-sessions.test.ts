@@ -36,6 +36,9 @@ function selectChain(rows: unknown[]) {
         innerJoin: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue(chain) }),
         where: vi.fn().mockReturnValue(chain),
       }),
+      /* save-as-workout joins sets onto logs with a LEFT join, so an
+         exercise with no sets still appears (and is then dropped). */
+      leftJoin: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue(chain) }),
       where: vi.fn().mockReturnValue(chain),
       orderBy: vi.fn().mockResolvedValue(rows),
     }),
@@ -44,6 +47,11 @@ function selectChain(rows: unknown[]) {
 
 function insertChain(rows: unknown[]) {
   return { values: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue(rows) }) };
+}
+
+/** `insert().values()` with no `.returning()` — the day-type exercise batch. */
+function insertNoReturningChain() {
+  return { values: vi.fn().mockResolvedValue(undefined) };
 }
 
 function updateChain(rows: unknown[]) {
@@ -557,6 +565,156 @@ describe('POST /v1/workout-exercise-logs/:exerciseLogId/quick-log', () => {
 
     const written = mockUpdate.mock.results[0]!.value.set.mock.calls[0][0];
     expect(written).not.toHaveProperty('setType');
+    await app.close();
+  });
+});
+
+/**
+ * Story 82 — saving a performed session as a reusable workout.
+ *
+ * The only new backend surface in Training v2, and the one place intent is
+ * authored FROM fact. ADR 0005 is the constraint: this must create new intent
+ * and never write back into the day type a session started from.
+ */
+describe('POST /v1/workout-sessions/:sessionId/save-as-workout', () => {
+  /* This block sits outside the file's other describe, so it needs its own
+     reset — without it `mockInsert` carries calls from the previous test and
+     a "was never called" assertion reads the wrong count. */
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSelect.mockReset();
+    mockInsert.mockReset();
+    mockUpdate.mockReset();
+  });
+
+  const savedDayType = {
+    id: '77777777-7777-4777-8777-777777777777',
+    userId: userRow.id,
+    name: 'Leg Day',
+    description: null,
+    estimatedDurationMinutes: null,
+    createdAt: new Date('2026-08-30T10:00:00Z'),
+    updatedAt: new Date('2026-08-30T10:00:00Z'),
+  };
+
+  const performedRow = (over: Record<string, unknown> = {}) => ({
+    logId: '33333333-3333-4333-8333-333333333333',
+    exerciseId: '44444444-4444-4444-8444-444444444444',
+    sortOrder: 0,
+    skipped: false,
+    setType: 'working',
+    reps: 8,
+    loadValue: '225',
+    completed: true,
+    ...over,
+  });
+
+  it('saves the session as a new day type', async () => {
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow])) // auth
+      .mockReturnValueOnce(selectChain([sessionRow])) // getOwnedSession
+      .mockReturnValueOnce(selectChain([performedRow(), performedRow(), performedRow()]));
+    mockInsert
+      .mockReturnValueOnce(insertChain([savedDayType])) // day_type
+      .mockReturnValueOnce(insertNoReturningChain()); // day_type_exercise batch
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: `/v1/workout-sessions/${sessionRow.id}/save-as-workout`,
+      headers: authHeader,
+      payload: { name: 'Leg Day' },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({ name: 'Leg Day', exerciseCount: 1 });
+
+    /* Three working sets of 8 become "3 x 8", and no weight is carried. */
+    const values = mockInsert.mock.results[1]!.value.values.mock.calls[0][0];
+    expect(values).toEqual([
+      {
+        dayTypeId: savedDayType.id,
+        exerciseId: performedRow().exerciseId,
+        sortOrder: 0,
+        prescription: { kind: 'sets_reps', sets: 3, repsMin: 8 },
+      },
+    ]);
+    expect(JSON.stringify(values)).not.toContain('225');
+    await app.close();
+  });
+
+  it('refuses a session with nothing performed rather than creating an empty workout', async () => {
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([sessionRow]))
+      .mockReturnValueOnce(selectChain([performedRow({ reps: null, setType: 'warmup' })]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: `/v1/workout-sessions/${sessionRow.id}/save-as-workout`,
+      headers: authHeader,
+      payload: { name: 'Empty' },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(mockInsert).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it('never writes back into the day type the session started from', async () => {
+    /* ADR 0005. A session WITH a templateId still produces a separate
+       workout — the original is untouched. */
+    const fromTemplate = { ...sessionRow, templateId: '88888888-8888-4888-8888-888888888888' };
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([fromTemplate]))
+      .mockReturnValueOnce(selectChain([performedRow()]));
+    mockInsert
+      .mockReturnValueOnce(insertChain([savedDayType]))
+      .mockReturnValueOnce(insertNoReturningChain());
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: `/v1/workout-sessions/${fromTemplate.id}/save-as-workout`,
+      headers: authHeader,
+      payload: { name: 'Copy' },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json().id).toBe(savedDayType.id);
+    expect(response.json().id).not.toBe(fromTemplate.templateId);
+    /* No UPDATE at all — the original day type is not touched. */
+    expect(mockUpdate).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it('drops an exercise that was skipped, which never happened', async () => {
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([sessionRow]))
+      .mockReturnValueOnce(
+        selectChain([
+          performedRow(),
+          performedRow({ logId: 'skipped-log', skipped: true, exerciseId: 'gone' }),
+        ]),
+      );
+    mockInsert
+      .mockReturnValueOnce(insertChain([savedDayType]))
+      .mockReturnValueOnce(insertNoReturningChain());
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: `/v1/workout-sessions/${sessionRow.id}/save-as-workout`,
+      headers: authHeader,
+      payload: { name: 'Leg Day' },
+    });
+
+    expect(response.statusCode).toBe(201);
+    const values = mockInsert.mock.results[1]!.value.values.mock.calls[0][0];
+    expect(values).toHaveLength(1);
     await app.close();
   });
 });

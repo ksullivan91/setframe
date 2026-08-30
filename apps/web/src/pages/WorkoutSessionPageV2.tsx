@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
-import type { PickableExercise, SessionField } from '@setframe/domain';
+import type { DerivedExercise, PickableExercise, SessionField } from '@setframe/domain';
 import type {
   Prescription,
   WorkoutSessionDetail,
@@ -12,6 +12,7 @@ import type {
 import {
   buildCompletedExerciseReadout,
   buildCompletedSessionReadout,
+  deriveWorkoutFromSession,
   formatPreviousSetCompact,
   formatSessionDuration,
   formatSessionMeta,
@@ -28,6 +29,7 @@ import { summarizePrescription } from '../lib/prescription';
 import { ExerciseTableCard, CARD_WIDTH } from '../components/workout-v2/ExerciseTableCard';
 import { SetRowV2, type SetRowStatus, type SetRowValues } from '../components/workout-v2/SetRowV2';
 import { ExercisePickerV2 } from '../components/exercise-picker/ExercisePickerV2';
+import { SaveAsWorkoutCard } from '../components/training-v2/SaveAsWorkoutCard';
 
 /**
  * Today's Workout, v2 — the table-format logger.
@@ -57,6 +59,17 @@ const PickerOverlay = styled.div`
   inset: 0;
   z-index: 50;
   background: ${({ theme }) => theme.surface.canvas};
+`;
+
+const SavedNotice = styled.p`
+  width: 358px;
+  max-width: 100%;
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: ${({ theme }) => theme.surface.raised};
+  font-size: 13px;
+  color: ${({ theme }) => theme.text.secondary};
 `;
 
 const Screen = styled.div`
@@ -249,6 +262,8 @@ export default function WorkoutSessionPageV2() {
   });
 
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [saveOfferDismissed, setSaveOfferDismissed] = useState(false);
+  const [savedWorkoutName, setSavedWorkoutName] = useState<string | null>(null);
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ['workout-session', sessionId] });
@@ -268,6 +283,12 @@ export default function WorkoutSessionPageV2() {
     mutationFn: (exerciseLogId: string) =>
       api.post<WorkoutSet>('/workout-exercise-logs/' + exerciseLogId + '/sets', {}),
     onSuccess: invalidate,
+  });
+
+  const saveAsWorkout = useMutation({
+    mutationFn: (name: string) =>
+      api.post<{ name: string }>(`/workout-sessions/${sessionId}/save-as-workout`, { name }),
+    onSuccess: (created) => setSavedWorkoutName(created.name),
   });
 
   const finish = useMutation({
@@ -304,6 +325,26 @@ export default function WorkoutSessionPageV2() {
     [session],
   );
   const sessionComplete = session?.status === 'completed';
+
+  /* What "save as a workout" would copy, computed from the same performed
+     sets the server will read — so the preview cannot promise something the
+     endpoint would not produce. */
+  const derivedWorkout = useMemo(() => {
+    const names = new Map(exercises.map((log) => [log.exerciseId, log.exercise.name]));
+    return deriveWorkoutFromSession(
+      exercises.map((log) => ({
+        exerciseId: log.exerciseId,
+        sets: log.sets.map((set) => ({
+          setType: set.setType,
+          reps: set.reps,
+          weightValue: set.weightValue,
+        })),
+      })),
+    ).map((item: DerivedExercise) => ({
+      ...item,
+      name: names.get(item.exerciseId) ?? 'Exercise',
+    }));
+  }, [exercises]);
 
   if (query.isLoading || !session) {
     return (
@@ -393,6 +434,24 @@ export default function WorkoutSessionPageV2() {
       )}
 
       <Body>
+        {/* Under the banner, never over it: the workout is already recorded,
+            so the offer must not block the acknowledgement of what was just
+            done. */}
+        {sessionComplete && !saveOfferDismissed ? (
+          savedWorkoutName ? (
+            <SavedNotice data-testid="saved-workout-notice">
+              Saved as <strong>{savedWorkoutName}</strong>. You can start it from Training whenever
+              you like.
+            </SavedNotice>
+          ) : (
+            <SaveAsWorkoutCard
+              derived={derivedWorkout}
+              onSave={(name) => saveAsWorkout.mutate(name)}
+              onDismiss={() => setSaveOfferDismissed(true)}
+              busy={saveAsWorkout.isPending}
+            />
+          )
+        ) : null}
         {exercises.map((log) => {
           const definition = getPrescriptionDefinition(log.prescription);
           const fields = visibleFields(definition);

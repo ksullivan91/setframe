@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import styled from 'styled-components';
 import type { DayType, ProgramScheduleSlot, TrainingProgram } from '@setframe/schemas';
 import {
@@ -15,6 +15,7 @@ import { useApiClient } from '../lib/api-client';
 import { ActiveProgramCard } from '../components/training-v2/ActiveProgramCard';
 import { WeekStrip } from '../components/training-v2/WeekStrip';
 import { Card, CardAction, CardHeadRow, CardLabel, ListRow } from '../components/training-v2/TrainingCards';
+import { NoPlanRoutes } from '../components/training-v2/NoPlanRoutes';
 
 /**
  * Training v2 — one scrollable page, replacing three tabs.
@@ -177,7 +178,41 @@ export default function TrainingPageV2() {
     [overviewSlots],
   );
 
+  /**
+   * "Just start training" creates a real `workout_session` with a null
+   * `templateId` — which the schema already permits, and explicitly blesses
+   * with a comment. Not a special mode, not a scratchpad.
+   */
+  const startAdHoc = useMutation({
+    mutationFn: () =>
+      api.post<{ id: string }>('/workout-sessions', {
+        localDate: today,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      }),
+    onSuccess: (session) => navigate(`/workout/${session.id}`),
+  });
+
   if (programsLoading) return <Screen aria-busy="true" />;
+
+  /* The outermost empty state: a user here cannot reach any of the others.
+     It is not a card inside the page — it IS the page. */
+  if (!activeProgram) {
+    return (
+      <Screen data-testid="training-no-plan">
+        <Header>
+          <Title>Training</Title>
+          <Subtitle>Three ways in. None of them is a form you have to finish first.</Subtitle>
+        </Header>
+        <Body>
+          <NoPlanRoutes
+            onJustStart={() => startAdHoc.mutate()}
+            onBuildYourOwn={() => navigate('/training/new')}
+            busy={startAdHoc.isPending}
+          />
+        </Body>
+      </Screen>
+    );
+  }
 
   return (
     <Screen>
@@ -218,7 +253,12 @@ export default function TrainingPageV2() {
             <CardAction onClick={() => navigate(MANAGE_ROUTE)}>+ New</CardAction>
           </CardHeadRow>
           {dayTypes.length === 0 ? (
-            <Empty>No workouts yet. Add one to start building your week.</Empty>
+            /* "A plan with no workouts" — the most common way to meet an
+               empty Training page, and until now a card with nothing in it. */
+            <Empty>
+              Nothing in this plan yet. A workout is a training day you can put on the calendar and
+              repeat.
+            </Empty>
           ) : (
             dayTypes.map((dayType, index) => (
               <ListRow

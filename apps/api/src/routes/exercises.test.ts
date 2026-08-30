@@ -40,6 +40,7 @@ const systemExerciseRow = {
   id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   name: 'Barbell Back Squat',
   movementPattern: 'squat',
+  equipment: 'barbell',
   isSystem: true,
   createdByUserId: null,
   archivedAt: null,
@@ -52,6 +53,7 @@ const customExerciseRow = {
   // Deliberately unclassified: the case story 57's editor exists to fix.
   name: 'Backyard Sled Push',
   movementPattern: null,
+  equipment: null,
   isSystem: false,
   createdByUserId: userRow.id,
   archivedAt: null,
