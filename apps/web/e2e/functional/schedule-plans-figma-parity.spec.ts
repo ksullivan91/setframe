@@ -50,7 +50,11 @@ test.describe('schedule and plans — Figma parity', () => {
     await page.getByTestId('schedule-day-1').click();
     await expect(page.getByTestId('assign-day-sheet')).toBeVisible();
 
+    /* Options arrive with the day-types query, so wait for one rather than
+       counting whatever has rendered so far — that race made this flaky
+       under parallel load while passing in isolation. */
     const options = page.locator('[data-testid^="assign-option-"]');
+    await expect(options.first()).toBeVisible();
     const count = await options.count();
     expect(count).toBeGreaterThan(1);
 
@@ -82,6 +86,7 @@ test.describe('schedule and plans — Figma parity', () => {
   test('Rest sits below a divider and is a different kind of action', async ({ page }) => {
     await signInAs(page, 'lifter', '/training/schedule');
     await page.getByTestId('schedule-day-1').click();
+    await expect(page.locator('[data-testid^="assign-option-"]').first()).toBeVisible();
     const rest = page.getByTestId('assign-rest');
     await expect(rest).toBeVisible();
     await expect(rest).toContainText('Clears whatever is on this day');
@@ -113,14 +118,26 @@ test.describe('schedule and plans — Figma parity', () => {
 
   test('the plans list answers the fear before the button is pressed', async ({ page }) => {
     await signInAs(page, 'lifter', '/training/plans');
-    await expect(page.getByTestId('plans-page')).toContainText(
-      'Switching keeps everything',
-    );
+    /* Wait for the page itself before asserting its copy — under parallel
+       load the assertion could otherwise time out against a page that had
+       not mounted yet. */
+    await expect(page.getByTestId('plans-page')).toBeVisible();
+    await expect(page.getByTestId('plans-page')).toContainText('Switching keeps everything');
   });
 
   test('neither page scrolls sideways at 390px', async ({ page }) => {
-    for (const path of ['/training/schedule', '/training/plans']) {
-      await signInAs(page, 'lifter', path);
+    /* Sign in once and navigate, rather than signing in per path — a second
+       full sign-in inside one test made this the slowest in the file and the
+       first to time out under load. */
+    await signInAs(page, 'lifter', '/training/schedule');
+    await expect(page.getByTestId('schedule-page')).toBeVisible();
+
+    for (const [path, testId] of [
+      ['/training/schedule', 'schedule-page'],
+      ['/training/plans', 'plans-page'],
+    ] as const) {
+      await page.goto(path);
+      await expect(page.getByTestId(testId)).toBeVisible();
       const overflow = await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
       );
