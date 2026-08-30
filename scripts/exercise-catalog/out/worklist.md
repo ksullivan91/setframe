@@ -18,7 +18,7 @@ survive, name them `Movement (Equipment)`, and drop the rest. The split test is
 
 **405 movement families** — 72 multi-variant, 333 singletons.
 
-**53 records need a PRIMARY delt head assigned by hand**, plus 123 more where only a secondary head is unresolved (all marked `shoulders:UNASSIGNED`).
+**2 records need a PRIMARY delt head assigned by hand**, plus 58 more where only a secondary head is unresolved (all marked `shoulders:UNASSIGNED`).
 
 ---
 
@@ -28,556 +28,556 @@ Rule on each. Most of the duplication lives here.
 
 ### bench press — 9
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Barbell Bench Press - Medium Grip | barbell | chest | shoulders:UNASSIGNED, triceps |
-| Bench Press - Powerlifting | barbell | triceps | chest, forearms, lats, shoulders:UNASSIGNED |
-| Bench Press - With Bands | band | chest | shoulders:UNASSIGNED, triceps |
-| Bench Press with Chains | barbell | triceps | chest, lats, shoulders:UNASSIGNED |
-| Close-Grip Barbell Bench Press | barbell | triceps | chest, shoulders:UNASSIGNED |
-| Dumbbell Bench Press | dumbbell | chest | shoulders:UNASSIGNED, triceps |
-| Dumbbell Bench Press with Neutral Grip | dumbbell | chest | shoulders:UNASSIGNED, triceps |
-| Machine Bench Press | machine | chest | shoulders:UNASSIGNED, triceps |
-| Wide-Grip Barbell Bench Press | barbell | chest | shoulders:UNASSIGNED, triceps |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Barbell Bench Press - Medium Grip | barbell | horizontal-push | chest | front delts, triceps |
+| Bench Press - Powerlifting | barbell | horizontal-push | triceps | chest, forearms, lats, front delts |
+| Bench Press - With Bands | band | horizontal-push | chest | front delts, triceps |
+| Bench Press with Chains | barbell | horizontal-push | triceps | chest, lats, front delts |
+| Close-Grip Barbell Bench Press | barbell | horizontal-push | triceps | chest, front delts |
+| Dumbbell Bench Press | dumbbell | horizontal-push | chest | front delts, triceps |
+| Dumbbell Bench Press with Neutral Grip | dumbbell | horizontal-push | chest | front delts, triceps |
+| Machine Bench Press | machine | horizontal-push | chest | front delts, triceps |
+| Wide-Grip Barbell Bench Press | barbell | horizontal-push | chest | front delts, triceps |
 
 ### press — 7
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Alternating Kettlebell Press | kettlebell | shoulders:UNASSIGNED | triceps |
-| Close-Grip Dumbbell Press | dumbbell | triceps | chest, shoulders:UNASSIGNED |
-| Kettlebell Seated Press | kettlebell | shoulders:UNASSIGNED | triceps |
-| Seated Dumbbell Press | dumbbell | shoulders:UNASSIGNED | triceps |
-| Standing Alternating Dumbbell Press | dumbbell | shoulders:UNASSIGNED | triceps |
-| Standing Dumbbell Press | dumbbell | shoulders:UNASSIGNED | triceps |
-| Standing Palms-In Dumbbell Press | dumbbell | shoulders:UNASSIGNED | triceps |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Alternating Kettlebell Press | kettlebell | vertical-push | front delts | triceps |
+| Close-Grip Dumbbell Press | dumbbell | vertical-push | triceps | chest, front delts |
+| Kettlebell Seated Press | kettlebell | vertical-push | front delts | triceps |
+| Seated Dumbbell Press | dumbbell | vertical-push | front delts | triceps |
+| Standing Alternating Dumbbell Press | dumbbell | vertical-push | front delts | triceps |
+| Standing Dumbbell Press | dumbbell | vertical-push | front delts | triceps |
+| Standing Palms-In Dumbbell Press | dumbbell | vertical-push | front delts | triceps |
 
 ### shoulder press — 7
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Alternating Cable Shoulder Press | cable | front delts | triceps |
-| Barbell Shoulder Press | barbell | front delts | chest, triceps |
-| Cable Shoulder Press | cable | front delts | triceps |
-| Dumbbell Shoulder Press | dumbbell | front delts | triceps |
-| Machine Shoulder (Military) Press | machine | shoulders:UNASSIGNED | triceps |
-| Seated Cable Shoulder Press | cable | front delts | triceps |
-| Shoulder Press - With Bands | band | front delts | triceps |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Alternating Cable Shoulder Press | cable | vertical-push | front delts | triceps |
+| Barbell Shoulder Press | barbell | vertical-push | front delts | chest, triceps |
+| Cable Shoulder Press | cable | vertical-push | front delts | triceps |
+| Dumbbell Shoulder Press | dumbbell | vertical-push | front delts | triceps |
+| Machine Shoulder (Military) Press | machine | vertical-push | front delts | triceps |
+| Seated Cable Shoulder Press | cable | vertical-push | front delts | triceps |
+| Shoulder Press - With Bands | band | vertical-push | front delts | triceps |
 
 ### calf raise — 5
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Barbell Seated Calf Raise | barbell | calves | — |
-| Calf Raise On A Dumbbell | dumbbell | calves | — |
-| Seated Calf Raise | machine | calves | — |
-| Standing Barbell Calf Raise | barbell | calves | — |
-| Standing Dumbbell Calf Raise | dumbbell | calves | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Barbell Seated Calf Raise | barbell | isolation-leg | calves | — |
+| Calf Raise On A Dumbbell | dumbbell | isolation-leg | calves | — |
+| Seated Calf Raise | machine | isolation-leg | calves | — |
+| Standing Barbell Calf Raise | barbell | isolation-leg | calves | — |
+| Standing Dumbbell Calf Raise | dumbbell | isolation-leg | calves | — |
 
 ### squat — 5
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Barbell Squat | barbell | quadriceps | calves, glutes, hamstrings, lower back |
-| Dumbbell Squat | dumbbell | quadriceps | calves, glutes, hamstrings, lower back |
-| Kneeling Squat | barbell | glutes | abdominals, hamstrings, lower back |
-| Squat with Bands | barbell | quadriceps | adductors, calves, glutes, hamstrings, lower back |
-| Squat with Chains | barbell | quadriceps | adductors, calves, glutes, hamstrings, lower back |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Barbell Squat | barbell | squat | quadriceps | calves, glutes, hamstrings, lower back |
+| Dumbbell Squat | dumbbell | squat | quadriceps | calves, glutes, hamstrings, lower back |
+| Kneeling Squat | barbell | squat | glutes | abdominals, hamstrings, lower back |
+| Squat with Bands | barbell | squat | quadriceps | adductors, calves, glutes, hamstrings, lower back |
+| Squat with Chains | barbell | squat | quadriceps | adductors, calves, glutes, hamstrings, lower back |
 
 ### bent over arm triceps extension — 4
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Seated Bent-Over One-Arm Dumbbell Triceps Extension | dumbbell | triceps | — |
-| Seated Bent-Over Two-Arm Dumbbell Triceps Extension | dumbbell | triceps | — |
-| Standing Bent-Over One-Arm Dumbbell Triceps Extension | dumbbell | triceps | shoulders:UNASSIGNED |
-| Standing Bent-Over Two-Arm Dumbbell Triceps Extension | dumbbell | triceps | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Seated Bent-Over One-Arm Dumbbell Triceps Extension | dumbbell | isolation-arm | triceps | — |
+| Seated Bent-Over Two-Arm Dumbbell Triceps Extension | dumbbell | isolation-arm | triceps | — |
+| Standing Bent-Over One-Arm Dumbbell Triceps Extension | dumbbell | isolation-arm | triceps | shoulders:UNASSIGNED |
+| Standing Bent-Over Two-Arm Dumbbell Triceps Extension | dumbbell | isolation-arm | triceps | — |
 
 ### crunch — 4
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Cable Crunch | cable | abdominals | — |
-| Cable Seated Crunch | cable | abdominals | — |
-| Crunch - Hands Overhead | bodyweight | abdominals | — |
-| Crunch - Legs On Exercise Ball | bodyweight | abdominals | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Cable Crunch | cable | core | abdominals | — |
+| Cable Seated Crunch | cable | core | abdominals | — |
+| Crunch - Hands Overhead | bodyweight | core | abdominals | — |
+| Crunch - Legs On Exercise Ball | bodyweight | core | abdominals | — |
 
 ### curl — 4
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Barbell Curl | barbell | biceps | forearms |
-| Close-Grip Standing Barbell Curl | barbell | biceps | forearms |
-| Seated Dumbbell Curl | dumbbell | biceps | — |
-| Wide-Grip Standing Barbell Curl | barbell | biceps | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Barbell Curl | barbell | isolation-arm | biceps | forearms |
+| Close-Grip Standing Barbell Curl | barbell | isolation-arm | biceps | forearms |
+| Seated Dumbbell Curl | dumbbell | isolation-arm | biceps | — |
+| Wide-Grip Standing Barbell Curl | barbell | isolation-arm | biceps | — |
 
 ### floor press — 4
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Alternating Floor Press | kettlebell | chest | abdominals, shoulders:UNASSIGNED, triceps |
-| Dumbbell Floor Press | dumbbell | triceps | chest, shoulders:UNASSIGNED |
-| Floor Press | barbell | triceps | chest, shoulders:UNASSIGNED |
-| Floor Press with Chains | barbell | triceps | chest, shoulders:UNASSIGNED |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Alternating Floor Press | kettlebell | horizontal-push | chest | abdominals, front delts, triceps |
+| Dumbbell Floor Press | dumbbell | horizontal-push | triceps | chest, front delts |
+| Floor Press | barbell | horizontal-push | triceps | chest, front delts |
+| Floor Press with Chains | barbell | horizontal-push | triceps | chest, front delts |
 
 ### incline push up — 4
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Incline Push-Up | bodyweight | chest | shoulders:UNASSIGNED, triceps |
-| Incline Push-Up Close-Grip | bodyweight | triceps | chest, shoulders:UNASSIGNED |
-| Incline Push-Up Medium | bodyweight | chest | abdominals, shoulders:UNASSIGNED, triceps |
-| Incline Push-Up Wide | bodyweight | chest | abdominals, shoulders:UNASSIGNED, triceps |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Incline Push-Up | bodyweight | horizontal-push | chest | front delts, triceps |
+| Incline Push-Up Close-Grip | bodyweight | horizontal-push | triceps | chest, front delts |
+| Incline Push-Up Medium | bodyweight | horizontal-push | chest | abdominals, front delts, triceps |
+| Incline Push-Up Wide | bodyweight | horizontal-push | chest | abdominals, front delts, triceps |
 
 ### upright row — 4
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Standing Dumbbell Upright Row | dumbbell | traps | biceps, side delts |
-| Upright Barbell Row | barbell | shoulders:UNASSIGNED | traps |
-| Upright Cable Row | cable | traps | shoulders:UNASSIGNED |
-| Upright Row - With Bands | band | traps | side delts |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Standing Dumbbell Upright Row | dumbbell | horizontal-pull | traps | biceps, side delts |
+| Upright Barbell Row | barbell | horizontal-pull | side delts | traps |
+| Upright Cable Row | cable | horizontal-pull | traps | side delts |
+| Upright Row - With Bands | band | horizontal-pull | traps | side delts |
 
 ### arm row — 3
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| One-Arm Dumbbell Row | dumbbell | middle back | biceps, lats, shoulders:UNASSIGNED |
-| One-Arm Kettlebell Row | kettlebell | middle back | biceps, lats |
-| Two-Arm Kettlebell Row | kettlebell | middle back | biceps, lats |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| One-Arm Dumbbell Row | dumbbell | horizontal-pull | middle back | biceps, lats, shoulders:UNASSIGNED |
+| One-Arm Kettlebell Row | kettlebell | horizontal-pull | middle back | biceps, lats |
+| Two-Arm Kettlebell Row | kettlebell | horizontal-pull | middle back | biceps, lats |
 
 ### bent over row — 3
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Bent Over Barbell Row | barbell | middle back | biceps, lats, shoulders:UNASSIGNED |
-| Bent Over Two-Dumbbell Row | dumbbell | middle back | biceps, lats, shoulders:UNASSIGNED |
-| Bent Over Two-Dumbbell Row With Palms In | dumbbell | middle back | biceps, lats |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Bent Over Barbell Row | barbell | horizontal-pull | middle back | biceps, lats, shoulders:UNASSIGNED |
+| Bent Over Two-Dumbbell Row | dumbbell | horizontal-pull | middle back | biceps, lats, shoulders:UNASSIGNED |
+| Bent Over Two-Dumbbell Row With Palms In | dumbbell | horizontal-pull | middle back | biceps, lats |
 
 ### bicep curl — 3
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Dumbbell Alternate Bicep Curl | dumbbell | biceps | forearms |
-| Dumbbell Bicep Curl | dumbbell | biceps | forearms |
-| Machine Bicep Curl | machine | biceps | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Dumbbell Alternate Bicep Curl | dumbbell | isolation-arm | biceps | forearms |
+| Dumbbell Bicep Curl | dumbbell | isolation-arm | biceps | forearms |
+| Machine Bicep Curl | machine | isolation-arm | biceps | — |
 
 ### box squat — 3
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Box Squat | barbell | quadriceps | adductors, calves, glutes, hamstrings, lower back |
-| Box Squat with Bands | barbell | quadriceps | abductors, adductors, calves, glutes, hamstrings, lower back |
-| Box Squat with Chains | barbell | quadriceps | abductors, adductors, calves, glutes, hamstrings, lower back |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Box Squat | barbell | squat | quadriceps | adductors, calves, glutes, hamstrings, lower back |
+| Box Squat with Bands | barbell | squat | quadriceps | abductors, adductors, calves, glutes, hamstrings, lower back |
+| Box Squat with Chains | barbell | squat | quadriceps | abductors, adductors, calves, glutes, hamstrings, lower back |
 
 ### deadlift — 3
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Barbell Deadlift | barbell | lower back | calves, forearms, glutes, hamstrings, lats, middle back, quadriceps, traps |
-| Deadlift with Bands | barbell | lower back | forearms, glutes, hamstrings, middle back, quadriceps, traps |
-| Deadlift with Chains | barbell | lower back | forearms, glutes, hamstrings, middle back, quadriceps, traps |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Barbell Deadlift | barbell | hinge | lower back | calves, forearms, glutes, hamstrings, lats, middle back, quadriceps, traps |
+| Deadlift with Bands | barbell | hinge | lower back | forearms, glutes, hamstrings, middle back, quadriceps, traps |
+| Deadlift with Chains | barbell | hinge | lower back | forearms, glutes, hamstrings, middle back, quadriceps, traps |
 
 ### decline bench press — 3
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Decline Barbell Bench Press | barbell | chest | shoulders:UNASSIGNED, triceps |
-| Decline Dumbbell Bench Press | dumbbell | chest | shoulders:UNASSIGNED, triceps |
-| Wide-Grip Decline Barbell Bench Press | barbell | chest | shoulders:UNASSIGNED, triceps |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Decline Barbell Bench Press | barbell | horizontal-push | chest | front delts, triceps |
+| Decline Dumbbell Bench Press | dumbbell | horizontal-push | chest | front delts, triceps |
+| Wide-Grip Decline Barbell Bench Press | barbell | horizontal-push | chest | front delts, triceps |
 
 ### external rotation — 3
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| External Rotation | dumbbell | shoulders:UNASSIGNED | — |
-| External Rotation with Band | band | shoulders:UNASSIGNED | — |
-| External Rotation with Cable | cable | shoulders:UNASSIGNED | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| External Rotation | dumbbell | isolation-shoulder | rotator cuff | — |
+| External Rotation with Band | band | isolation-shoulder | rotator cuff | — |
+| External Rotation with Cable | cable | isolation-shoulder | rotator cuff | — |
 
 ### front raise — 3
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Front Cable Raise | cable | shoulders:UNASSIGNED | — |
-| Front Dumbbell Raise | dumbbell | shoulders:UNASSIGNED | — |
-| Front Two-Dumbbell Raise | dumbbell | shoulders:UNASSIGNED | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Front Cable Raise | cable | isolation-shoulder | front delts | — |
+| Front Dumbbell Raise | dumbbell | isolation-shoulder | front delts | — |
+| Front Two-Dumbbell Raise | dumbbell | isolation-shoulder | front delts | — |
 
 ### good morning — 3
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Band Good Morning | band | hamstrings | glutes, lower back |
-| Band Good Morning (Pull Through) | band | hamstrings | glutes, lower back |
-| Good Morning | barbell | hamstrings | abdominals, glutes, lower back |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Band Good Morning | band | hinge | hamstrings | glutes, lower back |
+| Band Good Morning (Pull Through) | band | hinge | hamstrings | glutes, lower back |
+| Good Morning | barbell | hinge | hamstrings | abdominals, glutes, lower back |
 
 ### hang clean — 3
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Alternating Hang Clean | kettlebell | hamstrings | biceps, calves, forearms, glutes, lower back, traps |
-| Double Kettlebell Alternating Hang Clean | kettlebell | hamstrings | biceps, calves, forearms, glutes, lower back, quadriceps, traps |
-| Kettlebell Hang Clean | kettlebell | hamstrings | calves, glutes, lower back, shoulders:UNASSIGNED, traps |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Alternating Hang Clean | kettlebell | hinge | hamstrings | biceps, calves, forearms, glutes, lower back, traps |
+| Double Kettlebell Alternating Hang Clean | kettlebell | hinge | hamstrings | biceps, calves, forearms, glutes, lower back, quadriceps, traps |
+| Kettlebell Hang Clean | kettlebell | hinge | hamstrings | calves, glutes, lower back, front delts, traps |
 
 ### reverse curl — 3
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Reverse Barbell Curl | barbell | biceps | forearms |
-| Reverse Cable Curl | cable | biceps | forearms |
-| Standing Dumbbell Reverse Curl | dumbbell | biceps | forearms |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Reverse Barbell Curl | barbell | isolation-arm | biceps | forearms |
+| Reverse Cable Curl | cable | isolation-arm | biceps | forearms |
+| Standing Dumbbell Reverse Curl | dumbbell | isolation-arm | biceps | forearms |
 
 ### sumo deadlift — 3
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Sumo Deadlift | barbell | hamstrings | adductors, forearms, glutes, lower back, middle back, quadriceps, traps |
-| Sumo Deadlift with Bands | barbell | hamstrings | adductors, forearms, glutes, lower back, middle back, quadriceps, traps |
-| Sumo Deadlift with Chains | barbell | hamstrings | abductors, adductors, forearms, glutes, lower back, middle back, quadriceps, traps |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Sumo Deadlift | barbell | hinge | hamstrings | adductors, forearms, glutes, lower back, middle back, quadriceps, traps |
+| Sumo Deadlift with Bands | barbell | hinge | hamstrings | adductors, forearms, glutes, lower back, middle back, quadriceps, traps |
+| Sumo Deadlift with Chains | barbell | hinge | hamstrings | abductors, adductors, forearms, glutes, lower back, middle back, quadriceps, traps |
 
 ### triceps extension — 3
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Kneeling Cable Triceps Extension | cable | triceps | — |
-| Machine Triceps Extension | machine | triceps | — |
-| Standing Dumbbell Triceps Extension | dumbbell | triceps | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Kneeling Cable Triceps Extension | cable | isolation-arm | triceps | — |
+| Machine Triceps Extension | machine | isolation-arm | triceps | — |
+| Standing Dumbbell Triceps Extension | dumbbell | isolation-arm | triceps | — |
 
 ### triceps pushdown — 3
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Triceps Pushdown | cable | triceps | — |
-| Triceps Pushdown - Rope Attachment | cable | triceps | — |
-| Triceps Pushdown - V-Bar Attachment | cable | triceps | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Triceps Pushdown | cable | isolation-arm | triceps | — |
+| Triceps Pushdown - Rope Attachment | cable | isolation-arm | triceps | — |
+| Triceps Pushdown - V-Bar Attachment | cable | isolation-arm | triceps | — |
 
 ### ab rollout — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Barbell Ab Rollout | barbell | abdominals | lower back, shoulders:UNASSIGNED |
-| Barbell Ab Rollout - On Knees | barbell | abdominals | lower back, shoulders:UNASSIGNED |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Barbell Ab Rollout | barbell | core | abdominals | lower back, shoulders:UNASSIGNED |
+| Barbell Ab Rollout - On Knees | barbell | core | abdominals | lower back, shoulders:UNASSIGNED |
 
 ### arm clean — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| One-Arm Kettlebell Clean | kettlebell | hamstrings | glutes, lower back, shoulders:UNASSIGNED, traps |
-| Two-Arm Kettlebell Clean | kettlebell | shoulders:UNASSIGNED | calves, glutes, hamstrings, lower back, traps |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| One-Arm Kettlebell Clean | kettlebell | hinge | hamstrings | glutes, lower back, front delts, traps |
+| Two-Arm Kettlebell Clean | kettlebell | hinge | front delts | calves, glutes, hamstrings, lower back, traps |
 
 ### arm floor press — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| One-Arm Kettlebell Floor Press | kettlebell | chest | triceps |
-| One Arm Floor Press | barbell | triceps | chest, shoulders:UNASSIGNED |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| One-Arm Kettlebell Floor Press | kettlebell | horizontal-push | chest | triceps |
+| One Arm Floor Press | barbell | horizontal-push | triceps | chest, front delts |
 
 ### arm jerk — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| One-Arm Kettlebell Jerk | kettlebell | shoulders:UNASSIGNED | calves, quadriceps, triceps |
-| Two-Arm Kettlebell Jerk | kettlebell | shoulders:UNASSIGNED | calves, quadriceps, triceps |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| One-Arm Kettlebell Jerk | kettlebell | vertical-push | front delts | calves, quadriceps, triceps |
+| Two-Arm Kettlebell Jerk | kettlebell | vertical-push | front delts | calves, quadriceps, triceps |
 
 ### arm preacher curl — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| One Arm Dumbbell Preacher Curl | dumbbell | biceps | — |
-| Two-Arm Dumbbell Preacher Curl | dumbbell | biceps | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| One Arm Dumbbell Preacher Curl | dumbbell | isolation-arm | biceps | — |
+| Two-Arm Dumbbell Preacher Curl | dumbbell | isolation-arm | biceps | — |
 
 ### arm triceps extension — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Dumbbell One-Arm Triceps Extension | dumbbell | triceps | — |
-| Standing One-Arm Dumbbell Triceps Extension | dumbbell | triceps | chest, shoulders:UNASSIGNED |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Dumbbell One-Arm Triceps Extension | dumbbell | isolation-arm | triceps | — |
+| Standing One-Arm Dumbbell Triceps Extension | dumbbell | isolation-arm | triceps | chest, shoulders:UNASSIGNED |
 
 ### arnold press — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Arnold Dumbbell Press | dumbbell | front delts | triceps |
-| Kettlebell Arnold Press | kettlebell | front delts | triceps |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Arnold Dumbbell Press | dumbbell | vertical-push | front delts | triceps |
+| Kettlebell Arnold Press | kettlebell | vertical-push | front delts | triceps |
 
 ### bent arm pullover — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Bent-Arm Barbell Pullover | barbell | lats | chest, lats, shoulders:UNASSIGNED, triceps |
-| Bent-Arm Dumbbell Pullover | dumbbell | chest | lats, shoulders:UNASSIGNED, triceps |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Bent-Arm Barbell Pullover | barbell | isolation-arm | lats | chest, lats, shoulders:UNASSIGNED, triceps |
+| Bent-Arm Dumbbell Pullover | dumbbell | isolation-arm | chest | lats, shoulders:UNASSIGNED, triceps |
 
 ### bent over arm long bar row — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Bent Over One-Arm Long Bar Row | barbell | middle back | biceps, lats, lower back, traps |
-| Bent Over Two-Arm Long Bar Row | barbell | middle back | biceps, lats |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Bent Over One-Arm Long Bar Row | barbell | horizontal-pull | middle back | biceps, lats, lower back, traps |
+| Bent Over Two-Arm Long Bar Row | barbell | horizontal-pull | middle back | biceps, lats |
 
 ### calf raises — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Calf Raises - With Bands | band | calves | — |
-| Standing Calf Raises | machine | calves | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Calf Raises - With Bands | band | isolation-leg | calves | — |
+| Standing Calf Raises | machine | isolation-leg | calves | — |
 
 ### chest press — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Cable Chest Press | cable | chest | shoulders:UNASSIGNED, triceps |
-| Standing Cable Chest Press | cable | chest | shoulders:UNASSIGNED, triceps |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Cable Chest Press | cable | horizontal-push | chest | front delts, triceps |
+| Standing Cable Chest Press | cable | horizontal-push | chest | front delts, triceps |
 
 ### concentration curl — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Seated Close-Grip Concentration Barbell Curl | barbell | biceps | — |
-| Standing Concentration Curl | dumbbell | biceps | forearms |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Seated Close-Grip Concentration Barbell Curl | barbell | isolation-arm | biceps | — |
+| Standing Concentration Curl | dumbbell | isolation-arm | biceps | forearms |
 
 ### down wrist curl — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Seated Dumbbell Palms-Down Wrist Curl | dumbbell | forearms | — |
-| Seated Palms-Down Barbell Wrist Curl | barbell | forearms | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Seated Dumbbell Palms-Down Wrist Curl | dumbbell | isolation-arm | forearms | — |
+| Seated Palms-Down Barbell Wrist Curl | barbell | isolation-arm | forearms | — |
 
 ### down wrist curl over bench — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Palms-Down Dumbbell Wrist Curl Over A Bench | dumbbell | forearms | — |
-| Palms-Down Wrist Curl Over A Bench | barbell | forearms | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Palms-Down Dumbbell Wrist Curl Over A Bench | dumbbell | isolation-arm | forearms | — |
+| Palms-Down Wrist Curl Over A Bench | barbell | isolation-arm | forearms | — |
 
 ### flat bench leg pull — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Flat Bench Leg Pull-In | bodyweight | abdominals | — |
-| Seated Flat Bench Leg Pull-In | bodyweight | abdominals | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Flat Bench Leg Pull-In | bodyweight | vertical-pull | abdominals | — |
+| Seated Flat Bench Leg Pull-In | bodyweight | vertical-pull | abdominals | — |
 
 ### front squat — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Front Barbell Squat | barbell | quadriceps | calves, glutes, hamstrings |
-| Front Squat (Clean Grip) | barbell | quadriceps | abdominals, glutes, hamstrings |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Front Barbell Squat | barbell | squat | quadriceps | calves, glutes, hamstrings |
+| Front Squat (Clean Grip) | barbell | squat | quadriceps | abdominals, glutes, hamstrings |
 
 ### hack squat — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Barbell Hack Squat | barbell | quadriceps | calves, forearms, hamstrings |
-| Hack Squat | machine | quadriceps | calves, glutes, hamstrings |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Barbell Hack Squat | barbell | squat | quadriceps | calves, forearms, hamstrings |
+| Hack Squat | machine | squat | quadriceps | calves, glutes, hamstrings |
 
 ### hammer curls — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Cable Hammer Curls - Rope Attachment | cable | biceps | — |
-| Hammer Curls | dumbbell | biceps | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Cable Hammer Curls - Rope Attachment | cable | isolation-arm | biceps | — |
+| Hammer Curls | dumbbell | isolation-arm | biceps | — |
 
 ### incline curl — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Alternate Incline Dumbbell Curl | dumbbell | biceps | forearms |
-| Incline Dumbbell Curl | dumbbell | biceps | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Alternate Incline Dumbbell Curl | dumbbell | isolation-arm | biceps | forearms |
+| Incline Dumbbell Curl | dumbbell | isolation-arm | biceps | — |
 
 ### incline flyes — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Incline Dumbbell Flyes | dumbbell | chest | shoulders:UNASSIGNED |
-| Incline Dumbbell Flyes - With A Twist | dumbbell | chest | shoulders:UNASSIGNED |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Incline Dumbbell Flyes | dumbbell | isolation-shoulder | chest | shoulders:UNASSIGNED |
+| Incline Dumbbell Flyes - With A Twist | dumbbell | isolation-shoulder | chest | shoulders:UNASSIGNED |
 
 ### incline shoulder raise — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Barbell Incline Shoulder Raise | barbell | shoulders:UNASSIGNED | chest |
-| Dumbbell Incline Shoulder Raise | dumbbell | shoulders:UNASSIGNED | triceps |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Barbell Incline Shoulder Raise | barbell | isolation-shoulder | front delts | chest |
+| Dumbbell Incline Shoulder Raise | dumbbell | isolation-shoulder | front delts | triceps |
 
 ### incline triceps extension — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Cable Incline Triceps Extension | cable | triceps | — |
-| Incline Barbell Triceps Extension | barbell | triceps | forearms |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Cable Incline Triceps Extension | cable | isolation-arm | triceps | — |
+| Incline Barbell Triceps Extension | barbell | isolation-arm | triceps | forearms |
 
 ### inner biceps curl — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Seated Dumbbell Inner Biceps Curl | dumbbell | biceps | — |
-| Standing Inner-Biceps Curl | dumbbell | biceps | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Seated Dumbbell Inner Biceps Curl | dumbbell | isolation-arm | biceps | — |
+| Standing Inner-Biceps Curl | dumbbell | isolation-arm | biceps | — |
 
 ### internal rotation — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Cable Internal Rotation | cable | shoulders:UNASSIGNED | — |
-| Internal Rotation with Band | band | shoulders:UNASSIGNED | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Cable Internal Rotation | cable | isolation-shoulder | rotator cuff | — |
+| Internal Rotation with Band | band | isolation-shoulder | rotator cuff | — |
 
 ### iron cross — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Cable Iron Cross | cable | chest | — |
-| Iron Cross | dumbbell | shoulders:UNASSIGNED | chest, glutes, hamstrings, lower back, quadriceps, traps |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Cable Iron Cross | cable | vertical-push | chest | — |
+| Iron Cross | dumbbell | vertical-push | side delts | chest, glutes, hamstrings, lower back, quadriceps, traps |
 
 ### isometric neck — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Isometric Neck Exercise - Front And Back | bodyweight | neck | — |
-| Isometric Neck Exercise - Sides | bodyweight | neck | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Isometric Neck Exercise - Front And Back | bodyweight | — | neck | — |
+| Isometric Neck Exercise - Sides | bodyweight | — | neck | — |
 
 ### lateral raise — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Cable Seated Lateral Raise | cable | side delts | middle back, traps |
-| Lateral Raise - With Bands | band | side delts | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Cable Seated Lateral Raise | cable | isolation-shoulder | side delts | middle back, traps |
+| Lateral Raise - With Bands | band | isolation-shoulder | side delts | — |
 
 ### leg curl — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Seated Leg Curl | machine | hamstrings | — |
-| Standing Leg Curl | machine | hamstrings | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Seated Leg Curl | machine | isolation-arm | hamstrings | — |
+| Standing Leg Curl | machine | isolation-arm | hamstrings | — |
 
 ### military press — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Seated Barbell Military Press | barbell | front delts | triceps |
-| Standing Military Press | barbell | front delts | triceps |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Seated Barbell Military Press | barbell | vertical-push | front delts | triceps |
+| Standing Military Press | barbell | vertical-push | front delts | triceps |
 
 ### oblique crunches — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Oblique Crunches | bodyweight | abdominals | — |
-| Oblique Crunches - On The Floor | bodyweight | abdominals | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Oblique Crunches | bodyweight | core | abdominals | — |
+| Oblique Crunches - On The Floor | bodyweight | core | abdominals | — |
 
 ### overhead triceps extension — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Kettlebell Overhead Triceps Extension | kettlebell | triceps | shoulders:UNASSIGNED, abdominals |
-| Standing Overhead Barbell Triceps Extension | barbell | triceps | shoulders:UNASSIGNED |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Kettlebell Overhead Triceps Extension | kettlebell | isolation-arm | triceps | shoulders:UNASSIGNED, abdominals |
+| Standing Overhead Barbell Triceps Extension | barbell | isolation-arm | triceps | shoulders:UNASSIGNED |
 
 ### preacher curl — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Cable Preacher Curl | cable | biceps | forearms |
-| Preacher Curl | barbell | biceps | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Cable Preacher Curl | cable | isolation-arm | biceps | forearms |
+| Preacher Curl | barbell | isolation-arm | biceps | — |
 
 ### pushups — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Pushups | bodyweight | chest | shoulders:UNASSIGNED, triceps |
-| Pushups (Close and Wide Hand Positions) | bodyweight | chest | shoulders:UNASSIGNED, triceps |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Pushups | bodyweight | horizontal-push | chest | front delts, triceps |
+| Pushups (Close and Wide Hand Positions) | bodyweight | horizontal-push | chest | front delts, triceps |
 
 ### raise — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Dumbbell Raise | dumbbell | shoulders:UNASSIGNED | biceps |
-| Single Dumbbell Raise | dumbbell | shoulders:UNASSIGNED | forearms, traps |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Dumbbell Raise | dumbbell | isolation-shoulder | front delts | biceps |
+| Single Dumbbell Raise | dumbbell | isolation-shoulder | front delts | forearms, traps |
 
 ### reverse crunch — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Cable Reverse Crunch | cable | abdominals | — |
-| Reverse Crunch | bodyweight | abdominals | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Cable Reverse Crunch | cable | core | abdominals | — |
+| Reverse Crunch | bodyweight | core | abdominals | — |
 
 ### reverse flyes — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Reverse Flyes | dumbbell | rear delts | — |
-| Reverse Machine Flyes | machine | rear delts | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Reverse Flyes | dumbbell | isolation-shoulder | rear delts | — |
+| Reverse Machine Flyes | machine | isolation-shoulder | rear delts | — |
 
 ### rope crunch — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Rope Crunch | cable | abdominals | — |
-| Standing Rope Crunch | cable | abdominals | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Rope Crunch | cable | core | abdominals | — |
+| Standing Rope Crunch | cable | core | abdominals | — |
 
 ### shrug — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Barbell Shrug | barbell | traps | — |
-| Dumbbell Shrug | dumbbell | traps | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Barbell Shrug | barbell | isolation-shoulder | traps | — |
+| Dumbbell Shrug | dumbbell | isolation-shoulder | traps | — |
 
 ### side bend — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Barbell Side Bend | barbell | abdominals | lower back |
-| Dumbbell Side Bend | dumbbell | abdominals | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Barbell Side Bend | barbell | horizontal-pull | abdominals | lower back |
+| Dumbbell Side Bend | dumbbell | horizontal-pull | abdominals | — |
 
 ### side lateral raise — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Seated Side Lateral Raise | dumbbell | side delts | — |
-| Side Lateral Raise | dumbbell | side delts | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Seated Side Lateral Raise | dumbbell | isolation-shoulder | side delts | — |
+| Side Lateral Raise | dumbbell | isolation-shoulder | side delts | — |
 
 ### sit up — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| 3/4 Sit-Up | bodyweight | abdominals | — |
-| Sit-Up | bodyweight | abdominals | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| 3/4 Sit-Up | bodyweight | core | abdominals | — |
+| Sit-Up | bodyweight | core | abdominals | — |
 
 ### squat bench — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Barbell Squat To A Bench | barbell | quadriceps | calves, glutes, hamstrings, lower back |
-| Dumbbell Squat To A Bench | dumbbell | quadriceps | calves, glutes, hamstrings, lower back |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Barbell Squat To A Bench | barbell | squat | quadriceps | calves, glutes, hamstrings, lower back |
+| Dumbbell Squat To A Bench | dumbbell | squat | quadriceps | calves, glutes, hamstrings, lower back |
 
 ### step ups — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Barbell Step Ups | barbell | quadriceps | calves, glutes, hamstrings, quadriceps |
-| Dumbbell Step Ups | dumbbell | quadriceps | calves, glutes, hamstrings |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Barbell Step Ups | barbell | vertical-push | quadriceps | calves, glutes, hamstrings, quadriceps |
+| Dumbbell Step Ups | dumbbell | vertical-push | quadriceps | calves, glutes, hamstrings |
 
 ### stiff legged deadlift — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Stiff-Legged Barbell Deadlift | barbell | hamstrings | glutes, lower back |
-| Stiff-Legged Dumbbell Deadlift | dumbbell | hamstrings | glutes, lower back |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Stiff-Legged Barbell Deadlift | barbell | hinge | hamstrings | glutes, lower back |
+| Stiff-Legged Dumbbell Deadlift | dumbbell | hinge | hamstrings | glutes, lower back |
 
 ### turkish get up — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Kettlebell Turkish Get-Up (Lunge style) | kettlebell | shoulders:UNASSIGNED | abdominals, hamstrings, quadriceps, triceps |
-| Kettlebell Turkish Get-Up (Squat style) | kettlebell | shoulders:UNASSIGNED | abdominals, calves, hamstrings, quadriceps, triceps |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Kettlebell Turkish Get-Up (Lunge style) | kettlebell | squat | front delts | abdominals, hamstrings, quadriceps, triceps |
+| Kettlebell Turkish Get-Up (Squat style) | kettlebell | squat | front delts | abdominals, calves, hamstrings, quadriceps, triceps |
 
 ### up wrist curl over bench — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Palms-Up Barbell Wrist Curl Over A Bench | barbell | forearms | — |
-| Palms-Up Dumbbell Wrist Curl Over A Bench | dumbbell | forearms | — |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Palms-Up Barbell Wrist Curl Over A Bench | barbell | isolation-arm | forearms | — |
+| Palms-Up Dumbbell Wrist Curl Over A Bench | dumbbell | isolation-arm | forearms | — |
 
 ### windmill — 2
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Double Kettlebell Windmill | kettlebell | abdominals | glutes, hamstrings, shoulders:UNASSIGNED, triceps |
-| Kettlebell Windmill | kettlebell | abdominals | glutes, hamstrings, shoulders:UNASSIGNED, triceps |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Double Kettlebell Windmill | kettlebell | horizontal-pull | abdominals | glutes, hamstrings, shoulders:UNASSIGNED, triceps |
+| Kettlebell Windmill | kettlebell | horizontal-pull | abdominals | glutes, hamstrings, shoulders:UNASSIGNED, triceps |
 
 ---
 
@@ -585,406 +585,355 @@ Rule on each. Most of the duplication lives here.
 
 Keep/drop scan. This is where the obscure entries live.
 
-| Source name | Equipment | Primary | Secondary |
-|---|---|---|---|
-| Ab Crunch Machine | machine | abdominals | — |
-| Advanced Kettlebell Windmill | kettlebell | abdominals | glutes, hamstrings, shoulders:UNASSIGNED |
-| Air Bike | bodyweight | abdominals | — |
-| Anti-Gravity Press | barbell | shoulders:UNASSIGNED | middle back, traps, triceps |
-| One Arm Dumbbell Bench Press | dumbbell | chest | shoulders:UNASSIGNED, triceps |
-| One-Arm Kettlebell Clean and Jerk | kettlebell | shoulders:UNASSIGNED | — |
-| Single-Arm Cable Crossover | cable | chest | — |
-| Standing One-Arm Cable Curl | cable | biceps | — |
-| Standing One-Arm Dumbbell Curl Over Incline Bench | dumbbell | biceps | — |
-| Seated One-Arm Dumbbell Palms-Down Wrist Curl | dumbbell | forearms | — |
-| One-Arm Flat Bench Dumbbell Flye | dumbbell | chest | — |
-| Kneeling Single-Arm High Pulley Row | cable | lats | biceps, middle back |
-| One-Arm High-Pulley Cable Side Bends | cable | abdominals | — |
-| One-Arm Incline Lateral Raise | dumbbell | side delts | — |
-| One Arm Lat Pulldown | cable | lats | biceps, middle back |
-| Single-Arm Linear Jammer | barbell | shoulders:UNASSIGNED | chest, triceps |
-| One-Arm Long Bar Row | barbell | middle back | biceps, lats |
-| Two-Arm Kettlebell Military Press | kettlebell | front delts | triceps |
-| One-Arm Kettlebell Military Press To The Side | kettlebell | front delts | triceps |
-| One-Arm Open Palm Kettlebell Clean | kettlebell | hamstrings | forearms, glutes, lower back, quadriceps, shoulders:UNASSIGNED |
-| One-Arm Overhead Kettlebell Squats | kettlebell | quadriceps | calves, glutes, hamstrings, shoulders:UNASSIGNED |
-| One-Arm Kettlebell Para Press | kettlebell | shoulders:UNASSIGNED | triceps |
-| One Arm Pronated Dumbbell Triceps Extension | dumbbell | triceps | — |
-| Seated One-arm Cable Pulley Rows | cable | middle back | biceps, lats, traps |
-| One-Arm Kettlebell Push Press | kettlebell | front delts | calves, quadriceps, triceps |
-| Single-Arm Push-Up | bodyweight | chest | shoulders:UNASSIGNED, triceps |
-| Dumbbell One-Arm Shoulder Press | dumbbell | front delts | triceps |
-| One-Arm Side Deadlift | barbell | quadriceps | abdominals, calves, glutes, hamstrings, lower back, traps |
-| One-Arm Side Laterals | dumbbell | side delts | — |
-| One-Arm Kettlebell Snatch | kettlebell | shoulders:UNASSIGNED | calves, glutes, hamstrings, lower back, traps, triceps |
-| One-Arm Kettlebell Split Jerk | kettlebell | shoulders:UNASSIGNED | glutes, hamstrings, quadriceps, triceps |
-| One-Arm Kettlebell Split Snatch | kettlebell | shoulders:UNASSIGNED | hamstrings, quadriceps |
-| One Arm Supinated Dumbbell Triceps Extension | dumbbell | triceps | — |
-| One-Arm Kettlebell Swings | kettlebell | hamstrings | calves, glutes, lower back, shoulders:UNASSIGNED |
-| Cable One Arm Tricep Extension | cable | triceps | — |
-| Seated Two-Arm Palms-Up Low-Pulley Wrist Curl | cable | forearms | — |
-| Seated One-Arm Dumbbell Palms-Up Wrist Curl | dumbbell | forearms | — |
-| Dumbbell One-Arm Upright Row | dumbbell | side delts | biceps, traps |
-| Around The Worlds | dumbbell | chest | shoulders:UNASSIGNED |
-| Back Flyes - With Bands | band | shoulders:UNASSIGNED | middle back, triceps |
-| Bench Dips | bodyweight | triceps | chest, shoulders:UNASSIGNED |
-| Bent-Knee Hip Raise | bodyweight | abdominals | — |
-| Bent Over Low-Pulley Side Lateral | cable | side delts | lower back, middle back, traps |
-| Seated Bent-Over Rear Delt Raise | dumbbell | rear delts | — |
-| Bent Over Dumbbell Rear Delt Raise With Head On Bench | dumbbell | rear delts | — |
-| Bent Press | kettlebell | abdominals | glutes, hamstrings, lower back, quadriceps, shoulders:UNASSIGNED, triceps |
-| Standing Biceps Cable Curl | cable | biceps | — |
-| Board Press | barbell | triceps | chest, forearms, lats, shoulders:UNASSIGNED |
-| Body Tricep Press | bodyweight | triceps | — |
-| Body-Up | bodyweight | triceps | abdominals, forearms |
-| Bodyweight Squat | bodyweight | quadriceps | glutes, hamstrings |
-| Bosu Ball Cable Crunch With Side Bends | cable | abdominals | — |
-| Bottoms Up | bodyweight | abdominals | — |
-| Bottoms-Up Clean From The Hang Position | kettlebell | forearms | biceps, shoulders:UNASSIGNED |
-| Standing Bradford Press | barbell | front delts | triceps |
-| Bradford/Rocky Presses | barbell | front delts | triceps |
-| Butt Lift (Bridge) | bodyweight | glutes | hamstrings |
-| Butt-Ups | bodyweight | abdominals | — |
-| Butterfly | machine | chest | — |
-| Calf Press | machine | calves | — |
-| Calf Press On The Leg Press Machine | machine | calves | — |
-| Calf-Machine Shoulder Shrug | machine | traps | — |
-| Car Drivers | barbell | shoulders:UNASSIGNED | forearms |
-| Chair Squat | machine | quadriceps | calves, glutes, hamstrings |
-| Chin-Up | bodyweight | lats | biceps, forearms, middle back |
-| Dumbbell Clean | dumbbell | hamstrings | calves, forearms, glutes, lower back, quadriceps, shoulders:UNASSIGNED, traps |
-| Clean and Press | barbell | shoulders:UNASSIGNED | abdominals, calves, glutes, hamstrings, lower back, middle back, quadriceps, shoulders:UNASSIGNED, traps, triceps |
-| Clock Push-Up | bodyweight | chest | shoulders:UNASSIGNED, triceps |
-| Cocoons | bodyweight | abdominals | — |
-| Concentration Curls | dumbbell | biceps | forearms |
-| Cross-Body Crunch | bodyweight | abdominals | — |
-| Cross Body Hammer Curl | dumbbell | biceps | forearms |
-| Cross Over - With Bands | band | chest | biceps, shoulders:UNASSIGNED |
-| Cable Crossover | cable | chest | shoulders:UNASSIGNED |
-| Kneeling Cable Crunch With Alternating Oblique Twists | cable | abdominals | — |
-| Crunches | bodyweight | abdominals | — |
-| Cuban Press | dumbbell | front delts | traps |
-| Barbell Curls Lying Against An Incline | barbell | biceps | — |
-| Dead Bug | bodyweight | abdominals | — |
-| Kettlebell Dead Clean | kettlebell | hamstrings | calves, glutes, lower back, quadriceps, traps |
-| Cable Deadlifts | cable | quadriceps | forearms, glutes, hamstrings, lower back |
-| Decline Close-Grip Bench To Skull Crusher | barbell | triceps | chest, shoulders:UNASSIGNED |
-| Decline Crunch | bodyweight | abdominals | — |
-| Decline EZ Bar Triceps Extension | barbell | triceps | — |
-| Decline Dumbbell Flyes | dumbbell | chest | — |
-| Decline Oblique Crunch | bodyweight | abdominals | — |
-| Wide-Grip Decline Barbell Pullover | barbell | chest | shoulders:UNASSIGNED, triceps |
-| Decline Reverse Crunch | bodyweight | abdominals | — |
-| Decline Dumbbell Triceps Extension | dumbbell | triceps | — |
-| Deficit Deadlift | barbell | lower back | forearms, glutes, hamstrings, middle back, quadriceps, traps |
-| Alternating Deltoid Raise | dumbbell | side delts | — |
-| Dip Machine | machine | triceps | chest, shoulders:UNASSIGNED |
-| Dips - Triceps Version | bodyweight | triceps | chest, shoulders:UNASSIGNED |
-| Drag Curl | barbell | biceps | forearms |
-| Elbow to Knee | bodyweight | abdominals | — |
-| Elevated Back Lunge | barbell | quadriceps | glutes, hamstrings |
-| Elevated Cable Rows | cable | lats | middle back, traps |
-| Extended Range One-Arm Kettlebell Floor Press | kettlebell | chest | shoulders:UNASSIGNED, triceps |
-| Close-Grip EZ Bar Curl | barbell | biceps | forearms |
-| Face Pull | cable | rear delts | middle back |
-| Kettlebell Figure 8 | kettlebell | abdominals | hamstrings, shoulders:UNASSIGNED |
-| Finger Curls | barbell | forearms | — |
-| Flat Bench Cable Flyes | cable | chest | — |
-| Flat Bench Lying Leg Raise | bodyweight | abdominals | — |
-| Flexor Incline Dumbbell Curls | dumbbell | biceps | — |
-| Flutter Kicks | bodyweight | glutes | hamstrings |
-| Dumbbell Flyes | dumbbell | chest | — |
-| Freehand Jump Squat | bodyweight | quadriceps | calves, glutes, hamstrings |
-| Frog Sit-Ups | bodyweight | abdominals | — |
-| Front Incline Dumbbell Raise | dumbbell | shoulders:UNASSIGNED | — |
-| Close-Grip Front Lat Pulldown | cable | lats | biceps, middle back, shoulders:UNASSIGNED |
-| Standing Front Barbell Raise Over Head | barbell | shoulders:UNASSIGNED | — |
-| Front Raise And Pullover | barbell | chest | lats, front delts, triceps |
-| Front Barbell Squat To A Bench | barbell | quadriceps | calves, glutes, hamstrings |
-| Front Squats With Two Kettlebells | kettlebell | quadriceps | calves, glutes |
-| Full Range-Of-Motion Lat Pulldown | cable | lats | biceps, middle back, shoulders:UNASSIGNED |
-| Barbell Full Squat | barbell | quadriceps | calves, glutes, hamstrings, lower back |
-| Barbell Glute Bridge | barbell | glutes | calves, hamstrings |
-| Glute Ham Raise | machine | hamstrings | calves, glutes |
-| Glute Kickback | bodyweight | glutes | hamstrings |
-| Goblet Squat | kettlebell | quadriceps | calves, glutes, hamstrings, shoulders:UNASSIGNED |
-| Good Morning off Pins | barbell | hamstrings | abdominals, glutes, lower back |
-| Seated Good Mornings | barbell | lower back | glutes |
-| Gorilla Chin/Crunch | bodyweight | abdominals | biceps, lats |
-| Barbell Guillotine Bench Press | barbell | chest | shoulders:UNASSIGNED, triceps |
-| Kettlebell Halo | kettlebell | shoulders:UNASSIGNED | traps, middle back, abdominals, triceps |
-| Kettlebell Halo with Overhead Extension | kettlebell | shoulders:UNASSIGNED, triceps | traps, middle back, abdominals |
-| Alternate Hammer Curl | dumbbell | biceps | forearms |
-| Hammer Grip Incline DB Bench Press | dumbbell | chest | shoulders:UNASSIGNED, triceps |
-| Handstand Push-Ups | bodyweight | shoulders:UNASSIGNED | triceps |
-| Hanging Bar Good Morning | barbell | hamstrings | abdominals, glutes, lower back |
-| Hanging Leg Raise | bodyweight | abdominals | — |
-| Hanging Pike | bodyweight | abdominals | — |
-| Alternate Heel Touchers | bodyweight | abdominals | — |
-| High Cable Curls | cable | biceps | — |
-| Kneeling High Pulley Row | cable | lats | biceps, middle back |
-| Cable Hip Adduction | cable | quadriceps | — |
-| Band Hip Adductions | band | adductors | — |
-| Hip Extension with Bands | band | glutes | hamstrings |
-| Hip Flexion with Band | band | quadriceps | — |
-| Hip Lift with Band | band | glutes | calves, hamstrings |
-| Barbell Hip Thrust | barbell | glutes | calves, hamstrings |
-| Hyperextensions With No Hyperextension Bench | bodyweight | lower back | glutes, hamstrings |
-| Incline Dumbbell Bench With Palms Facing In | dumbbell | chest | shoulders:UNASSIGNED, triceps |
-| Barbell Incline Bench Press - Medium Grip | barbell | chest | shoulders:UNASSIGNED, triceps |
-| Incline Bench Pull | barbell | middle back | lats, shoulders:UNASSIGNED |
-| Incline Cable Chest Press | cable | chest | shoulders:UNASSIGNED, triceps |
-| Incline Cable Flye | cable | chest | shoulders:UNASSIGNED |
-| Incline Hammer Curls | dumbbell | biceps | — |
-| Incline Inner Biceps Curl | dumbbell | biceps | — |
-| Incline Dumbbell Press | dumbbell | chest | shoulders:UNASSIGNED, triceps |
-| Incline Push-Up Reverse Grip | bodyweight | chest | abdominals, shoulders:UNASSIGNED, triceps |
-| Cable Incline Pushdown | cable | lats | — |
-| Dumbbell Incline Row | dumbbell | middle back | biceps, forearms, lats, shoulders:UNASSIGNED |
-| Isometric Wipers | bodyweight | chest | abdominals, shoulders:UNASSIGNED, triceps |
-| Jackknife Sit-Up | bodyweight | abdominals | — |
-| Janda Sit-Up | bodyweight | abdominals | — |
-| Jefferson Squats | barbell | quadriceps | calves, glutes, hamstrings, lower back, traps |
-| Double Kettlebell Jerk | kettlebell | shoulders:UNASSIGNED | calves, quadriceps, triceps |
-| JM Press | barbell | triceps | chest, shoulders:UNASSIGNED |
-| Cable Judo Flip | cable | abdominals | — |
-| Landmine Linear Jammer | barbell | shoulders:UNASSIGNED | abdominals, calves, chest, hamstrings, quadriceps, triceps |
-| Landmine 180's | barbell | abdominals | glutes, lower back, shoulders:UNASSIGNED |
-| Wide-Grip Lat Pulldown | cable | lats | biceps, middle back, shoulders:UNASSIGNED |
-| Dumbbell Seated One-Leg Calf Raise | dumbbell | calves | — |
-| Leg Extensions | machine | quadriceps | — |
-| Single Leg Glute Bridge | bodyweight | glutes | hamstrings |
-| Single-Leg Leg Extension | machine | quadriceps | — |
-| Leg Lift | bodyweight | glutes | hamstrings |
-| Leg-Over Floor Press | kettlebell | chest | shoulders:UNASSIGNED, triceps |
-| Leg Press | machine | quadriceps | calves, glutes, hamstrings |
-| Leg Pull-In | bodyweight | abdominals | — |
-| One Leg Barbell Squat | barbell | quadriceps | calves, glutes, hamstrings |
-| Seated Leg Tucks | bodyweight | abdominals | — |
-| Kettlebell One-Legged Deadlift | kettlebell | hamstrings | glutes, lower back |
-| One-Legged Cable Kickback | cable | glutes | hamstrings |
-| Leverage Chest Press | machine | chest | shoulders:UNASSIGNED, triceps |
-| Leverage Deadlift | machine | quadriceps | glutes, hamstrings |
-| Leverage Decline Chest Press | machine | chest | shoulders:UNASSIGNED, triceps |
-| Leverage High Row | machine | middle back | lats |
-| Leverage Incline Chest Press | machine | chest | shoulders:UNASSIGNED, triceps |
-| Leverage Iso Row | machine | lats | biceps, middle back |
-| Leverage Shoulder Press | machine | front delts | triceps |
-| Leverage Shrug | machine | traps | forearms |
-| Standing Cable Lift | cable | abdominals | shoulders:UNASSIGNED |
-| Low Cable Crossover | cable | chest | shoulders:UNASSIGNED |
-| Standing Low-Pulley One-Arm Triceps Extension | cable | triceps | chest, shoulders:UNASSIGNED |
-| Standing Low-Pulley Deltoid Raise | cable | side delts | forearms |
-| Low Pulley Row To Neck | cable | shoulders:UNASSIGNED | biceps, middle back, traps |
-| Low Cable Triceps Extension | cable | triceps | — |
-| Barbell Lunge | barbell | quadriceps | calves, glutes, hamstrings |
-| Lunge Pass Through | kettlebell | hamstrings | calves, glutes, quadriceps |
-| Lunge Sprint | machine | quadriceps | calves, glutes, hamstrings |
-| Dumbbell Lunges | dumbbell | quadriceps | calves, glutes, hamstrings |
-| Lying One-Arm Lateral Raise | dumbbell | side delts | — |
-| Dumbbell Lying One-Arm Rear Lateral Raise | dumbbell | rear delts | middle back |
-| Lying Close-Grip Bar Curl On High Pulley | cable | biceps | — |
-| Lying Cambered Barbell Row | barbell | middle back | biceps, lats, traps |
-| Lying Cable Curl | cable | biceps | — |
-| Lying High Bench Barbell Curl | barbell | biceps | — |
-| Lying Leg Curls | machine | hamstrings | — |
-| Dumbbell Lying Pronation | dumbbell | forearms | — |
-| Lying Rear Delt Raise | dumbbell | rear delts | — |
-| Dumbbell Lying Rear Lateral Raise | dumbbell | rear delts | — |
-| Lying Machine Squat | machine | quadriceps | calves, glutes, hamstrings |
-| Dumbbell Lying Supination | dumbbell | forearms | — |
-| Lying Supine Dumbbell Curl | dumbbell | biceps | — |
-| Lying T-Bar Row | machine | middle back | biceps, lats |
-| Lying Dumbbell Tricep Extension | dumbbell | triceps | chest, shoulders:UNASSIGNED |
-| Cable Lying Triceps Extension | cable | triceps | — |
-| Lying Close-Grip Barbell Triceps Extension Behind The Head | barbell | triceps | — |
-| Middle Back Shrug | dumbbell | middle back | — |
-| Monster Walk | band | abductors | — |
-| Natural Glute Ham Raise | bodyweight | hamstrings | calves, glutes, lower back |
-| Neck Press | barbell | chest | shoulders:UNASSIGNED, triceps |
-| Open Palm Kettlebell Clean | kettlebell | hamstrings | glutes, lower back, quadriceps, shoulders:UNASSIGNED |
-| Overhead Cable Curl | cable | biceps | — |
-| Pallof Press | cable | abdominals | chest, shoulders:UNASSIGNED, triceps |
-| Pallof Press With Rotation | cable | abdominals | chest, shoulders:UNASSIGNED, triceps |
-| Standing Palm-In One-Arm Dumbbell Press | dumbbell | shoulders:UNASSIGNED | triceps |
-| Seated Palm-Up Barbell Wrist Curl | barbell | forearms | — |
-| Kettlebell Pass Between The Legs | kettlebell | abdominals | glutes, hamstrings, shoulders:UNASSIGNED |
-| Pin Presses | barbell | triceps | chest, forearms, lats, middle back, shoulders:UNASSIGNED |
-| Kettlebell Pirate Ships | kettlebell | shoulders:UNASSIGNED | abdominals |
-| Kettlebell Pistol Squat | kettlebell | quadriceps | calves, glutes, hamstrings, shoulders:UNASSIGNED |
-| Plank | bodyweight | abdominals | — |
-| Plie Dumbbell Squat | dumbbell | quadriceps | abdominals, calves, glutes, hamstrings |
-| Plyo Kettlebell Pushups | kettlebell | chest | shoulders:UNASSIGNED, triceps |
-| Power Clean | barbell | hamstrings | calves, forearms, glutes, lower back, middle back, quadriceps, shoulders:UNASSIGNED, traps, triceps |
-| Power Partials | dumbbell | shoulders:UNASSIGNED | — |
-| Machine Preacher Curls | machine | biceps | — |
-| Preacher Hammer Dumbbell Curl | dumbbell | biceps | forearms |
-| Standing Barbell Press Behind Neck | barbell | shoulders:UNASSIGNED | triceps |
-| Press Sit-Up | barbell | abdominals | chest, shoulders:UNASSIGNED, triceps |
-| Dumbbell Prone Incline Curl | dumbbell | biceps | — |
-| Band Pull Apart | band | rear delts | middle back, traps |
-| Pull Through | cable | glutes | hamstrings, lower back |
-| Wide-Grip Pulldown Behind The Neck | cable | lats | biceps, middle back, shoulders:UNASSIGNED |
-| Pullups | bodyweight | lats | biceps, middle back |
-| Double Kettlebell Push Press | kettlebell | front delts | calves, quadriceps, triceps |
-| Push-Up Wide | bodyweight | chest | abdominals, shoulders:UNASSIGNED, triceps |
-| Close-Grip Push-Up off of a Dumbbell | bodyweight | triceps | abdominals, chest, shoulders:UNASSIGNED |
-| Push Up to Side Plank | bodyweight | chest | abdominals, shoulders:UNASSIGNED, triceps |
-| Push-Ups - Close Triceps Position | bodyweight | triceps | chest, shoulders:UNASSIGNED |
-| Push-Ups With Feet Elevated | bodyweight | chest | shoulders:UNASSIGNED, triceps |
-| Rack Pull with Bands | barbell | lower back | forearms, glutes, hamstrings, quadriceps, traps |
-| Rack Pulls | barbell | lower back | forearms, glutes, hamstrings, traps |
-| Cable Rear Delt Fly | cable | rear delts | — |
-| Barbell Rear Delt Row | barbell | rear delts | biceps, lats, middle back |
-| Dumbbell Rear Lunge | dumbbell | quadriceps | calves, glutes, hamstrings |
-| Wide-Grip Rear Pull-Up | bodyweight | lats | biceps, middle back, shoulders:UNASSIGNED |
-| Alternating Renegade Row | kettlebell | middle back | abdominals, biceps, chest, lats, triceps |
-| Reverse Band Bench Press | barbell | triceps | chest, forearms, lats, middle back, shoulders:UNASSIGNED |
-| Reverse Grip Bent-Over Rows | barbell | middle back | biceps, lats, shoulders:UNASSIGNED |
-| Reverse Band Box Squat | barbell | quadriceps | abductors, adductors, calves, forearms, glutes, hamstrings, lower back |
-| Reverse Band Deadlift | barbell | lower back | abductors, adductors, calves, glutes, hamstrings, quadriceps |
-| Reverse Flyes With External Rotation | dumbbell | rear delts | — |
-| Reverse Hyperextension | machine | hamstrings | calves, glutes |
-| Reverse Band Power Squat | barbell | quadriceps | adductors, calves, glutes, hamstrings, lower back |
-| Reverse Band Sumo Deadlift | barbell | hamstrings | abductors, adductors, calves, forearms, glutes, lower back, quadriceps, traps |
-| Reverse Triceps Bench Press | barbell | triceps | chest, shoulders:UNASSIGNED |
-| Reverse Grip Triceps Pushdown | cable | triceps | — |
-| Rocking Standing Calf Raise | barbell | calves | — |
-| Barbell Rollout from Bench | barbell | abdominals | glutes, hamstrings, lats, shoulders:UNASSIGNED |
-| Romanian Deadlift | barbell | hamstrings | calves, glutes, lower back |
-| Cable Rope Overhead Triceps Extension | cable | triceps | — |
-| Cable Rope Rear-Delt Rows | cable | rear delts | biceps, middle back |
-| Rope Straight-Arm Pulldown | cable | lats | — |
-| Alternating Kettlebell Row | kettlebell | middle back | biceps, lats |
-| Seated Cable Rows | cable | middle back | biceps, lats, shoulders:UNASSIGNED |
-| Russian Twist | bodyweight | abdominals | lower back |
-| Cable Russian Twists | cable | abdominals | — |
-| Dumbbell Scaption | dumbbell | side delts | traps |
-| See-Saw Press (Alternating Side Press) | dumbbell | shoulders:UNASSIGNED | abdominals, triceps |
-| Kettlebell Seesaw Press | kettlebell | shoulders:UNASSIGNED | triceps |
-| Shotgun Row | cable | lats | biceps, middle back |
-| Barbell Shrug Behind The Back | barbell | traps | forearms, middle back |
-| Cable Shrugs | cable | traps | — |
-| Side Bridge | bodyweight | abdominals | shoulders:UNASSIGNED |
-| Side Jackknife | bodyweight | abdominals | — |
-| Side Laterals to Front Raise | dumbbell | side delts | traps |
-| Barbell Side Split Squat | barbell | quadriceps | calves, hamstrings, lower back |
-| Band Skull Crusher | band | triceps | — |
-| Double Kettlebell Snatch | kettlebell | shoulders:UNASSIGNED | glutes, hamstrings, quadriceps |
-| Snatch Pull | barbell | hamstrings | calves, glutes, lower back, quadriceps, traps |
-| Speed Box Squat | barbell | quadriceps | calves, glutes, hamstrings |
-| Speed Band Overhead Triceps | band | triceps | — |
-| Speed Squats | barbell | quadriceps | calves, glutes, hamstrings, lower back |
-| Spell Caster | dumbbell | abdominals | glutes, shoulders:UNASSIGNED |
-| Spider Crawl | bodyweight | abdominals | chest, shoulders:UNASSIGNED, triceps |
-| Split Squat with Dumbbells | dumbbell | quadriceps | glutes, hamstrings |
-| Squat Jerk | barbell | quadriceps | calves, glutes, hamstrings, shoulders:UNASSIGNED, triceps |
-| Squat with Plate Movers | barbell | quadriceps | abductors, adductors, calves, glutes, hamstrings |
-| Squats - With Bands | band | quadriceps | calves, glutes, hamstrings, lower back |
-| Narrow Stance Hack Squats | machine | quadriceps | calves, glutes, hamstrings |
-| Narrow Stance Leg Press | machine | quadriceps | calves, glutes, hamstrings |
-| Wide Stance Barbell Squat | barbell | quadriceps | calves, glutes, hamstrings, lower back |
-| Narrow Stance Squats | barbell | quadriceps | calves, glutes, hamstrings, lower back |
-| Step-up with Knee Raise | bodyweight | glutes | hamstrings, quadriceps |
-| Stiff Leg Barbell Good Morning | barbell | lower back | glutes, hamstrings |
-| Standing Dumbbell Straight-Arm Front Delt Raise Above Head | dumbbell | front delts | — |
-| Straight-Arm Pulldown | cable | lats | — |
-| Straight-Arm Dumbbell Pullover | dumbbell | chest | lats, shoulders:UNASSIGNED, triceps |
-| Straight Bar Bench Mid Rows | barbell | middle back | biceps, lats |
-| Straight Raises on Incline Bench | barbell | shoulders:UNASSIGNED | traps |
-| Kettlebell Sumo High Pull | kettlebell | traps | adductors, glutes, hamstrings, quadriceps, shoulders:UNASSIGNED |
-| T-Bar Row with Handle | barbell | middle back | biceps, lats |
-| Tate Press | dumbbell | triceps | chest, shoulders:UNASSIGNED |
-| Thigh Abductor | machine | abductors | glutes |
-| Thigh Adductor | machine | adductors | glutes, hamstrings |
-| Kettlebell Thruster | kettlebell | shoulders:UNASSIGNED | quadriceps, triceps |
-| Standing Towel Triceps Extension | bodyweight | triceps | — |
-| Dumbbell Tricep Extension -Pronated Grip | dumbbell | triceps | — |
-| Tricep Dumbbell Kickback | dumbbell | triceps | — |
-| Triceps Overhead Extension with Rope | cable | triceps | — |
-| Seated Triceps Press | dumbbell | triceps | — |
-| Tuck Crunch | bodyweight | abdominals | — |
-| Seated Barbell Twist | barbell | abdominals | — |
-| Underhand Cable Pulldowns | cable | lats | biceps, middle back, shoulders:UNASSIGNED |
-| Standing Palms-Up Barbell Behind The Back Wrist Curl | barbell | forearms | — |
-| Seated Dumbbell Palms-Up Wrist Curl | dumbbell | forearms | — |
-| V-Bar Pulldown | cable | lats | biceps, middle back, shoulders:UNASSIGNED |
-| V-Bar Pullup | bodyweight | lats | biceps, middle back, shoulders:UNASSIGNED |
-| Barbell Walking Lunge | barbell | quadriceps | calves, glutes, hamstrings |
-| Weighted Jump Squat | barbell | quadriceps | calves, glutes, hamstrings, lower back |
-| Weighted Sissy Squat | barbell | quadriceps | calves, glutes, hamstrings |
-| Wind Sprints | bodyweight | abdominals | — |
-| Standing Cable Wood Chop | cable | abdominals | shoulders:UNASSIGNED |
-| Cable Wrist Curl | cable | forearms | — |
-| Wrist Rotations with Straight Bar | barbell | forearms | — |
-| Zercher Squats | barbell | quadriceps | calves, glutes, hamstrings |
-| Zottman Curl | dumbbell | biceps | forearms |
-| Zottman Preacher Curl | dumbbell | biceps | forearms |
+| Source name | Equipment | Pattern | Primary | Secondary |
+|---|---|---|---|---|
+| Ab Crunch Machine | machine | core | abdominals | — |
+| Advanced Kettlebell Windmill | kettlebell | vertical-push | abdominals | glutes, hamstrings, shoulders:UNASSIGNED |
+| Air Bike | bodyweight | horizontal-pull | abdominals | — |
+| Anti-Gravity Press | barbell | vertical-push | front delts | middle back, traps, triceps |
+| One Arm Dumbbell Bench Press | dumbbell | horizontal-push | chest | front delts, triceps |
+| One-Arm Kettlebell Clean and Jerk | kettlebell | hinge | front delts | — |
+| Single-Arm Cable Crossover | cable | vertical-push | chest | — |
+| Standing One-Arm Cable Curl | cable | isolation-arm | biceps | — |
+| Standing One-Arm Dumbbell Curl Over Incline Bench | dumbbell | isolation-arm | biceps | — |
+| Seated One-Arm Dumbbell Palms-Down Wrist Curl | dumbbell | isolation-arm | forearms | — |
+| One-Arm Flat Bench Dumbbell Flye | dumbbell | isolation-shoulder | chest | — |
+| Kneeling Single-Arm High Pulley Row | cable | horizontal-pull | lats | biceps, middle back |
+| One-Arm High-Pulley Cable Side Bends | cable | horizontal-pull | abdominals | — |
+| One-Arm Incline Lateral Raise | dumbbell | isolation-shoulder | side delts | — |
+| One Arm Lat Pulldown | cable | vertical-pull | lats | biceps, middle back |
+| Single-Arm Linear Jammer | barbell | vertical-push | front delts | chest, triceps |
+| One-Arm Long Bar Row | barbell | horizontal-pull | middle back | biceps, lats |
+| Two-Arm Kettlebell Military Press | kettlebell | vertical-push | front delts | triceps |
+| One-Arm Kettlebell Military Press To The Side | kettlebell | vertical-push | front delts | triceps |
+| One-Arm Open Palm Kettlebell Clean | kettlebell | hinge | hamstrings | forearms, glutes, lower back, quadriceps, front delts |
+| One-Arm Overhead Kettlebell Squats | kettlebell | squat | quadriceps | calves, glutes, hamstrings, shoulders:UNASSIGNED |
+| One-Arm Kettlebell Para Press | kettlebell | vertical-push | front delts | triceps |
+| One Arm Pronated Dumbbell Triceps Extension | dumbbell | isolation-arm | triceps | — |
+| Seated One-arm Cable Pulley Rows | cable | horizontal-pull | middle back | biceps, lats, traps |
+| One-Arm Kettlebell Push Press | kettlebell | vertical-push | front delts | calves, quadriceps, triceps |
+| Single-Arm Push-Up | bodyweight | horizontal-push | chest | front delts, triceps |
+| Dumbbell One-Arm Shoulder Press | dumbbell | vertical-push | front delts | triceps |
+| One-Arm Side Deadlift | barbell | hinge | quadriceps | abdominals, calves, glutes, hamstrings, lower back, traps |
+| One-Arm Side Laterals | dumbbell | vertical-push | side delts | — |
+| One-Arm Kettlebell Snatch | kettlebell | hinge | front delts | calves, glutes, hamstrings, lower back, traps, triceps |
+| One-Arm Kettlebell Split Jerk | kettlebell | vertical-push | front delts | glutes, hamstrings, quadriceps, triceps |
+| One-Arm Kettlebell Split Snatch | kettlebell | hinge | front delts | hamstrings, quadriceps |
+| One Arm Supinated Dumbbell Triceps Extension | dumbbell | isolation-arm | triceps | — |
+| One-Arm Kettlebell Swings | kettlebell | hinge | hamstrings | calves, glutes, lower back, shoulders:UNASSIGNED |
+| Cable One Arm Tricep Extension | cable | isolation-arm | triceps | — |
+| Seated Two-Arm Palms-Up Low-Pulley Wrist Curl | cable | isolation-arm | forearms | — |
+| Seated One-Arm Dumbbell Palms-Up Wrist Curl | dumbbell | isolation-arm | forearms | — |
+| Dumbbell One-Arm Upright Row | dumbbell | horizontal-pull | side delts | biceps, traps |
+| Around The Worlds | dumbbell | vertical-push | chest | shoulders:UNASSIGNED |
+| Back Flyes - With Bands | band | isolation-shoulder | rear delts | middle back, triceps |
+| Bench Dips | bodyweight | horizontal-push | triceps | chest, shoulders:UNASSIGNED |
+| Bent-Knee Hip Raise | bodyweight | isolation-shoulder | abdominals | — |
+| Bent Over Low-Pulley Side Lateral | cable | horizontal-pull | side delts | lower back, middle back, traps |
+| Seated Bent-Over Rear Delt Raise | dumbbell | isolation-shoulder | rear delts | — |
+| Bent Over Dumbbell Rear Delt Raise With Head On Bench | dumbbell | isolation-shoulder | rear delts | — |
+| Bent Press | kettlebell | horizontal-pull | abdominals | glutes, hamstrings, lower back, quadriceps, front delts, triceps |
+| Standing Biceps Cable Curl | cable | isolation-arm | biceps | — |
+| Board Press | barbell | vertical-push | triceps | chest, forearms, lats, front delts |
+| Body Tricep Press | bodyweight | vertical-push | triceps | — |
+| Body-Up | bodyweight | vertical-push | triceps | abdominals, forearms |
+| Bodyweight Squat | bodyweight | squat | quadriceps | glutes, hamstrings |
+| Bosu Ball Cable Crunch With Side Bends | cable | core | abdominals | — |
+| Bottoms Up | bodyweight | horizontal-pull | abdominals | — |
+| Bottoms-Up Clean From The Hang Position | kettlebell | hinge | forearms | biceps, front delts |
+| Standing Bradford Press | barbell | vertical-push | front delts | triceps |
+| Bradford/Rocky Presses | barbell | vertical-push | front delts | triceps |
+| Butt Lift (Bridge) | bodyweight | vertical-push | glutes | hamstrings |
+| Butt-Ups | bodyweight | horizontal-pull | abdominals | — |
+| Butterfly | machine | isolation-shoulder | chest | — |
+| Calf Press | machine | isolation-leg | calves | — |
+| Calf Press On The Leg Press Machine | machine | squat | calves | — |
+| Calf-Machine Shoulder Shrug | machine | isolation-leg | traps | — |
+| Car Drivers | barbell | vertical-push | front delts | forearms |
+| Chair Squat | machine | squat | quadriceps | calves, glutes, hamstrings |
+| Chin-Up | bodyweight | vertical-pull | lats | biceps, forearms, middle back |
+| Dumbbell Clean | dumbbell | hinge | hamstrings | calves, forearms, glutes, lower back, quadriceps, front delts, traps |
+| Clean and Press | barbell | hinge | front delts | abdominals, calves, glutes, hamstrings, lower back, middle back, quadriceps, front delts, traps, triceps |
+| Clock Push-Up | bodyweight | horizontal-push | chest | front delts, triceps |
+| Cocoons | bodyweight | horizontal-pull | abdominals | — |
+| Concentration Curls | dumbbell | isolation-arm | biceps | forearms |
+| Cross-Body Crunch | bodyweight | core | abdominals | — |
+| Cross Body Hammer Curl | dumbbell | isolation-arm | biceps | forearms |
+| Cross Over - With Bands | band | vertical-push | chest | biceps, shoulders:UNASSIGNED |
+| Cable Crossover | cable | vertical-push | chest | shoulders:UNASSIGNED |
+| Kneeling Cable Crunch With Alternating Oblique Twists | cable | core | abdominals | — |
+| Crunches | bodyweight | core | abdominals | — |
+| Cuban Press | dumbbell | vertical-push | front delts | traps |
+| Barbell Curls Lying Against An Incline | barbell | isolation-arm | biceps | — |
+| Dead Bug | bodyweight | horizontal-pull | abdominals | — |
+| Kettlebell Dead Clean | kettlebell | hinge | hamstrings | calves, glutes, lower back, quadriceps, traps |
+| Cable Deadlifts | cable | hinge | quadriceps | forearms, glutes, hamstrings, lower back |
+| Decline Close-Grip Bench To Skull Crusher | barbell | horizontal-push | triceps | chest, shoulders:UNASSIGNED |
+| Decline Crunch | bodyweight | core | abdominals | — |
+| Decline EZ Bar Triceps Extension | barbell | isolation-arm | triceps | — |
+| Decline Dumbbell Flyes | dumbbell | isolation-shoulder | chest | — |
+| Decline Oblique Crunch | bodyweight | core | abdominals | — |
+| Wide-Grip Decline Barbell Pullover | barbell | isolation-arm | chest | shoulders:UNASSIGNED, triceps |
+| Decline Reverse Crunch | bodyweight | core | abdominals | — |
+| Decline Dumbbell Triceps Extension | dumbbell | isolation-arm | triceps | — |
+| Deficit Deadlift | barbell | hinge | lower back | forearms, glutes, hamstrings, middle back, quadriceps, traps |
+| Alternating Deltoid Raise | dumbbell | isolation-shoulder | side delts | — |
+| Dip Machine | machine | horizontal-push | triceps | chest, shoulders:UNASSIGNED |
+| Dips - Triceps Version | bodyweight | horizontal-push | triceps | chest, shoulders:UNASSIGNED |
+| Drag Curl | barbell | isolation-arm | biceps | forearms |
+| Elbow to Knee | bodyweight | horizontal-pull | abdominals | — |
+| Elevated Back Lunge | barbell | squat | quadriceps | glutes, hamstrings |
+| Elevated Cable Rows | cable | horizontal-pull | lats | middle back, traps |
+| Extended Range One-Arm Kettlebell Floor Press | kettlebell | horizontal-push | chest | front delts, triceps |
+| Close-Grip EZ Bar Curl | barbell | isolation-arm | biceps | forearms |
+| Face Pull | cable | horizontal-pull | rear delts | middle back |
+| Kettlebell Figure 8 | kettlebell | horizontal-pull | abdominals | hamstrings, shoulders:UNASSIGNED |
+| Finger Curls | barbell | isolation-arm | forearms | — |
+| Flat Bench Cable Flyes | cable | isolation-shoulder | chest | — |
+| Flat Bench Lying Leg Raise | bodyweight | core | abdominals | — |
+| Flexor Incline Dumbbell Curls | dumbbell | isolation-arm | biceps | — |
+| Flutter Kicks | bodyweight | horizontal-pull | glutes | hamstrings |
+| Dumbbell Flyes | dumbbell | isolation-shoulder | chest | — |
+| Freehand Jump Squat | bodyweight | squat | quadriceps | calves, glutes, hamstrings |
+| Frog Sit-Ups | bodyweight | core | abdominals | — |
+| Front Incline Dumbbell Raise | dumbbell | isolation-shoulder | front delts | — |
+| Close-Grip Front Lat Pulldown | cable | vertical-pull | lats | biceps, middle back, shoulders:UNASSIGNED |
+| Standing Front Barbell Raise Over Head | barbell | isolation-shoulder | front delts | — |
+| Front Raise And Pullover | barbell | isolation-shoulder | chest | lats, front delts, triceps |
+| Front Barbell Squat To A Bench | barbell | squat | quadriceps | calves, glutes, hamstrings |
+| Front Squats With Two Kettlebells | kettlebell | squat | quadriceps | calves, glutes |
+| Full Range-Of-Motion Lat Pulldown | cable | vertical-pull | lats | biceps, middle back, shoulders:UNASSIGNED |
+| Barbell Full Squat | barbell | squat | quadriceps | calves, glutes, hamstrings, lower back |
+| Barbell Glute Bridge | barbell | hinge | glutes | calves, hamstrings |
+| Glute Ham Raise | machine | isolation-shoulder | hamstrings | calves, glutes |
+| Glute Kickback | bodyweight | isolation-arm | glutes | hamstrings |
+| Goblet Squat | kettlebell | squat | quadriceps | calves, glutes, hamstrings, shoulders:UNASSIGNED |
+| Good Morning off Pins | barbell | hinge | hamstrings | abdominals, glutes, lower back |
+| Seated Good Mornings | barbell | hinge | lower back | glutes |
+| Gorilla Chin/Crunch | bodyweight | core | abdominals | biceps, lats |
+| Barbell Guillotine Bench Press | barbell | horizontal-push | chest | front delts, triceps |
+| Kettlebell Halo | kettlebell | — | shoulders:UNASSIGNED | traps, middle back, abdominals, triceps |
+| Kettlebell Halo with Overhead Extension | kettlebell | isolation-arm | shoulders:UNASSIGNED, triceps | traps, middle back, abdominals |
+| Alternate Hammer Curl | dumbbell | isolation-arm | biceps | forearms |
+| Hammer Grip Incline DB Bench Press | dumbbell | horizontal-push | chest | front delts, triceps |
+| Handstand Push-Ups | bodyweight | vertical-push | front delts | triceps |
+| Hanging Bar Good Morning | barbell | hinge | hamstrings | abdominals, glutes, lower back |
+| Hanging Leg Raise | bodyweight | core | abdominals | — |
+| Hanging Pike | bodyweight | horizontal-pull | abdominals | — |
+| Alternate Heel Touchers | bodyweight | horizontal-pull | abdominals | — |
+| High Cable Curls | cable | isolation-arm | biceps | — |
+| Kneeling High Pulley Row | cable | horizontal-pull | lats | biceps, middle back |
+| Cable Hip Adduction | cable | horizontal-pull | quadriceps | — |
+| Band Hip Adductions | band | horizontal-pull | adductors | — |
+| Hip Extension with Bands | band | isolation-arm | glutes | hamstrings |
+| Hip Flexion with Band | band | horizontal-pull | quadriceps | — |
+| Hip Lift with Band | band | vertical-push | glutes | calves, hamstrings |
+| Barbell Hip Thrust | barbell | hinge | glutes | calves, hamstrings |
+| Hyperextensions With No Hyperextension Bench | bodyweight | isolation-arm | lower back | glutes, hamstrings |
+| Incline Dumbbell Bench With Palms Facing In | dumbbell | horizontal-push | chest | shoulders:UNASSIGNED, triceps |
+| Barbell Incline Bench Press - Medium Grip | barbell | horizontal-push | chest | front delts, triceps |
+| Incline Bench Pull | barbell | horizontal-pull | middle back | lats, shoulders:UNASSIGNED |
+| Incline Cable Chest Press | cable | horizontal-push | chest | front delts, triceps |
+| Incline Cable Flye | cable | isolation-shoulder | chest | shoulders:UNASSIGNED |
+| Incline Hammer Curls | dumbbell | isolation-arm | biceps | — |
+| Incline Inner Biceps Curl | dumbbell | isolation-arm | biceps | — |
+| Incline Dumbbell Press | dumbbell | vertical-push | chest | front delts, triceps |
+| Incline Push-Up Reverse Grip | bodyweight | horizontal-push | chest | abdominals, front delts, triceps |
+| Cable Incline Pushdown | cable | isolation-arm | lats | — |
+| Dumbbell Incline Row | dumbbell | horizontal-pull | middle back | biceps, forearms, lats, shoulders:UNASSIGNED |
+| Isometric Wipers | bodyweight | vertical-push | chest | abdominals, shoulders:UNASSIGNED, triceps |
+| Jackknife Sit-Up | bodyweight | core | abdominals | — |
+| Janda Sit-Up | bodyweight | core | abdominals | — |
+| Jefferson Squats | barbell | squat | quadriceps | calves, glutes, hamstrings, lower back, traps |
+| Double Kettlebell Jerk | kettlebell | vertical-push | front delts | calves, quadriceps, triceps |
+| JM Press | barbell | vertical-push | triceps | chest, front delts |
+| Cable Judo Flip | cable | horizontal-pull | abdominals | — |
+| Landmine Linear Jammer | barbell | vertical-push | front delts | abdominals, calves, chest, hamstrings, quadriceps, triceps |
+| Landmine 180's | barbell | horizontal-pull | abdominals | glutes, lower back, shoulders:UNASSIGNED |
+| Wide-Grip Lat Pulldown | cable | vertical-pull | lats | biceps, middle back, shoulders:UNASSIGNED |
+| Dumbbell Seated One-Leg Calf Raise | dumbbell | isolation-leg | calves | — |
+| Leg Extensions | machine | isolation-arm | quadriceps | — |
+| Single Leg Glute Bridge | bodyweight | hinge | glutes | hamstrings |
+| Single-Leg Leg Extension | machine | isolation-arm | quadriceps | — |
+| Leg Lift | bodyweight | vertical-push | glutes | hamstrings |
+| Leg-Over Floor Press | kettlebell | horizontal-push | chest | front delts, triceps |
+| Leg Press | machine | squat | quadriceps | calves, glutes, hamstrings |
+| Leg Pull-In | bodyweight | horizontal-pull | abdominals | — |
+| One Leg Barbell Squat | barbell | squat | quadriceps | calves, glutes, hamstrings |
+| Seated Leg Tucks | bodyweight | horizontal-pull | abdominals | — |
+| Kettlebell One-Legged Deadlift | kettlebell | hinge | hamstrings | glutes, lower back |
+| One-Legged Cable Kickback | cable | isolation-arm | glutes | hamstrings |
+| Leverage Chest Press | machine | horizontal-push | chest | front delts, triceps |
+| Leverage Deadlift | machine | hinge | quadriceps | glutes, hamstrings |
+| Leverage Decline Chest Press | machine | horizontal-push | chest | front delts, triceps |
+| Leverage High Row | machine | horizontal-pull | middle back | lats |
+| Leverage Incline Chest Press | machine | horizontal-push | chest | front delts, triceps |
+| Leverage Iso Row | machine | horizontal-pull | lats | biceps, middle back |
+| Leverage Shoulder Press | machine | vertical-push | front delts | triceps |
+| Leverage Shrug | machine | isolation-shoulder | traps | forearms |
+| Standing Cable Lift | cable | horizontal-pull | abdominals | shoulders:UNASSIGNED |
+| Low Cable Crossover | cable | vertical-push | chest | shoulders:UNASSIGNED |
+| Standing Low-Pulley One-Arm Triceps Extension | cable | isolation-arm | triceps | chest, shoulders:UNASSIGNED |
+| Standing Low-Pulley Deltoid Raise | cable | isolation-shoulder | side delts | forearms |
+| Low Pulley Row To Neck | cable | horizontal-pull | rear delts | biceps, middle back, traps |
+| Low Cable Triceps Extension | cable | isolation-arm | triceps | — |
+| Barbell Lunge | barbell | squat | quadriceps | calves, glutes, hamstrings |
+| Lunge Pass Through | kettlebell | squat | hamstrings | calves, glutes, quadriceps |
+| Lunge Sprint | machine | squat | quadriceps | calves, glutes, hamstrings |
+| Dumbbell Lunges | dumbbell | squat | quadriceps | calves, glutes, hamstrings |
+| Lying One-Arm Lateral Raise | dumbbell | isolation-shoulder | side delts | — |
+| Dumbbell Lying One-Arm Rear Lateral Raise | dumbbell | isolation-shoulder | rear delts | middle back |
+| Lying Close-Grip Bar Curl On High Pulley | cable | isolation-arm | biceps | — |
+| Lying Cambered Barbell Row | barbell | horizontal-pull | middle back | biceps, lats, traps |
+| Lying Cable Curl | cable | isolation-arm | biceps | — |
+| Lying High Bench Barbell Curl | barbell | isolation-arm | biceps | — |
+| Lying Leg Curls | machine | isolation-arm | hamstrings | — |
+| Dumbbell Lying Pronation | dumbbell | horizontal-pull | forearms | — |
+| Lying Rear Delt Raise | dumbbell | isolation-shoulder | rear delts | — |
+| Dumbbell Lying Rear Lateral Raise | dumbbell | isolation-shoulder | rear delts | — |
+| Lying Machine Squat | machine | squat | quadriceps | calves, glutes, hamstrings |
+| Dumbbell Lying Supination | dumbbell | horizontal-pull | forearms | — |
+| Lying Supine Dumbbell Curl | dumbbell | isolation-arm | biceps | — |
+| Lying T-Bar Row | machine | horizontal-pull | middle back | biceps, lats |
+| Lying Dumbbell Tricep Extension | dumbbell | isolation-arm | triceps | chest, shoulders:UNASSIGNED |
+| Cable Lying Triceps Extension | cable | isolation-arm | triceps | — |
+| Lying Close-Grip Barbell Triceps Extension Behind The Head | barbell | isolation-arm | triceps | — |
+| Middle Back Shrug | dumbbell | isolation-shoulder | middle back | — |
+| Monster Walk | band | horizontal-pull | abductors | — |
+| Natural Glute Ham Raise | bodyweight | isolation-shoulder | hamstrings | calves, glutes, lower back |
+| Neck Press | barbell | vertical-push | chest | front delts, triceps |
+| Open Palm Kettlebell Clean | kettlebell | hinge | hamstrings | glutes, lower back, quadriceps, front delts |
+| Overhead Cable Curl | cable | isolation-arm | biceps | — |
+| Pallof Press | cable | core | abdominals | chest, front delts, triceps |
+| Pallof Press With Rotation | cable | core | abdominals | chest, front delts, triceps |
+| Standing Palm-In One-Arm Dumbbell Press | dumbbell | vertical-push | front delts | triceps |
+| Seated Palm-Up Barbell Wrist Curl | barbell | isolation-arm | forearms | — |
+| Kettlebell Pass Between The Legs | kettlebell | horizontal-pull | abdominals | glutes, hamstrings, shoulders:UNASSIGNED |
+| Pin Presses | barbell | vertical-push | triceps | chest, forearms, lats, middle back, front delts |
+| Kettlebell Pirate Ships | kettlebell | vertical-push | side delts | abdominals |
+| Kettlebell Pistol Squat | kettlebell | squat | quadriceps | calves, glutes, hamstrings, shoulders:UNASSIGNED |
+| Plank | bodyweight | core | abdominals | — |
+| Plie Dumbbell Squat | dumbbell | squat | quadriceps | abdominals, calves, glutes, hamstrings |
+| Plyo Kettlebell Pushups | kettlebell | horizontal-push | chest | front delts, triceps |
+| Power Clean | barbell | hinge | hamstrings | calves, forearms, glutes, lower back, middle back, quadriceps, front delts, traps, triceps |
+| Power Partials | dumbbell | vertical-push | side delts | — |
+| Machine Preacher Curls | machine | isolation-arm | biceps | — |
+| Preacher Hammer Dumbbell Curl | dumbbell | isolation-arm | biceps | forearms |
+| Standing Barbell Press Behind Neck | barbell | vertical-push | front delts | triceps |
+| Press Sit-Up | barbell | core | abdominals | chest, front delts, triceps |
+| Dumbbell Prone Incline Curl | dumbbell | isolation-arm | biceps | — |
+| Band Pull Apart | band | horizontal-pull | rear delts | middle back, traps |
+| Pull Through | cable | horizontal-pull | glutes | hamstrings, lower back |
+| Wide-Grip Pulldown Behind The Neck | cable | vertical-pull | lats | biceps, middle back, shoulders:UNASSIGNED |
+| Pullups | bodyweight | vertical-pull | lats | biceps, middle back |
+| Double Kettlebell Push Press | kettlebell | vertical-push | front delts | calves, quadriceps, triceps |
+| Push-Up Wide | bodyweight | horizontal-push | chest | abdominals, front delts, triceps |
+| Close-Grip Push-Up off of a Dumbbell | bodyweight | horizontal-push | triceps | abdominals, chest, front delts |
+| Push Up to Side Plank | bodyweight | core | chest | abdominals, shoulders:UNASSIGNED, triceps |
+| Push-Ups - Close Triceps Position | bodyweight | horizontal-push | triceps | chest, front delts |
+| Push-Ups With Feet Elevated | bodyweight | horizontal-push | chest | front delts, triceps |
+| Rack Pull with Bands | barbell | horizontal-pull | lower back | forearms, glutes, hamstrings, quadriceps, traps |
+| Rack Pulls | barbell | horizontal-pull | lower back | forearms, glutes, hamstrings, traps |
+| Cable Rear Delt Fly | cable | isolation-shoulder | rear delts | — |
+| Barbell Rear Delt Row | barbell | horizontal-pull | rear delts | biceps, lats, middle back |
+| Dumbbell Rear Lunge | dumbbell | squat | quadriceps | calves, glutes, hamstrings |
+| Wide-Grip Rear Pull-Up | bodyweight | vertical-pull | lats | biceps, middle back, shoulders:UNASSIGNED |
+| Alternating Renegade Row | kettlebell | horizontal-pull | middle back | abdominals, biceps, chest, lats, triceps |
+| Reverse Band Bench Press | barbell | horizontal-push | triceps | chest, forearms, lats, middle back, front delts |
+| Reverse Grip Bent-Over Rows | barbell | horizontal-pull | middle back | biceps, lats, shoulders:UNASSIGNED |
+| Reverse Band Box Squat | barbell | squat | quadriceps | abductors, adductors, calves, forearms, glutes, hamstrings, lower back |
+| Reverse Band Deadlift | barbell | hinge | lower back | abductors, adductors, calves, glutes, hamstrings, quadriceps |
+| Reverse Flyes With External Rotation | dumbbell | isolation-shoulder | rotator cuff | — |
+| Reverse Hyperextension | machine | isolation-arm | hamstrings | calves, glutes |
+| Reverse Band Power Squat | barbell | squat | quadriceps | adductors, calves, glutes, hamstrings, lower back |
+| Reverse Band Sumo Deadlift | barbell | hinge | hamstrings | abductors, adductors, calves, forearms, glutes, lower back, quadriceps, traps |
+| Reverse Triceps Bench Press | barbell | horizontal-push | triceps | chest, front delts |
+| Reverse Grip Triceps Pushdown | cable | isolation-arm | triceps | — |
+| Rocking Standing Calf Raise | barbell | isolation-leg | calves | — |
+| Barbell Rollout from Bench | barbell | horizontal-pull | abdominals | glutes, hamstrings, lats, shoulders:UNASSIGNED |
+| Romanian Deadlift | barbell | hinge | hamstrings | calves, glutes, lower back |
+| Cable Rope Overhead Triceps Extension | cable | isolation-arm | triceps | — |
+| Cable Rope Rear-Delt Rows | cable | horizontal-pull | rear delts | biceps, middle back |
+| Rope Straight-Arm Pulldown | cable | vertical-pull | lats | — |
+| Alternating Kettlebell Row | kettlebell | horizontal-pull | middle back | biceps, lats |
+| Seated Cable Rows | cable | horizontal-pull | middle back | biceps, lats, shoulders:UNASSIGNED |
+| Russian Twist | bodyweight | core | abdominals | lower back |
+| Cable Russian Twists | cable | core | abdominals | — |
+| Dumbbell Scaption | dumbbell | vertical-push | side delts | traps |
+| See-Saw Press (Alternating Side Press) | dumbbell | vertical-push | front delts | abdominals, triceps |
+| Kettlebell Seesaw Press | kettlebell | vertical-push | front delts | triceps |
+| Shotgun Row | cable | horizontal-pull | lats | biceps, middle back |
+| Barbell Shrug Behind The Back | barbell | isolation-shoulder | traps | forearms, middle back |
+| Cable Shrugs | cable | isolation-shoulder | traps | — |
+| Side Bridge | bodyweight | core | abdominals | shoulders:UNASSIGNED |
+| Side Jackknife | bodyweight | horizontal-pull | abdominals | — |
+| Side Laterals to Front Raise | dumbbell | isolation-shoulder | side delts | traps |
+| Barbell Side Split Squat | barbell | squat | quadriceps | calves, hamstrings, lower back |
+| Band Skull Crusher | band | vertical-push | triceps | — |
+| Double Kettlebell Snatch | kettlebell | hinge | front delts | glutes, hamstrings, quadriceps |
+| Snatch Pull | barbell | hinge | hamstrings | calves, glutes, lower back, quadriceps, traps |
+| Speed Box Squat | barbell | squat | quadriceps | calves, glutes, hamstrings |
+| Speed Band Overhead Triceps | band | vertical-push | triceps | — |
+| Speed Squats | barbell | squat | quadriceps | calves, glutes, hamstrings, lower back |
+| Spell Caster | dumbbell | horizontal-pull | abdominals | glutes, shoulders:UNASSIGNED |
+| Spider Crawl | bodyweight | horizontal-pull | abdominals | chest, shoulders:UNASSIGNED, triceps |
+| Split Squat with Dumbbells | dumbbell | squat | quadriceps | glutes, hamstrings |
+| Squat Jerk | barbell | squat | quadriceps | calves, glutes, hamstrings, front delts, triceps |
+| Squat with Plate Movers | barbell | squat | quadriceps | abductors, adductors, calves, glutes, hamstrings |
+| Squats - With Bands | band | squat | quadriceps | calves, glutes, hamstrings, lower back |
+| Narrow Stance Hack Squats | machine | squat | quadriceps | calves, glutes, hamstrings |
+| Narrow Stance Leg Press | machine | squat | quadriceps | calves, glutes, hamstrings |
+| Wide Stance Barbell Squat | barbell | squat | quadriceps | calves, glutes, hamstrings, lower back |
+| Narrow Stance Squats | barbell | squat | quadriceps | calves, glutes, hamstrings, lower back |
+| Step-up with Knee Raise | bodyweight | squat | glutes | hamstrings, quadriceps |
+| Stiff Leg Barbell Good Morning | barbell | hinge | lower back | glutes, hamstrings |
+| Standing Dumbbell Straight-Arm Front Delt Raise Above Head | dumbbell | isolation-shoulder | front delts | — |
+| Straight-Arm Pulldown | cable | vertical-pull | lats | — |
+| Straight-Arm Dumbbell Pullover | dumbbell | isolation-arm | chest | lats, shoulders:UNASSIGNED, triceps |
+| Straight Bar Bench Mid Rows | barbell | horizontal-pull | middle back | biceps, lats |
+| Straight Raises on Incline Bench | barbell | isolation-shoulder | front delts | traps |
+| Kettlebell Sumo High Pull | kettlebell | horizontal-pull | traps | adductors, glutes, hamstrings, quadriceps, shoulders:UNASSIGNED |
+| T-Bar Row with Handle | barbell | horizontal-pull | middle back | biceps, lats |
+| Tate Press | dumbbell | vertical-push | triceps | chest, front delts |
+| Thigh Abductor | machine | vertical-push | abductors | glutes |
+| Thigh Adductor | machine | horizontal-pull | adductors | glutes, hamstrings |
+| Kettlebell Thruster | kettlebell | vertical-push | front delts | quadriceps, triceps |
+| Standing Towel Triceps Extension | bodyweight | isolation-arm | triceps | — |
+| Dumbbell Tricep Extension -Pronated Grip | dumbbell | isolation-arm | triceps | — |
+| Tricep Dumbbell Kickback | dumbbell | isolation-arm | triceps | — |
+| Triceps Overhead Extension with Rope | cable | isolation-arm | triceps | — |
+| Seated Triceps Press | dumbbell | vertical-push | triceps | — |
+| Tuck Crunch | bodyweight | core | abdominals | — |
+| Seated Barbell Twist | barbell | horizontal-pull | abdominals | — |
+| Underhand Cable Pulldowns | cable | vertical-pull | lats | biceps, middle back, shoulders:UNASSIGNED |
+| Standing Palms-Up Barbell Behind The Back Wrist Curl | barbell | isolation-arm | forearms | — |
+| Seated Dumbbell Palms-Up Wrist Curl | dumbbell | isolation-arm | forearms | — |
+| V-Bar Pulldown | cable | vertical-pull | lats | biceps, middle back, shoulders:UNASSIGNED |
+| V-Bar Pullup | bodyweight | vertical-pull | lats | biceps, middle back, shoulders:UNASSIGNED |
+| Barbell Walking Lunge | barbell | squat | quadriceps | calves, glutes, hamstrings |
+| Weighted Jump Squat | barbell | squat | quadriceps | calves, glutes, hamstrings, lower back |
+| Weighted Sissy Squat | barbell | squat | quadriceps | calves, glutes, hamstrings |
+| Wind Sprints | bodyweight | horizontal-pull | abdominals | — |
+| Standing Cable Wood Chop | cable | horizontal-pull | abdominals | shoulders:UNASSIGNED |
+| Cable Wrist Curl | cable | isolation-arm | forearms | — |
+| Wrist Rotations with Straight Bar | barbell | isolation-shoulder | forearms | — |
+| Zercher Squats | barbell | squat | quadriceps | calves, glutes, hamstrings |
+| Zottman Curl | dumbbell | isolation-arm | biceps | forearms |
+| Zottman Preacher Curl | dumbbell | isolation-arm | biceps | forearms |
 
 ---
 
-## Part 3a — PRIMARY delt assignments needed (53)
+## Part 3a — PRIMARY delt assignments needed (2)
 
 These matter. The primary head is what per-muscle volume would be counted against,
 and it is the reason the delts were split at all. Assign while curating the family.
 
 | Source name | Equipment |
 |---|---|
-| Alternating Kettlebell Press | kettlebell |
-| Anti-Gravity Press | barbell |
-| Back Flyes - With Bands | band |
-| Barbell Incline Shoulder Raise | barbell |
-| Cable Internal Rotation | cable |
-| Car Drivers | barbell |
-| Clean and Press | barbell |
-| Double Kettlebell Jerk | kettlebell |
-| Double Kettlebell Snatch | kettlebell |
-| Dumbbell Incline Shoulder Raise | dumbbell |
-| Dumbbell Raise | dumbbell |
-| External Rotation | dumbbell |
-| External Rotation with Band | band |
-| External Rotation with Cable | cable |
-| Front Cable Raise | cable |
-| Front Dumbbell Raise | dumbbell |
-| Front Incline Dumbbell Raise | dumbbell |
-| Front Two-Dumbbell Raise | dumbbell |
-| Handstand Push-Ups | bodyweight |
-| Internal Rotation with Band | band |
-| Iron Cross | dumbbell |
 | Kettlebell Halo | kettlebell |
 | Kettlebell Halo with Overhead Extension | kettlebell |
-| Kettlebell Pirate Ships | kettlebell |
-| Kettlebell Seated Press | kettlebell |
-| Kettlebell Seesaw Press | kettlebell |
-| Kettlebell Thruster | kettlebell |
-| Kettlebell Turkish Get-Up (Lunge style) | kettlebell |
-| Kettlebell Turkish Get-Up (Squat style) | kettlebell |
-| Landmine Linear Jammer | barbell |
-| Low Pulley Row To Neck | cable |
-| Machine Shoulder (Military) Press | machine |
-| One-Arm Kettlebell Clean and Jerk | kettlebell |
-| One-Arm Kettlebell Jerk | kettlebell |
-| One-Arm Kettlebell Para Press | kettlebell |
-| One-Arm Kettlebell Snatch | kettlebell |
-| One-Arm Kettlebell Split Jerk | kettlebell |
-| One-Arm Kettlebell Split Snatch | kettlebell |
-| Power Partials | dumbbell |
-| Seated Dumbbell Press | dumbbell |
-| See-Saw Press (Alternating Side Press) | dumbbell |
-| Single-Arm Linear Jammer | barbell |
-| Single Dumbbell Raise | dumbbell |
-| Standing Alternating Dumbbell Press | dumbbell |
-| Standing Barbell Press Behind Neck | barbell |
-| Standing Dumbbell Press | dumbbell |
-| Standing Front Barbell Raise Over Head | barbell |
-| Standing Palm-In One-Arm Dumbbell Press | dumbbell |
-| Standing Palms-In Dumbbell Press | dumbbell |
-| Straight Raises on Incline Bench | barbell |
-| Two-Arm Kettlebell Clean | kettlebell |
-| Two-Arm Kettlebell Jerk | kettlebell |
-| Upright Barbell Row | barbell |
 
-## Part 3b — secondary-only delt assignments (123)
+## Part 3b — secondary-only delt assignments (58)
 
 Lower stakes and far more numerous. Most are pressing movements where the front
 delt is the assisting head; a bulk default is defensible here in a way it is not
@@ -993,124 +942,59 @@ for Part 3a. Only rows surviving curation need doing at all.
 | Source name | Equipment | Primary |
 |---|---|---|
 | Advanced Kettlebell Windmill | kettlebell | abdominals |
-| Alternating Floor Press | kettlebell | chest |
 | Around The Worlds | dumbbell | chest |
 | Barbell Ab Rollout | barbell | abdominals |
 | Barbell Ab Rollout - On Knees | barbell | abdominals |
-| Barbell Bench Press - Medium Grip | barbell | chest |
-| Barbell Guillotine Bench Press | barbell | chest |
-| Barbell Incline Bench Press - Medium Grip | barbell | chest |
 | Barbell Rollout from Bench | barbell | abdominals |
 | Bench Dips | bodyweight | triceps |
-| Bench Press - Powerlifting | barbell | triceps |
-| Bench Press - With Bands | band | chest |
-| Bench Press with Chains | barbell | triceps |
 | Bent-Arm Barbell Pullover | barbell | lats |
 | Bent-Arm Dumbbell Pullover | dumbbell | chest |
 | Bent Over Barbell Row | barbell | middle back |
 | Bent Over Two-Dumbbell Row | dumbbell | middle back |
-| Bent Press | kettlebell | abdominals |
-| Board Press | barbell | triceps |
-| Bottoms-Up Clean From The Hang Position | kettlebell | forearms |
-| Cable Chest Press | cable | chest |
 | Cable Crossover | cable | chest |
-| Clock Push-Up | bodyweight | chest |
-| Close-Grip Barbell Bench Press | barbell | triceps |
-| Close-Grip Dumbbell Press | dumbbell | triceps |
 | Close-Grip Front Lat Pulldown | cable | lats |
-| Close-Grip Push-Up off of a Dumbbell | bodyweight | triceps |
 | Cross Over - With Bands | band | chest |
-| Decline Barbell Bench Press | barbell | chest |
 | Decline Close-Grip Bench To Skull Crusher | barbell | triceps |
-| Decline Dumbbell Bench Press | dumbbell | chest |
 | Dip Machine | machine | triceps |
 | Dips - Triceps Version | bodyweight | triceps |
 | Double Kettlebell Windmill | kettlebell | abdominals |
-| Dumbbell Bench Press | dumbbell | chest |
-| Dumbbell Bench Press with Neutral Grip | dumbbell | chest |
-| Dumbbell Clean | dumbbell | hamstrings |
-| Dumbbell Floor Press | dumbbell | triceps |
 | Dumbbell Incline Row | dumbbell | middle back |
-| Extended Range One-Arm Kettlebell Floor Press | kettlebell | chest |
-| Floor Press | barbell | triceps |
-| Floor Press with Chains | barbell | triceps |
 | Full Range-Of-Motion Lat Pulldown | cable | lats |
 | Goblet Squat | kettlebell | quadriceps |
-| Hammer Grip Incline DB Bench Press | dumbbell | chest |
 | Incline Bench Pull | barbell | middle back |
-| Incline Cable Chest Press | cable | chest |
 | Incline Cable Flye | cable | chest |
 | Incline Dumbbell Bench With Palms Facing In | dumbbell | chest |
 | Incline Dumbbell Flyes | dumbbell | chest |
 | Incline Dumbbell Flyes - With A Twist | dumbbell | chest |
-| Incline Dumbbell Press | dumbbell | chest |
-| Incline Push-Up | bodyweight | chest |
-| Incline Push-Up Close-Grip | bodyweight | triceps |
-| Incline Push-Up Medium | bodyweight | chest |
-| Incline Push-Up Reverse Grip | bodyweight | chest |
-| Incline Push-Up Wide | bodyweight | chest |
 | Isometric Wipers | bodyweight | chest |
-| JM Press | barbell | triceps |
 | Kettlebell Figure 8 | kettlebell | abdominals |
-| Kettlebell Hang Clean | kettlebell | hamstrings |
 | Kettlebell Overhead Triceps Extension | kettlebell | triceps |
 | Kettlebell Pass Between The Legs | kettlebell | abdominals |
 | Kettlebell Pistol Squat | kettlebell | quadriceps |
 | Kettlebell Sumo High Pull | kettlebell | traps |
 | Kettlebell Windmill | kettlebell | abdominals |
 | Landmine 180's | barbell | abdominals |
-| Leg-Over Floor Press | kettlebell | chest |
-| Leverage Chest Press | machine | chest |
-| Leverage Decline Chest Press | machine | chest |
-| Leverage Incline Chest Press | machine | chest |
 | Low Cable Crossover | cable | chest |
 | Lying Dumbbell Tricep Extension | dumbbell | triceps |
-| Machine Bench Press | machine | chest |
-| Neck Press | barbell | chest |
 | One-Arm Dumbbell Row | dumbbell | middle back |
-| One-Arm Kettlebell Clean | kettlebell | hamstrings |
 | One-Arm Kettlebell Swings | kettlebell | hamstrings |
-| One-Arm Open Palm Kettlebell Clean | kettlebell | hamstrings |
 | One-Arm Overhead Kettlebell Squats | kettlebell | quadriceps |
-| One Arm Dumbbell Bench Press | dumbbell | chest |
-| One Arm Floor Press | barbell | triceps |
-| Open Palm Kettlebell Clean | kettlebell | hamstrings |
-| Pallof Press | cable | abdominals |
-| Pallof Press With Rotation | cable | abdominals |
-| Pin Presses | barbell | triceps |
-| Plyo Kettlebell Pushups | kettlebell | chest |
-| Power Clean | barbell | hamstrings |
-| Press Sit-Up | barbell | abdominals |
-| Push-Up Wide | bodyweight | chest |
-| Push-Ups - Close Triceps Position | bodyweight | triceps |
-| Push-Ups With Feet Elevated | bodyweight | chest |
 | Push Up to Side Plank | bodyweight | chest |
-| Pushups | bodyweight | chest |
-| Pushups (Close and Wide Hand Positions) | bodyweight | chest |
-| Reverse Band Bench Press | barbell | triceps |
 | Reverse Grip Bent-Over Rows | barbell | middle back |
-| Reverse Triceps Bench Press | barbell | triceps |
 | Seated Cable Rows | cable | middle back |
 | Side Bridge | bodyweight | abdominals |
-| Single-Arm Push-Up | bodyweight | chest |
 | Spell Caster | dumbbell | abdominals |
 | Spider Crawl | bodyweight | abdominals |
-| Squat Jerk | barbell | quadriceps |
 | Standing Bent-Over One-Arm Dumbbell Triceps Extension | dumbbell | triceps |
-| Standing Cable Chest Press | cable | chest |
 | Standing Cable Lift | cable | abdominals |
 | Standing Cable Wood Chop | cable | abdominals |
 | Standing Low-Pulley One-Arm Triceps Extension | cable | triceps |
 | Standing One-Arm Dumbbell Triceps Extension | dumbbell | triceps |
 | Standing Overhead Barbell Triceps Extension | barbell | triceps |
 | Straight-Arm Dumbbell Pullover | dumbbell | chest |
-| Tate Press | dumbbell | triceps |
 | Underhand Cable Pulldowns | cable | lats |
-| Upright Cable Row | cable | traps |
 | V-Bar Pulldown | cable | lats |
 | V-Bar Pullup | bodyweight | lats |
-| Wide-Grip Barbell Bench Press | barbell | chest |
-| Wide-Grip Decline Barbell Bench Press | barbell | chest |
 | Wide-Grip Decline Barbell Pullover | barbell | chest |
 | Wide-Grip Lat Pulldown | cable | lats |
 | Wide-Grip Pulldown Behind The Neck | cable | lats |
@@ -1118,7 +1002,7 @@ for Part 3a. Only rows surviving curation need doing at all.
 
 ---
 
-## Part 4 — primary-muscle labels to verify (11 families, 48 records)
+## Part 4 — primary-muscle labels to verify (10 families, 41 records)
 
 Families whose variants disagree about the primary muscle. Some disagreements
 are **correct** — close-grip bench really is triceps-primary. Others are the
@@ -1146,25 +1030,13 @@ triage list.
 
 | Source name | Equipment | Primary |
 |---|---|---|
-| Alternating Kettlebell Press | kettlebell | **shoulders:UNASSIGNED** |
+| Alternating Kettlebell Press | kettlebell | **front delts** |
 | Close-Grip Dumbbell Press | dumbbell | **triceps** |
-| Kettlebell Seated Press | kettlebell | **shoulders:UNASSIGNED** |
-| Seated Dumbbell Press | dumbbell | **shoulders:UNASSIGNED** |
-| Standing Alternating Dumbbell Press | dumbbell | **shoulders:UNASSIGNED** |
-| Standing Dumbbell Press | dumbbell | **shoulders:UNASSIGNED** |
-| Standing Palms-In Dumbbell Press | dumbbell | **shoulders:UNASSIGNED** |
-
-### shoulder press
-
-| Source name | Equipment | Primary |
-|---|---|---|
-| Alternating Cable Shoulder Press | cable | **front delts** |
-| Barbell Shoulder Press | barbell | **front delts** |
-| Cable Shoulder Press | cable | **front delts** |
-| Dumbbell Shoulder Press | dumbbell | **front delts** |
-| Machine Shoulder (Military) Press | machine | **shoulders:UNASSIGNED** |
-| Seated Cable Shoulder Press | cable | **front delts** |
-| Shoulder Press - With Bands | band | **front delts** |
+| Kettlebell Seated Press | kettlebell | **front delts** |
+| Seated Dumbbell Press | dumbbell | **front delts** |
+| Standing Alternating Dumbbell Press | dumbbell | **front delts** |
+| Standing Dumbbell Press | dumbbell | **front delts** |
+| Standing Palms-In Dumbbell Press | dumbbell | **front delts** |
 
 ### squat
 
@@ -1199,7 +1071,7 @@ triage list.
 | Source name | Equipment | Primary |
 |---|---|---|
 | Standing Dumbbell Upright Row | dumbbell | **traps** |
-| Upright Barbell Row | barbell | **shoulders:UNASSIGNED** |
+| Upright Barbell Row | barbell | **side delts** |
 | Upright Cable Row | cable | **traps** |
 | Upright Row - With Bands | band | **traps** |
 
@@ -1208,7 +1080,7 @@ triage list.
 | Source name | Equipment | Primary |
 |---|---|---|
 | One-Arm Kettlebell Clean | kettlebell | **hamstrings** |
-| Two-Arm Kettlebell Clean | kettlebell | **shoulders:UNASSIGNED** |
+| Two-Arm Kettlebell Clean | kettlebell | **front delts** |
 
 ### arm floor press
 
@@ -1229,7 +1101,7 @@ triage list.
 | Source name | Equipment | Primary |
 |---|---|---|
 | Cable Iron Cross | cable | **chest** |
-| Iron Cross | dumbbell | **shoulders:UNASSIGNED** |
+| Iron Cross | dumbbell | **side delts** |
 
 ---
 

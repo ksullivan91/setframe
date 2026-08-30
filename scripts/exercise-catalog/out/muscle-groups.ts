@@ -27,4 +27,5 @@ export const MUSCLE_GROUPS: Array<{ name: string; region: string }> = [
   { name: 'adductors', region: 'Legs' },
   { name: 'abductors', region: 'Legs' },
   { name: 'neck', region: 'Core' },
+  { name: 'rotator cuff', region: 'Shoulders' },
 ];

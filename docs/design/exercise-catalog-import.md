@@ -1,6 +1,7 @@
 # Exercise Catalog — Vocabulary, Naming, and Import Plan
 
-**Status:** Vocabulary and naming **settled**. Catalog curation not started.
+**Status:** Vocabulary, naming and muscle/pattern derivation **settled**.
+Catalog curation (the 405 family rulings) not started.
 **Related:** `docs/design/exercise-examples-exploration.md`,
 `Backlog/68-exercise-catalog-cache-policy.md`
 **Figma:** `Explore/Spec/ExerciseExamples` (`132:574`)
@@ -359,7 +360,23 @@ Seeding also becomes two-pass — `muscle_group` first, then `exercise`, then
    cues are four short lines and we write them ourselves.
 2. **Illustrations.** Source images have no stated licence. The slot stays
    reserved and empty — see `exercise-examples-exploration.md` §5.
-3. **`movementPattern`.** The source has `force` (push/pull) and `mechanic`
-   (compound/isolation), which narrow but do not determine our value — we
-   distinguish `horizontal-push` from `vertical-push`. Needs a mapping pass
-   or derivation from the curated names.
+3. ~~**`movementPattern`.**~~ **Settled.** Derived rather than hand-mapped:
+   the source's `force` combined with the movement word in the name settles
+   **523 of 526**. The three remainders are two isometric neck exercises and
+   the Kettlebell Halo, and they stay `null` rather than being guessed.
+
+   The same pass closed the delt gap. Reviewing what the first rules left
+   behind showed it was mostly a rule gap, not missing information — four
+   records literally said *Front* in the name and were missed because the
+   rule looked for "front delt" rather than "front raise". Assignment is now
+   by movement class, which is mechanical rather than a judgement call:
+   **2 of 526** remain, both Kettlebell Halo variants.
+
+   Rotator work came out of it too. The source tags external and internal
+   rotation as `shoulders`; those are not delts, and assigning any head would
+   have encoded the source's error. They map to a new `rotator cuff` group,
+   taking the vocabulary from 19 groups to 20.
+
+   Accepted at this accuracy deliberately: the product is in beta, and a
+   wrong muscle surfaces in the Progress composition chart, which is exactly
+   where someone would notice it.

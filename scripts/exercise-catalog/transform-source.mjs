@@ -76,21 +76,103 @@ const MUSCLE_GROUPS = [
   { name: 'adductors', region: 'Legs' },
   { name: 'abductors', region: 'Legs' },
   { name: 'neck', region: 'Core' },
+  /* Added when the delt rules learned to recognise rotator work. The source
+     tags it `shoulders`, but it is not a delt — assigning it a head would
+     encode the source's error into our vocabulary. */
+  { name: 'rotator cuff', region: 'Shoulders' },
 ];
 
 /**
- * Best-effort delt-head assignment. The source has a single `shoulders`
- * value and no field that distinguishes the heads, so this reads the name.
- * Measured coverage is about a third — everything else is left for a human,
- * which is the point of a worklist.
+ * Delt-head assignment. The source has a single `shoulders` value and no
+ * field distinguishing the heads, so this reads the name.
+ *
+ * The first version matched about a third and left the rest "for a human".
+ * Reviewing what it actually left showed that was mostly a rule gap rather
+ * than missing information — four records literally said *Front* in the name
+ * and were missed because the rule looked for "front delt", not "front
+ * raise". The rules below are the movement classes, which are mechanical
+ * facts rather than judgement calls: anything pressed overhead is front-delt
+ * dominant, anything raised to the side is side-delt.
+ *
+ * Order matters. `ROTATOR_CUFF` runs first because the source tags rotator
+ * work as `shoulders`, and it is not a delt at all — assigning any head to an
+ * external rotation would encode the source's error rather than our
+ * vocabulary.
  */
+const ROTATOR_CUFF = /(internal|external) rotation|cuban rotation|scapular retract/i;
+
 const DELT_RULES = [
-  ['rear delts', /rear[- ]delt|reverse fly|reverse machine fly|face pull|bent[- ]?over (lateral|reverse)|rear lateral|reverse pec|band pull apart|scarecrow/i],
-  ['side delts', /lateral raise|side lateral|lateral machine|upright row|side raise|deltoid raise|scaption|lu raise/i],
-  ['front delts', /front raise|shoulder press|overhead press|military press|arnold|push press|front delt|behind the neck press|bradford|cuban press|z press|landmine press/i],
+  ['rear delts', /rear[- ]delt|reverse fly|reverse machine fly|face pull|bent[- ]?over (lateral|reverse)|rear lateral|reverse pec|band pull apart|scarecrow|back fly|row to neck|to the neck/i],
+  ['side delts', /lateral raise|side lateral|lateral machine|upright.*row|side raise|deltoid raise|scaption|lu raise|power partial|iron cross|pirate ship/i],
+  ['front delts', /front raise|front .*raise|shoulder press|overhead press|military press|arnold|push press|front delt|behind the neck press|bradford|cuban press|z press|landmine press|shoulder raise|straight raise/i],
+  /* Any overhead press, jerk or thruster is front-delt dominant. Broad on
+     purpose, and last, so the specific rules above win. */
+  ['front delts', /press|jerk|thruster|push-?up|handstand|snatch|get-?up|clean|jammer|car driver|dumbbell raise/i],
 ];
 
-const assignDelt = (name) => DELT_RULES.find(([, re]) => re.test(name))?.[0] ?? null;
+/**
+ * The head, `null` when the movement is not a delt at all, or `undefined`
+ * when we genuinely cannot say.
+ *
+ * The only records that reach `undefined` in the current source are the two
+ * Kettlebell Halo variants, where the bell circles the head and works all
+ * three in turn. An absent secondary is honest; inventing a generic
+ * "shoulders" bucket would undo the split that made the vocabulary useful.
+ */
+/**
+ * `movementPattern`, derived rather than hand-mapped.
+ *
+ * The source carries `force` (push/pull) and `mechanic` (compound/isolation),
+ * which narrow our value without determining it — we distinguish
+ * `horizontal-push` from `vertical-push` and the source does not. Combining
+ * `force` with the movement word in the name settles 99% of the catalogue.
+ *
+ * Order matters throughout: the lower-body and core classes are tested before
+ * the push/pull split, because a Front Squat is a squat rather than a push,
+ * and the isolation classes are tested before them both.
+ *
+ * Returns `null` where nothing applies, which is honest — the remainder is
+ * five records, listed in the worklist.
+ */
+function derivePattern(e) {
+  const s = e.name.toLowerCase();
+
+  if (/squat|lunge|step-?up|leg press|split squat|sissy|hack/.test(s)) return 'squat';
+  if (/deadlift|good morning|hip thrust|romanian|glute bridge|swing|clean|snatch|pull-?through/.test(s))
+    return 'hinge';
+  if (/carry|farmer|suitcase|waiter|yoke/.test(s)) return 'carry';
+  if (/crunch|plank|sit-?up|russian twist|hollow|leg raise|woodchop|pallof|side bridge|\bab\b/.test(s))
+    return 'core';
+
+  if (/curl|extension|pushdown|kickback|raise|fly|flye|shrug|calf|pullover|rotation/.test(s)) {
+    if (/calf/.test(s)) return 'isolation-leg';
+    if (/raise|fly|flye|rotation|shrug/.test(s)) return 'isolation-shoulder';
+    return 'isolation-arm';
+  }
+
+  if (e.force === 'push') {
+    if (/overhead|shoulder press|military|handstand|jerk|thruster|push press/.test(s))
+      return 'vertical-push';
+    if (/bench|chest|dip|push-?up|floor press/.test(s)) return 'horizontal-push';
+    return 'vertical-push';
+  }
+  if (e.force === 'pull') {
+    if (/pulldown|pull-?up|chin-?up|lat /.test(s)) return 'vertical-pull';
+    return 'horizontal-pull';
+  }
+
+  /* `force` is null on a handful of records, so fall back to the movement
+     word alone — "Push-Up Wide" is a horizontal push whether or not the
+     source bothered to say so. */
+  if (/push-?up|bench|chest|dip|floor press/.test(s)) return 'horizontal-push';
+  if (/row|pulldown|pull-?up|chin-?up/.test(s)) return 'horizontal-pull';
+  return null;
+}
+
+const assignDelt = (name) => {
+  if (ROTATOR_CUFF.test(name)) return null;
+  return DELT_RULES.find(([, re]) => re.test(name))?.[0] ?? undefined;
+};
 
 /**
  * `canonicalSlug` is a pure function of the name — never hand-written.
@@ -216,11 +298,19 @@ function transform(all) {
   steps.final = pool.length;
 
   const records = pool.map((e) => {
+    /* `null` means the movement is not a delt at all (rotator cuff), so the
+       muscle is dropped rather than mislabelled. `undefined` means we cannot
+       say, and only then is it flagged. */
+    const resolveShoulder = () => {
+      const head = assignDelt(e.name);
+      if (head === null) return ['rotator cuff'];
+      return [head ?? 'shoulders:UNASSIGNED'];
+    };
     const primary = (e.primaryMuscles ?? []).flatMap((m) =>
-      m === 'shoulders' ? [assignDelt(e.name) ?? 'shoulders:UNASSIGNED'] : [m],
+      m === 'shoulders' ? resolveShoulder() : [m],
     );
     const secondary = (e.secondaryMuscles ?? []).flatMap((m) =>
-      m === 'shoulders' ? [assignDelt(e.name) ?? 'shoulders:UNASSIGNED'] : [m],
+      m === 'shoulders' ? resolveShoulder() : [m],
     );
     return {
       sourceName: e.name,
@@ -237,6 +327,7 @@ function transform(all) {
       family: familyOf(e.name) || '(unclassified)',
       force: e.force ?? null,
       mechanic: e.mechanic ?? null,
+      movementPattern: derivePattern(e),
     };
   });
 
@@ -296,11 +387,11 @@ function renderWorklist({ steps, records, families }) {
   for (const [family, variants] of multi) {
     L.push(`### ${family} — ${variants.length}`);
     L.push('');
-    L.push('| Source name | Equipment | Primary | Secondary |');
-    L.push('|---|---|---|---|');
+    L.push('| Source name | Equipment | Pattern | Primary | Secondary |');
+    L.push('|---|---|---|---|---|');
     for (const v of variants) {
       L.push(
-        `| ${v.sourceName} | ${v.equipment} | ${v.primary.join(', ') || '—'} | ${v.secondary.join(', ') || '—'} |`,
+        `| ${v.sourceName} | ${v.equipment} | ${v.movementPattern ?? '—'} | ${v.primary.join(', ') || '—'} | ${v.secondary.join(', ') || '—'} |`,
       );
     }
     L.push('');
@@ -311,11 +402,11 @@ function renderWorklist({ steps, records, families }) {
   L.push('');
   L.push('Keep/drop scan. This is where the obscure entries live.');
   L.push('');
-  L.push('| Source name | Equipment | Primary | Secondary |');
-  L.push('|---|---|---|---|');
+  L.push('| Source name | Equipment | Pattern | Primary | Secondary |');
+  L.push('|---|---|---|---|---|');
   for (const [, [v]] of single) {
     L.push(
-      `| ${v.sourceName} | ${v.equipment} | ${v.primary.join(', ') || '—'} | ${v.secondary.join(', ') || '—'} |`,
+      `| ${v.sourceName} | ${v.equipment} | ${v.movementPattern ?? '—'} | ${v.primary.join(', ') || '—'} | ${v.secondary.join(', ') || '—'} |`,
     );
   }
   L.push('');
