@@ -1014,3 +1014,25 @@ this — it was built (1,143 lines) and never designed. The web equivalent,
 
 Write-up: `docs/design/training-page-exploration.md`. The line drawings are
 the same schematic placeholders as the picker exploration; see its note.
+
+### Canvas layout on the 📱 Mobile page (2026-08-30)
+
+The page is organised into three horizontal **bands**, separated by a 400px
+gutter, because the spec boards are tall enough to run through anything
+placed below them:
+
+| Band | y | Contents |
+|---|---|---|
+| 1 | 0 – 4,958 | Original screens, the logger v2 screens, and the logger spec boards |
+| 2 | 5,458 – 11,516 | `🔬 Exploration — Exercise examples` |
+| 3 | 11,916 – 16,598 | `🔬 Exploration — Training page redesign` |
+
+`Spec/Mobile/WorkoutLoggerV2 — Interactions` is **4,958px tall** and
+`Explore/Spec/ExerciseExamples` is **6,058px** — both grew well past their
+neighbours as sections were appended, and both had ended up overlapping the
+band below. When adding to a spec board, re-check the band gutters rather
+than assuming the old spacing still holds.
+
+One frame had also slipped out of its section onto the page, so it did not
+travel when the section moved. After repositioning anything, confirm no
+`Explore/*` frame is a direct child of the page.
