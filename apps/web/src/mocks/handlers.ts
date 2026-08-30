@@ -575,11 +575,131 @@ export const handlers = [
     await slowRead();
     return HttpResponse.json(mockTemplates);
   }),
+  /* Endpoints the new Training screens call that had no handler at all.
+     Each mirrors the server's own validation, because a mock more permissive
+     than the API turns a green test into a false negative. */
+  http.patch('*/v1/day-types/:dayTypeId/exercises/:exerciseId', async ({ params, request }) => {
+    const body = (await request.json()) as Record<string, unknown>;
+    const found = mockDayTypeExercises.find((e) => e.id === params.exerciseId);
+    return HttpResponse.json({ ...(found ?? mockDayTypeExercises[0]), ...body });
+  }),
+
+  http.delete('*/v1/day-types/:dayTypeId/exercises/:exerciseId', () =>
+    new HttpResponse(null, { status: 204 }),
+  ),
+
+  http.post('*/v1/programs/:programId/activate', ({ params }) => {
+    const program = mockPrograms.find((p) => p.id === params.programId) ?? mockPrograms[0];
+    return HttpResponse.json({ ...program, isActive: true });
+  }),
+
+  http.post('*/v1/workout-sessions/:sessionId/save-as-workout', async ({ request }) => {
+    const body = (await request.json()) as Record<string, unknown>;
+    if (typeof body.name !== 'string' || body.name.length === 0) {
+      return HttpResponse.json(
+        { error: { code: 'VALIDATION_ERROR', message: 'body/name Required', requestId: 'mock' } },
+        { status: 400 },
+      );
+    }
+    return HttpResponse.json(
+      {
+        id: '77777777-7777-4777-8777-777777777777',
+        userId: mockUserId,
+        name: body.name,
+        description: null,
+        estimatedDurationMinutes: null,
+        exerciseCount: 1,
+        createdAt: now(),
+        updatedAt: now(),
+      },
+      { status: 201 },
+    );
+  }),
+
+  /* Adding an exercise to a workout. There was no handler for this at all,
+     so the editor's add path was never exercised end to end — which is how a
+     request missing the REQUIRED `prescription` shipped and 400d in
+     production. The mock mirrors the server's validation for that reason. */
+  http.post('*/v1/day-types/:dayTypeId/exercises', async ({ params, request }) => {
+    const body = (await request.json()) as Record<string, unknown>;
+    if (typeof body.exerciseId !== 'string' || body.prescription == null) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'body/prescription Invalid input: expected object, received undefined',
+            requestId: 'mock',
+          },
+        },
+        { status: 400 },
+      );
+    }
+    const created = {
+      id: `70000000-0000-4000-8000-${String(mockDayTypeExercises.length + 1).padStart(12, '0')}`,
+      dayTypeId: params.dayTypeId as string,
+      exerciseId: body.exerciseId,
+      sortOrder: mockDayTypeExercises.length,
+      prescription: body.prescription,
+      progressionRuleId: null,
+      notes: null,
+      createdAt: now(),
+      updatedAt: now(),
+    };
+    mockDayTypeExercises.push(created as (typeof mockDayTypeExercises)[number]);
+    return HttpResponse.json(created, { status: 201 });
+  }),
+
   http.get('*/v1/day-types/:dayTypeId', async ({ params }) => {
     await slowRead();
     const dayType = mockTemplates.find((t) => t.id === params.dayTypeId) ?? mockTemplates[0];
     return HttpResponse.json({ ...dayType, exercises: mockDayTypeExercises });
   }),
+  /* Writing the weekly schedule. Neither of these had a handler, so the
+     assign-a-day sheet's writes went nowhere in every test that "passed". */
+  http.post('*/v1/programs/:programId/schedule-slots', async ({ request }) => {
+    const body = (await request.json()) as Record<string, unknown>;
+    if (typeof body.dayTypeId !== 'string' || typeof body.dayIndex !== 'number') {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'body/dayTypeId Required',
+            requestId: 'mock',
+          },
+        },
+        { status: 400 },
+      );
+    }
+    const created = scheduleSlot(
+      `60000000-0000-4000-8000-${String(mockScheduleSlots.length + 1).padStart(12, '0')}`,
+      body.dayTypeId,
+      body.dayIndex,
+      typeof body.sortOrder === 'number' ? body.sortOrder : 0,
+    );
+    mockScheduleSlots.push(created);
+    return HttpResponse.json(created, { status: 201 });
+  }),
+
+  http.delete('*/v1/programs/:programId/schedule-slots/:slotId', ({ params }) => {
+    const index = mockScheduleSlots.findIndex((slot) => slot.id === params.slotId);
+    if (index >= 0) mockScheduleSlots.splice(index, 1);
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  /* Today blocks on this: with no handler it 500d and `isPageLoading` never
+     cleared, so the page never rendered its actions. Shape is
+     `{ items }`, per the route's own response schema. */
+  http.get('*/v1/additional-activities', () => HttpResponse.json({ items: [] })),
+
+  /* The session list. Shape matters: the API returns
+     `{ items, nextCursor }`, and a bare array here crashed
+     ActiveWorkoutBanner reading `items[0]` of undefined. A mock that
+     disagrees with its endpoint is worse than no mock, because it fails
+     somewhere unrelated to the thing that is actually wrong. */
+  http.get('*/v1/workout-sessions', () =>
+    HttpResponse.json({ items: [], nextCursor: null }),
+  ),
+
   http.get('*/v1/programs/:programId/schedule-slots', async () => {
     await slowRead();
     return HttpResponse.json(mockScheduleSlots);

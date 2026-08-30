@@ -33,7 +33,27 @@ async function prepare() {
     const { exposeMockControl } = await import('./mocks/mock-control');
     exposeMockControl();
     const { worker } = await import('./mocks/browser');
-    await worker.start({ onUnhandledRequest: 'bypass' });
+    await worker.start({
+      /*
+       * Our own API must be fully mocked; everything else passes through.
+       *
+       * A blanket 'bypass' silently let an unhandled `/v1/` call fall through
+       * to the network, so an endpoint with NO handler looked identical to a
+       * working one in every test. That is how "add an exercise to a workout"
+       * shipped 400ing in production with a green suite: there was no handler
+       * for it at all, and nothing said so.
+       */
+      onUnhandledRequest: (request, print) => {
+        /* Scoped to OUR api origin, not any `/v1/` path — Clerk's API also
+           lives under `/v1/`, and matching on the path alone broke sign-in
+           for every test. */
+        const url = new URL(request.url);
+        const api = new URL(env.apiBaseUrl, window.location.origin);
+        if (url.origin === api.origin && url.pathname.startsWith(api.pathname)) {
+          print.error();
+        }
+      },
+    });
   }
 }
 

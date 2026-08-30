@@ -26,6 +26,22 @@ interface EditorExercise extends DayTypeExercise {
   exercise?: Exercise;
 }
 
+/**
+ * What an exercise added through the picker is prescribed.
+ *
+ * `POST /day-types/:id/exercises` REQUIRES a prescription — posting
+ * `{ exerciseId }` alone fails with
+ * "body/prescription Invalid input: expected object, received undefined".
+ * The single-select picker this replaced had a configure step that supplied
+ * one; the multi-select picker deliberately does not ask, so it has to send
+ * the default instead of nothing.
+ *
+ * Blank targets are legitimate (story 19), so this carries a set count and no
+ * reps — enough for the session to instantiate a row to log into, without
+ * inventing a rep target the user never chose.
+ */
+const DEFAULT_PICKED_PRESCRIPTION = { kind: 'sets_reps' as const, sets: 1 };
+
 export function WorkoutEditorScreen() {
   const { dayTypeId } = useLocalSearchParams<{ dayTypeId: string }>();
   const api = useApiClient();
@@ -55,7 +71,10 @@ export function WorkoutEditorScreen() {
     mutationFn: async (exerciseIds: string[]) => {
       /* Sequential: sortOrder comes from insertion order. */
       for (const exerciseId of exerciseIds) {
-        await api.post(`/day-types/${dayTypeId}/exercises`, { exerciseId });
+        await api.post(`/day-types/${dayTypeId}/exercises`, {
+          exerciseId,
+          prescription: DEFAULT_PICKED_PRESCRIPTION,
+        });
       }
     },
     onSuccess: async () => {

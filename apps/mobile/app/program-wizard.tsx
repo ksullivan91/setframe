@@ -48,6 +48,22 @@ const steps = [
   { key: 'schedule', title: 'Schedule', description: 'Assign workouts to your week.' },
 ];
 
+/**
+ * What an exercise added through the picker is prescribed.
+ *
+ * `POST /day-types/:id/exercises` REQUIRES a prescription — posting
+ * `{ exerciseId }` alone fails with
+ * "body/prescription Invalid input: expected object, received undefined".
+ * The single-select picker this replaced had a configure step that supplied
+ * one; the multi-select picker deliberately does not ask, so it has to send
+ * the default instead of nothing.
+ *
+ * Blank targets are legitimate (story 19), so this carries a set count and no
+ * reps — enough for the session to instantiate a row to log into, without
+ * inventing a rep target the user never chose.
+ */
+const DEFAULT_PICKED_PRESCRIPTION = { kind: 'sets_reps' as const, sets: 1 };
+
 function nextTempId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 }
@@ -273,7 +289,10 @@ export default function ProgramWizardScreen() {
     mutationFn: async (exerciseIds: string[]) => {
       const dayTypeId = selectedWorkout!.dayTypeId;
       for (const exerciseId of exerciseIds) {
-        await api.post(`/day-types/${dayTypeId}/exercises`, { exerciseId });
+        await api.post(`/day-types/${dayTypeId}/exercises`, {
+          exerciseId,
+          prescription: DEFAULT_PICKED_PRESCRIPTION,
+        });
       }
     },
     onSuccess: async () => {
