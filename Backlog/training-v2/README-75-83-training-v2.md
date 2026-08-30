@@ -97,8 +97,8 @@ flows that fill it.
 
 | # | Story | Depends on |
 |---|---|---|
-| 75 | Shared geometry tokens + overview domain helpers | — |
-| 76 | Training overview, replacing the tabs | 75 |
+| 75 | Shared geometry tokens + overview domain helpers | — ✅ **Shipped** 2026-08-30 |
+| 76 | Training overview, replacing the tabs | 75 ✅ **Shipped** 2026-08-30 |
 | 77 | The three empty states | 76 |
 | 78 | Multi-select exercise picker, extracted as one shared surface | 75 |
 | 79 | Workout editor (pushed) + prescription sheet | 76, 78 |
@@ -106,6 +106,13 @@ flows that fill it.
 | 81 | Plans list + switching | 76 |
 | 82 | Just start training, incl. the save-as-workout endpoint | 76, 78 |
 | 83 | Build your own, guided setup | 76, 78, 79, 80 |
+
+**75 and 76 are live in production** (API on Railway, web on Cloudflare
+Pages, verified against the live bundle). `/training` renders the overview on
+both platforms. The old three-tab editor is still reachable at
+`/training/manage` (web) and `/training-manage` (mobile), and the overview's
+Change / Edit schedule / + New / workout-row controls all point there until
+79-81 replace them surface by surface.
 
 78 comes early and out of numeric order on purpose: three later stories all
 push to the picker, and building it per-flow is how the current codebase
