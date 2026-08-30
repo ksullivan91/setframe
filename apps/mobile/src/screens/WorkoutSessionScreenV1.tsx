@@ -46,6 +46,7 @@ import { AddExercisePicker } from '../components/AddExercisePicker';
 import { FadeIn, Skeleton, SkeletonStack } from '../components/Skeleton';
 import { Toast } from '../components/Toast';
 import { useApiClient } from '../lib/api-client';
+import { createClientId } from '../lib/client-id';
 import {
   countsTowardVolume,
   formatSessionSet,
@@ -239,14 +240,6 @@ function getPreviousLabels(
     distance: set.distanceValue != null ? `${set.distanceValue}` : undefined,
     rpe: set.rpe != null ? `${set.rpe}` : undefined,
   };
-}
-
-function createClientId() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
-    const random = Math.floor(Math.random() * 16);
-    const value = char === 'x' ? random : (random & 0x3) | 0x8;
-    return value.toString(16);
-  });
 }
 
 export default function WorkoutSessionScreen() {

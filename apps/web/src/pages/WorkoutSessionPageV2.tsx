@@ -50,6 +50,16 @@ import { ExerciseCardsSkeleton } from '../components/training-v2/TrainingSkeleto
    this page must not add its own or a 358px card renders at 326. The sticky
    regions break back out of it with a negative inline margin to sit
    full-bleed, which is what the frames show. */
+/**
+ * What an exercise added mid-session is prescribed.
+ *
+ * `sets_reps` with a single set: the user is adding this because they are
+ * about to do it, so one row to log into is the honest starting point — and
+ * it pins the card to weight-and-reps columns instead of every column the
+ * unprescribed fallback declares.
+ */
+const DEFAULT_ADDED_PRESCRIPTION = { kind: 'sets_reps' as const, sets: 1 };
+
 const SHELL_PADDING = 16;
 
 /* Covers the shell, including its nav — the picker is a task surface, and
@@ -281,8 +291,15 @@ export default function WorkoutSessionPageV2() {
   });
 
   const addSet = useMutation({
+    /* `clientId` is REQUIRED by createWorkoutSetSchema, and posting `{}` made
+       "+ Add set" fail with a 400 every single time. It is the idempotency
+       key — generating it client-side is what makes a retried request
+       converge instead of creating a duplicate set, so the fix is to send one
+       rather than to let the server invent it. */
     mutationFn: (exerciseLogId: string) =>
-      api.post<WorkoutSet>('/workout-exercise-logs/' + exerciseLogId + '/sets', {}),
+      api.post<WorkoutSet>('/workout-exercise-logs/' + exerciseLogId + '/sets', {
+        clientId: crypto.randomUUID(),
+      }),
     onSuccess: invalidate,
   });
 
@@ -311,7 +328,16 @@ export default function WorkoutSessionPageV2() {
          order server-side, and the picker promises "they are added in the
          order you picked them" — parallel posts would race that promise. */
       for (const exerciseId of exerciseIds) {
-        await api.post('/workout-sessions/' + sessionId + '/exercises', { exerciseId });
+        /* Without a prescription the log's snapshot is null, and the logger
+           falls back to `unprescribedDefinition` — which declares EVERY field,
+           so the card rendered SET / PREVIOUS / LB / REPS / TIME / DISTANCE.
+           Mid-session additions get the ordinary strength default; the
+           exploration's own wording is "each with the default prescription
+           for its kind". */
+        await api.post('/workout-sessions/' + sessionId + '/exercises', {
+          exerciseId,
+          prescription: DEFAULT_ADDED_PRESCRIPTION,
+        });
       }
     },
     onSuccess: async () => {

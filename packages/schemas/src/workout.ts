@@ -141,13 +141,27 @@ export const createWorkoutSetSchema = z.object({
   // 0). Previously unconstrained server-side, so a negative value the
   // client already blocked could still reach the API directly (relevant
   // now that a completed set's values are editable, not just a new one's).
-  weightValue: z.number().nonnegative().optional(),
-  weightUnit: z.enum(['lb', 'kg']).optional(),
-  reps: z.number().int().nonnegative().optional(),
-  durationSeconds: z.number().int().nonnegative().optional(),
-  distanceValue: z.number().nonnegative().optional(),
-  distanceUnit: z.enum(['m', 'km', 'mi']).optional(),
-  rpe: z.number().min(0).max(10).optional(),
+  /*
+   * Every value field is `nullish`, not `optional`.
+   *
+   * The logger sends one body per row containing every field that row's
+   * representation manages, using `null` for the empties — a row is a whole
+   * unit, not a patch. `optional()` accepted an absent key but *rejected*
+   * `null`, so every save from the v2 logger failed with
+   * `body/rpe Invalid input: expected number, received null`. Leaving RPE
+   * blank, which is what almost everyone does, broke logging entirely.
+   *
+   * The two are distinguished rather than conflated: **absent means leave
+   * alone, null means clear**. Anything else makes an optional value
+   * impossible to remove once set.
+   */
+  weightValue: z.number().nonnegative().nullish(),
+  weightUnit: z.enum(['lb', 'kg']).nullish(),
+  reps: z.number().int().nonnegative().nullish(),
+  durationSeconds: z.number().int().nonnegative().nullish(),
+  distanceValue: z.number().nonnegative().nullish(),
+  distanceUnit: z.enum(['m', 'km', 'mi']).nullish(),
+  rpe: z.number().min(0).max(10).nullish(),
   /**
    * Whether the set was actually performed. Sets pre-populated from a program
    * are stored as `false` until the user logs them; PR detection ignores those

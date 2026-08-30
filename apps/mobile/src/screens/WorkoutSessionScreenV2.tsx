@@ -27,6 +27,7 @@ import {
   type SessionField,
 } from '@setframe/domain';
 import { useApiClient } from '../lib/api-client';
+import { createClientId } from '../lib/client-id';
 import { useTheme } from '../theme/ThemeProvider';
 import { ExerciseTableCard, CARD_WIDTH } from '../components/workout-v2/ExerciseTableCard';
 import { ExercisePickerV2 } from '../components/exercise-picker/ExercisePickerV2';
@@ -51,6 +52,13 @@ import {
 type RowSyncState = Record<string, 'pending' | 'error' | undefined>;
 
 const EMPTY_VALUES: SetRowValues = { weight: '', reps: '', duration: '', distance: '', rpe: '' };
+
+/**
+ * What an exercise added mid-session is prescribed. See the web counterpart:
+ * one row to log into, and weight-and-reps columns rather than every column
+ * the unprescribed fallback declares.
+ */
+const DEFAULT_ADDED_PRESCRIPTION = { kind: 'sets_reps' as const, sets: 1 };
 
 export default function WorkoutSessionV2Screen() {
   const { sessionId: raw } = useLocalSearchParams<{ sessionId?: string | string[] }>();
@@ -88,8 +96,14 @@ export default function WorkoutSessionV2Screen() {
   });
 
   const addSet = useMutation({
+    /* `clientId` is REQUIRED by createWorkoutSetSchema, and posting `{}` made
+       "+ Add set" fail with a 400 every time. It is the idempotency key, so
+       the client generates it — that is what makes a retry converge rather
+       than create a duplicate set. */
     mutationFn: (exerciseLogId: string) =>
-      api.post<WorkoutSet>(`/workout-exercise-logs/${exerciseLogId}/sets`, {}),
+      api.post<WorkoutSet>(`/workout-exercise-logs/${exerciseLogId}/sets`, {
+        clientId: createClientId(),
+      }),
     onSuccess: invalidate,
   });
 
@@ -107,7 +121,13 @@ export default function WorkoutSessionV2Screen() {
          server-side, and the picker promises they are added in the order
          picked — parallel posts would race that promise. */
       for (const exerciseId of exerciseIds) {
-        await api.post(`/workout-sessions/${sessionId}/exercises`, { exerciseId });
+        /* Without a prescription the snapshot is null and the logger falls
+           back to `unprescribedDefinition`, which declares EVERY field — the
+           card rendered SET / PREVIOUS / LB / REPS / TIME / DISTANCE. */
+        await api.post(`/workout-sessions/${sessionId}/exercises`, {
+          exerciseId,
+          prescription: DEFAULT_ADDED_PRESCRIPTION,
+        });
       }
     },
     onSuccess: async () => {

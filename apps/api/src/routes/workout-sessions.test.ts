@@ -718,3 +718,103 @@ describe('POST /v1/workout-sessions/:sessionId/save-as-workout', () => {
     await app.close();
   });
 });
+
+/**
+ * Production bug report, session f74e54e0: a 5 x 8 deadlift arrived at the
+ * gym as one set, already marked complete, with no way to add a set or edit
+ * an input — and every blur returned
+ * `body/rpe Invalid input: expected number, received null`.
+ *
+ * Four distinct defects, each pinned here.
+ */
+describe('workout logger regressions (production report)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSelect.mockReset();
+    mockInsert.mockReset();
+    mockUpdate.mockReset();
+  });
+
+  const setRow = {
+    id: '44444444-4444-4444-8444-444444444444',
+    exerciseLogId: logRow.id,
+    clientId: '55555555-5555-4555-8555-555555555555',
+    sortOrder: 0,
+    setType: 'working',
+    reps: 8,
+    loadValue: '225',
+    loadUnit: 'lb',
+    durationSeconds: null,
+    distanceValue: null,
+    distanceUnit: null,
+    rpe: '8',
+    completed: true,
+    isPrWeight: false,
+    isPrReps: false,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  it('accepts a null rpe, because the logger sends one for every empty field', async () => {
+    /* The row is sent as a whole unit with nulls for the blanks. `optional()`
+       accepted an absent key but rejected null, so leaving RPE blank — what
+       almost everyone does — failed every save with a 400. */
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([{ set: setRow, log: logRow, session: sessionRow }]))
+      .mockReturnValue(selectChain([]));
+    mockUpdate.mockReturnValue(updateChain([{ ...setRow, rpe: null }]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/v1/workout-sets/${setRow.id}`,
+      headers: authHeader,
+      payload: { weightValue: 225, reps: 8, rpe: null },
+    });
+
+    expect(response.statusCode).toBe(200);
+    await app.close();
+  });
+
+  it('treats an absent field as "leave alone" and an explicit null as "clear"', async () => {
+    /* Conflating the two made an optional value impossible to remove once
+       set — `?? existing` silently kept the old RPE forever. */
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([{ set: setRow, log: logRow, session: sessionRow }]))
+      .mockReturnValue(selectChain([]));
+    mockUpdate.mockReturnValue(updateChain([setRow]));
+
+    const app = buildApp();
+    await app.inject({
+      method: 'PATCH',
+      url: `/v1/workout-sets/${setRow.id}`,
+      headers: authHeader,
+      payload: { rpe: null },
+    });
+
+    const written = mockUpdate.mock.results[0]!.value.set.mock.calls[0][0];
+    expect(written.rpe).toBeNull();
+    /* reps was absent from the body, so the stored value survives. */
+    expect(written.reps).toBe(setRow.reps);
+    await app.close();
+  });
+
+  it('rejects a set update that is not a number, so the loosening did not open a hole', async () => {
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([{ set: setRow, log: logRow, session: sessionRow }]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/v1/workout-sets/${setRow.id}`,
+      headers: authHeader,
+      payload: { reps: -3 },
+    });
+
+    expect(response.statusCode).toBe(400);
+    await app.close();
+  });
+});

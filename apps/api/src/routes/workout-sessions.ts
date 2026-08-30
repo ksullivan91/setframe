@@ -173,6 +173,29 @@ export function expandPrescriptionToSetDrafts(prescription: Prescription): Array
   }
 }
 
+/**
+ * Resolves one field of a partial set update.
+ *
+ * Three cases, and conflating any two of them is a bug we have shipped: the
+ * key is **absent** (leave the stored value alone), the key is **null**
+ * (clear it), or it carries a value (write it).
+ */
+function pick<T>(body: object, key: string, incoming: T | null | undefined, current: T | null): T | null {
+  if (!(key in body)) return current;
+  return incoming ?? null;
+}
+
+/** Same three cases, for the numeric columns Drizzle models as strings. */
+function pickNumeric(
+  body: object,
+  key: string,
+  incoming: number | null | undefined,
+  current: string | null,
+): string | null {
+  if (!(key in body)) return current;
+  return incoming == null ? null : incoming.toString();
+}
+
 const sessionParamsSchema = z.object({ sessionId: z.string().uuid() });
 const exerciseLogParamsSchema = z.object({ id: z.string().uuid() });
 const setParamsSchema = z.object({ setId: z.string().uuid() });
@@ -530,18 +553,32 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
             const templateExercise = templateExerciseByKey.get(`${log.exerciseId}::${log.sortOrder}`);
             const plannedSets = templateExercise ? plannedSetsByExerciseId.get(templateExercise.id) : undefined;
             if (plannedSets?.length) {
-              // Individually-specified planned sets take precedence over the
-              // summary prescription when present (user-experience-redesign.md §9).
+              /* Individually-specified planned sets take precedence over the
+                 summary prescription when present
+                 (user-experience-redesign.md §9).
+       
+                 **Structure only, never values** — the same rule
+                 `expandPrescriptionToSetDrafts` documents at length above.
+                 This branch was missed when that fix landed and kept copying
+                 `reps` and `loadValue` onto the rows it created. Completion is
+                 derived from whether a set carries its representation's
+                 required fields, so a `sets_reps` exercise with planned sets
+                 arrived at the gym already marked complete, before the user
+                 had lifted anything. Reported from production against a
+                 5 x 8 deadlift.
+       
+                 `setType` stays, because it is structure rather than
+                 performance. */
               return plannedSets.map((planned, setIndex) => ({
                 exerciseLogId: log.id,
                 clientId: randomUUID(),
                 sortOrder: setIndex,
                 setType: planned.setType,
-                reps: planned.reps,
-                loadValue: planned.loadValue,
+                reps: null as number | null,
+                loadValue: null as string | null,
                 loadUnit: planned.loadUnit,
-                durationSeconds: planned.durationSeconds,
-                distanceValue: planned.distanceValue,
+                durationSeconds: null as number | null,
+                distanceValue: null as string | null,
                 distanceUnit: planned.distanceUnit,
                 rpe: null,
                 completed: false,
@@ -963,13 +1000,16 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
         .update(workoutSet)
         .set({
           setType: nextSetType,
-          loadValue: request.body.weightValue?.toString() ?? ownedSet.set.loadValue,
-          loadUnit: request.body.weightUnit ?? ownedSet.set.loadUnit,
-          reps: request.body.reps ?? ownedSet.set.reps,
-          durationSeconds: request.body.durationSeconds ?? ownedSet.set.durationSeconds,
-          distanceValue: request.body.distanceValue?.toString() ?? ownedSet.set.distanceValue,
-          distanceUnit: request.body.distanceUnit ?? ownedSet.set.distanceUnit,
-          rpe: request.body.rpe?.toString() ?? ownedSet.set.rpe,
+          /* Absent leaves the stored value alone; an explicit null clears it.
+             `??` alone conflated the two, which made an optional value
+             impossible to remove once set. */
+          loadValue: pickNumeric(request.body, 'weightValue', request.body.weightValue, ownedSet.set.loadValue),
+          loadUnit: pick(request.body, 'weightUnit', request.body.weightUnit, ownedSet.set.loadUnit),
+          reps: pick(request.body, 'reps', request.body.reps, ownedSet.set.reps),
+          durationSeconds: pick(request.body, 'durationSeconds', request.body.durationSeconds, ownedSet.set.durationSeconds),
+          distanceValue: pickNumeric(request.body, 'distanceValue', request.body.distanceValue, ownedSet.set.distanceValue),
+          distanceUnit: pick(request.body, 'distanceUnit', request.body.distanceUnit, ownedSet.set.distanceUnit),
+          rpe: pickNumeric(request.body, 'rpe', request.body.rpe, ownedSet.set.rpe),
           // Saving a set is the act of logging it, so an edit marks it
           // performed unless the client says otherwise. Without this, sets
           // seeded from a program would stay `completed: false` forever and

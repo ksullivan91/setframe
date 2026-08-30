@@ -767,6 +767,22 @@ export const handlers = [
 
   http.post('*/v1/workout-exercise-logs/:exerciseLogId/sets', async ({ params, request }) => {
     const body = (await request.json()) as Record<string, unknown>;
+    /* `clientId` is REQUIRED by createWorkoutSetSchema. The mock accepted a
+       body without one, so "+ Add set" appeared to work in dev while 400ing
+       in production for every user. Mirroring the server's validation is what
+       makes a mock worth having. */
+    if (typeof body.clientId !== 'string') {
+      return HttpResponse.json(
+        {
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'body/clientId Invalid input: expected string, received undefined',
+            requestId: 'mock',
+          },
+        },
+        { status: 400 },
+      );
+    }
     const existing = mockSets.find((s) => s.clientId === body.clientId);
     if (existing) return HttpResponse.json(existing);
     const created = {
