@@ -4,8 +4,10 @@
 **Figma:** section `🔬 Exploration — Training page redesign` on the 📱 Mobile page
 **Builds on:** `docs/design/exercise-examples-exploration.md`, the Hevy
 teardown (`Backlog/research/`), and ADR 0011's table-logging language.
-**Flows off this:** `docs/design/training-flow-build-your-own.md` — the first
-of the three routes off step 1, drawn screen by screen in its own section.
+**Flows off this:** the routes off step 1, each drawn screen by screen in
+its own section — `docs/design/training-flow-build-your-own.md` and
+`docs/design/training-flow-just-start-training.md`. "Start from a template",
+the third, is still undrawn and has no data behind it.
 
 | # | Frame | Node |
 |---|---|---|
@@ -128,6 +130,14 @@ Taken from the teardown's **Adapt**, not its Adopt, and the wording matters:
 | Afterwards | "Save as a workout" offers to create a `day_type` from what was performed. **Intent authored from fact** — the reverse of the usual direction, and the reason this is a design question. |
 | What it must not do | Write back to an existing `day_type`, or turn the session into a template implicitly. ADR 0005 keeps intent and fact separate; this creates *new* intent on request and never mutates existing intent. |
 | **Open question** | Whether an unplanned session counts toward streaks and `weeksTrained`. It is a real session, so probably yes — but that is a product call with consequences in `packages/domain/src/training-trends.ts`. |
+
+**Now drawn**, in `docs/design/training-flow-just-start-training.md`. Two
+schema facts settled it and neither needed a migration: `templateId` is
+nullable, and — the one that mattered — **`day_type` has no program
+reference at all**, so a workout saved out of an ad hoc session can exist
+with no plan anywhere in the account. Without that, saving would have had to
+conjure a plan to hold the workout, and "train first, decide later" would
+have collapsed at its last step.
 
 ---
 
