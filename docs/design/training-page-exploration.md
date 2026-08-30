@@ -4,6 +4,8 @@
 **Figma:** section `🔬 Exploration — Training page redesign` on the 📱 Mobile page
 **Builds on:** `docs/design/exercise-examples-exploration.md`, the Hevy
 teardown (`Backlog/research/`), and ADR 0011's table-logging language.
+**Flows off this:** `docs/design/training-flow-build-your-own.md` — the first
+of the three routes off step 1, drawn screen by screen in its own section.
 
 | # | Frame | Node |
 |---|---|---|
