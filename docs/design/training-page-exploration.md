@@ -10,7 +10,15 @@ teardown (`Backlog/research/`), and ADR 0011's table-logging language.
 | `Explore/Mobile/Training — Overview` | `146:709` |
 | `Explore/Mobile/Training — Workout editor` | `147:708` |
 | `Explore/Mobile/Training — No program yet` | `148:708` |
+| `Explore/Mobile/Training — Schedule` | `150:708` |
+| `Explore/Mobile/Training — Programs` | `151:708` |
+| `Explore/Mobile/Training — Prescription sheet` | `152:708` |
 | `Explore/Spec/TrainingRedesign` | `149:708` |
+| `Explore/Spec/TrainingEmptyStates` | `152:824` |
+
+Together these cover every path the overview offers: the three tabs it
+replaces, the editor it pushes to, the sheet that edits a prescription, and
+the three empty states that had no design at all.
 
 ---
 
@@ -116,6 +124,74 @@ Taken from the teardown's **Adapt**, not its Adopt, and the wording matters:
 | Editor · **+ Add exercise** | Opens the picker with multi-select. Returning appends every selection in order, each with its kind's default prescription. |
 | Editor · hint line | *"Editing this workout changes the plan, not any workout you have already logged."* ADR 0005's separation stated where someone might doubt it, rather than in a doc they will not read. |
 | Empty states | A program with no workouts, a workout with no exercises, a week with nothing scheduled. **None exist today; all three are reachable in normal use.** |
+
+---
+
+## 4a. Schedule (`150:708`)
+
+Replaces the Schedule tab. Two things live here that the product has never
+surfaced:
+
+**Repeat mode.** `cycle_length_weeks` is real in the schema — set means a
+block, null means it repeats every week — and nothing has ever shown it.
+Switching to a block asks for a length; switching away keeps the pattern
+and drops the end date.
+
+**Per-date changes.** Story 21's overrides, surfaced where they are made
+rather than on Today only. Each row states what changed and offers Undo,
+under the line users most often get wrong: *swapping one date does not
+change the weekly pattern.*
+
+A day row opens a picker of this plan's workouts plus Rest. `dayTypeId` is
+`NOT NULL`, so **Rest is the absence of a slot**, not a slot pointing at
+nothing. Nothing here touches a logged session — rescheduling changes
+intent, and sessions snapshot their prescription at start (ADR 0005).
+
+## 4b. Plans (`151:708`)
+
+Reached from the overview's **Change**, not from a tab. Named "Your plans"
+rather than Programs — the object stays, the jargon does not.
+
+The active plan is badged **"Driving Today"**, saying what it *does* rather
+than using the word Active. Stories 24–26 built a deliberate
+selected-versus-active distinction; on a phone there is no editing context
+to hold, so this list only ever sets active and pushes the rest.
+
+Switching is a **pointer move** — `program_version` keeps the history — so
+it needs no confirmation and no migration. The reassurance is in the copy
+rather than a dialog: *"Switching keeps everything. Your logged workouts
+stay with the plan you did them on."*
+
+> Still open, and worth recording: whether one person should have more than
+> one plan at all. The multi-program model was built deliberately, not
+> accidentally, so collapsing it means deciding what happens to the weeks
+> already run under a plan you leave.
+
+## 4c. Prescription sheet (`152:708`)
+
+Opened from an exercise row's `⋯`, replacing a modal that today sits inline
+in a builder panel.
+
+**Kind is read-only**, shown as a pill with "set when added", matching the
+shipped `ExerciseEditModal`. Changing kind would change what every
+already-logged set *means* — the same columns read as a different
+representation.
+
+Fields follow the kind, from the same `prescriptionDefinitions` the logger's
+columns use. **Blank is allowed** — story 19 made planned values optional —
+and the hint says so rather than leaving it to be discovered.
+
+## 4d. Empty states (`152:824`)
+
+| State | Reached by |
+|---|---|
+| Plan with no workouts | Immediately after creating a plan — the most common way to meet an empty Training page. |
+| Workout with no exercises | Creating a workout, **and** removing the last exercise from one. The second path matters: it is a state you fall into rather than start in. |
+| Week with nothing scheduled | A plan with workouts but no slots, which guided setup can exit into. |
+
+Shared shape: one sentence saying what the thing is for, then one button
+naming the action. No illustration — these are transient states on the way
+somewhere, not destinations worth decorating.
 
 ---
 
