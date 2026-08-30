@@ -28,3 +28,4 @@ export * from './week';
 export * from './duration';
 export * from './quick-log';
 export * from './sync-status';
+export * from './training-overview';
