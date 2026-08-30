@@ -4,6 +4,9 @@
 **Scope:** Additive only — nothing in the agreed table-logging design changes.
 **Figma:** section `🔬 Exploration — Exercise examples` on the 📱 Mobile page
 **Related:** `docs/design/workout-logging-table.md`, `docs/design/workout-logging-interactions.md`
+**Consumed by:** `docs/design/training-page-exploration.md` — the Training
+redesign uses this picker as its single add-exercise surface, and reuses the
+illustration tile in the workout editor.
 
 Prompted by Hevy's treatment: every exercise row in their picker and their
 routine builder carries a small line drawing and a primary-muscle

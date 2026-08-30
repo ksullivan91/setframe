@@ -996,3 +996,19 @@ the logger variant is a clone, not an edit. Write-up:
 The line drawings in these frames are **schematic placeholders** authored
 as inline SVG to occupy the slot, not proposed artwork. Do not treat them
 as a style direction.
+
+### Exploration — Training page redesign (2026-08-30)
+
+A third Figma **section** on the 📱 Mobile page, below the exercise-examples
+exploration and titled `🔬 Exploration — Training page redesign (not signed
+off)`. Holds `Explore/Mobile/Training — Overview` (`146:709`),
+`— Workout editor` (`147:708`), `— No program yet` (`148:708`) and
+`Explore/Spec/TrainingRedesign` (`149:708`).
+
+Notable because **mobile Training had no frame in this file at all** before
+this — it was built (1,143 lines) and never designed. The web equivalent,
+`Screen/Web/Training` (`73:316`), is unchanged and stays the record for
+1280.
+
+Write-up: `docs/design/training-page-exploration.md`. The line drawings are
+the same schematic placeholders as the picker exploration; see its note.
