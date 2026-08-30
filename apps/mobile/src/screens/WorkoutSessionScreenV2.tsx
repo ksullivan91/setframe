@@ -96,9 +96,38 @@ export default function WorkoutSessionV2Screen() {
   );
 
   if (!session) {
+    /* The header is chrome, not data — rendering it immediately means the
+       screen does not visibly reflow when the session arrives, and there is a
+       back affordance during a slow load rather than a bare word. */
     return (
-      <View style={[styles.screen, { backgroundColor: theme.surface.canvas }]}>
-        <Text style={[styles.title, { color: theme.text.primary }]}>Loading…</Text>
+      <View style={[styles.screen, { backgroundColor: theme.surface.canvas }]} testID="workout-v2">
+        <View
+          style={[
+            styles.header,
+            {
+              paddingTop: insets.top + 16,
+              backgroundColor: theme.surface.raised,
+              borderBottomColor: theme.border.subtle,
+            },
+          ]}
+        >
+          <View style={styles.headerRow}>
+            <View style={styles.titleGroup}>
+              <Pressable
+                onPress={() => router.back()}
+                accessibilityRole="button"
+                accessibilityLabel="Back to Today"
+                style={styles.back}
+              >
+                <Text style={[styles.backGlyph, { color: theme.text.secondary }]}>‹</Text>
+              </Pressable>
+              <Text style={[styles.title, { color: theme.text.primary }]}>Workout session</Text>
+            </View>
+          </View>
+          <Text style={[styles.meta, { color: theme.text.secondary }]}>
+            {query.isError ? "Couldn't load this workout." : 'Loading…'}
+          </Text>
+        </View>
       </View>
     );
   }
