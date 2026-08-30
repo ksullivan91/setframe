@@ -908,7 +908,10 @@ export function TodayPage() {
                   hasNoProgram ? (
                     <Button onClick={() => navigate('/training/new')}>Start guided setup</Button>
                   ) : (
-                    <Button onClick={() => navigate('/training?tab=programs')}>Choose a program</Button>
+                    /* Training v2 has no tabs, so `?tab=programs` no longer
+                       selects anything — the plan card is the first thing on
+                       the page. */
+                    <Button onClick={() => navigate('/training')}>Choose a program</Button>
                   )
                 ) : null}
                 {todayWorkoutState === 'in-progress' ? (
