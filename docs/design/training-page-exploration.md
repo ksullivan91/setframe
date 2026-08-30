@@ -13,6 +13,7 @@ teardown (`Backlog/research/`), and ADR 0011's table-logging language.
 | `Explore/Mobile/Training — Schedule` | `150:708` |
 | `Explore/Mobile/Training — Programs` | `151:708` |
 | `Explore/Mobile/Training — Prescription sheet` | `152:708` |
+| `Explore/Mobile/Training — Assign a day` | `156:708` |
 | `Explore/Spec/TrainingRedesign` | `149:708` |
 | `Explore/Spec/TrainingEmptyStates` | `152:824` |
 
@@ -142,10 +143,39 @@ rather than on Today only. Each row states what changed and offers Undo,
 under the line users most often get wrong: *swapping one date does not
 change the weekly pattern.*
 
-A day row opens a picker of this plan's workouts plus Rest. `dayTypeId` is
-`NOT NULL`, so **Rest is the absence of a slot**, not a slot pointing at
-nothing. Nothing here touches a logged session — rescheduling changes
-intent, and sessions snapshot their prescription at start (ADR 0005).
+A day row opens the assignment sheet (§4a.1). Nothing here touches a logged
+session — rescheduling changes intent, and sessions snapshot their
+prescription at start (ADR 0005).
+
+### 4a.1 Assigning a day (`156:708`)
+
+What the chevron opens. It was specified and never drawn, and drawing it
+turned up a schema affordance the design would otherwise have quietly
+removed.
+
+**A day can hold several workouts.** `program_schedule_slot` has **no unique
+constraint** on `(programVersionId, dayIndex)` and carries a `sortOrder`, so
+several slots can share a day, in order. Designing this as single-select
+would have ruled out two-a-days the data model already allows — so it is
+**multi-select**, and the check becomes a number once more than one is
+chosen.
+
+**Rest clears the day.** `dayTypeId` is `NOT NULL`, so Rest cannot be a slot
+pointing at nothing — choosing it **deletes** the day's slots. That is why it
+sits below a divider and reads "Clears whatever is on this day": it is a
+different kind of action from the four above it.
+
+**Scope is the weekday**, not the date. The footer says so and points at
+"Changes to specific days" for the one-date case, because confusing the two
+is the mistake this screen most invites.
+
+No Save button — selecting writes immediately and the row behind the sheet
+updates. The sheet is a picker, not a form.
+
+> **Still undrawn:** `program_schedule_slot.weekNumber` is nullable — null
+> repeats every week, a number pins a slot to one week of a block. In block
+> mode this sheet needs a week selector too. It is the only part of the
+> schedule model still without a design.
 
 ## 4b. Plans (`151:708`)
 
