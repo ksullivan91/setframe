@@ -818,3 +818,122 @@ describe('workout logger regressions (production report)', () => {
     await app.close();
   });
 });
+
+/**
+ * A set added after a deletion must land at the END of the list.
+ *
+ * Reported: "a new/added set shouldn't be at the top of the list."
+ * `sortOrder: existing.length` collides once anything has been deleted —
+ * sets at 0, 1, 2 minus the middle leaves 0 and 2, and the next add also
+ * takes 2. The session reads back ordered by sortOrder, so two rows sharing
+ * one appear in an arbitrary order.
+ */
+describe('POST /v1/workout-exercise-logs/:id/sets ordering', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSelect.mockReset();
+    mockInsert.mockReset();
+  });
+
+  /* Ids and clientIds must be real UUIDs — workoutSetSchema validates both,
+     and a fixture that fails validation 500s the route while an assertion on
+     the INSERT still passes: a test that cannot fail for the reason it
+     exists. */
+  const existingSet = (sortOrder: number) => ({
+    id: `11111111-1111-4111-8111-1111111111${sortOrder}${sortOrder}`,
+    exerciseLogId: logRow.id,
+    /* A real UUID: workoutSetSchema validates it, and a fixture that fails
+       validation makes the route 500 while an assertion on the INSERT still
+       passes — a test that cannot fail for the reason it exists. */
+    clientId: `00000000-0000-4000-8000-0000000000${sortOrder}${sortOrder}`,
+    sortOrder,
+    setType: 'working',
+    reps: null,
+    loadValue: null,
+    loadUnit: null,
+    durationSeconds: null,
+    distanceValue: null,
+    distanceUnit: null,
+    rpe: null,
+    completed: false,
+    isPrWeight: false,
+    isPrReps: false,
+    notes: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+
+  it('takes one past the highest sortOrder, not the row count', async () => {
+    /* A gap left by a deletion: 0 and 2 present, so the next is 3 — never 2,
+       which already exists. */
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([{ log: logRow, session: sessionRow }]))
+      /* The clientId dedupe lookup runs first and finds nothing… */
+      .mockReturnValueOnce(selectChain([]))
+      /* …then the sets are read to pick the next sortOrder. A gap at 1. */
+      .mockReturnValueOnce(selectChain([existingSet(0), existingSet(2)]))
+      .mockReturnValue(selectChain([]));
+    mockInsert.mockReturnValueOnce(insertChain([existingSet(3)]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: `/v1/workout-exercise-logs/${logRow.id}/sets`,
+      headers: authHeader,
+      payload: { clientId: '99999999-9999-4999-8999-999999999999' },
+    });
+
+    expect(response.statusCode).toBe(201);
+    const written = mockInsert.mock.results[0]!.value.values.mock.calls[0][0];
+    expect(written.sortOrder).toBe(3);
+    await app.close();
+  });
+
+  it('does not mark an empty new set as completed', async () => {
+    /* Same "complete before you lifted anything" defect as the planned-set
+       expansion: a row created with no values has not been performed. */
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([{ log: logRow, session: sessionRow }]))
+      .mockReturnValueOnce(selectChain([]))
+      .mockReturnValue(selectChain([]));
+    mockInsert.mockReturnValueOnce(insertChain([existingSet(0)]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: `/v1/workout-exercise-logs/${logRow.id}/sets`,
+      headers: authHeader,
+      payload: { clientId: '99999999-9999-4999-8999-999999999999' },
+    });
+
+    expect(response.statusCode).toBe(201);
+    const written = mockInsert.mock.results[0]!.value.values.mock.calls[0][0];
+    expect(written.completed).toBe(false);
+    expect(written.sortOrder).toBe(0);
+    await app.close();
+  });
+
+  it('marks a set created WITH values as performed', async () => {
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([{ log: logRow, session: sessionRow }]))
+      .mockReturnValueOnce(selectChain([]))
+      .mockReturnValue(selectChain([]));
+    mockInsert.mockReturnValueOnce(insertChain([existingSet(0)]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: `/v1/workout-exercise-logs/${logRow.id}/sets`,
+      headers: authHeader,
+      payload: { clientId: '99999999-9999-4999-8999-999999999999', weightValue: 225, reps: 8 },
+    });
+
+    expect(response.statusCode).toBe(201);
+    const written = mockInsert.mock.results[0]!.value.values.mock.calls[0][0];
+    expect(written.completed).toBe(true);
+    await app.close();
+  });
+});

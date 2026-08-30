@@ -72,11 +72,20 @@ export function SetRowV2({
   const committedRef = useRef<SetRowValues>(values);
   const focusedCount = useRef(0);
 
+  /*
+   * Keyed on the VALUES, not the object. The parent builds this prop as an
+   * inline literal, so it has a fresh identity on every render; depending on
+   * the object meant the effect fired constantly and reset the draft to
+   * whatever the server still had — the reported flicker where a field goes
+   * blank, shows the old number, then finally the new one.
+   */
+  const valuesKey = JSON.stringify(values);
   useEffect(() => {
     if (focusedCount.current > 0) return;
     setDraft(values);
     committedRef.current = values;
-  }, [values]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [valuesKey]);
 
   /**
    * "Blur" here means focus has left the ROW, not a field. React Native has no

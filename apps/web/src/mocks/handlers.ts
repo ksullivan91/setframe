@@ -770,7 +770,26 @@ export const handlers = [
      other test inheriting the change. */
   http.get('*/v1/workout-sessions/:sessionId', async ({ params }) => {
     await slowRead();
-    return HttpResponse.json(mockControl.sessionOverride() ?? {
+    const override = mockControl.sessionOverride() as
+      | { exercises?: { id: string; sets: unknown[] }[] }
+      | undefined;
+    if (override) {
+      /* Merge in sets created during this run. The POST handler appended to
+         `mockSets` but no read ever returned them, so a newly added set
+         vanished on the next refetch — the mock creating something it then
+         denies exists. */
+      return HttpResponse.json({
+        ...override,
+        exercises: (override.exercises ?? []).map((log) => ({
+          ...log,
+          sets: [
+            ...log.sets,
+            ...mockSets.filter((set) => set.exerciseLogId === log.id),
+          ],
+        })),
+      });
+    }
+    return HttpResponse.json({
       id: params.sessionId,
       userId: mockUserId,
       templateId: '30000000-0000-0000-0000-000000000003',

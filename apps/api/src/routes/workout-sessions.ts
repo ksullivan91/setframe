@@ -196,6 +196,21 @@ function pickNumeric(
   return incoming == null ? null : incoming.toString();
 }
 
+/** Whether a create-set body carries any performance value at all. */
+function hasPerformedValue(body: {
+  weightValue?: number | null;
+  reps?: number | null;
+  durationSeconds?: number | null;
+  distanceValue?: number | null;
+}): boolean {
+  return (
+    body.weightValue != null ||
+    body.reps != null ||
+    body.durationSeconds != null ||
+    body.distanceValue != null
+  );
+}
+
 const sessionParamsSchema = z.object({ sessionId: z.string().uuid() });
 const exerciseLogParamsSchema = z.object({ id: z.string().uuid() });
 const setParamsSchema = z.object({ setId: z.string().uuid() });
@@ -950,12 +965,23 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
         .select()
         .from(workoutSet)
         .where(eq(workoutSet.exerciseLogId, request.params.exerciseLogId));
+      /* One past the highest, NOT the row count.
+      
+         `existing.length` collides the moment a set has been deleted: sets at
+         0, 1, 2 minus the middle one leaves 0 and 2, and the next add takes
+         sortOrder 2 as well. The session reads back ordered by sortOrder, so
+         two rows sharing one puts them in an arbitrary order — which is how a
+         newly added set appears somewhere other than the end of the list. */
+      const nextSortOrder = existing.reduce(
+        (highest, row) => Math.max(highest, row.sortOrder + 1),
+        0,
+      );
       const rows = await db
         .insert(workoutSet)
         .values({
           exerciseLogId: request.params.exerciseLogId,
           clientId: request.body.clientId,
-          sortOrder: existing.length,
+          sortOrder: nextSortOrder,
           setType: request.body.setType,
           loadValue: request.body.weightValue?.toString() ?? null,
           loadUnit: request.body.weightUnit ?? null,
@@ -964,7 +990,12 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
           distanceValue: request.body.distanceValue?.toString() ?? null,
           distanceUnit: request.body.distanceUnit ?? null,
           rpe: request.body.rpe?.toString() ?? null,
-          completed: true,
+          /* A set created with no values has not been performed. Storing it
+             as completed marked empty rows as done the moment they appeared,
+             which is the same "complete before you lifted anything" defect
+             the planned-set expansion had. Completion for display is derived
+             from field presence, so this column only has to stop lying. */
+          completed: hasPerformedValue(request.body),
           isPrWeight: false,
           isPrReps: false,
           notes: null,

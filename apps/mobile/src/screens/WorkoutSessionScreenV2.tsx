@@ -32,6 +32,8 @@ import { useTheme } from '../theme/ThemeProvider';
 import { ExerciseTableCard, CARD_WIDTH } from '../components/workout-v2/ExerciseTableCard';
 import { ExercisePickerV2 } from '../components/exercise-picker/ExercisePickerV2';
 import { ExerciseCardsSkeleton } from '../components/training-v2/TrainingSkeletons';
+import { SetTypeSheet } from '../components/workout-v2/SetTypeSheet';
+import { ExerciseActionsSheet } from '../components/workout-v2/ExerciseActionsSheet';
 import {
   SetRowV2,
   type SetRowStatus,
@@ -58,6 +60,40 @@ const EMPTY_VALUES: SetRowValues = { weight: '', reps: '', duration: '', distanc
  * one row to log into, and weight-and-reps columns rather than every column
  * the unprescribed fallback declares.
  */
+/** A body value as the cached set stores it: a number, or null when cleared. */
+function numeric(value: unknown): number | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  return typeof value === 'number' ? value : Number(value);
+}
+
+/**
+ * A placeholder set, shown while the real one is created. Its `id` is the
+ * `clientId` the server echoes back, so the row is stable across the swap.
+ */
+function draftSet(exerciseLogId: string, clientId: string, sortOrder: number) {
+  const now = new Date().toISOString();
+  return {
+    id: clientId,
+    exerciseLogId,
+    clientId,
+    sortOrder,
+    setType: 'working' as const,
+    weightValue: null,
+    weightUnit: null,
+    reps: null,
+    durationSeconds: null,
+    distanceValue: null,
+    distanceUnit: null,
+    rpe: null,
+    completed: false,
+    isPrWeight: false,
+    isPrReps: false,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
 const DEFAULT_ADDED_PRESCRIPTION = { kind: 'sets_reps' as const, sets: 1 };
 
 export default function WorkoutSessionV2Screen() {
@@ -80,15 +116,63 @@ export default function WorkoutSessionV2Screen() {
   });
 
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [setSheetFor, setSetSheetFor] = useState<string | null>(null);
+  const [actionsFor, setActionsFor] = useState<string | null>(null);
+  const [rpeShownFor, setRpeShownFor] = useState<Record<string, boolean>>({});
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ['workout-session', sessionId] });
 
+  const sessionKey = ['workout-session', sessionId];
+
+  /**
+   * Writes a change straight into the cached session. Counterpart of the web
+   * page's helper — every mutation on this screen is optimistic, because a
+   * control that does nothing for a round trip reads as broken and gets
+   * tapped again.
+   */
+  const patchCachedSession = (
+    update: (session: WorkoutSessionDetail) => WorkoutSessionDetail,
+  ) => {
+    const previous = queryClient.getQueryData<WorkoutSessionDetail>(sessionKey);
+    if (previous) queryClient.setQueryData(sessionKey, update(previous));
+    return previous;
+  };
+
   const saveSet = useMutation({
     mutationFn: ({ setId, body }: { setId: string; body: Record<string, unknown> }) =>
       api.patch<WorkoutSet>(`/workout-sets/${setId}`, body),
-    onMutate: ({ setId }) => setSync((prev) => ({ ...prev, [setId]: 'pending' })),
-    onError: (_error, { setId }) => setSync((prev) => ({ ...prev, [setId]: 'error' })),
+    onMutate: ({ setId, body }) => {
+      setSync((prev) => ({ ...prev, [setId]: 'pending' }));
+      /* The typed values land in the cache immediately, so the row keeps
+         showing them instead of reverting to the server's older copy while
+         the request is in flight. */
+      const previous = patchCachedSession((session) => ({
+        ...session,
+        exercises: session.exercises.map((log) => ({
+          ...log,
+          sets: log.sets.map((item) =>
+            item.id === setId
+              ? {
+                  ...item,
+                  weightValue: numeric(body.weightValue) ?? item.weightValue,
+                  reps: numeric(body.reps) ?? item.reps,
+                  durationSeconds: numeric(body.durationSeconds) ?? item.durationSeconds,
+                  distanceValue: numeric(body.distanceValue) ?? item.distanceValue,
+                  rpe: 'rpe' in body ? (numeric(body.rpe) ?? null) : item.rpe,
+                }
+              : item,
+          ),
+        })),
+      }));
+      return { previous };
+    },
+    onError: (_error, { setId }, context) => {
+      setSync((prev) => ({ ...prev, [setId]: 'error' }));
+      /* Put back exactly what was there — a failed save must not leave the
+         optimistic value on screen as though it had been written. */
+      if (context?.previous) queryClient.setQueryData(sessionKey, context.previous);
+    },
     onSuccess: async (_data, { setId }) => {
       setSync((prev) => ({ ...prev, [setId]: undefined }));
       await invalidate();
@@ -100,10 +184,25 @@ export default function WorkoutSessionV2Screen() {
        "+ Add set" fail with a 400 every time. It is the idempotency key, so
        the client generates it — that is what makes a retry converge rather
        than create a duplicate set. */
-    mutationFn: (exerciseLogId: string) =>
-      api.post<WorkoutSet>(`/workout-exercise-logs/${exerciseLogId}/sets`, {
-        clientId: createClientId(),
-      }),
+    mutationFn: ({ exerciseLogId, clientId }: { exerciseLogId: string; clientId: string }) =>
+      api.post<WorkoutSet>(`/workout-exercise-logs/${exerciseLogId}/sets`, { clientId }),
+    /* The row appears on tap and lands at the END of the list. Waiting for
+       the round trip made the button look dead, and a dead-looking button
+       gets tapped again. */
+    onMutate: ({ exerciseLogId, clientId }) => {
+      const previous = patchCachedSession((session) => ({
+        ...session,
+        exercises: session.exercises.map((log) =>
+          log.id === exerciseLogId
+            ? { ...log, sets: [...log.sets, draftSet(exerciseLogId, clientId, log.sets.length)] }
+            : log,
+        ),
+      }));
+      return { previous };
+    },
+    onError: (_e, _v, context) => {
+      if (context?.previous) queryClient.setQueryData(sessionKey, context.previous);
+    },
     onSuccess: invalidate,
   });
 
@@ -134,6 +233,66 @@ export default function WorkoutSessionV2Screen() {
       setPickerOpen(false);
       await invalidate();
     },
+  });
+
+  const changeSetType = useMutation({
+    mutationFn: ({ setId, setType }: { setId: string; setType: string }) =>
+      api.patch<WorkoutSet>(`/workout-sets/${setId}`, { setType }),
+    onMutate: ({ setId, setType }) => {
+      setSetSheetFor(null);
+      const previous = patchCachedSession((session) => ({
+        ...session,
+        exercises: session.exercises.map((log) => ({
+          ...log,
+          sets: log.sets.map((item) =>
+            item.id === setId ? { ...item, setType: setType as typeof item.setType } : item,
+          ),
+        })),
+      }));
+      return { previous };
+    },
+    onError: (_e, _v, context) => {
+      if (context?.previous) queryClient.setQueryData(sessionKey, context.previous);
+    },
+    onSuccess: invalidate,
+  });
+
+  const deleteSet = useMutation({
+    mutationFn: (setId: string) => api.del(`/workout-sets/${setId}`),
+    onMutate: (setId) => {
+      setSetSheetFor(null);
+      const previous = patchCachedSession((session) => ({
+        ...session,
+        exercises: session.exercises.map((log) => ({
+          ...log,
+          sets: log.sets.filter((item) => item.id !== setId),
+        })),
+      }));
+      return { previous };
+    },
+    onError: (_e, _v, context) => {
+      if (context?.previous) queryClient.setQueryData(sessionKey, context.previous);
+    },
+    onSuccess: invalidate,
+  });
+
+  const removeExercise = useMutation({
+    /* `skipped`, not a delete: story 34 treats a removed exercise as one that
+       never happened for trends, while keeping the row so it is reversible. */
+    mutationFn: (exerciseLogId: string) =>
+      api.patch(`/workout-exercise-logs/${exerciseLogId}`, { skipped: true }),
+    onMutate: (exerciseLogId) => {
+      setActionsFor(null);
+      const previous = patchCachedSession((session) => ({
+        ...session,
+        exercises: session.exercises.filter((log) => log.id !== exerciseLogId),
+      }));
+      return { previous };
+    },
+    onError: (_e, _v, context) => {
+      if (context?.previous) queryClient.setQueryData(sessionKey, context.previous);
+    },
+    onSuccess: invalidate,
   });
 
   const finish = useMutation({
@@ -191,6 +350,22 @@ export default function WorkoutSessionV2Screen() {
       </View>
     );
   }
+
+  const activeActions = exercises.find((log) => log.id === actionsFor) ?? null;
+  const activeSetSheet = (() => {
+    if (!setSheetFor) return null;
+    for (const log of exercises) {
+      const index = log.sets.findIndex((item) => item.id === setSheetFor);
+      if (index === -1) continue;
+      const set = log.sets[index]!;
+      return {
+        set,
+        exerciseName: log.exercise.name,
+        label: set.setType === 'warmup' ? 'W' : String(workingIndex(log.sets, index)),
+      };
+    }
+    return null;
+  })();
 
   const sessionComplete = session.status === 'completed';
   /* The same shared readout web uses — the banner is the most prominent
@@ -323,7 +498,10 @@ export default function WorkoutSessionV2Screen() {
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         {exercises.map((log) => {
           const definition = getPrescriptionDefinition(log.prescription);
-          const fields = visibleFields(definition);
+          /* RPE is off by default and toggled per exercise from its ⋯
+             sheet, the only place the design offers it. */
+          const baseFields = visibleFields(definition);
+          const fields = rpeShownFor[log.id] ? ([...baseFields, 'rpe'] as const) : baseFields;
           const complete = isExerciseComplete(log.prescription, log.sets);
           const readout = complete
             ? buildCompletedExerciseReadout(
@@ -359,8 +537,8 @@ export default function WorkoutSessionV2Screen() {
               }
               complete={complete}
               fields={fields}
-              onAddSet={() => addSet.mutate(log.id)}
-              onOpenActions={() => undefined}
+              onAddSet={() => addSet.mutate({ exerciseLogId: log.id, clientId: createClientId() })}
+              onOpenActions={() => setActionsFor(log.id)}
             >
               {log.sets.map((set, index) => {
                 const previousSet = log.previousSession?.sets[index];
@@ -398,7 +576,7 @@ export default function WorkoutSessionV2Screen() {
                       previousSet ? formatPreviousSetCompact(log.prescription, previousSet) : null
                     }
                     onCommit={(values) => commit(log, set, values)}
-                    onOpenSetType={() => undefined}
+                    onOpenSetType={() => setSetSheetFor(set.id)}
                     onCopyPrevious={() => undefined}
                     onRetry={() => setSync((prev) => ({ ...prev, [set.id]: undefined }))}
                   />
@@ -437,6 +615,31 @@ export default function WorkoutSessionV2Screen() {
 
       {/* Full-screen, not a bottom sheet: the picker has its own header,
           scroll region and footer, and is the whole screen in the design. */}
+      {activeSetSheet ? (
+        <SetTypeSheet
+          exerciseName={activeSetSheet.exerciseName}
+          setLabel={activeSetSheet.label}
+          currentType={activeSetSheet.set.setType}
+          onClose={() => setSetSheetFor(null)}
+          onSelect={(setType) => changeSetType.mutate({ setId: activeSetSheet.set.id, setType })}
+          onDelete={() => deleteSet.mutate(activeSetSheet.set.id)}
+        />
+      ) : null}
+
+      {activeActions ? (
+        <ExerciseActionsSheet
+          exerciseName={activeActions.exercise.name}
+          context={`${activeActions.sets.length} set${activeActions.sets.length === 1 ? '' : 's'} in this session`}
+          rpeVisible={!!rpeShownFor[activeActions.id]}
+          onClose={() => setActionsFor(null)}
+          onViewHistory={() => router.push(`/exercise-history/${activeActions.exerciseId}`)}
+          onToggleRpe={() =>
+            setRpeShownFor((prev) => ({ ...prev, [activeActions.id]: !prev[activeActions.id] }))
+          }
+          onRemove={() => removeExercise.mutate(activeActions.id)}
+        />
+      ) : null}
+
       <Modal visible={pickerOpen} animationType="slide" onRequestClose={() => setPickerOpen(false)}>
         <ExercisePickerV2
           exercises={catalogue}

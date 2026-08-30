@@ -138,6 +138,53 @@ test.describe('logger regressions', () => {
     expect(failures, 'saving a set must not 400').toEqual([]);
   });
 
+
+  test('the SET chip opens the set-type sheet — it used to do nothing', async ({ page }) => {
+    await page.locator('[data-testid^="set-row-"]').first().locator('button').first().click();
+    await expect(page.getByTestId('set-type-sheet')).toBeVisible();
+    await expect(page.getByTestId('set-type-warmup')).toBeVisible();
+    await expect(page.getByTestId('set-type-delete')).toBeVisible();
+  });
+
+  test('changing a set type applies immediately, not after the round trip', async ({ page }) => {
+    await page.locator('[data-testid^="set-row-"]').first().locator('button').first().click();
+    await page.getByTestId('set-type-warmup').click();
+    /* The sheet closes and the chip changes on tap. Optimistic: the screen is
+       operated with a barbell in hand. */
+    await expect(page.getByTestId('set-type-sheet')).toHaveCount(0);
+    await expect(page.locator('[data-testid^="set-row-"]').first()).toContainText('W');
+  });
+
+  test('the ⋯ opens the exercise actions sheet — it used to do nothing', async ({ page }) => {
+    await page.getByRole('button', { name: /Actions for/i }).first().click();
+    await expect(page.getByTestId('exercise-actions-sheet')).toBeVisible();
+    await expect(page.getByTestId('exercise-action-history')).toBeVisible();
+    await expect(page.getByTestId('exercise-action-rpe')).toBeVisible();
+    await expect(page.getByTestId('exercise-action-remove')).toBeVisible();
+  });
+
+  test('every action in the sheet does something — no dead rows', async ({ page }) => {
+    /* The complaint this whole sheet answers is a control that does nothing,
+       so the sheet must not itself contain any. Replace and Reorder are in
+       the design but not built, and are deliberately absent rather than
+       present and inert. */
+    await page.getByRole('button', { name: /Actions for/i }).first().click();
+    const sheet = page.getByTestId('exercise-actions-sheet');
+    await expect(sheet).not.toContainText('Replace exercise');
+    await expect(sheet).not.toContainText('Reorder exercises');
+
+    await page.getByTestId('exercise-action-rpe').click();
+    await expect(page.getByTestId('exercise-actions-sheet')).toContainText('Show RPE column');
+  });
+
+  test('adding a set appends it, and appears before the request resolves', async ({ page }) => {
+    /* Reported: the row only showed up once the API came back, so the button
+       looked dead and got tapped again. And a new set must land at the END. */
+    const before = await page.locator('[data-testid^="set-row-"]').count();
+    await page.getByRole('button', { name: '+ Add set' }).click();
+    await expect(page.locator('[data-testid^="set-row-"]')).toHaveCount(before + 1);
+  });
+
   test('an exercise added mid-session gets weight and reps columns, not every column', async ({ page }) => {
     /* With no prescription the log falls back to `unprescribedDefinition`,
        which declares EVERY field — the card rendered

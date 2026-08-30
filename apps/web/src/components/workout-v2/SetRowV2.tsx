@@ -241,15 +241,27 @@ export function SetRowV2({
   const rowRef = useRef<HTMLDivElement>(null);
   const committedRef = useRef<SetRowValues>(values);
 
-  /* Server values win whenever they change underneath us — a PR recompute or
-     another device's edit — but only when the user is not mid-edit in this
-     row, or we would yank the field out from under them. */
+  /*
+   * Server values win whenever they change underneath us — a PR recompute or
+   * another device's edit — but only when the user is not mid-edit in this
+   * row, or we would yank the field out from under them.
+   *
+   * Keyed on the VALUES, not the object. The parent builds this prop as an
+   * inline literal, so it has a fresh identity on every render; depending on
+   * the object meant the effect fired constantly, and on blur it reset the
+   * draft to whatever the server still had. That is the reported flicker:
+   * type 225, blur, watch the field go blank, then show the old number, then
+   * finally the new one when the refetch landed — and stay blank for good if
+   * the request failed.
+   */
+  const valuesKey = JSON.stringify(values);
   useEffect(() => {
     const active = rowRef.current?.contains(document.activeElement);
     if (active) return;
     setDraft(values);
     committedRef.current = values;
-  }, [values]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [valuesKey]);
 
   /**
    * Blur commits, but only when focus has actually left the ROW — moving from

@@ -31,6 +31,8 @@ import { SetRowV2, type SetRowStatus, type SetRowValues } from '../components/wo
 import { ExercisePickerV2 } from '../components/exercise-picker/ExercisePickerV2';
 import { SaveAsWorkoutCard } from '../components/training-v2/SaveAsWorkoutCard';
 import { ExerciseCardsSkeleton } from '../components/training-v2/TrainingSkeletons';
+import { SetTypeSheet } from '../components/workout-v2/SetTypeSheet';
+import { ExerciseActionsSheet } from '../components/workout-v2/ExerciseActionsSheet';
 
 /**
  * Today's Workout, v2 — the table-format logger.
@@ -259,6 +261,43 @@ type RowSyncState = Record<string, 'pending' | 'error' | undefined>;
 
 const EMPTY_VALUES: SetRowValues = { weight: '', reps: '', duration: '', distance: '', rpe: '' };
 
+/**
+ * A placeholder set, shown while the real one is being created.
+ *
+ * Its `id` is the `clientId`, so the row is stable across the swap: the
+ * server echoes that same clientId back, and React keeps the same element
+ * rather than unmounting and remounting the row under the user's finger.
+ */
+function draftSet(exerciseLogId: string, clientId: string, sortOrder: number) {
+  const now = new Date().toISOString();
+  return {
+    id: clientId,
+    exerciseLogId,
+    clientId,
+    sortOrder,
+    setType: 'working' as const,
+    weightValue: null,
+    weightUnit: null,
+    reps: null,
+    durationSeconds: null,
+    distanceValue: null,
+    distanceUnit: null,
+    rpe: null,
+    completed: false,
+    isPrWeight: false,
+    isPrReps: false,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+/** A body value as the cached set stores it: a number, or null when cleared. */
+function numeric(value: unknown): number | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  return typeof value === 'number' ? value : Number(value);
+}
+
 export default function WorkoutSessionPageV2() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const api = useApiClient();
@@ -275,15 +314,68 @@ export default function WorkoutSessionPageV2() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [saveOfferDismissed, setSaveOfferDismissed] = useState(false);
   const [savedWorkoutName, setSavedWorkoutName] = useState<string | null>(null);
+  const [setSheetFor, setSetSheetFor] = useState<string | null>(null);
+  const [actionsFor, setActionsFor] = useState<string | null>(null);
+  /** Per-exercise, because RPE is relevant to one lift and not another. */
+  const [rpeShownFor, setRpeShownFor] = useState<Record<string, boolean>>({});
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ['workout-session', sessionId] });
 
+  const sessionKey = ['workout-session', sessionId];
+
+  /**
+   * Writes a change straight into the cached session.
+   *
+   * Every mutation on this page is optimistic. The screen is operated with a
+   * barbell in hand, and a control that does nothing for the length of a
+   * round trip reads as broken — the user taps it again, which is how a
+   * duplicate set gets created.
+   *
+   * Returns the previous cache so `onError` can put it back.
+   */
+  const patchCachedSession = (
+    update: (session: WorkoutSessionDetail) => WorkoutSessionDetail,
+  ) => {
+    const previous = queryClient.getQueryData<WorkoutSessionDetail>(sessionKey);
+    if (previous) queryClient.setQueryData(sessionKey, update(previous));
+    return previous;
+  };
+
   const saveSet = useMutation({
     mutationFn: ({ setId, body }: { setId: string; body: Record<string, unknown> }) =>
       api.patch<WorkoutSet>('/workout-sets/' + setId, body),
-    onMutate: ({ setId }) => setSync((prev) => ({ ...prev, [setId]: 'pending' })),
-    onError: (_error, { setId }) => setSync((prev) => ({ ...prev, [setId]: 'error' })),
+    onMutate: ({ setId, body }) => {
+      setSync((prev) => ({ ...prev, [setId]: 'pending' }));
+      /* The values land in the cache immediately, so the row keeps showing
+         what was typed instead of reverting to the server's older copy while
+         the request is in flight. */
+      const previous = patchCachedSession((session) => ({
+        ...session,
+        exercises: session.exercises.map((log) => ({
+          ...log,
+          sets: log.sets.map((item) =>
+            item.id === setId
+              ? {
+                  ...item,
+                  weightValue: numeric(body.weightValue) ?? item.weightValue,
+                  reps: numeric(body.reps) ?? item.reps,
+                  durationSeconds: numeric(body.durationSeconds) ?? item.durationSeconds,
+                  distanceValue: numeric(body.distanceValue) ?? item.distanceValue,
+                  rpe: 'rpe' in body ? (numeric(body.rpe) ?? null) : item.rpe,
+                }
+              : item,
+          ),
+        })),
+      }));
+      return { previous };
+    },
+    onError: (_error, { setId }, context) => {
+      setSync((prev) => ({ ...prev, [setId]: 'error' }));
+      /* Put back exactly what was there. Without this a failed save left the
+         optimistic value on screen as though it had been written. */
+      if (context?.previous) queryClient.setQueryData(sessionKey, context.previous);
+    },
     onSuccess: async (_data, { setId }) => {
       setSync((prev) => ({ ...prev, [setId]: undefined }));
       await invalidate();
@@ -296,10 +388,27 @@ export default function WorkoutSessionPageV2() {
        key — generating it client-side is what makes a retried request
        converge instead of creating a duplicate set, so the fix is to send one
        rather than to let the server invent it. */
-    mutationFn: (exerciseLogId: string) =>
-      api.post<WorkoutSet>('/workout-exercise-logs/' + exerciseLogId + '/sets', {
-        clientId: crypto.randomUUID(),
-      }),
+    mutationFn: ({ exerciseLogId, clientId }: { exerciseLogId: string; clientId: string }) =>
+      api.post<WorkoutSet>('/workout-exercise-logs/' + exerciseLogId + '/sets', { clientId }),
+    /* The row appears on tap. Waiting for the round trip made the button look
+       dead, and a dead-looking button gets tapped again — which is exactly
+       how someone ends up with four sets they did not ask for. The
+       client-generated `clientId` is what makes that safe: the server
+       dedupes on it, so even a genuine double-tap converges. */
+    onMutate: ({ exerciseLogId, clientId }) => {
+      const previous = patchCachedSession((session) => ({
+        ...session,
+        exercises: session.exercises.map((log) =>
+          log.id === exerciseLogId
+            ? { ...log, sets: [...log.sets, draftSet(exerciseLogId, clientId, log.sets.length)] }
+            : log,
+        ),
+      }));
+      return { previous };
+    },
+    onError: (_error, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(sessionKey, context.previous);
+    },
     onSuccess: invalidate,
   });
 
@@ -307,6 +416,67 @@ export default function WorkoutSessionPageV2() {
     mutationFn: (name: string) =>
       api.post<{ name: string }>(`/workout-sessions/${sessionId}/save-as-workout`, { name }),
     onSuccess: (created) => setSavedWorkoutName(created.name),
+  });
+
+  const changeSetType = useMutation({
+    mutationFn: ({ setId, setType }: { setId: string; setType: string }) =>
+      api.patch<WorkoutSet>('/workout-sets/' + setId, { setType }),
+    onMutate: ({ setId, setType }) => {
+      setSetSheetFor(null);
+      const previous = patchCachedSession((session) => ({
+        ...session,
+        exercises: session.exercises.map((log) => ({
+          ...log,
+          sets: log.sets.map((item) =>
+            item.id === setId ? { ...item, setType: setType as typeof item.setType } : item,
+          ),
+        })),
+      }));
+      return { previous };
+    },
+    onError: (_e, _v, context) => {
+      if (context?.previous) queryClient.setQueryData(sessionKey, context.previous);
+    },
+    onSuccess: invalidate,
+  });
+
+  const deleteSet = useMutation({
+    mutationFn: (setId: string) => api.del('/workout-sets/' + setId),
+    onMutate: (setId) => {
+      setSetSheetFor(null);
+      const previous = patchCachedSession((session) => ({
+        ...session,
+        exercises: session.exercises.map((log) => ({
+          ...log,
+          sets: log.sets.filter((item) => item.id !== setId),
+        })),
+      }));
+      return { previous };
+    },
+    onError: (_e, _v, context) => {
+      if (context?.previous) queryClient.setQueryData(sessionKey, context.previous);
+    },
+    onSuccess: invalidate,
+  });
+
+  const removeExercise = useMutation({
+    /* `skipped`, not a delete: story 34 treats a removed exercise as one that
+       never happened for trend purposes, while keeping the row so the
+       decision is reversible. */
+    mutationFn: (exerciseLogId: string) =>
+      api.patch('/workout-exercise-logs/' + exerciseLogId, { skipped: true }),
+    onMutate: (exerciseLogId) => {
+      setActionsFor(null);
+      const previous = patchCachedSession((session) => ({
+        ...session,
+        exercises: session.exercises.filter((log) => log.id !== exerciseLogId),
+      }));
+      return { previous };
+    },
+    onError: (_e, _v, context) => {
+      if (context?.previous) queryClient.setQueryData(sessionKey, context.previous);
+    },
+    onSuccess: invalidate,
   });
 
   const finish = useMutation({
@@ -406,6 +576,22 @@ export default function WorkoutSessionPageV2() {
     );
   }
 
+  const activeActions = exercises.find((log) => log.id === actionsFor) ?? null;
+  const activeSetSheet = (() => {
+    if (!setSheetFor) return null;
+    for (const log of exercises) {
+      const index = log.sets.findIndex((item) => item.id === setSheetFor);
+      if (index === -1) continue;
+      const set = log.sets[index]!;
+      return {
+        set,
+        exerciseName: log.exercise.name,
+        label: set.setType === 'warmup' ? 'W' : String(workingIndex(log.sets, index)),
+      };
+    }
+    return null;
+  })();
+
   const sessionDate = new Date(session.localDate + 'T12:00:00').toLocaleDateString(undefined, {
     weekday: 'long',
     month: 'long',
@@ -502,7 +688,10 @@ export default function WorkoutSessionPageV2() {
         ) : null}
         {exercises.map((log) => {
           const definition = getPrescriptionDefinition(log.prescription);
-          const fields = visibleFields(definition);
+          /* RPE is off by default and toggled per exercise from its ⋯
+             sheet, which is the only place the design offers it. */
+          const baseFields = visibleFields(definition);
+          const fields = rpeShownFor[log.id] ? ([...baseFields, 'rpe'] as const) : baseFields;
           const complete = isExerciseComplete(log.prescription, log.sets);
           const readout = complete
             ? buildCompletedExerciseReadout(
@@ -535,8 +724,8 @@ export default function WorkoutSessionPageV2() {
               }
               complete={complete}
               fields={fields}
-              onAddSet={() => addSet.mutate(log.id)}
-              onOpenActions={() => undefined}
+              onAddSet={() => addSet.mutate({ exerciseLogId: log.id, clientId: crypto.randomUUID() })}
+              onOpenActions={() => setActionsFor(log.id)}
             >
               {log.sets.map((set, index) => {
                 const previousSet = log.previousSession?.sets[index];
@@ -574,7 +763,7 @@ export default function WorkoutSessionPageV2() {
                       previousSet ? formatPreviousSetCompact(log.prescription, previousSet) : null
                     }
                     onCommit={(values) => commit(log, set, values)}
-                    onOpenSetType={() => undefined}
+                    onOpenSetType={() => setSetSheetFor(set.id)}
                     onCopyPrevious={() => undefined}
                     onRetry={() => setSync((prev) => ({ ...prev, [set.id]: undefined }))}
                   />
@@ -607,6 +796,30 @@ export default function WorkoutSessionPageV2() {
             loading={cataloguePending}
           />
         </PickerOverlay>
+      ) : null}
+      {activeSetSheet ? (
+        <SetTypeSheet
+          exerciseName={activeSetSheet.exerciseName}
+          setLabel={activeSetSheet.label}
+          currentType={activeSetSheet.set.setType}
+          onClose={() => setSetSheetFor(null)}
+          onSelect={(setType) => changeSetType.mutate({ setId: activeSetSheet.set.id, setType })}
+          onDelete={() => deleteSet.mutate(activeSetSheet.set.id)}
+        />
+      ) : null}
+
+      {activeActions ? (
+        <ExerciseActionsSheet
+          exerciseName={activeActions.exercise.name}
+          context={`${activeActions.sets.length} set${activeActions.sets.length === 1 ? '' : 's'} in this session`}
+          rpeVisible={!!rpeShownFor[activeActions.id]}
+          onClose={() => setActionsFor(null)}
+          onViewHistory={() => navigate(`/history/${activeActions.exerciseId}`)}
+          onToggleRpe={() =>
+            setRpeShownFor((prev) => ({ ...prev, [activeActions.id]: !prev[activeActions.id] }))
+          }
+          onRemove={() => removeExercise.mutate(activeActions.id)}
+        />
       ) : null}
     </Screen>
   );
