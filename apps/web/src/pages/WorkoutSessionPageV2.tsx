@@ -11,7 +11,11 @@ import type {
 } from '@setframe/schemas';
 import {
   buildCompletedExerciseReadout,
+  buildCompletedSessionReadout,
   formatPreviousSetCompact,
+  formatSessionDuration,
+  formatSessionMeta,
+  formatSessionTotalSuffix,
   getPrescriptionDefinition,
   isExerciseComplete,
   isSessionSetLogged,
@@ -283,15 +287,13 @@ export default function WorkoutSessionPageV2() {
     day: 'numeric',
   });
 
-  const totalVolume = exercises.reduce(
-    (sum, log) => sum + log.sets.reduce((s, set) => s + (set.weightValue ?? 0) * (set.reps ?? 0), 0),
-    0,
-  );
-  const loggedSets = exercises.reduce(
-    (n, log) => n + log.sets.filter((set) => isSessionSetLogged(log.prescription, set)).length,
-    0,
-  );
+  /* One shared readout so the banner's figures cannot disagree with mobile's,
+     or with the per-exercise pills they are summed from. */
+  const sessionReadout = buildCompletedSessionReadout(exercises);
+  const totalVolume = sessionReadout.totalVolume;
+  const loggedSets = sessionReadout.loggedSetCount;
   const plannedSets = exercises.reduce((n, log) => n + log.sets.length, 0);
+  const duration = formatSessionDuration(session.startedAt, session.completedAt);
 
   const commit = (log: WorkoutSessionExerciseDetail, set: WorkoutSet, values: SetRowValues) => {
     const definition = getPrescriptionDefinition(log.prescription);
@@ -320,12 +322,19 @@ export default function WorkoutSessionPageV2() {
               Done
             </FinishButton>
           </BannerTop>
-          <Meta>
-            {sessionDate} · {loggedSets} sets
+          <Meta data-testid="banner-meta">
+            {formatSessionMeta({
+              title: sessionDate,
+              duration,
+              loggedSetCount: loggedSets,
+              personalRecordCount: sessionReadout.personalRecordCount,
+            })}
           </Meta>
           <BannerTotal>
             <strong>{totalVolume.toLocaleString('en-US')}</strong>
-            <span>lb total</span>
+            <span data-testid="banner-total-suffix">
+              {formatSessionTotalSuffix(sessionReadout)}
+            </span>
           </BannerTotal>
         </Banner>
       ) : (

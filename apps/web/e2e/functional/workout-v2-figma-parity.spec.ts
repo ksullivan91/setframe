@@ -73,7 +73,8 @@ const PINNED_SESSION = {
   localDate: new Date().toISOString().slice(0, 10),
   timezone: 'America/Chicago',
   status: 'in_progress',
-  startedAt: new Date().toISOString(),
+  /* A fixed 52m10s span so the banner's duration segment is assertable. */
+  startedAt: '2026-08-29T10:00:00.000Z',
   completedAt: null,
   notes: null,
   createdAt: new Date().toISOString(),
@@ -264,12 +265,25 @@ test.describe('workout v2 — Figma geometry parity', () => {
       }).__setframeMocks;
       const raw = window.sessionStorage.getItem('setframe.mock-overrides');
       const session = raw ? JSON.parse(raw).session : null;
-      control?.setSession({ ...session, status: 'completed', completedAt: new Date().toISOString() });
+      control?.setSession({
+        ...session,
+        status: 'completed',
+        completedAt: '2026-08-29T10:52:10.000Z',
+      });
     });
     await page.reload();
 
     await expect(page.getByTestId('completion-banner')).toBeVisible();
     await expect(page.getByTestId('result-pill')).toBeVisible();
+
+    /* The banner's meta and total lines carry every segment the Figma frame
+       shows (node 139:707): duration and the volume delta were both missing
+       from the first build, on web and mobile alike. */
+    const meta = page.getByTestId('banner-meta');
+    await expect(meta).toContainText('52:10');
+    await expect(meta).toContainText('3 sets');
+    await expect(meta).toContainText('1 PR');
+    await expect(page.getByTestId('banner-total-suffix')).toContainText('vs last session');
 
     const after = await card.boundingBox();
     expect(after?.height).toBe(before?.height);

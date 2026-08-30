@@ -11,7 +11,11 @@ import type {
 } from '@setframe/schemas';
 import {
   buildCompletedExerciseReadout,
+  buildCompletedSessionReadout,
   formatPreviousSetCompact,
+  formatSessionDuration,
+  formatSessionMeta,
+  formatSessionTotalSuffix,
   getPrescriptionDefinition,
   isExerciseComplete,
   isSessionSetLogged,
@@ -133,15 +137,18 @@ export default function WorkoutSessionV2Screen() {
   }
 
   const sessionComplete = session.status === 'completed';
-  const totalVolume = exercises.reduce(
-    (sum, log) => sum + log.sets.reduce((s, set) => s + (set.weightValue ?? 0) * (set.reps ?? 0), 0),
-    0,
-  );
-  const loggedSets = exercises.reduce(
-    (n, log) => n + log.sets.filter((set) => isSessionSetLogged(log.prescription, set)).length,
-    0,
-  );
+  /* The same shared readout web uses — the banner is the most prominent
+     surface in the product and its numbers must not differ by platform. */
+  const sessionReadout = buildCompletedSessionReadout(exercises);
+  const totalVolume = sessionReadout.totalVolume;
+  const loggedSets = sessionReadout.loggedSetCount;
   const plannedSets = exercises.reduce((n, log) => n + log.sets.length, 0);
+  const duration = formatSessionDuration(session.startedAt, session.completedAt);
+  const sessionDate = new Date(session.localDate + 'T12:00:00').toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
 
   const commit = (log: WorkoutSessionExerciseDetail, set: WorkoutSet, values: SetRowValues) => {
     const definition = getPrescriptionDefinition(log.prescription);
@@ -198,14 +205,24 @@ export default function WorkoutSessionV2Screen() {
               <Text style={[styles.finishText, { color: theme.action.primaryText }]}>Done</Text>
             </Pressable>
           </View>
-          <Text style={[styles.meta, { color: theme.text.secondary }]} testID="session-meta">
-            {loggedSets} sets
+          <Text style={[styles.meta, { color: theme.text.secondary }]} testID="banner-meta">
+            {formatSessionMeta({
+              title: sessionDate,
+              duration,
+              loggedSetCount: loggedSets,
+              personalRecordCount: sessionReadout.personalRecordCount,
+            })}
           </Text>
           <View style={styles.bannerTotal}>
             <Text style={[styles.bannerTotalValue, { color: theme.text.primary }]}>
               {totalVolume.toLocaleString('en-US')}
             </Text>
-            <Text style={[styles.bannerTotalUnit, { color: theme.text.secondary }]}>lb total</Text>
+            <Text
+              style={[styles.bannerTotalUnit, { color: theme.text.secondary }]}
+              testID="banner-total-suffix"
+            >
+              {formatSessionTotalSuffix(sessionReadout)}
+            </Text>
           </View>
         </View>
       ) : (

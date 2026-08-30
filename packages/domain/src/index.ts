@@ -5,6 +5,7 @@ export * from './consistency';
 export * from './exercise-ordering';
 export * from './prescription-fields';
 export * from './prescription-summary';
+export * from './completed-session';
 export * from './completed-exercise';
 export * from './session-pr';
 export * from './units';
