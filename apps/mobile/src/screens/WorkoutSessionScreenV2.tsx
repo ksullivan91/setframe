@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   Prescription,
@@ -50,6 +51,10 @@ export default function WorkoutSessionV2Screen() {
   const api = useApiClient();
   const router = useRouter();
   const theme = useTheme();
+  /* The native stack header is disabled for this route because v2 draws its
+     own, so the status bar inset is now this screen's job. Same rule as the
+     web build's env(safe-area-inset-top). */
+  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const [sync, setSync] = useState<RowSyncState>({});
 
@@ -134,6 +139,7 @@ export default function WorkoutSessionV2Screen() {
           style={[
             styles.banner,
             {
+              paddingTop: insets.top + 16,
               backgroundColor: theme.status.success + '1F',
               borderBottomColor: theme.status.success + '40',
             },
@@ -177,7 +183,11 @@ export default function WorkoutSessionV2Screen() {
         <View
           style={[
             styles.header,
-            { backgroundColor: theme.surface.raised, borderBottomColor: theme.border.subtle },
+            {
+              paddingTop: insets.top + 16,
+              backgroundColor: theme.surface.raised,
+              borderBottomColor: theme.border.subtle,
+            },
           ]}
         >
           <View style={styles.headerRow}>
@@ -301,7 +311,13 @@ export default function WorkoutSessionV2Screen() {
         <View
           style={[
             styles.bottomBar,
-            { backgroundColor: theme.surface.raised, borderTopColor: theme.border.subtle },
+            {
+              /* Home indicator, not a literal — matches the web build's
+                 env(safe-area-inset-bottom). */
+              paddingBottom: Math.max(insets.bottom, 20),
+              backgroundColor: theme.surface.raised,
+              borderTopColor: theme.border.subtle,
+            },
           ]}
         >
           <Pressable
@@ -378,7 +394,7 @@ const styles = StyleSheet.create({
   bannerTotalValue: { fontSize: 32, fontWeight: '600' },
   bannerTotalUnit: { fontSize: 13, fontWeight: '500' },
   body: { alignItems: 'center', gap: 12, padding: 16 },
-  bottomBar: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 20, borderTopWidth: 1, alignItems: 'center' },
+  bottomBar: { paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1, alignItems: 'center' },
   addExercise: { width: CARD_WIDTH, height: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   addExerciseText: { fontSize: 14, fontWeight: '600' },
 });

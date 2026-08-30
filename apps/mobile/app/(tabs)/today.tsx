@@ -611,7 +611,16 @@ export default function TodayScreen() {
               {todayWorkoutState === 'completed' && completedSession ? (
                 <Button
                   label="Review workout"
-                  onPress={() => router.push({ pathname: '/session-summary', params: { sessionId: completedSession.id } })}
+                  /* The completed state IS the logger screen with its banner
+                     (ADR 0011), same as web — not a separate summary page.
+                     This used to route to /session-summary, which is why the
+                     new design was invisible on mobile after finishing. */
+                  onPress={() =>
+                    router.push({
+                      pathname: '/workout/[sessionId]',
+                      params: { sessionId: completedSession.id },
+                    })
+                  }
                 />
               ) : null}
               {todayWorkoutState === 'rested' ? (

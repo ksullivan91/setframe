@@ -38,10 +38,11 @@ export default function RootLayout() {
                 <Stack.Screen name="sign-up" />
                 {/* The program editor is now the Training tab, not a pushed
                     route — `app/program-editor.tsx` no longer exists. */}
-                <Stack.Screen
-                  name="workout/[sessionId]"
-                  options={{ headerShown: true, title: 'Workout' }}
-                />
+                {/* v2 draws its own sticky header — back, title, Finish, and
+                    the running meta line — so the native stack header would
+                    sit on top of it and cost ~44px of the vertical space this
+                    redesign exists to reclaim. */}
+                <Stack.Screen name="workout/[sessionId]" options={{ headerShown: false }} />
                 <Stack.Screen name="session-summary" options={{ headerShown: true, title: 'Session Summary' }} />
                 <Stack.Screen
                   name="exercise-history/[exerciseId]"
