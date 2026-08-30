@@ -9,6 +9,14 @@ export const exerciseSchema = z.object({
    * than guessed into a category.
    */
   movementPattern: z.string().nullable(),
+  /**
+   * Free text, `null` when unknown — "barbell", "dumbbell", "machine".
+   *
+   * The column has always existed; the response schema simply never exposed
+   * it. The exercise picker's subtitle reads `Push · Barbell`, and without
+   * this it could only ever show half of that.
+   */
+  equipment: z.string().nullable(),
   isCustom: z.boolean(),
   ownerUserId: z.string().uuid().nullable(),
   archivedAt: z.string().datetime().nullable(),

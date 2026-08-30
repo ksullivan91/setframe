@@ -86,6 +86,41 @@ export const training = {
 } as const;
 
 /**
+ * Geometry for the shared exercise picker.
+ *
+ * Figma: `Explore/Mobile/Build 5 · Search and pick exercises` (node
+ * `163:708`) and `Explore/Mobile/ExercisePicker` (`129:513`).
+ *
+ * Rows are **full-bleed** — 390 wide, not 358 — because the picker is a
+ * full-screen surface rather than a card on one. That is why the row carries
+ * its own 16px horizontal padding instead of inheriting a card's.
+ */
+export const exercisePicker = {
+  rowHeight: 64,
+  rowPaddingX: 16,
+  rowPaddingY: 10,
+  rowGap: 12,
+  /** The illustration tile. The picker is a *choosing* surface, which is
+      where the teardown said the tile earns its space. */
+  tileSize: 44,
+  tileRadius: 8,
+  nameSize: 15,
+  metaSize: 12,
+  textGap: 1,
+  /** The pick-order badge. Shows a NUMBER, not a check. */
+  badgeSize: 26,
+  badgeRadius: 999,
+  badgeLabelSize: 12,
+  /** Selected rows take a 6% accent wash. */
+  selectedTintAlpha: 0.06,
+
+  header: { paddingX: 16, paddingTop: 16, paddingBottom: 12, gap: 12, titleSize: 16, subtitleSize: 11 },
+  search: { height: 38, radius: 8, paddingX: 12, gap: 8, fontSize: 15 },
+  filter: { height: 27, paddingX: 12, radius: 999, gap: 6, labelSize: 12 },
+  footer: { paddingX: 16, paddingTop: 12, paddingBottom: 20, gap: 8, ctaHeight: 48, ctaRadius: 8, ctaLabelSize: 15, hintSize: 12 },
+} as const;
+
+/**
  * Height of the workouts card for a given number of workouts.
  *
  * Padding + label row + n rows + the gaps between them. Exposed so a test can

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
-import type { SessionField } from '@setframe/domain';
+import type { PickableExercise, SessionField } from '@setframe/domain';
 import type {
   Prescription,
   WorkoutSessionDetail,
@@ -27,6 +27,7 @@ import { useApiClient } from '../lib/api-client';
 import { summarizePrescription } from '../lib/prescription';
 import { ExerciseTableCard, CARD_WIDTH } from '../components/workout-v2/ExerciseTableCard';
 import { SetRowV2, type SetRowStatus, type SetRowValues } from '../components/workout-v2/SetRowV2';
+import { ExercisePickerV2 } from '../components/exercise-picker/ExercisePickerV2';
 
 /**
  * Today's Workout, v2 — the table-format logger.
@@ -47,6 +48,16 @@ import { SetRowV2, type SetRowStatus, type SetRowValues } from '../components/wo
    regions break back out of it with a negative inline margin to sit
    full-bleed, which is what the frames show. */
 const SHELL_PADDING = 16;
+
+/* Covers the shell, including its nav — the picker is a task surface, and
+   leaving the tab bar tappable underneath invites losing a half-made
+   selection to a stray tap. */
+const PickerOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: ${({ theme }) => theme.surface.canvas};
+`;
 
 const Screen = styled.div`
   min-height: 100%;
@@ -237,6 +248,8 @@ export default function WorkoutSessionPageV2() {
     enabled: Boolean(sessionId),
   });
 
+  const [pickerOpen, setPickerOpen] = useState(false);
+
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ['workout-session', sessionId] });
 
@@ -260,6 +273,29 @@ export default function WorkoutSessionPageV2() {
   const finish = useMutation({
     mutationFn: () => api.post('/workout-sessions/' + sessionId + '/complete'),
     onSuccess: invalidate,
+  });
+
+  const { data: catalogue = [] } = useQuery({
+    queryKey: ['exercises'],
+    /* Only fetched once the picker is opened. The catalogue is large and the
+       logger does not otherwise need it. */
+    queryFn: () => api.get<PickableExercise[]>('/exercises'),
+    enabled: pickerOpen,
+  });
+
+  const addExercises = useMutation({
+    mutationFn: async (exerciseIds: string[]) => {
+      /* Sequential, not Promise.all. sortOrder is derived from insertion
+         order server-side, and the picker promises "they are added in the
+         order you picked them" — parallel posts would race that promise. */
+      for (const exerciseId of exerciseIds) {
+        await api.post('/workout-sessions/' + sessionId + '/exercises', { exerciseId });
+      }
+    },
+    onSuccess: async () => {
+      setPickerOpen(false);
+      await invalidate();
+    },
   });
 
   const session = query.data;
@@ -444,9 +480,26 @@ export default function WorkoutSessionPageV2() {
 
       {sessionComplete ? null : (
         <BottomBar>
-          <AddExercise type="button">+ Add exercise</AddExercise>
+          <AddExercise type="button" onClick={() => setPickerOpen(true)}>
+            + Add exercise
+          </AddExercise>
         </BottomBar>
       )}
+
+      {/* A full-screen surface rather than a dialog: the picker has its own
+          header, its own scroll region and its own footer, and on a phone it
+          is the whole screen in the design. */}
+      {pickerOpen ? (
+        <PickerOverlay role="dialog" aria-modal="true" aria-label="Add exercises">
+          <ExercisePickerV2
+            exercises={catalogue}
+            title="Add to this workout"
+            onCancel={() => setPickerOpen(false)}
+            onAdd={(ids) => addExercises.mutate(ids)}
+            busy={addExercises.isPending}
+          />
+        </PickerOverlay>
+      ) : null}
     </Screen>
   );
 }

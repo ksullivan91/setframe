@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -23,11 +23,13 @@ import {
   quickEntryFields,
   summarizePrescription,
   visibleSessionExercises,
+  type PickableExercise,
   type SessionField,
 } from '@setframe/domain';
 import { useApiClient } from '../lib/api-client';
 import { useTheme } from '../theme/ThemeProvider';
 import { ExerciseTableCard, CARD_WIDTH } from '../components/workout-v2/ExerciseTableCard';
+import { ExercisePickerV2 } from '../components/exercise-picker/ExercisePickerV2';
 import {
   SetRowV2,
   type SetRowStatus,
@@ -68,6 +70,8 @@ export default function WorkoutSessionV2Screen() {
     enabled: Boolean(sessionId),
   });
 
+  const [pickerOpen, setPickerOpen] = useState(false);
+
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ['workout-session', sessionId] });
 
@@ -86,6 +90,29 @@ export default function WorkoutSessionV2Screen() {
     mutationFn: (exerciseLogId: string) =>
       api.post<WorkoutSet>(`/workout-exercise-logs/${exerciseLogId}/sets`, {}),
     onSuccess: invalidate,
+  });
+
+  const { data: catalogue = [] } = useQuery({
+    queryKey: ['exercises'],
+    /* Only fetched once the picker opens — the catalogue is large and the
+       logger does not otherwise need it. */
+    queryFn: () => api.get<PickableExercise[]>('/exercises'),
+    enabled: pickerOpen,
+  });
+
+  const addExercises = useMutation({
+    mutationFn: async (exerciseIds: string[]) => {
+      /* Sequential, not Promise.all: sortOrder comes from insertion order
+         server-side, and the picker promises they are added in the order
+         picked — parallel posts would race that promise. */
+      for (const exerciseId of exerciseIds) {
+        await api.post(`/workout-sessions/${sessionId}/exercises`, { exerciseId });
+      }
+    },
+    onSuccess: async () => {
+      setPickerOpen(false);
+      await invalidate();
+    },
   });
 
   const finish = useMutation({
@@ -369,6 +396,8 @@ export default function WorkoutSessionV2Screen() {
           <Pressable
             style={[styles.addExercise, { backgroundColor: theme.surface.sunken }]}
             accessibilityRole="button"
+            testID="add-exercise"
+            onPress={() => setPickerOpen(true)}
           >
             <Text style={[styles.addExerciseText, { color: theme.action.primary }]}>
               + Add exercise
@@ -376,6 +405,18 @@ export default function WorkoutSessionV2Screen() {
           </Pressable>
         </View>
       )}
+
+      {/* Full-screen, not a bottom sheet: the picker has its own header,
+          scroll region and footer, and is the whole screen in the design. */}
+      <Modal visible={pickerOpen} animationType="slide" onRequestClose={() => setPickerOpen(false)}>
+        <ExercisePickerV2
+          exercises={catalogue}
+          title="Add to this workout"
+          onCancel={() => setPickerOpen(false)}
+          onAdd={(ids) => addExercises.mutate(ids)}
+          busy={addExercises.isPending}
+        />
+      </Modal>
     </View>
   );
 }

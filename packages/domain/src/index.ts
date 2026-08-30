@@ -29,3 +29,4 @@ export * from './duration';
 export * from './quick-log';
 export * from './sync-status';
 export * from './training-overview';
+export * from './exercise-picker';

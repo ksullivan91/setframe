@@ -27,34 +27,38 @@ const daysAgo = (days: number) =>
 
 const mockUserId = '00000000-0000-0000-0000-000000000001';
 
+/* `movementPattern` and `equipment` are both real columns the API returns.
+   Omitting them left the exercise picker with no subtitle on any row and
+   only an "Other" filter, while the picker itself was correct — the same
+   class of fixture bug as the schedule slots below. A few more exercises
+   too, so the picker's search and filters have something to bite on. */
+const exerciseFixture = (
+  id: string,
+  name: string,
+  movementPattern: string | null,
+  equipment: string | null,
+) => ({
+  id,
+  name,
+  movementPattern,
+  equipment,
+  isCustom: false,
+  ownerUserId: null,
+  archivedAt: null,
+  createdAt: now(),
+  updatedAt: now(),
+});
+
 const mockExercises = [
-  {
-    id: '10000000-0000-0000-0000-000000000001',
-    name: 'Barbell Bench Press',
-    isCustom: false,
-    ownerUserId: null,
-    archivedAt: null,
-    createdAt: now(),
-    updatedAt: now(),
-  },
-  {
-    id: '10000000-0000-0000-0000-000000000002',
-    name: 'Overhead Press',
-    isCustom: false,
-    ownerUserId: null,
-    archivedAt: null,
-    createdAt: now(),
-    updatedAt: now(),
-  },
-  {
-    id: '10000000-0000-0000-0000-000000000003',
-    name: 'Triceps Pushdown',
-    isCustom: false,
-    ownerUserId: null,
-    archivedAt: null,
-    createdAt: now(),
-    updatedAt: now(),
-  },
+  exerciseFixture('10000000-0000-0000-0000-000000000001', 'Barbell Bench Press', 'horizontal-push', 'barbell'),
+  exerciseFixture('10000000-0000-0000-0000-000000000002', 'Overhead Press', 'vertical-push', 'barbell'),
+  exerciseFixture('10000000-0000-0000-0000-000000000003', 'Triceps Pushdown', 'isolation-arm', 'cable'),
+  exerciseFixture('10000000-0000-0000-0000-000000000004', 'Back Squat', 'squat', 'barbell'),
+  exerciseFixture('10000000-0000-0000-0000-000000000005', 'Romanian Deadlift', 'hinge', 'barbell'),
+  exerciseFixture('10000000-0000-0000-0000-000000000006', 'Bulgarian Split Squat', 'lunge', 'dumbbell'),
+  exerciseFixture('10000000-0000-0000-0000-000000000007', 'Bent Over Row', 'horizontal-pull', 'barbell'),
+  exerciseFixture('10000000-0000-0000-0000-000000000008', 'Pull Up', 'vertical-pull', 'bodyweight'),
+  exerciseFixture('10000000-0000-0000-0000-000000000009', 'Farmer Carry', 'carry', 'dumbbell'),
 ];
 
 const mockHistoryItems = [

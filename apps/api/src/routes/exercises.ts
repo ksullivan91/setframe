@@ -18,6 +18,7 @@ function toExerciseResponse(row: typeof exercise.$inferSelect) {
     id: row.id,
     name: row.name,
     movementPattern: row.movementPattern,
+    equipment: row.equipment,
     isCustom: !row.isSystem,
     ownerUserId: row.createdByUserId,
     archivedAt: row.archivedAt ? row.archivedAt.toISOString() : null,
