@@ -3,7 +3,7 @@ import { Alert } from 'react-native';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '../theme/ThemeProvider';
-import ProgramEditorScreen from '../../app/(tabs)/training';
+import ProgramEditorScreen from '../../app/training-manage';
 
 const mockPush = jest.fn();
 let mockGet: (path: string) => Promise<unknown> = () => Promise.resolve([]);

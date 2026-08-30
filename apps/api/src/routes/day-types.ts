@@ -1,5 +1,5 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
-import { and, desc, eq, inArray, max } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, max } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   dayType,
@@ -25,6 +25,26 @@ import {
 import { getDb } from '../lib/db.js';
 import { forbidden, notFound } from '../lib/errors.js';
 import { requireAuth } from '../plugins/auth.js';
+
+/**
+ * Exercise counts for several workouts in one grouped query.
+ *
+ * Returns a map rather than a list so a workout with no exercises is simply
+ * absent and the caller defaults it to 0 — a LEFT JOIN would report the same
+ * thing as a row with a null count, which is easy to mistake for "unknown".
+ */
+async function countExercisesByDayType(
+  db: ReturnType<typeof getDb>,
+  dayTypeIds: string[],
+): Promise<Map<string, number>> {
+  if (dayTypeIds.length === 0) return new Map();
+  const rows = await db
+    .select({ dayTypeId: dayTypeExercise.dayTypeId, value: count() })
+    .from(dayTypeExercise)
+    .where(inArray(dayTypeExercise.dayTypeId, dayTypeIds))
+    .groupBy(dayTypeExercise.dayTypeId);
+  return new Map(rows.map((row) => [row.dayTypeId, Number(row.value)]));
+}
 
 function toDayTypeResponse(row: typeof dayType.$inferSelect) {
   return {
@@ -359,7 +379,14 @@ export const dayTypeRoutes: FastifyPluginAsyncZod = async (fastify) => {
     async (request) => {
       const db = getDb();
       const rows = await db.select().from(dayType).where(eq(dayType.userId, request.userId!));
-      return rows.map(toDayTypeResponse);
+      /* Same grouped count as the per-program list. This endpoint backs the
+         "workouts with no plan" state, where the count is the only thing
+         distinguishing one saved workout from another. */
+      const counts = await countExercisesByDayType(db, rows.map((row) => row.id));
+      return rows.map((row) => ({
+        ...toDayTypeResponse(row),
+        exerciseCount: counts.get(row.id) ?? 0,
+      }));
     },
   );
 
@@ -773,7 +800,18 @@ export const dayTypeRoutes: FastifyPluginAsyncZod = async (fastify) => {
         .innerJoin(dayType, eq(dayType.id, programDayType.dayTypeId))
         .where(eq(programDayType.trainingProgramId, request.params.programId))
         .orderBy(programDayType.sortOrder, programDayType.createdAt);
-      return rows.map((row) => toDayTypeResponse(row.dayType));
+
+      /* One grouped count for the whole list rather than a query per row.
+         The Training overview renders "6 exercises" on every workout, so an
+         N+1 here would be N+1 on the page's first paint. */
+      const counts = await countExercisesByDayType(
+        db,
+        rows.map((row) => row.dayType.id),
+      );
+      return rows.map((row) => ({
+        ...toDayTypeResponse(row.dayType),
+        exerciseCount: counts.get(row.dayType.id) ?? 0,
+      }));
     },
   );
 

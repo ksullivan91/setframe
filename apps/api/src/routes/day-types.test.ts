@@ -28,6 +28,8 @@ function queryChain(rows: unknown[]) {
   return {
     limit: vi.fn().mockResolvedValue(rows),
     orderBy: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue(rows), then: resolved.then.bind(resolved) }),
+    /** The grouped exercise-count query behind `exerciseCount`. */
+    groupBy: vi.fn().mockResolvedValue(rows),
     returning: vi.fn().mockResolvedValue(rows),
     then: resolved.then.bind(resolved),
   };
@@ -255,7 +257,11 @@ describe('program-day-type membership routes', () => {
     mockSelect
       .mockReturnValueOnce(selectChain([ownerUser]))
       .mockReturnValueOnce(selectChain([programRow]))
-      .mockReturnValueOnce(selectChain([{ dayType: dayTypeRow }, { dayType: secondDayTypeRow }]));
+      .mockReturnValueOnce(selectChain([{ dayType: dayTypeRow }, { dayType: secondDayTypeRow }]))
+      /* The grouped exercise count. Only the first workout has exercises,
+         so the second must come back as 0 rather than absent — the overview
+         renders the number on every row. */
+      .mockReturnValueOnce(selectChain([{ dayTypeId: dayTypeRow.id, value: 6 }]));
 
     const app = buildApp();
     const response = await app.inject({
@@ -266,6 +272,7 @@ describe('program-day-type membership routes', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json().map((d: { name: string }) => d.name)).toEqual(['Upper A', 'Lower A']);
+    expect(response.json().map((d: { exerciseCount: number }) => d.exerciseCount)).toEqual([6, 0]);
     await app.close();
   });
 

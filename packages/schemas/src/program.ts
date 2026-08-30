@@ -102,6 +102,15 @@ export const dayTypeSchema = z.object({
   estimatedDurationMinutes: z.number().int().positive().nullable(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  /**
+   * How many exercises the workout holds.
+   *
+   * Optional because only the list endpoints compute it — a single-workout
+   * response returns the exercises themselves, so a count beside them would
+   * be a second source of the same truth. The Training overview needs it to
+   * render "6 exercises" without an N+1 fetch per row.
+   */
+  exerciseCount: z.number().int().nonnegative().optional(),
 });
 export type DayType = z.infer<typeof dayTypeSchema>;
 

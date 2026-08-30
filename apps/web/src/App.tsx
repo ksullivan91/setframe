@@ -11,6 +11,7 @@ import {
   ProgressPage,
   SettingsPage,
   WorkoutSessionPageV2,
+  TrainingPageV2,
 } from './pages';
 
 function AuthenticatedApp() {
@@ -18,7 +19,10 @@ function AuthenticatedApp() {
     <AppShell>
       <Routes>
         <Route path="/today" element={<TodayPage />} />
-        <Route path="/training" element={<ProgramEditorPage />} />
+        <Route path="/training" element={<TrainingPageV2 />} />
+        {/* The three-tab editor, still reachable while stories 79-81 build
+            the pushed screens the overview replaces it with. */}
+        <Route path="/training/manage" element={<ProgramEditorPage />} />
         <Route path="/training/new" element={<ProgramCreationWizardPage />} />
         {/* The canonical workout route renders v2. Versioning lives in the
             file names, not the URL — v1 stays in the tree, unrouted, until

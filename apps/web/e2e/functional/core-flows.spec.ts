@@ -136,27 +136,33 @@ test.describe('workout session', () => {
 });
 
 test.describe('training', () => {
-  test('the three planning surfaces are offered', async ({ page }) => {
+  test('the three planning questions are answered on one page, without tabs', async ({ page }) => {
     await signInAs(page, 'lifter', '/training');
 
-    /* Presence, not traversal. An earlier version clicked through each tab and
-       hung: the control's real accessible name does not match `Programs`
-       exactly, and rather than keep guessing at a selector I could not verify,
-       this asserts what the exploration actually observed. Driving the tabs
-       belongs in a UX journey, which captures a screenshot and can therefore
-       prove what it clicked. */
-    for (const tab of ['Programs', 'Workouts', 'Schedule'] as const) {
-      await expect(page.getByText(tab, { exact: true }).first()).toBeVisible();
-    }
+    /* Training v2 (story 76) deletes the Programs / Workouts / Schedule tabs.
+       They were named after tables — training_program, day_type and
+       program_schedule_slot — so the user had to choose which part of our
+       data model they wanted before they could act. The page now answers the
+       three questions in the order people ask them, all visible at once. */
+    await expect(page.getByTestId('active-program-card')).toBeVisible();
+    await expect(page.getByTestId('this-week-card')).toBeVisible();
+    await expect(page.getByTestId('workouts-card')).toBeVisible();
+
+    /* The tabs themselves must be gone, not merely unused. */
+    await expect(page.getByRole('tab')).toHaveCount(0);
   });
 
-  test('a program lists its workouts', async ({ page }) => {
+  test('a program lists its workouts, each row tappable as a whole', async ({ page }) => {
     await signInAs(page, 'lifter', '/training');
-    /* Exact, because each workout also has an "Actions for …" control whose
-       accessible name contains the workout's own name — a loose match resolves
-       to both and fails strict mode. */
-    await expect(page.getByRole('button', { name: 'Day 1 — Push ~50 min', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: /New workout/ }).first()).toBeVisible();
+
+    /* The whole row is the target, not just the chevron — the interaction
+       spec calls this out because the page it replaces made only the chevron
+       hittable. */
+    const row = page.getByTestId(/^workout-row-/).first();
+    await expect(row).toBeVisible();
+    await expect(row).toContainText('Day 1 — Push');
+    await expect(row).toContainText('6 exercises');
+    await expect(page.getByRole('button', { name: '+ New' })).toBeVisible();
   });
 });
 

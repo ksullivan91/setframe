@@ -4,6 +4,7 @@ export * from './TodayPage';
 export * from './WorkoutLoggerPage';
 export * from './WorkoutSessionPage';
 export { default as WorkoutSessionPageV2 } from './WorkoutSessionPageV2';
+export { default as TrainingPageV2 } from './TrainingPageV2';
 export * from './ProgramEditorPage';
 export * from './ExerciseHistoryPage';
 export * from './ProgressPage';

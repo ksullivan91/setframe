@@ -22,6 +22,8 @@ import { mockControl } from './mock-control';
 
 const now = () => new Date().toISOString();
 const today = () => new Date().toISOString().slice(0, 10);
+const daysAgo = (days: number) =>
+  new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
 
 const mockUserId = '00000000-0000-0000-0000-000000000001';
 
@@ -71,7 +73,11 @@ const mockPrograms = [
     name: '5-Day Upper/Lower Split',
     description: null,
     isActive: true,
-    startDate: null,
+    /* A block needs a start date to say which week you are in. With this
+       null the overview can only name the length ("5-week block") — correct,
+       but it leaves the progress bar unexercised in `dev:mock`, which is the
+       one figure the old Training page never showed at all. */
+    startDate: daysAgo(14),
     cycleLengthWeeks: 5,
     archivedAt: null,
     createdAt: now(),
@@ -120,16 +126,32 @@ const mockDayTypeExercises = [
   },
 ];
 
+/* Field names must match `programScheduleSlotSchema` exactly: the columns
+   are `dayIndex`, `weekNumber` and `sortOrder`. These previously read
+   `dayOfWeek` and `weekIndex`, which exist nowhere in the schema — the same
+   class of fixture bug as the exercise-id namespace noted above, and it
+   would have left the Training week strip permanently empty while the page
+   itself was correct. `weekNumber: null` means the slot repeats every week. */
+const scheduleSlot = (
+  id: string,
+  dayTypeId: string,
+  dayIndex: number,
+  sortOrder = 0,
+) => ({
+  id,
+  programVersionId: '40000000-0000-0000-0000-000000000001',
+  dayTypeId,
+  weekNumber: null,
+  dayIndex,
+  sortOrder,
+  createdAt: now(),
+});
+
 const mockScheduleSlots = [
-  {
-    id: '60000000-0000-0000-0000-000000000001',
-    programVersionId: '40000000-0000-0000-0000-000000000001',
-    dayTypeId: '30000000-0000-0000-0000-000000000001',
-    weekIndex: 0,
-    dayOfWeek: 1,
-    createdAt: now(),
-    updatedAt: now(),
-  },
+  /* Monday and Thursday, so the strip shows scheduled days on both sides of
+     a rest day rather than a single lonely chip. */
+  scheduleSlot('60000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 1),
+  scheduleSlot('60000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000002', 4),
 ];
 
 const mockTemplates = [
@@ -141,6 +163,7 @@ const mockTemplates = [
     sortOrder: 0,
     description: null,
     estimatedDurationMinutes: 50,
+    exerciseCount: 6,
     createdAt: now(),
     updatedAt: now(),
   },
@@ -152,6 +175,7 @@ const mockTemplates = [
     sortOrder: 1,
     description: null,
     estimatedDurationMinutes: 45,
+    exerciseCount: 5,
     createdAt: now(),
     updatedAt: now(),
   },
@@ -163,6 +187,7 @@ const mockTemplates = [
     sortOrder: 2,
     description: null,
     estimatedDurationMinutes: 55,
+    exerciseCount: 0,
     createdAt: now(),
     updatedAt: now(),
   },

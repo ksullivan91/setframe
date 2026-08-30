@@ -198,8 +198,16 @@ export function describeBlockProgress(options: {
   todayLocalDate: string;
 }): BlockProgress {
   const { cycleLengthWeeks, programStartDate, todayLocalDate } = options;
-  if (!cycleLengthWeeks || cycleLengthWeeks <= 0 || !programStartDate) {
+  if (!cycleLengthWeeks || cycleLengthWeeks <= 0) {
     return { label: 'Repeats weekly', ratio: null, currentWeek: null };
+  }
+
+  /* A block with no start date is still a block — we know how long it runs,
+     just not where in it the user is. Saying "Repeats weekly" would be
+     false, and assuming week 1 would fabricate a position. Name the length
+     and draw no bar. */
+  if (!programStartDate) {
+    return { label: `${cycleLengthWeeks}-week block`, ratio: null, currentWeek: null };
   }
 
   const startWeek = weekStart(programStartDate);

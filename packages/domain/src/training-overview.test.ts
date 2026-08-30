@@ -153,6 +153,18 @@ describe('describeBlockProgress', () => {
     expect(progress).toEqual({ label: 'Repeats weekly', ratio: null, currentWeek: null });
   });
 
+  it('names the block length when the plan has no start date, rather than claiming it repeats', () => {
+    /* cycle_length_weeks set with a null start date is a real combination.
+       "Repeats weekly" would be false, and assuming week 1 would fabricate a
+       position the data does not support. */
+    const progress = describeBlockProgress({
+      cycleLengthWeeks: 5,
+      programStartDate: null,
+      todayLocalDate: '2026-08-24',
+    });
+    expect(progress).toEqual({ label: '5-week block', ratio: null, currentWeek: null });
+  });
+
   it('clamps to week 1 before the plan starts, never zero or negative', () => {
     const progress = describeBlockProgress({
       cycleLengthWeeks: 8,
