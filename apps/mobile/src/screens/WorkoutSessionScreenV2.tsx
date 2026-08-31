@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -39,6 +39,7 @@ import { ExerciseCardsSkeleton } from '../components/training-v2/TrainingSkeleto
 import { SetTypeSheet } from '../components/workout-v2/SetTypeSheet';
 import { ExerciseActionsSheet } from '../components/workout-v2/ExerciseActionsSheet';
 import { SaveAsWorkoutCard } from '../components/training-v2/SaveAsWorkoutCard';
+import { useActionFeedback } from '../lib/useActionFeedback';
 import {
   SetRowV2,
   type SetRowStatus,
@@ -105,6 +106,7 @@ export default function WorkoutSessionV2Screen() {
   const { sessionId: raw } = useLocalSearchParams<{ sessionId?: string | string[] }>();
   const sessionId = Array.isArray(raw) ? raw[0] : raw;
   const api = useApiClient();
+  const feedback = useActionFeedback();
   const router = useRouter();
   const theme = useTheme();
   /* The native stack header is disabled for this route because v2 draws its
@@ -240,6 +242,8 @@ export default function WorkoutSessionV2Screen() {
       setPickerOpen(false);
       await invalidate();
     },
+  
+    onError: feedback.report('Could not add those exercises. Try again.'),
   });
 
   const changeSetType = useMutation({
@@ -317,11 +321,15 @@ export default function WorkoutSessionV2Screen() {
       });
     },
     onSuccess: (created) => setSavedWorkoutName(created.name),
+  
+    onError: feedback.report('Could not save this as a workout. Try again.'),
   });
 
   const finish = useMutation({
     mutationFn: () => api.post(`/workout-sessions/${sessionId}/complete`),
     onSuccess: invalidate,
+  
+    onError: feedback.report('Could not finish the workout. Your sets are saved — try again.'),
   });
 
   const session = query.data;
@@ -549,10 +557,25 @@ export default function WorkoutSessionV2Screen() {
             </View>
             <Pressable
               onPress={() => finish.mutate()}
-              style={[styles.finish, { backgroundColor: theme.action.primary }]}
+              /* Finishing is a real round trip that then navigates away.
+                 With no pending state a second tap fired a second complete
+                 while the first was still in flight — and, since it also
+                 had no error path, a failure looked identical to a button
+                 that did nothing. */
+              disabled={finish.isPending}
+              testID="finish-workout"
+              style={[
+                styles.finish,
+                { backgroundColor: theme.action.primary, opacity: finish.isPending ? 0.7 : 1 },
+              ]}
               accessibilityRole="button"
+              accessibilityState={{ disabled: finish.isPending }}
             >
-              <Text style={[styles.finishText, { color: theme.action.primaryText }]}>Finish</Text>
+              {finish.isPending ? (
+                <ActivityIndicator color={theme.action.primaryText} />
+              ) : (
+                <Text style={[styles.finishText, { color: theme.action.primaryText }]}>Finish</Text>
+              )}
             </Pressable>
           </View>
           <Text style={[styles.meta, { color: theme.text.secondary }]} testID="session-meta">
@@ -745,6 +768,7 @@ export default function WorkoutSessionV2Screen() {
           busy={addExercises.isPending}
         />
       </Modal>
+      {feedback.node}
     </View>
   );
 }

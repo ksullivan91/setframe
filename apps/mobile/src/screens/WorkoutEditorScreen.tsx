@@ -12,6 +12,7 @@ import { ExercisePickerV2 } from '../components/exercise-picker/ExercisePickerV2
 import { PrescriptionSheet } from '../components/training-v2/PrescriptionSheet';
 import { WorkoutExerciseRow } from '../components/training-v2/WorkoutExerciseRow';
 import { EditorRowsSkeleton } from '../components/training-v2/TrainingSkeletons';
+import { useActionFeedback } from '../lib/useActionFeedback';
 
 /**
  * The workout editor. Counterpart of `apps/web/src/pages/WorkoutEditorPage.tsx`.
@@ -46,6 +47,7 @@ const DEFAULT_PICKED_PRESCRIPTION = { kind: 'sets_reps' as const, sets: 1 };
 export function WorkoutEditorScreen() {
   const { dayTypeId } = useLocalSearchParams<{ dayTypeId: string }>();
   const api = useApiClient();
+  const feedback = useActionFeedback();
   const router = useRouter();
   const theme = useTheme();
   /* These screens draw their own header with `headerShown: false`, so
@@ -88,12 +90,16 @@ export function WorkoutEditorScreen() {
       setPickerOpen(false);
       await invalidate();
     },
+  
+    onError: feedback.report('Could not add those exercises. Try again.'),
   });
 
   const savePrescription = useMutation({
     mutationFn: ({ id, prescription }: { id: string; prescription: Prescription }) =>
       api.patch(`/day-types/${dayTypeId}/exercises/${id}`, { prescription }),
     onSuccess: invalidate,
+  
+    onError: feedback.report('Could not save that target. Try again.'),
   });
 
   const removeExercise = useMutation({
@@ -102,6 +108,8 @@ export function WorkoutEditorScreen() {
       setSheetFor(null);
       await invalidate();
     },
+  
+    onError: feedback.report('Could not remove that exercise. Try again.'),
   });
 
   const active = exercises.find((item) => item.id === sheetFor) ?? null;
@@ -187,6 +195,7 @@ export function WorkoutEditorScreen() {
           onRemove={() => removeExercise.mutate(active.id)}
         />
       ) : null}
+      {feedback.node}
     </View>
   );
 }

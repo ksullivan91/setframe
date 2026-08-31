@@ -19,6 +19,7 @@ import { WeekStrip } from '../components/training-v2/WeekStrip';
 import { Card, CardAction, CardHeadRow, CardLabel, ListRow } from '../components/training-v2/TrainingCards';
 import { NoPlanRoutes } from '../components/training-v2/NoPlanRoutes';
 import { ListRowsSkeleton, WeekStripSkeleton } from '../components/training-v2/TrainingSkeletons';
+import { useActionFeedback } from '../lib/useActionFeedback';
 
 /**
  * Training v2 — one scrollable screen, replacing three tabs.
@@ -49,6 +50,7 @@ function todayLocalDate(): string {
 
 export function TrainingScreenV2() {
   const api = useApiClient();
+  const feedback = useActionFeedback();
   const router = useRouter();
   const theme = useTheme();
   /* These screens draw their own header with `headerShown: false`, so
@@ -144,6 +146,8 @@ export function TrainingScreenV2() {
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       }),
     onSuccess: (session) => router.push(`/workout/${session.id}`),
+  
+    onError: feedback.report('Could not start a workout. Try again.'),
   });
 
   if (isLoading) return <View style={{ flex: 1, backgroundColor: theme.surface.canvas }} />;
@@ -185,6 +189,7 @@ export function TrainingScreenV2() {
           onBuildYourOwn={() => router.push('/program-wizard')}
           busy={startAdHoc.isPending}
         />
+        {feedback.node}
       </ScrollView>
     );
   }
@@ -208,6 +213,7 @@ export function TrainingScreenV2() {
           onBuildYourOwn={() => router.push('/program-wizard')}
           busy={startAdHoc.isPending}
         />
+        {feedback.node}
       </ScrollView>
     );
   }
@@ -278,6 +284,7 @@ export function TrainingScreenV2() {
           ))
         )}
       </Card>
+      {feedback.node}
     </ScrollView>
   );
 }

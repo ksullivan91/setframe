@@ -11,6 +11,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Card, CardLabel } from '../components/training-v2/TrainingCards';
 import { AssignDaySheet } from '../components/training-v2/AssignDaySheet';
 import { ScheduleDaysSkeleton } from '../components/training-v2/TrainingSkeletons';
+import { useActionFeedback } from '../lib/useActionFeedback';
 
 /**
  * The weekly schedule. Counterpart of `apps/web/src/pages/SchedulePage.tsx`.
@@ -23,6 +24,7 @@ import { ScheduleDaysSkeleton } from '../components/training-v2/TrainingSkeleton
  */
 export function ScheduleScreen() {
   const api = useApiClient();
+  const feedback = useActionFeedback();
   const router = useRouter();
   const theme = useTheme();
   /* These screens draw their own header with `headerShown: false`, so
@@ -73,6 +75,8 @@ export function ScheduleScreen() {
     },
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ['schedule-slots', program?.id] }),
+  
+    onError: feedback.report('Could not change that day. Try again.'),
   });
 
   const overviewSlots = useMemo<OverviewSlot[]>(() => {
@@ -189,6 +193,7 @@ export function ScheduleScreen() {
           onChange={(dayTypeIds) => assignDay.mutate({ dayIndex: assigning, dayTypeIds })}
         />
       ) : null}
+      {feedback.node}
     </View>
   );
 }

@@ -41,6 +41,7 @@ import { AppleHealthCard } from '../../src/components/AppleHealthCard';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { radius, spacing, typeScale } from '../../src/theme/getTheme';
 import type { WorkoutSessionDetail } from '@setframe/schemas';
+import { useActionFeedback } from '../../src/lib/useActionFeedback';
 
 interface DashboardSessionSummary {
   id: string;
@@ -215,6 +216,7 @@ function SaveFeedback({ state, errorMessage }: { state: SaveState; errorMessage?
 }
 
 export default function TodayScreen() {
+  const feedback = useActionFeedback();
   const theme = useTheme();
   const router = useRouter();
   const api = useApiClient();
@@ -319,6 +321,8 @@ export default function TodayScreen() {
          id and cannot create a session at all. */
       router.push({ pathname: '/workout/[sessionId]', params: { sessionId: session.id } });
     },
+  
+    onError: feedback.report('Could not start the workout. Try again.'),
   });
 
   const markRestDayMutation = useMutation({
@@ -877,6 +881,7 @@ export default function TodayScreen() {
       <AppleHealthCard connection={health} fallback={syncedMetrics} />
       </>
       )}
+      {feedback.node}
     </ScrollView>
   );
 }

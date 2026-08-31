@@ -22,6 +22,7 @@ import { useLocalDate } from '../src/lib/useLocalDate';
 import { summarizePrescription } from '../src/lib/prescription';
 import { useTheme } from '../src/theme/ThemeProvider';
 import { radius, spacing, typeScale } from '../src/theme/getTheme';
+import { useActionFeedback } from '../src/lib/useActionFeedback';
 
 interface DayTypeDetail extends DayType {
   exercises: DayTypeExercise[];
@@ -46,6 +47,7 @@ const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
  */
 export default function ProgramEditorScreen() {
   const theme = useTheme();
+  const feedback = useActionFeedback();
   const router = useRouter();
   const api = useApiClient();
   const queryClient = useQueryClient();
@@ -180,6 +182,8 @@ export default function ProgramEditorScreen() {
   const createExercise = useMutation({
     mutationFn: (name: string) => api.post<Exercise>('/exercises', { name }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['exercises'] }),
+  
+    onError: feedback.report('Could not create that exercise. Try again.'),
   });
 
   const createWorkout = useMutation({
@@ -1029,6 +1033,7 @@ export default function ProgramEditorScreen() {
           }
         />
       ) : null}
+      {feedback.node}
     </ScrollView>
   );
 }

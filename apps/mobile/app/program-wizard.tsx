@@ -23,6 +23,7 @@ import { summarizePrescription } from '../src/lib/prescription';
 import { useTheme } from '../src/theme/ThemeProvider';
 import { spacing, typeScale } from '../src/theme/getTheme';
 import { radius } from '@setframe/design-tokens';
+import { useActionFeedback } from '../src/lib/useActionFeedback';
 
 interface DayTypeDetail extends DayType {
   exercises: DayTypeExercise[];
@@ -81,6 +82,7 @@ function nextTempId(prefix: string) {
  */
 export default function ProgramWizardScreen() {
   const theme = useTheme();
+  const feedback = useActionFeedback();
   const router = useRouter();
   const api = useApiClient();
   const queryClient = useQueryClient();
@@ -278,6 +280,8 @@ export default function ProgramWizardScreen() {
     },
     // Errors surface inline inside AddExercisePicker (which preserves the
     // typed name for retry) rather than as a modal Alert.
+  
+    onError: feedback.report('Could not create that exercise. Try again.'),
   });
 
   /**
@@ -299,6 +303,8 @@ export default function ProgramWizardScreen() {
       setAddExerciseOpen(false);
       await queryClient.invalidateQueries({ queryKey: ['day-type', selectedWorkout!.dayTypeId] });
     },
+  
+    onError: feedback.report('Could not add those exercises. Try again.'),
   });
 
   const addExercise = useMutation({
@@ -801,6 +807,7 @@ export default function ProgramWizardScreen() {
         />
       ) : null}
     </Modal>
+      {feedback.node}
     </>
   );
 }

@@ -11,6 +11,7 @@ import { spacing, typeScale } from '../../src/theme/getTheme';
 import { useApiClient } from '../../src/lib/api-client';
 import { useHealthConnection, type HealthCardState } from '../../src/healthkit/useHealthConnection';
 import { useScreenTopPadding } from '../../src/lib/useScreenInsets';
+import { useActionFeedback } from '../../src/lib/useActionFeedback';
 
 type PreferredUnits = User['preferredUnits'];
 
@@ -73,6 +74,7 @@ function formatRelativeTime(timestamp: string | null) {
 }
 
 export default function SettingsScreen() {
+  const feedback = useActionFeedback();
   const theme = useTheme();
   const { user } = useUser();
   const { signOut } = useAuth();
@@ -90,6 +92,8 @@ export default function SettingsScreen() {
   const updateUnits = useMutation({
     mutationFn: (preferredUnits: PreferredUnits) => apiClient.patch<User>('/me', { preferredUnits }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['me'] }),
+  
+    onError: feedback.report('Could not change units. Try again.'),
   });
 
   const {
@@ -235,6 +239,7 @@ export default function SettingsScreen() {
       </Card>
 
       <Button label="Sign out" variant="secondary" onPress={() => signOut()} />
+      {feedback.node}
     </ScrollView>
   );
 }
