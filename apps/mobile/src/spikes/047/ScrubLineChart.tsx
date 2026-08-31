@@ -86,7 +86,7 @@ export function ScrubLineChart({
         .runOnJS(true)
         .onBegin((event) => selectNearest(event.x))
         .onUpdate((event) => selectNearest(event.x)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
     [points, selected],
   );
 

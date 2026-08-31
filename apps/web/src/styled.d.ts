@@ -6,6 +6,6 @@ import type { SemanticTheme } from '@setframe/design-tokens';
  * shape so `props.theme.text.primary` etc. is typed everywhere.
  */
 declare module 'styled-components' {
-  // eslint-disable-next-line @typescript-eslint/no-empty-interface
+
   export interface DefaultTheme extends SemanticTheme {}
 }

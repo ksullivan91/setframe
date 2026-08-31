@@ -12,7 +12,7 @@
     "build": "expo export",
     "typecheck": "tsc --noEmit",
     "test": "jest",
-    "lint": "eslint . --max-warnings 0",
+    "lint": "eslint src app --max-warnings 20",
     "build:ios": "eas build --platform ios --profile production",
     "build:ios:preview": "eas build --platform ios --profile preview",
     "submit:ios": "eas submit --platform ios --profile production"

@@ -256,7 +256,7 @@ export function Modal({
     };
     // Focus capture/restore should only run when `open` toggles, not when
     // callers pass a fresh `onClose` reference on every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [open]);
 
   useEffect(() => {

@@ -84,7 +84,7 @@ export function SetRowV2({
     if (focusedCount.current > 0) return;
     setDraft(values);
     committedRef.current = values;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [valuesKey]);
 
   /**

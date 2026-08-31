@@ -260,7 +260,7 @@ export function SetRowV2({
     if (active) return;
     setDraft(values);
     committedRef.current = values;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [valuesKey]);
 
   /**
