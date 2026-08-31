@@ -106,9 +106,35 @@ Or `npm run build:ios` / `npm run submit:ios` from `apps/mobile`.
   marketing version and *is* hand-managed.
 - **A TestFlight build expires after 90 days.** Re-upload, or the app stops
   launching for testers.
-- The build profiles pin `EXPO_PUBLIC_API_BASE_URL` to production. A device
-  cannot reach `http://localhost`, which is what `apps/mobile/.env` holds for
-  simulator work — the profile env overrides it, so the two can coexist.
+- **`apps/mobile/.env` never reaches EAS.** It is gitignored, and EAS builds
+  from what git tracks. Every `EXPO_PUBLIC_*` the app reads must therefore be
+  supplied twice: once in `.env` for the simulator, and once for EAS — either
+  in the build profile's `env` block or as an EAS environment variable.
+
+  Missing one does not fail the build. `src/lib/env.ts` falls back to a
+  placeholder, the app compiles, installs, and then **crashes on launch** —
+  which is exactly what happened with the Clerk key on builds 2 and 3. The
+  build log names what it loaded, and is the fastest way to check:
+
+  > Environment variables with visibility "Plain text" and "Sensitive" loaded
+  > from the "production" environment on EAS: EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY.
+  > Environment variables loaded from the "production" build profile "env"
+  > configuration: EXPO_PUBLIC_API_BASE_URL.
+
+  Both lines should be there. `grep -rhoE "process\.env\.EXPO_PUBLIC_[A-Z_]+"
+  apps/mobile/src apps/mobile/app | sort -u` lists what the app actually reads.
+
+- `EXPO_PUBLIC_API_BASE_URL` is pinned to production in the build profiles. A
+  device cannot reach `http://localhost`, which is what `.env` holds for
+  simulator work — the profile value overrides it, so the two coexist.
+
+- `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` is an EAS environment variable rather
+  than a value in `eas.json`, so it is not committed. Set it with
+  `eas env:create --scope project --name ... --environment production`.
+  Note it is a `pk_test_` key: **production currently runs on Clerk's
+  development instance**, on web as well as mobile. Mobile has to match
+  whatever the API validates against, so changing one means changing all
+  three.
 - `ios/` is gitignored CNG output. EAS runs prebuild itself; nothing
   hand-edited under `ios/` survives.
 - Metro resolves the workspace packages (`@setframe/*`, whose `main` points
