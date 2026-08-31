@@ -330,6 +330,27 @@ export default function WorkoutSessionV2Screen() {
     [session],
   );
 
+  /*
+   * ABOVE the early return, deliberately.
+   *
+   * This sat below `if (!session)`, which made it a CONDITIONAL hook: on the
+   * first render the session is still loading and the component returns
+   * early, so the hook never runs; once the session arrives it does, the hook
+   * count changes, and React throws "Rendered more hooks than during the
+   * previous render". Opening a completed workout crashed the screen.
+   *
+   * Optional chaining rather than reordering the whole component, matching
+   * the web page, which has always had it in the right place.
+   */
+  const sessionCompleteForOffer = session?.status === 'completed';
+  const sessionIsUnplanned = session?.templateId == null;
+  const { data: programs = [] } = useQuery({
+    queryKey: ['programs'],
+    queryFn: () => api.get<{ id: string; isActive: boolean }[]>('/programs'),
+    enabled: sessionCompleteForOffer && sessionIsUnplanned,
+  });
+  const hasActiveProgram = programs.some((program) => program.isActive);
+
   if (!session) {
     /* The header is chrome, not data — rendering it immediately means the
        screen does not visibly reflow when the session arrives, and there is a
@@ -396,14 +417,6 @@ export default function WorkoutSessionV2Screen() {
   /* "Do this one again?" only makes sense for an UNPLANNED session — offering
      it after a planned one invites duplicating a workout you already have. */
   const isUnplanned = session.templateId == null;
-
-  /* Only consulted when the offer is shown. */
-  const { data: programs = [] } = useQuery({
-    queryKey: ['programs'],
-    queryFn: () => api.get<{ id: string; isActive: boolean }[]>('/programs'),
-    enabled: sessionComplete && isUnplanned,
-  });
-  const hasActiveProgram = programs.some((program) => program.isActive);
 
   const derivedWorkout = (() => {
     const names = new Map(exercises.map((log) => [log.exerciseId, log.exercise.name]));
