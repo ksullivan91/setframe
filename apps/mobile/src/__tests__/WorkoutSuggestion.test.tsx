@@ -49,10 +49,11 @@ jest.mock('expo-router', () => ({
 }));
 
 const posted: { path: string; body: unknown }[] = [];
+let mockItems: unknown[] = [];
 jest.mock('../lib/api-client', () => ({
   ApiError: class extends Error {},
   useApiClient: () => ({
-    get: () => Promise.resolve({ items: [] }),
+    get: () => Promise.resolve({ items: mockItems }),
     post: (path: string, body?: unknown) => {
       posted.push({ path, body });
       return Promise.resolve({});
@@ -119,6 +120,7 @@ afterEach(() => {
   mockDismiss.mockClear();
   posted.length = 0;
   mockSuggestions = [walk];
+  mockItems = [];
 });
 
 it('renders both actions, and neither one takes the whole row', async () => {
@@ -184,4 +186,65 @@ it('shows nothing when there is nothing to suggest', async () => {
   mockSuggestions = [];
   const rendered = await render();
   expect(allText(rendered)).not.toContain('FOUND IN APPLE HEALTH');
+});
+
+describe('parity with Figma 211:857 / 211:867 / 211:865', () => {
+  const logged = {
+    id: 'act-1',
+    localDate: '2026-08-31',
+    timezone: 'UTC',
+    startedAt: '2026-08-31T08:10:00.000Z',
+    durationSeconds: 1320,
+    activityType: 'walk',
+    source: 'apple_health',
+    title: 'Morning Walk',
+    distanceValue: null,
+    distanceUnit: null,
+    caloriesKcal: null,
+    notes: null,
+    externalSourceId: 'hk-morning',
+    createdAt: '2026-08-31T08:10:00.000Z',
+    updatedAt: '2026-08-31T08:10:00.000Z',
+  };
+
+  it('puts what is already logged above what was found', async () => {
+    /* Figma 211:857 orders the card head → logged row → suggestions → hint.
+       Ours rendered suggestions first, so an offer sat above the record of
+       what the user actually did. */
+    mockItems = [logged];
+    const text = allText(await render());
+
+    expect(text.indexOf('Morning Walk')).toBeGreaterThan(-1);
+    expect(text.indexOf('FOUND IN APPLE HEALTH')).toBeGreaterThan(-1);
+    expect(text.indexOf('Morning Walk')).toBeLessThan(text.indexOf('FOUND IN APPLE HEALTH'));
+  });
+
+  it('badges an imported activity instead of listing the source as text', async () => {
+    /* 211:867 draws "Apple Health" as a tinted pill beside the detail line.
+       Ours joined it into the detail string with a middle dot. */
+    mockItems = [logged];
+    const rendered = await render();
+
+    expect(hostByTestId(rendered, 'activity-source-act-1').length).toBeGreaterThan(0);
+    expect(allText(rendered)).not.toContain('22 min · Apple Health');
+  });
+
+  it('reads the detail in the order the design does', async () => {
+    // 211:867: time, then duration. Ours had duration first.
+    // Asserted structurally, not against a literal clock time: the fixture
+    // is UTC and the runner is not, so "8:10 AM" only held in one timezone.
+    mockItems = [logged];
+    const text = allText(await render());
+    expect(text).toMatch(/\d{1,2}:\d{2}\s?(AM|PM) · 22 min/);
+  });
+
+  it('counts the suggestions when there is more than one', async () => {
+    // 211:857 says "Two more found today"; 211:836 reassures instead.
+    mockSuggestions = [walk, { ...walk, externalId: 'hk-yoga', title: 'Yoga' }];
+    expect(allText(await render())).toContain('Two more found today');
+  });
+
+  it('reassures rather than counting when there is only one', async () => {
+    expect(allText(await render())).toContain('Setframe never adds these on its own.');
+  });
 });

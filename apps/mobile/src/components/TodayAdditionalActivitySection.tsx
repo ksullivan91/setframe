@@ -281,7 +281,7 @@ export function TodayAdditionalActivitySection({
     <Card style={[styles.card, { backgroundColor: theme.surface.sunken, borderColor: theme.border.subtle, borderStyle: 'dashed' }]}>
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.text.primary }]}>Additional activity</Text>
-        <IconButton icon={Plus} variant="subtle" accessibilityLabel="Add activity" onPress={openAdd} />
+        <IconButton icon={Plus} size={28} variant="raised" accessibilityLabel="Add activity" onPress={openAdd} />
       </View>
 
       {query.isLoading ? <Skeleton height={40} /> : null}
@@ -302,10 +302,56 @@ export function TodayAdditionalActivitySection({
         </>
       ) : null}
 
-      {/* Story 44. Suggestions sit above logged rows and look deliberately
-          unlike them: a tinted block with its own actions, so "we found
-          this" never reads as "we saved this" and Dismiss never reads as
-          Delete. */}
+      {items.map((activity) => {
+        /* Figma 211:867. Time first, then duration, then distance — the
+           order the design reads in; ours had duration before time. And
+           "Apple Health" is a tinted badge beside the detail line, not a
+           fourth item joined into it with a middle dot. */
+        const detailBits = [
+          formatActivityTime(activity.startedAt),
+          formatActivityDuration(activity.durationSeconds),
+          activity.distanceValue != null ? `${activity.distanceValue} ${activity.distanceUnit ?? 'mi'}` : null,
+        ].filter(Boolean);
+        const fromHealth = activity.source === 'apple_health';
+        return (
+          <View key={activity.id} style={[styles.row, { backgroundColor: theme.surface.raised }]}>
+            <View style={styles.rowMeta}>
+              <Text style={{ color: theme.text.primary, fontSize: typeScale.compactBody.fontSize }}>
+                {activity.title || activityTypeLabels[activity.activityType]}
+              </Text>
+              {detailBits.length || fromHealth ? (
+                <View style={styles.rowDetail}>
+                  {detailBits.length ? (
+                    <Text style={{ color: theme.text.secondary, fontSize: typeScale.caption.fontSize }}>
+                      {detailBits.join(' · ')}
+                    </Text>
+                  ) : null}
+                  {fromHealth ? (
+                    <View
+                      testID={`activity-source-${activity.id}`}
+                      style={[styles.sourceBadge, { backgroundColor: tint(theme.status.info, 0.14) }]}
+                    >
+                      <Text style={[styles.sourceBadgeLabel, { color: theme.text.secondary }]}>
+                        Apple Health
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
+            <View style={styles.rowActions}>
+              <IconButton icon={Pencil} size={28} variant="subtle" accessibilityLabel={`Edit ${activityTypeLabels[activity.activityType]}`} onPress={() => openEdit(activity)} />
+              <IconButton icon={Trash2} size={28} variant="subtle" accessibilityLabel={`Delete ${activityTypeLabels[activity.activityType]}`} onPress={() => confirmDelete(activity)} />
+            </View>
+          </View>
+        );
+      })}
+
+      {/* Story 44. Suggestions sit BELOW what is already logged — what you
+          did is the record, what we found is an offer. They look
+          deliberately unlike a logged row: a tinted block with its own
+          actions, so "we found this" never reads as "we saved this" and
+          Dismiss never reads as Delete. */}
       {discovery.suggestions.map((workout) => (
         <View
           key={workout.externalId}
@@ -361,8 +407,11 @@ export function TodayAdditionalActivitySection({
         </View>
       ))}
       {discovery.suggestions.length > 0 ? (
-        <Text style={{ color: theme.text.secondary, fontSize: typeScale.helper.fontSize }}>
-          Setframe never adds these on its own.
+        <Text
+          testID="suggestion-hint"
+          style={{ color: theme.text.disabled, fontSize: typeScale.caption.fontSize }}
+        >
+          {suggestionHint(discovery.suggestions.length)}
         </Text>
       ) : null}
 
@@ -399,31 +448,6 @@ export function TodayAdditionalActivitySection({
         </View>
       ) : null}
 
-      {items.map((activity) => {
-        const detailBits = [
-          formatActivityDuration(activity.durationSeconds),
-          activity.distanceValue != null ? `${activity.distanceValue} ${activity.distanceUnit ?? 'mi'}` : null,
-          formatActivityTime(activity.startedAt),
-          activity.source === 'apple_health' ? 'Apple Health' : null,
-        ].filter(Boolean);
-        return (
-          <View key={activity.id} style={[styles.row, { backgroundColor: theme.surface.raised }]}>
-            <View style={styles.rowMeta}>
-              <Text style={{ color: theme.text.primary, fontSize: typeScale.compactBody.fontSize }}>
-                {activity.title || activityTypeLabels[activity.activityType]}
-              </Text>
-              {detailBits.length ? (
-                <Text style={{ color: theme.text.secondary, fontSize: typeScale.helper.fontSize }}>{detailBits.join(' · ')}</Text>
-              ) : null}
-            </View>
-            <View style={styles.rowActions}>
-              <IconButton icon={Pencil} size={28} variant="subtle" accessibilityLabel={`Edit ${activityTypeLabels[activity.activityType]}`} onPress={() => openEdit(activity)} />
-              <IconButton icon={Trash2} size={28} variant="subtle" accessibilityLabel={`Delete ${activityTypeLabels[activity.activityType]}`} onPress={() => confirmDelete(activity)} />
-            </View>
-          </View>
-        );
-      })}
-
       <AdditionalActivitySheet
         visible={sheetOpen}
         isEditing={editTarget != null}
@@ -445,6 +469,18 @@ export function TodayAdditionalActivitySection({
       {toast ? <Toast variant={toast.variant} message={toast.message} onDismiss={() => setToast(null)} /> : null}
     </Card>
   );
+}
+
+/**
+ * The line under the suggestions. Figma says two different things: with one
+ * suggestion it reassures (211:836), with several it counts them (211:857).
+ * Spelled out to match the frames — "Two more found today", not "2 more".
+ */
+const COUNT_WORDS = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+function suggestionHint(count: number): string {
+  if (count <= 1) return 'Setframe never adds these on its own.';
+  const word = COUNT_WORDS[count] ?? String(count);
+  return `${word} more found today. Add the ones you want.`;
 }
 
 /** A token colour at partial strength. `status.info` has no subtle variant,
@@ -492,4 +528,7 @@ const styles = StyleSheet.create({
   },
   rowMeta: { flex: 1, gap: spacing[4] },
   rowActions: { flexDirection: 'row', gap: spacing[4] },
+  rowDetail: { flexDirection: 'row', alignItems: 'center', gap: spacing[4], flexWrap: 'wrap' },
+  sourceBadge: { borderRadius: radius.full, paddingVertical: 1, paddingHorizontal: spacing[4] },
+  sourceBadgeLabel: { fontSize: 9 },
 });

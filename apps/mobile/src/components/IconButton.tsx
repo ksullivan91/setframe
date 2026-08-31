@@ -6,7 +6,13 @@ import { radius } from '@setframe/design-tokens';
 export interface IconButtonProps {
   icon: LucideIcon;
   onPress?: (event: GestureResponderEvent) => void;
-  variant?: 'default' | 'subtle';
+  /**
+   * `subtle` paints `surface.sunken`, which disappears on a sunken card —
+   * the add control on the Additional activity card rendered as a bare
+   * glyph because the button and the card were the same colour. `raised`
+   * is the one that contrasts there.
+   */
+  variant?: 'default' | 'subtle' | 'raised';
   /**
    * For a control that shows and hides something. Story 42.2 — the native
    * half of the disclosure contract: web gets `aria-expanded` from React
@@ -62,7 +68,10 @@ export function IconButton({
           width: size,
           height: size,
           borderRadius: size / 2,
-          backgroundColor: variant === 'subtle' ? theme.surface.sunken : theme.action.accentSubtle,
+          backgroundColor:
+            variant === 'subtle' ? theme.surface.sunken
+            : variant === 'raised' ? theme.surface.raised
+            : theme.action.accentSubtle,
           opacity: disabled ? 0.35 : pressed ? 0.7 : 1,
         },
       ]}
