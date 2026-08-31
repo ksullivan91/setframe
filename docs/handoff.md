@@ -74,11 +74,48 @@ being served from cache.
 For a new API route, an unauthenticated request returning **401** proves
 the route exists; **404** means it did not ship.
 
-### Mobile
+### Mobile — EAS Build → TestFlight
 
-There is no EAS/TestFlight pipeline. Mobile changes are source-only —
-they land in git and are not distributed to a device by anything in this
-repo.
+Distribution is **TestFlight internal testing**: no App Review, up to 100
+testers on the team, and builds install and auto-update like a real app.
+This is *not* an App Store listing — nothing is public until an app is
+submitted for review and released.
+
+```bash
+cd apps/mobile
+eas login                                  # once per machine
+eas build --platform ios --profile production
+eas submit --platform ios --profile production
+```
+
+Or `npm run build:ios` / `npm run submit:ios` from `apps/mobile`.
+
+**One-time setup**, in order:
+
+1. Apple Developer Program membership ($99/yr). HealthKit is not available
+   to a free Personal Team, and this app exists to read HealthKit.
+2. An app record in App Store Connect for `com.setframe.app`.
+3. `eas login`, then `eas build` — EAS creates the signing certificate and
+   provisioning profile on first run and stores them.
+
+**Things that bite:**
+
+- `appVersionSource: "remote"` in `eas.json` means **EAS owns the build
+  number**, not `app.json`. Do not hand-increment `ios.buildNumber`; the
+  `production` profile has `autoIncrement` on. `version` in `app.json` is the
+  marketing version and *is* hand-managed.
+- **A TestFlight build expires after 90 days.** Re-upload, or the app stops
+  launching for testers.
+- The build profiles pin `EXPO_PUBLIC_API_BASE_URL` to production. A device
+  cannot reach `http://localhost`, which is what `apps/mobile/.env` holds for
+  simulator work — the profile env overrides it, so the two can coexist.
+- `ios/` is gitignored CNG output. EAS runs prebuild itself; nothing
+  hand-edited under `ios/` survives.
+- Metro resolves the workspace packages (`@setframe/*`, whose `main` points
+  at raw TypeScript) with no `metro.config.js`. Verified with
+  `npx expo export --platform ios` — worth re-running if a build fails to
+  resolve a package, since it reproduces EAS's bundling locally in about a
+  minute.
 
 ---
 

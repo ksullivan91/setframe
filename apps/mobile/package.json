@@ -12,7 +12,10 @@
     "build": "expo export",
     "typecheck": "tsc --noEmit",
     "test": "jest",
-    "lint": "eslint . --max-warnings 0"
+    "lint": "eslint . --max-warnings 0",
+    "build:ios": "eas build --platform ios --profile production",
+    "build:ios:preview": "eas build --platform ios --profile preview",
+    "submit:ios": "eas submit --platform ios --profile production"
   },
   "dependencies": {
     "@clerk/clerk-expo": "2.20.0",
@@ -25,6 +28,7 @@
     "expo": "57.0.15",
     "expo-auth-session": "~57.0.9",
     "expo-constants": "57.0.13",
+    "expo-dev-client": "~57.0.16",
     "expo-linking": "57.0.7",
     "expo-router": "57.0.15",
     "expo-secure-store": "57.0.1",

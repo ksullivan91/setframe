@@ -125,6 +125,11 @@ cannot resolve `localhost` and needs the Mac's LAN IP or the production URL.
 HealthKit is effectively unusable on the Simulator (no real health data) — that
 work needs a physical device.
 
+To get a build onto a real phone, see `docs/handoff.md` §1 "Mobile — EAS Build
+→ TestFlight". Short version: `cd apps/mobile && npm run build:ios && npm run
+submit:ios`. Note that `eas.json` sets `appVersionSource: "remote"`, so **EAS
+owns `ios.buildNumber`** — hand-editing it in `app.json` has no effect.
+
 Git hooks (Copilot-based pre-commit review) are opt-in per clone:
 ```bash
 scripts/setup-hooks.sh
