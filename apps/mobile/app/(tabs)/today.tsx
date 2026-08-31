@@ -14,21 +14,15 @@ import {
   AlertTriangle,
   CheckCircle2,
   Circle,
-  Clock,
   Dumbbell,
-  Flame,
-  Footprints,
   Moon,
   NotebookText,
-  RefreshCw,
   Scale,
   Utensils,
-  Watch,
 } from 'lucide-react-native';
 import { Card } from '../../src/components/Card';
 import { Button } from '../../src/components/Button';
 import { Input } from '../../src/components/Input';
-import { MetricTile } from '../../src/components/MetricTile';
 import { SyncStatusPill, type SyncStatus } from '../../src/components/SyncStatusPill';
 import { Checkbox } from '../../src/components/Checkbox';
 import { Skeleton, SkeletonStack } from '../../src/components/Skeleton';
@@ -42,7 +36,8 @@ import { visibleSessionExercises } from '@setframe/domain';
 import { ApiError, useApiClient } from '../../src/lib/api-client';
 import { useLocalDate } from '../../src/lib/useLocalDate';
 import { useScreenTopPadding } from '../../src/lib/useScreenInsets';
-import { healthKit, type DailyHealthMetrics } from '../../src/healthkit/HealthKitAdapter';
+import { useHealthConnection } from '../../src/healthkit/useHealthConnection';
+import { AppleHealthCard } from '../../src/components/AppleHealthCard';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { radius, spacing, typeScale } from '../../src/theme/getTheme';
 import type { WorkoutSessionDetail } from '@setframe/schemas';
@@ -235,7 +230,7 @@ export default function TodayScreen() {
   const [weight, setWeight] = useState('');
   const [journal, setJournal] = useState('');
   const [selectedMood, setSelectedMood] = useState<number | null>(null);
-  const [healthMetrics, setHealthMetrics] = useState<DailyHealthMetrics | null>(null);
+  const health = useHealthConnection();
   const [weightStatus, setWeightStatus] = useState<SaveState>('idle');
   const [journalStatus, setJournalStatus] = useState<SaveState>('idle');
   const [mealStatus, setMealStatus] = useState<SaveState>('idle');
@@ -244,16 +239,6 @@ export default function TodayScreen() {
   const initialHydratedRef = useRef(false);
   const hydratedLocalDateRef = useRef<string | null>(null);
   const lastSavedSectionRef = useRef<'weight' | 'journal' | 'meal' | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    healthKit.getTodayMetrics().then((result) => {
-      if (!cancelled) setHealthMetrics(result);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const programsQuery = useQuery({
     queryKey: ['programs'],
@@ -491,18 +476,39 @@ export default function TodayScreen() {
   const journalDone = Boolean((manual?.notes ?? '').trim()) || manual?.mood != null;
   const mealDone = Boolean(manual?.preWorkoutMealLogged);
   const syncPillStatus = todayQuery.isFetching ? 'syncing' : mapSyncStatus(todayQuery.data?.syncState?.status);
-  const syncDone = Boolean(
-    todayQuery.data?.activitySummary || todayQuery.data?.nutritionSnapshot || todayQuery.data?.syncState?.lastSuccessfulSyncAt,
-  );
+  /* The header pill and the Apple Health card were both rendering
+     "Health access needed" off the same server sync state — two warnings
+     for one problem, neither of them tappable. The card is now the single
+     place that reports health access, because it is the only one that can
+     do anything about it, so the header pill stands down whenever the card
+     is already raising it. */
+  const healthCardRaisesIt = health.state === 'not_connected' || health.state === 'no_data';
+  const showHeaderSyncPill = !(syncPillStatus === 'needs_attention' && healthCardRaisesIt);
 
   const dateLabel = formatLongDate(todayQuery.data?.localDate ?? localDate);
-  const activityMinutes = todayQuery.data?.activitySummary?.exerciseMinutes ?? todayQuery.data?.activitySummary?.appleMoveTimeMinutes;
-  const activeCalories = todayQuery.data?.activitySummary?.activeEnergyKcal
-    ? Math.round(Number(todayQuery.data.activitySummary.activeEnergyKcal))
-    : healthMetrics?.activeEnergyKcal ?? null;
-  const nutritionCalories = todayQuery.data?.nutritionSnapshot?.caloriesKcal
-    ? Math.round(Number(todayQuery.data.nutritionSnapshot.caloriesKcal))
-    : healthMetrics?.caloriesConsumedKcal ?? null;
+  /* The server's reconciled snapshot for today. HealthKit wins where the
+     device has a live reading (architecture §4 makes it authoritative), but
+     this is what a previous sync — possibly from another device — already
+     stored, and the card falls back to it per metric. There is no server
+     step count today, so that one is device-only. */
+  const syncedMetrics = {
+    steps: null,
+    activeEnergyKcal: todayQuery.data?.activitySummary?.activeEnergyKcal
+      ? Math.round(Number(todayQuery.data.activitySummary.activeEnergyKcal))
+      : null,
+    exerciseMinutes:
+      todayQuery.data?.activitySummary?.exerciseMinutes ??
+      todayQuery.data?.activitySummary?.appleMoveTimeMinutes ??
+      null,
+    caloriesConsumedKcal: todayQuery.data?.nutritionSnapshot?.caloriesKcal
+      ? Math.round(Number(todayQuery.data.nutritionSnapshot.caloriesKcal))
+      : null,
+    // The server snapshot does not carry macros yet, so these are
+    // device-only until the reconcile payload grows to include them.
+    proteinG: null,
+    carbsG: null,
+    fatG: null,
+  };
 
   return (
     <ScrollView
@@ -515,7 +521,7 @@ export default function TodayScreen() {
           <Text style={[styles.title, { color: theme.text.primary }]}>Today</Text>
           <Text style={[styles.subtitle, { color: theme.text.secondary }]}>Keep the morning quick, then move straight into today’s training.</Text>
         </View>
-        <SyncStatusPill status={syncPillStatus} />
+        {showHeaderSyncPill ? <SyncStatusPill status={syncPillStatus} /> : null}
       </View>
       {todayQuery.dataUpdatedAt ? (
         <Text style={[styles.helperText, { color: theme.text.secondary }]}>Last updated {formatDateTime(new Date(todayQuery.dataUpdatedAt).toISOString())}</Text>
@@ -799,41 +805,18 @@ export default function TodayScreen() {
             <Text style={[styles.bodyText, { color: theme.text.secondary }]}>No macro entry here — just confirm the meal/logging step happened.</Text>
             <View style={styles.checkboxRow}>
               <Checkbox checked={mealDone} onChange={(checked) => void saveSection({ preWorkoutMealLogged: checked }, setMealStatus, 'meal')} />
-              <Text style={[styles.bodyText, { color: theme.text.primary }]}>Done in MyFitnessPal</Text>
+              <Text style={[styles.bodyText, { color: theme.text.primary }]}>Logged in my nutrition app</Text>
             </View>
             <SaveFeedback state={mealStatus} />
           </View>
         </View>
       </Card>
 
-      <Card>
-        <View style={styles.stepRow}>
-          {syncDone ? <CheckCircle2 size={20} color={theme.status.success} /> : <RefreshCw size={20} color={theme.text.secondary} />}
-          <View style={styles.stepContent}>
-            <View style={styles.stepHeader}>
-              <View style={styles.titleWithIcon}>
-                <Watch size={18} color={theme.text.primary} />
-                <Text style={[styles.stepTitle, { color: theme.text.primary }]}>Apple Health sync</Text>
-              </View>
-              <SyncStatusPill status={syncPillStatus} />
-            </View>
-            <Text style={[styles.bodyText, { color: theme.text.secondary }]}> 
-              {syncPillStatus === 'syncing'
-                ? 'Setframe is currently reconciling your latest health data.'
-                : syncPillStatus === 'needs_attention'
-                  ? 'Connect and sync Apple Health after training so Today and Progress stay current.'
-                  : 'Passive step — your watch fills this in after training.'}
-            </Text>
-            <View style={styles.metricGrid}>
-              <MetricTile label="Steps" value={healthMetrics?.steps != null ? healthMetrics.steps.toLocaleString() : '—'} icon={Footprints} trend={null} />
-              <MetricTile label="Active Calories" value={activeCalories != null ? `${activeCalories} kcal` : '—'} icon={Flame} trend={null} />
-              <MetricTile label="Exercise Minutes" value={activityMinutes != null ? `${activityMinutes} min` : '—'} icon={Clock} trend={null} />
-              <MetricTile label="Calories (MFP)" value={nutritionCalories != null ? `${nutritionCalories} kcal` : '—'} icon={Utensils} trend={null} />
-            </View>
-            <Text style={[styles.helperText, { color: theme.text.secondary }]}>Last successful sync: {formatDateTime(todayQuery.data?.syncState?.lastSuccessfulSyncAt) ?? '—'}</Text>
-          </View>
-        </View>
-      </Card>
+      {/* Replaces the old "Apple Health sync" card, which described a
+          connection the user had no way to make: nothing in the app had
+          ever called requestAuthorization(). See
+          docs/design/health-connection-flow.md. */}
+      <AppleHealthCard connection={health} fallback={syncedMetrics} />
       </>
       )}
     </ScrollView>

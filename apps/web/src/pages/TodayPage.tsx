@@ -1113,7 +1113,7 @@ export function TodayPage() {
                       <Checkbox
                         checked={mealDone}
                         onChange={(e) => retrySave({ preWorkoutMealLogged: e.target.checked }, mealStatus)}
-                        label="Done in MyFitnessPal"
+                        label="Logged in my nutrition app"
                       />
                       <AsyncStatusIndicator
                         status={mealStatus.status}

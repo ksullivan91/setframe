@@ -14,9 +14,49 @@ jest.mock('expo-router', () => ({
 }));
 
 // The screen imports the HealthKit adapter at module load; the full-screen
-// render only needs a resolved no-op so no native module is touched.
+// render only needs resolved no-ops so no native module is touched.
+// `hasAnyMetric` is a pure helper the connection hook imports from the same
+// module, so the mock has to provide it too — a partial mock here made the
+// hook throw on mount rather than fail a visible assertion.
+const EMPTY_METRICS = {
+  steps: null,
+  activeEnergyKcal: null,
+  exerciseMinutes: null,
+  caloriesConsumedKcal: null,
+  proteinG: null,
+  carbsG: null,
+  fatG: null,
+};
+const EMPTY_SNAP = {
+  daily: EMPTY_METRICS,
+  recovery: { sleepMinutes: null, hrvMs: null, restingHeartRateBpm: null },
+  body: {
+    weightKg: null,
+    heightCm: null,
+    bodyFatPercent: null,
+    biologicalSex: null,
+    dateOfBirth: null,
+    ageYears: null,
+  },
+  nutritionSource: null,
+};
 jest.mock('../healthkit/HealthKitAdapter', () => ({
-  healthKit: { getTodayMetrics: () => Promise.resolve(null) },
+  healthKit: {
+    getConnectionState: () => Promise.resolve('unavailable'),
+    getSnapshot: () => Promise.resolve(EMPTY_SNAP),
+    getTodayMetrics: () => Promise.resolve(EMPTY_METRICS),
+    hasUnaskedTypes: () => Promise.resolve(false),
+    requestAuthorization: () => Promise.resolve('unavailable'),
+    isAvailable: () => Promise.resolve(false),
+  },
+  hasAnyMetric: () => false,
+  hasAnyRecovery: () => false,
+  hasAnyBody: () => false,
+  EMPTY_SNAPSHOT: EMPTY_SNAP,
+  CORE_READ_TYPES: [],
+  EXTENDED_READ_TYPES: [],
+  ALL_READ_TYPES: [],
+  HEALTH_READ_TYPES: [],
 }));
 
 jest.mock('../lib/api-client', () => {

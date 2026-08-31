@@ -1,0 +1,237 @@
+import React from 'react';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { ThemeProvider } from '../theme/ThemeProvider';
+import { AppleHealthCard } from '../components/AppleHealthCard';
+import type { HealthConnection, HealthCardState } from '../healthkit/useHealthConnection';
+
+const mockPush = jest.fn();
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ push: mockPush }),
+}));
+
+function connection(overrides: Partial<HealthConnection> = {}): HealthConnection {
+  return {
+    state: 'not_connected' as HealthCardState,
+    metrics: { steps: null, activeEnergyKcal: null, exerciseMinutes: null, caloriesConsumedKcal: null, proteinG: null, carbsG: null, fatG: null },
+    recovery: { sleepMinutes: null, hrvMs: null, restingHeartRateBpm: null },
+    body: { weightKg: null, heightCm: null, bodyFatPercent: null, biologicalSex: null, dateOfBirth: null, ageYears: null },
+    nutritionSource: null,
+    lastSyncedAt: null,
+    hasMoreToGrant: false,
+    connecting: false,
+    connect: jest.fn(() => Promise.resolve()),
+    refresh: jest.fn(() => Promise.resolve()),
+    openHealthApp: jest.fn(() => Promise.resolve()),
+    ...overrides,
+  };
+}
+
+let tree: ReactTestRenderer | null = null;
+
+function render(conn: HealthConnection) {
+  let rendered!: ReactTestRenderer;
+  act(() => {
+    rendered = create(
+      <ThemeProvider>
+        <AppleHealthCard connection={conn} />
+      </ThemeProvider>,
+    );
+  });
+  tree = rendered;
+  return rendered;
+}
+
+function allText(rendered: ReactTestRenderer): string {
+  const parts: string[] = [];
+  rendered.root.findAll((node) => {
+    if (typeof node.type !== 'string') return false;
+    ([] as unknown[]).concat(node.props?.children).forEach((child) => {
+      if (typeof child === 'string') parts.push(child);
+    });
+    return false;
+  });
+  // JSX splits interpolated copy across several string children, so a
+  // naive join leaves double spaces mid-sentence.
+  return parts.join(' ').replace(/\s+/g, ' ').trim();
+}
+
+function pressableByTestId(rendered: ReactTestRenderer, testID: string) {
+  return rendered.root.findAll(
+    (node) => node.props?.testID === testID && typeof node.props?.onPress === 'function',
+  );
+}
+
+afterEach(() => {
+  act(() => {
+    tree?.unmount();
+  });
+  tree = null;
+  mockPush.mockClear();
+});
+
+describe('AppleHealthCard', () => {
+  it('offers a route into the flow when we have never asked', () => {
+    const rendered = render(connection({ state: 'not_connected' }));
+    const text = allText(rendered);
+
+    expect(text).toContain('Not connected');
+    expect(text).toContain('Connect Apple Health');
+    // The promise that earns the tap has to actually be on screen.
+    expect(text).toContain('Read only. Setframe never writes anything to Apple Health.');
+    // Figma's second card: show what connecting would buy, don't describe it.
+    expect(rendered.root.findAll((n) => n.props?.testID === 'health-preview').length).toBeGreaterThan(0);
+  });
+
+  it('pushes the priming screen rather than prompting straight away', () => {
+    /* iOS grants one prompt per type, ever. Going straight to Apple's sheet
+       from this button spends the single ask with no explanation first —
+       the whole reason the priming screen exists. */
+    const rendered = render(connection({ state: 'not_connected' }));
+
+    act(() => {
+      pressableByTestId(rendered, 'health-connect')[0]!.props.onPress();
+    });
+
+    expect(mockPush).toHaveBeenCalledWith('/health-access');
+  });
+
+  it('shows real values with provenance once data arrives', () => {
+    const rendered = render(
+      connection({
+        state: 'connected',
+        metrics: { steps: 8432, activeEnergyKcal: 612, exerciseMinutes: 48, caloriesConsumedKcal: 2180, proteinG: null, carbsG: null, fatG: null },
+        lastSyncedAt: new Date(),
+      }),
+    );
+    const text = allText(rendered);
+
+    expect(text).toContain('Synced');
+    expect(text).toContain('8,432');
+    expect(text).toContain('612 kcal');
+    expect(text).toContain('48 min');
+    expect(text).toContain('2,180 kcal');
+    // Provenance, not decoration — HealthKit is authoritative for these.
+    expect(text).toContain('From Apple Health');
+    expect(rendered.root.findAll((n) => n.props?.testID === 'health-preview')).toHaveLength(0);
+  });
+
+  it('never claims access is off, because iOS will not tell us that', () => {
+    /* The load-bearing assertion of this file. Apple deliberately makes a
+       refused read indistinguishable from an empty store, so any copy that
+       asserts "access is turned off" is a claim we cannot support. */
+    const rendered = render(connection({ state: 'no_data' }));
+    const text = allText(rendered);
+
+    expect(text).toContain('No data yet');
+    expect(text).toContain('iOS does not tell us');
+    expect(text).toContain('Check access in Health');
+    expect(text).not.toContain('turned off');
+    expect(text).not.toContain('denied');
+    expect(text).not.toContain('Declined');
+  });
+
+  it('routes to the Health app when there is nothing to show', () => {
+    const openHealthApp = jest.fn(() => Promise.resolve());
+    const rendered = render(connection({ state: 'no_data', openHealthApp }));
+
+    act(() => {
+      pressableByTestId(rendered, 'health-open-settings')[0]!.props.onPress();
+    });
+
+    expect(openHealthApp).toHaveBeenCalled();
+  });
+
+  it('reports partial data per metric without calling the gaps refusals', () => {
+    const rendered = render(
+      connection({
+        state: 'connected',
+        metrics: { steps: 8432, activeEnergyKcal: null, exerciseMinutes: 48, caloriesConsumedKcal: null, proteinG: null, carbsG: null, fatG: null },
+        lastSyncedAt: new Date(),
+      }),
+    );
+    const text = allText(rendered);
+
+    expect(text).toContain('8,432');
+    // An absent value renders as an em dash, never as "Off" — we do not know
+    // it was refused.
+    expect(text).toContain('—');
+    expect(text).not.toContain('Off');
+    expect(text).toContain('2 metrics have no data for today.');
+    expect(pressableByTestId(rendered, 'health-open-settings').length).toBeGreaterThan(0);
+  });
+
+  it('renders nothing at all where HealthKit does not exist', () => {
+    const rendered = render(connection({ state: 'unavailable' }));
+    expect(rendered.toJSON()).toBeNull();
+  });
+
+  it('shows a checking state rather than an empty claim while loading', () => {
+    /* An empty state is a claim about the data. "Not connected" while we are
+       still asking is the same defect that shipped on the Training screens. */
+    const rendered = render(connection({ state: 'loading' }));
+    const text = allText(rendered);
+
+    expect(text).toContain('Checking Apple Health');
+    expect(text).not.toContain('Not connected');
+    expect(text).not.toContain('Connect Apple Health');
+  });
+});
+
+describe('AppleHealthCard — server fallback', () => {
+  const serverOnly = {
+    proteinG: null,
+    carbsG: null,
+    fatG: null,
+    steps: null,
+    activeEnergyKcal: 480,
+    exerciseMinutes: 30,
+    caloriesConsumedKcal: 1900,
+  };
+
+  it('shows the reconciled snapshot when the device has nothing', () => {
+    /* Before the rewrite the card read the server's activitySummary. If the
+       new one only ever read HealthKit, a user whose data was synced from
+       another device would watch numbers they had been seeing disappear. */
+    let rendered!: ReactTestRenderer;
+    act(() => {
+      rendered = create(
+        <ThemeProvider>
+          <AppleHealthCard connection={connection({ state: 'no_data' })} fallback={serverOnly} />
+        </ThemeProvider>,
+      );
+    });
+    tree = rendered;
+    const text = allText(rendered);
+
+    expect(text).toContain('480 kcal');
+    expect(text).toContain('1,900 kcal');
+    // And it must stop reading as "nothing arrived", because something did.
+    expect(text).not.toContain('No data yet');
+    expect(text).toContain('Synced');
+  });
+
+  it('prefers a live device reading over the stored snapshot', () => {
+    let rendered!: ReactTestRenderer;
+    act(() => {
+      rendered = create(
+        <ThemeProvider>
+          <AppleHealthCard
+            connection={connection({
+              state: 'connected',
+              metrics: { steps: 9000, activeEnergyKcal: 700, exerciseMinutes: null, caloriesConsumedKcal: null, proteinG: null, carbsG: null, fatG: null },
+              lastSyncedAt: new Date(),
+            })}
+            fallback={serverOnly}
+          />
+        </ThemeProvider>,
+      );
+    });
+    tree = rendered;
+    const text = allText(rendered);
+
+    expect(text).toContain('700 kcal');
+    expect(text).not.toContain('480 kcal');
+    // The gaps still fall back.
+    expect(text).toContain('30 min');
+  });
+});
