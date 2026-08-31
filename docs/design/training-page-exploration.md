@@ -220,7 +220,8 @@ updates. The sheet is a picker, not a form.
 Reached from the overview's **Change**, not from a tab. Named "Your plans"
 rather than Programs — the object stays, the jargon does not.
 
-The active plan is badged **"Driving Today"**, saying what it *does* rather
+The active plan is badged **"Active"**. It was originally "Driving Today",
+saying what it *does* rather
 than using the word Active. Stories 24–26 built a deliberate
 selected-versus-active distinction; on a phone there is no editing context
 to hold, so this list only ever sets active and pushes the rest.

@@ -64,7 +64,7 @@ describe('describeRepeatMode', () => {
 
 describe('plan labels', () => {
   it('badges the active plan by what it does, not the word Active', () => {
-    expect(planBadge(true)).toBe('Driving Today');
+    expect(planBadge(true)).toBe('Active');
     expect(planBadge(false)).toBeNull();
   });
 

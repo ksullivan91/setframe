@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -9,6 +9,7 @@ import { useApiClient } from '../lib/api-client';
 import { useScreenTopPadding } from '../lib/useScreenInsets';
 import { useTheme } from '../theme/ThemeProvider';
 import { Card } from '../components/training-v2/TrainingCards';
+import { Toast } from '../components/Toast';
 
 /**
  * "Your plans". Counterpart of `apps/web/src/pages/PlansPage.tsx`.
@@ -35,12 +36,22 @@ export function PlansScreen() {
     queryFn: () => api.get<TrainingProgram[]>('/programs'),
   });
 
+  const [error, setError] = useState<string | null>(null);
+
   const activate = useMutation({
     mutationFn: (programId: string) => api.post(`/programs/${programId}/activate`),
     onSuccess: async () => {
+      // Today's plan comes from the same programs query, so both screens
+      // need to hear about the switch before we navigate back to one.
       await queryClient.invalidateQueries({ queryKey: ['programs'] });
+      await queryClient.invalidateQueries({ queryKey: ['today'] });
       router.back();
     },
+    /* This had no error path at all. When the request failed the button
+       simply did nothing — no spinner, no message, no clue — which is how a
+       plain 400 read to the user as a dead control. Anything that can fail
+       silently eventually will. */
+    onError: () => setError('Could not switch plans. Try again.'),
   });
 
   const sorted = useMemo(
@@ -87,7 +98,11 @@ export function PlansScreen() {
               </View>
               {program.isActive ? null : (
                 <Pressable
-                  onPress={() => activate.mutate(program.id)}
+                  onPress={() => {
+                    setError(null);
+                    activate.mutate(program.id);
+                  }}
+                  disabled={activate.isPending}
                   accessibilityRole="button"
                   testID={`use-plan-${program.id}`}
                   style={[styles.use, { backgroundColor: theme.surface.sunken }]}
@@ -117,6 +132,8 @@ export function PlansScreen() {
           <Text style={[styles.newPlanLabel, { color: theme.action.primary }]}>+ New plan</Text>
         </Pressable>
       </ScrollView>
+
+      {error ? <Toast variant="error" message={error} onDismiss={() => setError(null)} /> : null}
     </View>
   );
 }

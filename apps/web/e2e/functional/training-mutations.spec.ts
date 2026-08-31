@@ -177,7 +177,7 @@ test.describe('training v2 — every control actually works', () => {
     } else {
       /* Only one plan in the fixture, so there is nothing to switch to —
          assert the active one is badged rather than silently passing. */
-      await expect(page.getByTestId('plans-page')).toContainText('Driving Today');
+      await expect(page.getByTestId('plans-page')).toContainText('Active');
     }
   });
 

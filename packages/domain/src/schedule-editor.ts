@@ -96,7 +96,12 @@ export function describeRepeatMode(cycleLengthWeeks: number | null): string {
  * drives Today.
  */
 export function planBadge(isActive: boolean): string | null {
-  return isActive ? 'Driving Today' : null;
+  /* Was "Driving Today", an attempt to say what the plan DOES rather than
+     use the word Active. It failed on first contact — the reaction to it
+     was "What is that?". A label nobody can decode is worse than a
+     conventional one, and the line above the list already explains that one
+     plan drives Today. */
+  return isActive ? 'Active' : null;
 }
 
 /**

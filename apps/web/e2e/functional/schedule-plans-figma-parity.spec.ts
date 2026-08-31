@@ -111,7 +111,7 @@ test.describe('schedule and plans — Figma parity', () => {
     await signInAs(page, 'lifter', '/training');
     await page.getByTestId('change-program').click();
     await expect(page).toHaveURL(/\/training\/plans$/);
-    await expect(page.getByTestId('plans-page')).toContainText('Driving Today');
+    await expect(page.getByTestId('plans-page')).toContainText('Active');
     /* Never the word Active. */
     await expect(page.getByTestId('plans-page')).not.toContainText('Active');
   });
