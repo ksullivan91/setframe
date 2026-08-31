@@ -6,6 +6,7 @@ import type { DayType, ProgramScheduleSlot, TrainingProgram } from '@setframe/sc
 import { buildScheduleDays, describeRepeatMode, type OverviewSlot } from '@setframe/domain';
 import { training, workoutEditor } from '@setframe/design-tokens';
 import { useApiClient } from '../lib/api-client';
+import { useScreenTopPadding } from '../lib/useScreenInsets';
 import { useTheme } from '../theme/ThemeProvider';
 import { Card, CardLabel } from '../components/training-v2/TrainingCards';
 import { AssignDaySheet } from '../components/training-v2/AssignDaySheet';
@@ -24,6 +25,12 @@ export function ScheduleScreen() {
   const api = useApiClient();
   const router = useRouter();
   const theme = useTheme();
+  /* These screens draw their own header with `headerShown: false`, so
+     nothing reserves space for the status bar or the Dynamic Island — the
+     header, including its back chevron, rendered underneath both and could
+     not be tapped. `useScreenTopPadding` already existed for exactly this
+     and had simply never been wired into the v2 screens. */
+  const topPadding = useScreenTopPadding(workoutEditor.header.paddingTop);
   const queryClient = useQueryClient();
   const [assigning, setAssigning] = useState<number | null>(null);
 
@@ -83,7 +90,7 @@ export function ScheduleScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.surface.canvas }} testID="schedule-page">
-      <View style={[styles.header, { backgroundColor: theme.surface.raised }]}>
+      <View style={[styles.header, { backgroundColor: theme.surface.raised, paddingTop: topPadding }]}>
         <View style={styles.titleRow}>
           <Pressable onPress={() => router.back()} accessibilityLabel="Back to Training">
             <Text style={[styles.back, { color: theme.text.secondary }]}>‹</Text>

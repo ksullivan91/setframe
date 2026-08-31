@@ -9,6 +9,7 @@ import { Select } from '../../src/components/Select';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { spacing, typeScale } from '../../src/theme/getTheme';
 import { useApiClient } from '../../src/lib/api-client';
+import { useHealthConnection, type HealthCardState } from '../../src/healthkit/useHealthConnection';
 import { useScreenTopPadding } from '../../src/lib/useScreenInsets';
 
 type PreferredUnits = User['preferredUnits'];
@@ -17,11 +18,6 @@ interface SettingsRowProps {
   label: string;
   value?: string;
   valueTone?: 'default' | 'success' | 'destructive';
-}
-
-interface AppleHealthSyncState {
-  status: string;
-  lastSuccessAt: string | null;
 }
 
 function SettingsRow({ label, value, valueTone = 'default' }: SettingsRowProps) {
@@ -37,12 +33,22 @@ function SettingsRow({ label, value, valueTone = 'default' }: SettingsRowProps) 
   );
 }
 
-function formatSyncStatus(status: string | undefined) {
-  if (status === 'ok') return { label: 'Connected', tone: 'success' as const };
-  if (status === 'never_synced') return { label: 'Not connected', tone: 'default' as const };
-  if (status === 'syncing') return { label: 'Syncing', tone: 'default' as const };
-  if (status === 'error' || status === 'needs_attention') return { label: 'Needs attention', tone: 'destructive' as const };
-  return { label: status ?? 'Unknown', tone: 'default' as const };
+/**
+ * Apple Health status, read from the device rather than the server.
+ *
+ * This row used to render `integration_sync_state.status`, which stays
+ * `never_synced` because nothing posts a reconcile payload yet — so it told
+ * a user with Apple Health data visible on Today that they were "Not
+ * connected", and that their last sync was "Never". Both were false from
+ * where they were standing. What they can actually verify is whether this
+ * phone can read their data, so that is what it now reports.
+ */
+function formatHealthStatus(state: HealthCardState) {
+  if (state === 'loading') return { label: 'Checking…', tone: 'default' as const };
+  if (state === 'unavailable') return { label: 'Not available on this device', tone: 'default' as const };
+  if (state === 'not_connected') return { label: 'Not connected', tone: 'default' as const };
+  if (state === 'connected') return { label: 'Connected', tone: 'success' as const };
+  return { label: 'Connected, no data today', tone: 'default' as const };
 }
 
 function formatRelativeTime(timestamp: string | null) {
@@ -114,12 +120,9 @@ export default function SettingsScreen() {
     },
   });
 
-  const { data: syncState, isLoading: syncLoading } = useQuery({
-    queryKey: ['apple-health-sync-state'],
-    queryFn: () => apiClient.get<AppleHealthSyncState>('/integrations/apple-health/sync-state'),
-  });
-
-  const syncStatus = useMemo(() => formatSyncStatus(syncState?.status), [syncState?.status]);
+  const health = useHealthConnection();
+  const syncLoading = health.state === 'loading';
+  const syncStatus = useMemo(() => formatHealthStatus(health.state), [health.state]);
   const topPadding = useScreenTopPadding();
 
   return (
@@ -171,8 +174,11 @@ export default function SettingsScreen() {
           <ActivityIndicator color={theme.action.primary} />
         ) : (
           <>
-            <SettingsRow label="Apple Health sync" value={syncStatus.label} valueTone={syncStatus.tone} />
-            <SettingsRow label="Last synced" value={formatRelativeTime(syncState?.lastSuccessAt ?? null)} />
+            <SettingsRow label="Apple Health" value={syncStatus.label} valueTone={syncStatus.tone} />
+            {/* "Last synced" described a server round trip that does not
+                happen yet. What is true is when this phone last read your
+                data, which is what the Today card is showing. */}
+            <SettingsRow label="Last read" value={formatRelativeTime(health.lastSyncedAt?.toISOString() ?? null)} />
           </>
         )}
         {notificationLoading ? (

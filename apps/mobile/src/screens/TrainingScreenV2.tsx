@@ -12,6 +12,7 @@ import {
 } from '@setframe/domain';
 import { training } from '@setframe/design-tokens';
 import { useApiClient } from '../lib/api-client';
+import { useScreenTopPadding } from '../lib/useScreenInsets';
 import { useTheme } from '../theme/ThemeProvider';
 import { ActiveProgramCard } from '../components/training-v2/ActiveProgramCard';
 import { WeekStrip } from '../components/training-v2/WeekStrip';
@@ -50,6 +51,12 @@ export function TrainingScreenV2() {
   const api = useApiClient();
   const router = useRouter();
   const theme = useTheme();
+  /* These screens draw their own header with `headerShown: false`, so
+     nothing reserves space for the status bar or the Dynamic Island — the
+     header, including its back chevron, rendered underneath both and could
+     not be tapped. `useScreenTopPadding` already existed for exactly this
+     and had simply never been wired into the v2 screens. */
+  const topPadding = useScreenTopPadding(training.header.paddingTop);
   const today = todayLocalDate();
 
   const { data: programs = [], isLoading } = useQuery({
@@ -150,7 +157,7 @@ export function TrainingScreenV2() {
         contentContainerStyle={styles.content}
         testID="training-no-plan-with-workouts"
       >
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: topPadding }]}>
           <Text style={[styles.title, { color: theme.text.primary }]}>Training</Text>
           <Text style={[styles.subtitle, { color: theme.text.secondary }]}>
             {ownedDayTypes.length === 1 ? 'One workout' : `${ownedDayTypes.length} workouts`}, no
@@ -190,7 +197,7 @@ export function TrainingScreenV2() {
         contentContainerStyle={styles.content}
         testID="training-no-plan"
       >
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: topPadding }]}>
           <Text style={[styles.title, { color: theme.text.primary }]}>Training</Text>
           <Text style={[styles.subtitle, { color: theme.text.secondary }]}>
             Three ways in. None of them is a form you have to finish first.
@@ -211,7 +218,7 @@ export function TrainingScreenV2() {
       contentContainerStyle={styles.content}
       testID="training-v2"
     >
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: topPadding }]}>
         <Text style={[styles.title, { color: theme.text.primary }]}>Training</Text>
         <Text style={[styles.subtitle, { color: theme.text.secondary }]}>
           What you are following, and what is in it.

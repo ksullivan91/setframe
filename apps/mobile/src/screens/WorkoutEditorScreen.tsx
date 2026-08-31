@@ -6,6 +6,7 @@ import type { DayType, DayTypeExercise, Exercise, Prescription } from '@setframe
 import { describeExercise, summarizePrescription, type PickableExercise } from '@setframe/domain';
 import { training, workoutEditor } from '@setframe/design-tokens';
 import { useApiClient } from '../lib/api-client';
+import { useScreenTopPadding } from '../lib/useScreenInsets';
 import { useTheme } from '../theme/ThemeProvider';
 import { ExercisePickerV2 } from '../components/exercise-picker/ExercisePickerV2';
 import { PrescriptionSheet } from '../components/training-v2/PrescriptionSheet';
@@ -47,6 +48,12 @@ export function WorkoutEditorScreen() {
   const api = useApiClient();
   const router = useRouter();
   const theme = useTheme();
+  /* These screens draw their own header with `headerShown: false`, so
+     nothing reserves space for the status bar or the Dynamic Island — the
+     header, including its back chevron, rendered underneath both and could
+     not be tapped. `useScreenTopPadding` already existed for exactly this
+     and had simply never been wired into the v2 screens. */
+  const topPadding = useScreenTopPadding(workoutEditor.header.paddingTop);
   const queryClient = useQueryClient();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [sheetFor, setSheetFor] = useState<string | null>(null);
@@ -101,7 +108,7 @@ export function WorkoutEditorScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.surface.canvas }} testID="workout-editor">
-      <View style={[styles.header, { backgroundColor: theme.surface.raised }]}>
+      <View style={[styles.header, { backgroundColor: theme.surface.raised, paddingTop: topPadding }]}>
         <View style={styles.headerRow}>
           <Pressable onPress={() => router.back()} accessibilityLabel="Back to Training">
             <Text style={[styles.back, { color: theme.text.secondary }]}>‹</Text>
