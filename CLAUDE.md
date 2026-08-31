@@ -290,7 +290,17 @@ table has a `user_id` FK that every query must scope by.
   similar weight (auth provider, hosting, a non-obvious schema separation,
   a scope boundary like ADR 0007).
 - `Backlog/` (capital B, as tracked by git — macOS's case-insensitive
-  filesystem hides this, and `git mv backlog/...` will fail) — open work
+  filesystem hides this, and `git mv backlog/...` will fail).
+  **This breaks `eas build`.** `core.ignorecase=true` means `git status` stays
+  clean while the directory on disk is `backlog` and the index says `Backlog`;
+  EAS checks case-sensitively and refuses to upload, listing every file under
+  it. Repair with a two-step rename, because a single `mv` is a no-op on a
+  case-insensitive filesystem:
+  `mv backlog .tmp && mv .tmp Backlog`.
+  Verify with `find . -maxdepth 1 -iname backlog -print`, which prints the
+  real name, and with
+  `git ls-files | while read f; do [ -e "$f" ] || echo "$f"; done`,
+  which finds any tracked path whose casing no longer matches disk. — open work
   items live at the folder root; shipped ones move to `Backlog/completed/`. Each batch of stories has an accompanying
   `README-{range}-{review-name}.md` describing the review it came from.
 
