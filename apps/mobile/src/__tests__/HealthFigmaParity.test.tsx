@@ -50,6 +50,7 @@ function connection(overrides: Partial<HealthConnection> = {}): HealthConnection
     nutritionSource: null,
     lastSyncedAt: null,
     hasMoreToGrant: false,
+    unaskedGroups: [],
     connecting: false,
     connect: jest.fn(() => Promise.resolve()),
     refresh: jest.fn(() => Promise.resolve()),

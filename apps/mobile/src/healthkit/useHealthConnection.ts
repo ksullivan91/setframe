@@ -52,9 +52,11 @@ export interface HealthConnection {
   /**
    * True when some readable type has never been asked about — i.e. there
    * is a shorter, second sheet available. Set for a user who connected
-   * before sleep/HRV/body types were added.
+   * before sleep/HRV/body/workout types were added.
    */
   hasMoreToGrant: boolean;
+  /** Which groups are still unasked, so the button can name them. */
+  unaskedGroups: string[];
   /** True while Apple's sheet is up, so the button can show a spinner. */
   connecting: boolean;
   /** Shows Apple's permission sheet, then re-reads. Safe to call twice. */
@@ -78,6 +80,7 @@ export function useHealthConnection(): HealthConnection {
   const [snapshot, setSnapshot] = useState<HealthSnapshot>(EMPTY_SNAPSHOT);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [hasMoreToGrant, setHasMoreToGrant] = useState(false);
+  const [unaskedGroups, setUnaskedGroups] = useState<string[]>([]);
   const [connecting, setConnecting] = useState(false);
   const mounted = useRef(true);
 
@@ -95,15 +98,18 @@ export function useHealthConnection(): HealthConnection {
     if (next !== 'asked' && next !== 'error') {
       setSnapshot(EMPTY_SNAPSHOT);
       setHasMoreToGrant(false);
+      setUnaskedGroups([]);
       return;
     }
-    const [result, unasked] = await Promise.all([
+    const [result, unasked, groups] = await Promise.all([
       healthKit.getSnapshot(),
       healthKit.hasUnaskedTypes(),
+      healthKit.unaskedGroups(),
     ]);
     if (!mounted.current) return;
     setSnapshot(result);
     setHasMoreToGrant(unasked);
+    setUnaskedGroups(groups);
     if (hasAnyMetric(result.daily)) setLastSyncedAt(new Date());
   }, []);
 
@@ -168,6 +174,7 @@ export function useHealthConnection(): HealthConnection {
     nutritionSource: snapshot.nutritionSource,
     lastSyncedAt,
     hasMoreToGrant,
+    unaskedGroups,
     connecting,
     connect,
     refresh: read,

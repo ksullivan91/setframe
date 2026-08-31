@@ -119,6 +119,49 @@ export const EXTENDED_READ_TYPES = [
 
 export const ALL_READ_TYPES = [...CORE_READ_TYPES, ...EXTENDED_READ_TYPES] as const;
 
+/**
+ * The extended types grouped as a person would describe them.
+ *
+ * Exists so the "there is more we could read" button can name what is
+ * actually missing. A static label goes stale the moment a type is added:
+ * anyone who granted sleep and body data last week was being offered
+ * "sleep, heart and body data" again purely because workouts were new.
+ */
+export const READ_GROUPS: readonly { label: string; types: readonly string[] }[] = [
+  { label: 'workouts', types: ['HKWorkoutTypeIdentifier'] },
+  {
+    label: 'sleep and heart data',
+    types: [
+      'HKCategoryTypeIdentifierSleepAnalysis',
+      'HKQuantityTypeIdentifierHeartRateVariabilitySDNN',
+      'HKQuantityTypeIdentifierRestingHeartRate',
+    ],
+  },
+  {
+    label: 'body measurements',
+    types: [
+      'HKQuantityTypeIdentifierBodyMass',
+      'HKQuantityTypeIdentifierHeight',
+      'HKQuantityTypeIdentifierBodyFatPercentage',
+    ],
+  },
+  {
+    label: 'age and sex',
+    types: [
+      'HKCharacteristicTypeIdentifierBiologicalSex',
+      'HKCharacteristicTypeIdentifierDateOfBirth',
+    ],
+  },
+  {
+    label: 'macros',
+    types: [
+      'HKQuantityTypeIdentifierDietaryProtein',
+      'HKQuantityTypeIdentifierDietaryCarbohydrates',
+      'HKQuantityTypeIdentifierDietaryFatTotal',
+    ],
+  },
+];
+
 /** Back-compat alias — the core set is what "the metrics" used to mean. */
 export const HEALTH_READ_TYPES = CORE_READ_TYPES;
 
@@ -319,6 +362,22 @@ class HealthKitAdapter {
    */
   async hasUnaskedTypes(): Promise<boolean> {
     return (await this.requestStatusFor([...ALL_READ_TYPES])) === 'not_asked';
+  }
+
+  /**
+   * Which groups of readable data have never been asked about.
+   *
+   * Used to label the second-sheet affordance truthfully. Returned in
+   * READ_GROUPS order so the wording is stable between reads.
+   */
+  async unaskedGroups(): Promise<string[]> {
+    const results = await Promise.all(
+      READ_GROUPS.map(async (group) => ({
+        label: group.label,
+        unasked: (await this.requestStatusFor([...group.types])) === 'not_asked',
+      })),
+    );
+    return results.filter((r) => r.unasked).map((r) => r.label);
   }
 
   private async requestStatusFor(types: string[]): Promise<HealthConnectionState> {

@@ -91,6 +91,13 @@ export function AppleHealthCard({
   ];
   const showRecovery = hasAnyRecovery(recovery);
   const showBody = hasAnyBody(body);
+  /* Name what is actually missing. A fixed label offered someone their own
+     sleep data back the week workouts were added. */
+  const groups = connection.unaskedGroups;
+  const grantMoreLabel =
+    groups.length === 1 ? `Share ${groups[0]}`
+    : groups.length === 2 ? `Share ${groups[0]} and ${groups[1]}`
+    : 'Share more health data';
   const provenance = nutritionSource
     ? `From Apple Health · nutrition via ${nutritionSource} · updated`
     : 'From Apple Health · updated';
@@ -183,7 +190,7 @@ export function AppleHealthCard({
               <Pressable
                 testID="health-grant-more"
                 accessibilityRole="button"
-                accessibilityLabel="Add sleep, heart and body data"
+                accessibilityLabel={grantMoreLabel}
                 disabled={connecting}
                 onPress={() => void connection.connect()}
                 style={({ pressed }) => [
@@ -192,7 +199,7 @@ export function AppleHealthCard({
                 ]}
               >
                 <Text style={[styles.secondaryLabel, { color: theme.action.primary }]}>
-                  Add sleep, heart and body data
+                  {grantMoreLabel}
                 </Text>
               </Pressable>
             ) : null}

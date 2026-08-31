@@ -25,41 +25,22 @@ const mockGetConnectionState = jest.fn();
 const mockGetSnapshot = jest.fn();
 const mockHasUnaskedTypes = jest.fn();
 
-jest.mock('../healthkit/HealthKitAdapter', () => {
-  const daily = {
-    steps: null,
-    activeEnergyKcal: null,
-    exerciseMinutes: null,
-    caloriesConsumedKcal: null,
-    proteinG: null,
-    carbsG: null,
-    fatG: null,
-  };
-  const snapshot = {
-    daily,
-    recovery: { sleepMinutes: null, hrvMs: null, restingHeartRateBpm: null },
-    body: {
-      weightKg: null,
-      heightCm: null,
-      bodyFatPercent: null,
-      biologicalSex: null,
-      dateOfBirth: null,
-      ageYears: null,
-    },
-    nutritionSource: null,
-  };
-  return {
+/* Built from the shared complete mock with only the three calls this file
+   drives overridden. Hand-rolling it here is what broke this test when
+   `unaskedGroups` was added: the missing export rejected inside the hook's
+   Promise.all, and the symptom was a wrong state rather than an obvious
+   TypeError. */
+jest.mock('../healthkit/HealthKitAdapter', () =>
+  require('../test-support/healthkit-mock').healthKitModuleMock({
     healthKit: {
       getConnectionState: () => mockGetConnectionState(),
       getSnapshot: () => mockGetSnapshot(),
       hasUnaskedTypes: () => mockHasUnaskedTypes(),
+      unaskedGroups: () => Promise.resolve([]),
       requestAuthorization: () => Promise.resolve('authorized'),
     },
-    hasAnyMetric: (m: Record<string, unknown>) =>
-      Object.values(m ?? {}).some((v) => v != null),
-    EMPTY_SNAPSHOT: snapshot,
-  };
-});
+  }),
+);
 
 function grantedSnapshot() {
   return {

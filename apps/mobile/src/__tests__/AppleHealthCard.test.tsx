@@ -18,6 +18,7 @@ function connection(overrides: Partial<HealthConnection> = {}): HealthConnection
     nutritionSource: null,
     lastSyncedAt: null,
     hasMoreToGrant: false,
+    unaskedGroups: [],
     connecting: false,
     connect: jest.fn(() => Promise.resolve()),
     refresh: jest.fn(() => Promise.resolve()),
@@ -233,5 +234,38 @@ describe('AppleHealthCard — server fallback', () => {
     expect(text).not.toContain('480 kcal');
     // The gaps still fall back.
     expect(text).toContain('30 min');
+  });
+});
+
+describe('AppleHealthCard — offering the rest', () => {
+  it('names the one group that is actually missing', () => {
+    /* A fixed label offered someone their own sleep data back the week
+       workouts were added, which reads as the app losing track of what it
+       already has. */
+    const rendered = render(
+      connection({ state: 'connected', metrics: { ...connection().metrics, steps: 100 }, hasMoreToGrant: true, unaskedGroups: ['workouts'] }),
+    );
+    const text = allText(rendered);
+    expect(text).toContain('Share workouts');
+    expect(text).not.toContain('sleep, heart and body');
+  });
+
+  it('falls back to a general offer when several groups are missing', () => {
+    const rendered = render(
+      connection({
+        state: 'connected',
+        metrics: { ...connection().metrics, steps: 100 },
+        hasMoreToGrant: true,
+        unaskedGroups: ['workouts', 'body measurements', 'macros'],
+      }),
+    );
+    expect(allText(rendered)).toContain('Share more health data');
+  });
+
+  it('offers nothing when everything has been asked', () => {
+    const rendered = render(
+      connection({ state: 'connected', metrics: { ...connection().metrics, steps: 100 }, hasMoreToGrant: false, unaskedGroups: [] }),
+    );
+    expect(pressableByTestId(rendered, 'health-grant-more')).toHaveLength(0);
   });
 });
