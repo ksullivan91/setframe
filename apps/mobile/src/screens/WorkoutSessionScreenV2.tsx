@@ -22,6 +22,9 @@ import {
   isSessionSetLogged,
   parseOptionalNumber,
   quickEntryFields,
+  durationToDisplay,
+  displayToDurationSeconds,
+  wireNameFor,
   summarizePrescription,
   visibleSessionExercises,
   type PickableExercise,
@@ -432,13 +435,16 @@ export default function WorkoutSessionV2Screen() {
     const definition = getPrescriptionDefinition(log.prescription);
     const body: Record<string, unknown> = {};
     for (const field of quickEntryFields(definition)) {
-      const key = field === 'weight' ? 'weightValue' : field;
-      body[key] = parseOptionalNumber(values[field]) ?? null;
+      const key = wireNameFor(field);
+      const parsed = parseOptionalNumber(values[field]) ?? null;
+      /* Duration is typed in the column's declared unit — minutes for a walk
+         — and stored in seconds. */
+      body[key] = field === 'duration' ? displayToDurationSeconds(parsed, definition) : parsed;
     }
     /* A half-filled row is simply not written — not an error, not a nag. */
     const wouldBeLogged = definition.requiredFields
       .filter((field) => field !== 'setType')
-      .every((field) => body[field === 'weight' ? 'weightValue' : field] != null);
+      .every((field) => body[wireNameFor(field)] != null);
     if (!wouldBeLogged) return;
     saveSet.mutate({ setId: set.id, body });
   };
@@ -644,7 +650,7 @@ export default function WorkoutSessionV2Screen() {
                       ...EMPTY_VALUES,
                       weight: set.weightValue?.toString() ?? '',
                       reps: set.reps?.toString() ?? '',
-                      duration: set.durationSeconds?.toString() ?? '',
+                      duration: durationToDisplay(set.durationSeconds, definition),
                       distance: set.distanceValue?.toString() ?? '',
                       rpe: set.rpe?.toString() ?? '',
                     }}

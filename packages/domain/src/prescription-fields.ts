@@ -349,6 +349,63 @@ export function visibleSessionExercises<T extends { skipped: boolean }>(exercise
  * choice, not a "common value" the same way weight/reps/duration/distance/
  * rpe are, so it's excluded from what the header shows and applies.
  */
+/**
+ * Duration, converted between what the user types and what is stored.
+ *
+ * `durationSeconds` is always the stored unit, but a `duration` or
+ * `distanceDuration` prescription declares `units.duration = 'minutes'`,
+ * because nobody logs a 45-minute walk by typing 2700.
+ *
+ * The v2 logger read and wrote the column raw, ignoring the declared unit —
+ * so a walk entered as 45 would have been stored as 45 SECONDS. v1 had these
+ * two helpers and v2 dropped them; they live here now so neither platform can
+ * lose them again.
+ */
+export function durationToDisplay(
+  seconds: number | null | undefined,
+  definition: PrescriptionDefinition,
+): string {
+  if (seconds == null) return '';
+  if (definition.units.duration !== 'minutes') return `${seconds}`;
+  const minutes = seconds / 60;
+  return `${Number.isInteger(minutes) ? minutes : Number(minutes.toFixed(2))}`;
+}
+
+/** The inverse: what the user typed, in the column's unit. */
+export function displayToDurationSeconds(
+  value: number | null | undefined,
+  definition: PrescriptionDefinition,
+): number | null {
+  if (value == null) return null;
+  return definition.units.duration === 'minutes' ? Math.round(value * 60) : value;
+}
+
+/**
+ * The API field name for a UI field.
+ *
+ * Three of the five differ, and the logger only ever mapped `weight`. A
+ * duration exercise therefore sent `{ duration: 45 }` instead of
+ * `{ durationSeconds: 45 }` — and because the request schema strips unknown
+ * keys rather than rejecting them, the PATCH arrived EMPTY, every column kept
+ * its existing value, and the API returned 200 having written nothing.
+ * Silent data loss: a logged walk that simply vanished.
+ *
+ * It lives here so web and mobile read one table. Both had their own copy of
+ * the same wrong ternary.
+ */
+export const SESSION_FIELD_WIRE_NAMES: Record<Exclude<SessionField, 'setType'>, string> = {
+  weight: 'weightValue',
+  reps: 'reps',
+  duration: 'durationSeconds',
+  distance: 'distanceValue',
+  rpe: 'rpe',
+};
+
+/** The API field name for a UI field. */
+export function wireNameFor(field: Exclude<SessionField, 'setType'>): string {
+  return SESSION_FIELD_WIRE_NAMES[field];
+}
+
 export function quickEntryFields(definition: PrescriptionDefinition): Exclude<SessionField, 'setType'>[] {
   return definition.fields.filter((field): field is Exclude<SessionField, 'setType'> => field !== 'setType');
 }

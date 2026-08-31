@@ -22,6 +22,9 @@ import {
   isSessionSetLogged,
   parseOptionalNumber,
   quickEntryFields,
+  durationToDisplay,
+  displayToDurationSeconds,
+  wireNameFor,
   visibleSessionExercises,
 } from '@setframe/domain';
 import { useApiClient } from '../lib/api-client';
@@ -650,15 +653,22 @@ export default function WorkoutSessionPageV2() {
     const definition = getPrescriptionDefinition(log.prescription);
     const body: Record<string, unknown> = {};
     for (const field of quickEntryFields(definition)) {
-      // The wire name for weight is `weightValue`; every other field matches.
-      const key = field === 'weight' ? 'weightValue' : field;
-      body[key] = parseOptionalNumber(values[field]) ?? null;
+      /* THREE of the five differ, not one. The old comment here claimed
+         "every other field matches" and only mapped weight, so duration and
+         distance were sent under names the API does not accept — stripped as
+         unknown keys, leaving an empty PATCH that wrote nothing and returned
+         200. The table lives in packages/domain so this cannot diverge. */
+      const key = wireNameFor(field);
+      const parsed = parseOptionalNumber(values[field]) ?? null;
+      /* Duration is typed in the column's declared unit — minutes for a walk
+         — and stored in seconds. */
+      body[key] = field === 'duration' ? displayToDurationSeconds(parsed, definition) : parsed;
     }
     /* Required fields missing is not an error — the row is simply not written.
        A half-filled row costs nothing and nags about nothing. */
     const wouldBeLogged = definition.requiredFields
       .filter((field) => field !== 'setType')
-      .every((field) => body[field === 'weight' ? 'weightValue' : field] != null);
+      .every((field) => body[wireNameFor(field)] != null);
     if (!wouldBeLogged) return;
     saveSet.mutate({ setId: set.id, body });
   };
@@ -807,7 +817,7 @@ export default function WorkoutSessionPageV2() {
                       ...EMPTY_VALUES,
                       weight: set.weightValue?.toString() ?? '',
                       reps: set.reps?.toString() ?? '',
-                      duration: set.durationSeconds?.toString() ?? '',
+                      duration: durationToDisplay(set.durationSeconds, definition),
                       distance: set.distanceValue?.toString() ?? '',
                       rpe: set.rpe?.toString() ?? '',
                     }}

@@ -9,6 +9,11 @@ import {
   isSessionSetLogged,
   prescriptionDefinitions,
   quickEntryFields,
+  wireNameFor,
+  SESSION_FIELD_WIRE_NAMES,
+  durationToDisplay,
+  displayToDurationSeconds,
+  sessionFieldOrder,
   resolveSessionFields,
   summarizePrescription,
   validateSessionSet,
@@ -312,5 +317,59 @@ describe('isExerciseComplete', () => {
 
   it('does not require optional fields like RPE', () => {
     expect(isExerciseComplete(samples.sets_reps, [{ weightValue: 135, reps: 5, rpe: undefined }])).toBe(true);
+  });
+});
+
+describe('wire names', () => {
+  it('maps every UI field to the name the API actually accepts', () => {
+    /* Three of the five differ. The logger mapped only `weight`, so a
+       duration exercise sent `{ duration: 45 }`; the request schema strips
+       unknown keys rather than rejecting them, so the PATCH arrived empty and
+       the API returned 200 having written nothing. A logged walk vanished. */
+    expect(wireNameFor('weight')).toBe('weightValue');
+    expect(wireNameFor('reps')).toBe('reps');
+    expect(wireNameFor('duration')).toBe('durationSeconds');
+    expect(wireNameFor('distance')).toBe('distanceValue');
+    expect(wireNameFor('rpe')).toBe('rpe');
+  });
+
+  it('covers every enterable field, so a new one cannot be silently dropped', () => {
+    for (const field of sessionFieldOrder.filter((f) => f !== 'setType')) {
+      expect(SESSION_FIELD_WIRE_NAMES[field as Exclude<typeof field, 'setType'>], field).toBeTruthy();
+    }
+  });
+});
+
+describe('duration units', () => {
+  const durationDef = getPrescriptionDefinition({ kind: 'duration' });
+  const timedDef = getPrescriptionDefinition({ kind: 'timed' });
+
+  it('shows a walk in minutes, because nobody types 2700', () => {
+    expect(durationToDisplay(2700, durationDef)).toBe('45');
+  });
+
+  it('stores what was typed as seconds', () => {
+    /* The reported bug: 45 typed into a walk was headed for the column as 45
+       SECONDS. */
+    expect(displayToDurationSeconds(45, durationDef)).toBe(2700);
+  });
+
+  it('leaves a seconds-based kind alone in both directions', () => {
+    expect(durationToDisplay(90, timedDef)).toBe('90');
+    expect(displayToDurationSeconds(90, timedDef)).toBe(90);
+  });
+
+  it('round-trips', () => {
+    const stored = displayToDurationSeconds(45, durationDef);
+    expect(durationToDisplay(stored, durationDef)).toBe('45');
+  });
+
+  it('keeps a fractional minute readable rather than exact', () => {
+    expect(durationToDisplay(100, durationDef)).toBe('1.67');
+  });
+
+  it('is null-safe in both directions', () => {
+    expect(durationToDisplay(null, durationDef)).toBe('');
+    expect(displayToDurationSeconds(null, durationDef)).toBeNull();
   });
 });

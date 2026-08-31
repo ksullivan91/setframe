@@ -72,6 +72,23 @@ const PINNED_SESSION = {
   ],
 };
 
+
+/** A duration-only exercise — a walk. The kind that silently failed to save. */
+const WALK_SESSION = {
+  ...PINNED_SESSION,
+  id: 'session-walk',
+  exercises: [
+    {
+      ...PINNED_SESSION.exercises[0],
+      id: 'log-walk',
+      sessionId: 'session-walk',
+      exercise: { ...PINNED_SESSION.exercises[0].exercise, name: 'Morning Walk' },
+      prescription: { kind: 'duration', durationMinutes: 30 },
+      sets: [{ ...PINNED_SESSION.exercises[0].sets[0], id: 'set-walk', exerciseLogId: 'log-walk' }],
+    },
+  ],
+};
+
 test.describe('logger regressions', () => {
   test.beforeEach(async ({ page }) => {
     await signInAs(page, 'lifter', '/today');
@@ -292,6 +309,66 @@ test.describe('logger regressions', () => {
     await expect(page.getByTestId('workout-v2')).toBeVisible();
 
     await expect(page.getByTestId('save-as-workout')).toBeVisible();
+  });
+
+
+  test('a duration exercise actually saves what was typed', async ({ page }) => {
+    /* Reported: logged a morning walk, typed the minutes, blurred, hit
+       Finish — nothing saved, and no error anywhere.
+    
+       The logger mapped only `weight` to its wire name, so `duration` was
+       sent as `duration` rather than `durationSeconds`. The request schema
+       STRIPS unknown keys instead of rejecting them, so the PATCH arrived
+       empty, every column kept its value, and the API returned 200 having
+       written nothing. */
+    await page.evaluate((session) => {
+      (window as unknown as { __setframeMocks?: { setSession: (s: unknown) => void } })
+        .__setframeMocks?.setSession(session);
+    }, WALK_SESSION);
+    await page.goto('/workout/session-walk');
+    await expect(page.getByTestId('workout-v2')).toBeVisible();
+
+    const bodies: Record<string, unknown>[] = [];
+    page.on('request', (request) => {
+      if (request.url().includes('/workout-sets/') && request.method() === 'PATCH') {
+        bodies.push(request.postDataJSON());
+      }
+    });
+
+    const field = page.locator('[data-testid^="set-row-"]').first().getByRole('textbox').first();
+    await field.fill('45');
+    await page.getByRole('heading', { level: 1 }).first().click();
+
+    await expect.poll(() => bodies.length).toBeGreaterThan(0);
+    const body = bodies[0]!;
+
+    /* The field the API accepts, under the name it accepts it by... */
+    expect(Object.keys(body), 'must use the wire name').toContain('durationSeconds');
+    expect(Object.keys(body), 'must not send the UI field name').not.toContain('duration');
+    /* ...and 45 MINUTES, because a duration prescription declares minutes.
+       Sending 45 would have stored three quarters of a minute. */
+    expect(body.durationSeconds).toBe(2700);
+  });
+
+  test('a saved walk reads back in minutes, not seconds', async ({ page }) => {
+    const stored = {
+      ...WALK_SESSION,
+      exercises: [
+        {
+          ...WALK_SESSION.exercises[0],
+          sets: [{ ...WALK_SESSION.exercises[0].sets[0], durationSeconds: 2700 }],
+        },
+      ],
+    };
+    await page.evaluate((session) => {
+      (window as unknown as { __setframeMocks?: { setSession: (s: unknown) => void } })
+        .__setframeMocks?.setSession(session);
+    }, stored);
+    await page.goto('/workout/session-walk');
+    await expect(page.getByTestId('workout-v2')).toBeVisible();
+
+    const field = page.locator('[data-testid^="set-row-"]').first().getByRole('textbox').first();
+    await expect(field).toHaveValue('45');
   });
 
   test('an exercise added mid-session gets weight and reps columns, not every column', async ({ page }) => {

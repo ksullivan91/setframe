@@ -951,6 +951,31 @@ export const handlers = [
     const base = idx >= 0 ? mockSets[idx] : { id: params.setId };
     const updated = { ...base, ...body, updatedAt: now() };
     if (idx >= 0) mockSets[idx] = updated;
+
+    /* A set that belongs to a PINNED session lives in the override, not in
+       `mockSets`. Without writing the change back there, the next refetch
+       returned the frozen fixture and undid it — so an optimistic update
+       looked like it had been rejected, and a test asserting the new value
+       raced the refetch instead of testing the product. */
+    const override = mockControl.sessionOverride() as
+      | { exercises?: { sets: Record<string, unknown>[] }[] }
+      | undefined;
+    if (override?.exercises) {
+      let touched = false;
+      const next = {
+        ...override,
+        exercises: override.exercises.map((log) => ({
+          ...log,
+          sets: log.sets.map((set) => {
+            if (set.id !== params.setId) return set;
+            touched = true;
+            return { ...set, ...body, updatedAt: now() };
+          }),
+        })),
+      };
+      if (touched) mockControl.setSession(next);
+    }
+
     return HttpResponse.json(updated);
   }),
 
