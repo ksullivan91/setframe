@@ -11,6 +11,12 @@ const mockDel = jest.fn((_path: string) => Promise.resolve(undefined as unknown)
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush }),
+  useFocusEffect: (cb: () => void) => {
+    // Screens are focused on mount in these tests; run it once so the
+    // health hook performs its initial read exactly as it does on device.
+    const React = jest.requireActual('react') as typeof import('react');
+    React.useEffect(() => cb(), []);
+  },
 }));
 
 // The screen imports the HealthKit adapter at module load; the full-screen
@@ -383,5 +389,26 @@ describe('TodayScreen starting a workout', () => {
       pathname: '/workout/[sessionId]',
       params: { sessionId: 'session-99' },
     });
+  });
+});
+
+describe('header sync pill', () => {
+  it('never claims health access is needed', async () => {
+    /* The pill reads the SERVER's sync state, which stays "never synced"
+       until the device posts a reconcile payload — and nothing does that
+       yet. So it announced "Health access needed" forever, including with
+       Apple Health data visible in the card right below it. Access is the
+       card's story; this pill only reports whether Today is refreshing. */
+    mockGet = (path: string) => {
+      if (path.startsWith('/dashboard/today')) {
+        return Promise.resolve(todayPayload({ syncState: { status: 'never_synced' } }));
+      }
+      if (path.startsWith('/programs')) return Promise.resolve([{ id: 'p1', isActive: true }]);
+      return Promise.resolve([]);
+    };
+
+    const rendered = await renderScreen();
+
+    expect(textNodesContaining(rendered, 'Health access needed')).toHaveLength(0);
   });
 });

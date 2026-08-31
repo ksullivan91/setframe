@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Linking } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import {
   healthKit,
   hasAnyMetric,
@@ -106,8 +107,27 @@ export function useHealthConnection(): HealthConnection {
     if (hasAnyMetric(result.daily)) setLastSyncedAt(new Date());
   }, []);
 
+  /**
+   * Re-read whenever this screen regains focus.
+   *
+   * AppState alone was not enough, and the gap was user-visible: Apple's
+   * permission sheet is presented *inside* the app, so granting access
+   * never moves AppState away from 'active', and returning from the
+   * priming screen is in-app navigation that never unmounts Today. A user
+   * who granted everything came back to a card still saying "Connect
+   * Apple Health", and only a full app relaunch — which remounts, and so
+   * re-reads — cleared it.
+   *
+   * Focus covers mount, the return from priming, and tab switches;
+   * AppState below still covers coming back from the Health app itself.
+   */
+  useFocusEffect(
+    useCallback(() => {
+      void read();
+    }, [read]),
+  );
+
   useEffect(() => {
-    void read();
     const subscription = AppState.addEventListener('change', (status) => {
       if (status === 'active') void read();
     });

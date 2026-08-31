@@ -112,7 +112,6 @@ interface DailyManualEntryPatch {
 
 type TodayWorkoutState = 'no-program' | 'unscheduled' | 'scheduled' | 'in-progress' | 'completed' | 'rested';
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
-type DashboardSyncStatus = NonNullable<DashboardTodayResponse['syncState']>['status'];
 
 const moodOptions = [
   { value: 1, label: 'Awful', emoji: '😫' },
@@ -145,11 +144,6 @@ function localTimezone() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
-function mapSyncStatus(status?: DashboardSyncStatus): SyncStatus {
-  if (status === 'syncing') return 'syncing';
-  if (status === 'error' || status === 'needs_attention' || status === 'never_synced') return 'needs_attention';
-  return 'synced';
-}
 
 function saveStatusLabel(state: SaveState) {
   if (state === 'saving') return 'Saving…';
@@ -475,15 +469,26 @@ export default function TodayScreen() {
   const weightDone = manual?.morningWeightValue != null;
   const journalDone = Boolean((manual?.notes ?? '').trim()) || manual?.mood != null;
   const mealDone = Boolean(manual?.preWorkoutMealLogged);
-  const syncPillStatus = todayQuery.isFetching ? 'syncing' : mapSyncStatus(todayQuery.data?.syncState?.status);
-  /* The header pill and the Apple Health card were both rendering
-     "Health access needed" off the same server sync state — two warnings
-     for one problem, neither of them tappable. The card is now the single
-     place that reports health access, because it is the only one that can
-     do anything about it, so the header pill stands down whenever the card
-     is already raising it. */
-  const healthCardRaisesIt = health.state === 'not_connected' || health.state === 'no_data';
-  const showHeaderSyncPill = !(syncPillStatus === 'needs_attention' && healthCardRaisesIt);
+  /* The header pill must never make a health-access claim.
+     It reads the SERVER's sync state, which stays "never synced" until the
+     device posts a reconcile payload — and nothing does that yet. So it
+     rendered "Health access needed" indefinitely, including while the card
+     directly below it was happily showing Apple Health data.
+
+     My first attempt suppressed it only when the card was ALSO warning,
+     which got it exactly backwards: that is the one case where the two
+     agreed. The pill stayed visible precisely when it was most wrong.
+
+     Access is the card's story, because the card is the only thing that
+     can do anything about it. This pill now says one of: refreshing,
+     up to date, or nothing at all. */
+  const headerPillStatus: SyncStatus | null = todayQuery.isFetching
+    ? 'syncing'
+    : health.state === 'connected'
+      ? 'synced'
+      : health.state === 'unavailable' && todayQuery.data?.syncState?.lastSuccessfulSyncAt
+        ? 'synced'
+        : null;
 
   const dateLabel = formatLongDate(todayQuery.data?.localDate ?? localDate);
   /* The server's reconciled snapshot for today. HealthKit wins where the
@@ -521,7 +526,7 @@ export default function TodayScreen() {
           <Text style={[styles.title, { color: theme.text.primary }]}>Today</Text>
           <Text style={[styles.subtitle, { color: theme.text.secondary }]}>Keep the morning quick, then move straight into today’s training.</Text>
         </View>
-        {showHeaderSyncPill ? <SyncStatusPill status={syncPillStatus} /> : null}
+        {headerPillStatus ? <SyncStatusPill status={headerPillStatus} /> : null}
       </View>
       {todayQuery.dataUpdatedAt ? (
         <Text style={[styles.helperText, { color: theme.text.secondary }]}>Last updated {formatDateTime(new Date(todayQuery.dataUpdatedAt).toISOString())}</Text>

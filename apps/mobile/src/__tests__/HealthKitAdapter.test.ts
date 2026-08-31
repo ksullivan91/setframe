@@ -1,3 +1,13 @@
+declare const __dirname: string;
+
+interface NodeFs {
+  readdirSync(dir: string): string[];
+  readFileSync(file: string, encoding: string): string;
+}
+interface NodePath {
+  join(...parts: string[]): string;
+}
+
 import type {
   DailyHealthMetrics,
   HealthAuthorizationState,
@@ -421,15 +431,15 @@ describe('read-only guarantee', () => {
    */
   it('imports no HealthKit write API at all', () => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const fs = require('fs') as typeof import('fs');
+    const fs = require('fs') as NodeFs;
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const path = require('path') as typeof import('path');
+    const path = require('path') as NodePath;
 
     const dir = path.join(__dirname, '..', 'healthkit');
     const sources = fs
       .readdirSync(dir)
-      .filter((file) => file.endsWith('.ts') || file.endsWith('.tsx'))
-      .map((file) => fs.readFileSync(path.join(dir, file), 'utf8'));
+      .filter((file: string) => file.endsWith('.ts') || file.endsWith('.tsx'))
+      .map((file: string) => fs.readFileSync(path.join(dir, file), 'utf8'));
 
     expect(sources.length).toBeGreaterThan(0);
 
