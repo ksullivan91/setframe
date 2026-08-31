@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Setframe",
-    "slug": "setframe-mobile",
+    "slug": "setframe",
     "scheme": "setframe",
     "version": "0.1.0",
     "orientation": "portrait",
@@ -31,6 +31,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "e4fc691d-addc-43b4-b078-31e6aad6b013"
+      }
+    },
+    "owner": "setframes-team"
   }
 }
