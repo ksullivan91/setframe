@@ -1,26 +1,14 @@
 # Story 44 — Detect Apple Health Workouts and Suggest Adding Them as Additional Activity
 
-> **Status:** Unblocked, awaiting sign-off. Still not started.
+> **Status:** Built on 2026-08-31, mobile only. Not yet verified on a device.
 >
-> It was holstered for one reason: "the mobile app isn't deployed to a real
-> device/TestFlight yet, so there's no way to exercise a live HealthKit
-> connection." **That blocker is gone.** The app is on TestFlight, HealthKit
-> is provisioned, and the permission flow, the real metric queries, and the
-> read-only adapter all shipped — see `docs/design/health-connection-flow.md`.
+> Signed off after the Figma exploration (`node-id=211-962`) and the four open
+> questions were answered: dismissals device-local and persisted, today only,
+> overlap = time intersection + loose type match, and no web work (web is
+> being retired to a landing page).
 >
-> Stories 40–42/45 (the `AdditionalActivity` entity, Today section, manual add
-> flow, metric separation) remain shipped and unaffected.
->
-> **One thing this story needs that does not exist yet:** workouts are a
-> separate HealthKit permission. `HEALTH_READ_TYPES` in `HealthKitAdapter.ts`
-> covers activity, nutrition, recovery, body and characteristics — it does
-> *not* include `HKWorkoutTypeIdentifier`, and `queryWorkoutSamples` is never
-> called. Adding it means another authorization sheet for existing users; the
-> adapter's `hasUnaskedTypes()` / "Add sleep, heart and body data" affordance
-> already exists to carry exactly that, so wire the new type through
-> `EXTENDED_READ_TYPES` rather than inventing a second prompt path.
->
-> Per CLAUDE.md, do not start without explicit sign-off.
+> See `docs/design/apple-health-workout-discovery.md`. Move to
+> `Backlog/completed/` once it has been confirmed working on a phone.
 
 ## User Story
 As a user whose Apple Watch or Apple Health already captured a walk, yoga session, cycle, or other workout, I want Setframe to recognize it and offer to add it to my day so that I do not manually duplicate data my devices already recorded.

@@ -1,4 +1,9 @@
 import { Platform } from 'react-native';
+import {
+  mapWorkoutType,
+  workoutTitle,
+  type DiscoveredWorkout,
+} from './workout-discovery';
 
 /**
  * Normalized health snapshot shape the rest of the app consumes. Mirrors
@@ -106,6 +111,10 @@ export const EXTENDED_READ_TYPES = [
   'HKQuantityTypeIdentifierBodyFatPercentage',
   'HKCharacteristicTypeIdentifierBiologicalSex',
   'HKCharacteristicTypeIdentifierDateOfBirth',
+  // Story 44. Workouts are their own HealthKit type, so someone who
+  // connected before this shipped still has to grant it — which is why it
+  // sits here and rides hasUnaskedTypes() rather than a second prompt path.
+  'HKWorkoutTypeIdentifier',
 ] as const;
 
 export const ALL_READ_TYPES = [...CORE_READ_TYPES, ...EXTENDED_READ_TYPES] as const;
@@ -576,6 +585,46 @@ class HealthKitAdapter {
     }
   }
 
+  /**
+   * Whether the user has been asked about workouts specifically.
+   *
+   * Separate from `getConnectionState` because workouts are a separate
+   * type: "connected to Apple Health" does not imply "workouts shared",
+   * and telling someone their Watch data is unavailable when they never
+   * declined it would be a false accusation.
+   */
+  async canReadWorkouts(): Promise<boolean> {
+    return (await this.requestStatusFor(['HKWorkoutTypeIdentifier'])) === 'asked';
+  }
+
+  /**
+   * Today's Apple Health workouts, normalized.
+   *
+   * Read through `toJSON()` wherever possible: these are nitro hybrid
+   * objects whose own members shadow the sample's, the same collision that
+   * had us telling users their nutrition came from an app called
+   * "SourceProxy".
+   */
+  async getTodayWorkouts(): Promise<DiscoveredWorkout[]> {
+    const mod = await this.load();
+    if (!mod) return [];
+    const { startDate, endDate } = this.todayWindow();
+    try {
+      const proxies = await mod.queryWorkoutSamples({
+        limit: 0,
+        filter: { date: { startDate, endDate } },
+      } as never);
+      const out: DiscoveredWorkout[] = [];
+      for (const proxy of proxies ?? []) {
+        const workout = readWorkout(proxy);
+        if (workout) out.push(workout);
+      }
+      return out.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+    } catch {
+      return [];
+    }
+  }
+
   /** Body measurements and characteristics — context, not daily data. */
   private async getBodyProfile(
     mod: NonNullable<HealthKitAdapter['module']>,
@@ -624,6 +673,78 @@ class HealthKitAdapter {
       ageYears,
     };
   }
+}
+
+/**
+ * Normalize one workout proxy, or null if it is unusable.
+ *
+ * Distances arrive in whatever unit HealthKit chose; metres are converted
+ * to miles here because that is what the app displays and what
+ * `distanceUnit` accepts. Anything without a usable start time is dropped
+ * rather than shown at an invented hour.
+ */
+function readWorkout(proxy: unknown): DiscoveredWorkout | null {
+  const source = (() => {
+    try {
+      const p = proxy as { toJSON?: () => unknown };
+      if (typeof p?.toJSON === 'function') return p.toJSON();
+    } catch {
+      /* fall through to the proxy itself */
+    }
+    return proxy;
+  })() as Record<string, unknown> | null;
+  if (!source) return null;
+
+  const externalId = typeof source.uuid === 'string' ? source.uuid : null;
+  const start = source.startDate ? new Date(source.startDate as string) : null;
+  const end = source.endDate ? new Date(source.endDate as string) : null;
+  if (!externalId || !start || Number.isNaN(start.getTime())) return null;
+
+  const appleType = Number(source.workoutActivityType);
+  if (!Number.isFinite(appleType)) return null;
+
+  const metadata = (source.metadata ?? {}) as Record<string, unknown>;
+  const isIndoor = metadata.HKIndoorWorkout === true || metadata.HKIndoorWorkout === 1;
+
+  const durationQuantity = source.duration as { quantity?: number; unit?: string } | undefined;
+  const endMs = end && !Number.isNaN(end.getTime()) ? end.getTime() : start.getTime();
+  const durationSeconds = Math.round(
+    typeof durationQuantity?.quantity === 'number' && durationQuantity.quantity > 0
+      ? durationQuantity.quantity
+      : Math.max(0, (endMs - start.getTime()) / 1000),
+  );
+
+  const distance = source.totalDistance as { quantity?: number; unit?: string } | undefined;
+  let distanceValue: number | null = null;
+  let distanceUnit: 'mi' | 'km' | null = null;
+  if (typeof distance?.quantity === 'number' && distance.quantity > 0) {
+    const unit = (distance.unit ?? 'm').toLowerCase();
+    const miles =
+      unit === 'mi' ? distance.quantity
+      : unit === 'km' ? distance.quantity * 0.621371
+      : distance.quantity / 1609.344;
+    distanceValue = Math.round(miles * 100) / 100;
+    distanceUnit = 'mi';
+  }
+
+  const energy = source.totalEnergyBurned as { quantity?: number } | undefined;
+  const caloriesKcal =
+    typeof energy?.quantity === 'number' && energy.quantity > 0
+      ? Math.round(energy.quantity)
+      : null;
+
+  return {
+    externalId,
+    appleType,
+    activityType: mapWorkoutType(appleType, isIndoor),
+    title: workoutTitle(appleType, isIndoor),
+    startedAt: start.toISOString(),
+    endedAt: new Date(endMs).toISOString(),
+    durationSeconds,
+    distanceValue,
+    distanceUnit,
+    caloriesKcal,
+  };
 }
 
 export const healthKit = new HealthKitAdapter();

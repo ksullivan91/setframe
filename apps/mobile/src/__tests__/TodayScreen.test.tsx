@@ -25,46 +25,11 @@ jest.mock('expo-router', () => ({
 // `hasAnyMetric` is a pure helper the connection hook imports from the same
 // module, so the mock has to provide it too — a partial mock here made the
 // hook throw on mount rather than fail a visible assertion.
-const EMPTY_METRICS = {
-  steps: null,
-  activeEnergyKcal: null,
-  exerciseMinutes: null,
-  caloriesConsumedKcal: null,
-  proteinG: null,
-  carbsG: null,
-  fatG: null,
-};
-const EMPTY_SNAP = {
-  daily: EMPTY_METRICS,
-  recovery: { sleepMinutes: null, hrvMs: null, restingHeartRateBpm: null },
-  body: {
-    weightKg: null,
-    heightCm: null,
-    bodyFatPercent: null,
-    biologicalSex: null,
-    dateOfBirth: null,
-    ageYears: null,
-  },
-  nutritionSource: null,
-};
-jest.mock('../healthkit/HealthKitAdapter', () => ({
-  healthKit: {
-    getConnectionState: () => Promise.resolve('unavailable'),
-    getSnapshot: () => Promise.resolve(EMPTY_SNAP),
-    getTodayMetrics: () => Promise.resolve(EMPTY_METRICS),
-    hasUnaskedTypes: () => Promise.resolve(false),
-    requestAuthorization: () => Promise.resolve('unavailable'),
-    isAvailable: () => Promise.resolve(false),
-  },
-  hasAnyMetric: () => false,
-  hasAnyRecovery: () => false,
-  hasAnyBody: () => false,
-  EMPTY_SNAPSHOT: EMPTY_SNAP,
-  CORE_READ_TYPES: [],
-  EXTENDED_READ_TYPES: [],
-  ALL_READ_TYPES: [],
-  HEALTH_READ_TYPES: [],
-}));
+/* One complete mock, shared. A partial one throws during render, which
+   reads as a component bug rather than a missing export. */
+jest.mock('../healthkit/HealthKitAdapter', () =>
+  require('../test-support/healthkit-mock').healthKitModuleMock(),
+);
 
 jest.mock('../lib/api-client', () => {
   class ApiError extends Error {

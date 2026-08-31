@@ -468,6 +468,22 @@ export default function TodayScreen() {
 
   const weightDone = manual?.morningWeightValue != null;
   const journalDone = Boolean((manual?.notes ?? '').trim()) || manual?.mood != null;
+  /* Story 44 — the day's logged sessions, so a Watch recording of one is
+     not offered back as "additional" activity. Abandoned sessions are
+     excluded: nothing was really trained, so a workout over that window is
+     a genuine separate activity. */
+  const loggedSessions = useMemo(
+    () =>
+      (todayQuery.data?.sessions ?? [])
+        .filter((session) => session.status !== 'abandoned')
+        .map((session) => ({
+          label: todayQuery.data?.dayLabel ?? 'workout',
+          startedAt: session.startedAt ?? null,
+          completedAt: session.completedAt ?? null,
+        })),
+    [todayQuery.data?.sessions, todayQuery.data?.dayLabel],
+  );
+
   const syncedNutritionKcal = todayQuery.data?.nutritionSnapshot?.caloriesKcal
     ? Math.round(Number(todayQuery.data.nutritionSnapshot.caloriesKcal))
     : null;
@@ -709,7 +725,9 @@ export default function TodayScreen() {
           used to paint its finished card above content that had not arrived.
           Not gated on the dashboard's error state: its data is independent,
           so a failed Today should not take a working feature down with it. */}
-      {!isPageLoading ? <TodayAdditionalActivitySection localDate={localDate} /> : null}
+      {!isPageLoading ? (
+        <TodayAdditionalActivitySection localDate={localDate} sessions={loggedSessions} />
+      ) : null}
 
       {toast ? (
         <Toast variant={toast.variant} message={toast.message} onDismiss={() => setToast(null)} />

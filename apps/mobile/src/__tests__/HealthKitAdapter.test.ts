@@ -14,6 +14,7 @@ import type {
   HealthConnectionState,
   HealthSnapshot,
 } from '../healthkit/HealthKitAdapter';
+import type { DiscoveredWorkout } from '../healthkit/workout-discovery';
 
 /**
  * Adapter unit tests.
@@ -26,6 +27,7 @@ import type {
 
 const mockQueryStatisticsForQuantity = jest.fn();
 const mockQueryCategorySamples = jest.fn();
+const mockQueryWorkoutSamples = jest.fn();
 const mockGetMostRecentQuantitySample = jest.fn();
 const mockGetBiologicalSex = jest.fn();
 const mockGetDateOfBirth = jest.fn();
@@ -42,6 +44,7 @@ jest.mock(
     requestAuthorization: (...args: unknown[]) => mockRequestAuthorization(...args),
     queryStatisticsForQuantity: (...args: unknown[]) => mockQueryStatisticsForQuantity(...args),
     queryCategorySamples: (...args: unknown[]) => mockQueryCategorySamples(...args),
+    queryWorkoutSamples: (...args: unknown[]) => mockQueryWorkoutSamples(...args),
     getMostRecentQuantitySample: (...args: unknown[]) => mockGetMostRecentQuantitySample(...args),
     getBiologicalSex: () => mockGetBiologicalSex(),
     getDateOfBirth: () => mockGetDateOfBirth(),
@@ -60,6 +63,8 @@ jest.mock(
  */
 interface Adapter {
   getConnectionState(): Promise<HealthConnectionState>;
+  canReadWorkouts(): Promise<boolean>;
+  getTodayWorkouts(): Promise<DiscoveredWorkout[]>;
   hasUnaskedTypes(): Promise<boolean>;
   getTodayMetrics(): Promise<DailyHealthMetrics>;
   getSnapshot(): Promise<HealthSnapshot>;
@@ -80,6 +85,7 @@ beforeEach(() => {
   // Quiet defaults so a test that cares about one metric is not tripped by
   // the others; each test overrides what it is actually asserting.
   mockQueryCategorySamples.mockResolvedValue([]);
+  mockQueryWorkoutSamples.mockResolvedValue([]);
   mockGetMostRecentQuantitySample.mockResolvedValue(undefined);
   mockGetBiologicalSex.mockReturnValue(0);
   mockGetDateOfBirth.mockReturnValue(undefined);
@@ -231,6 +237,10 @@ describe('mockRequestAuthorization', () => {
       'HKQuantityTypeIdentifierBodyMass',
       'HKCharacteristicTypeIdentifierBiologicalSex',
       'HKCharacteristicTypeIdentifierDateOfBirth',
+      // Story 44. Without this the discovery flow silently finds nothing,
+      // and no other test notices — dropping it broke no assertion until
+      // this one existed.
+      'HKWorkoutTypeIdentifier',
     ]));
   });
 });
@@ -280,6 +290,7 @@ describe('sleep', () => {
 
   it('reports no sleep data as null rather than zero minutes', async () => {
     mockQueryCategorySamples.mockResolvedValue([]);
+  mockQueryWorkoutSamples.mockResolvedValue([]);
     const snapshot = await (await freshAdapter()).getSnapshot();
     expect(snapshot.recovery.sleepMinutes).toBeNull();
   });
@@ -288,6 +299,7 @@ describe('sleep', () => {
     /* Sleep straddles the date boundary. A midnight-to-now window reports
        roughly half a night and calls it a full one. */
     mockQueryCategorySamples.mockResolvedValue([]);
+  mockQueryWorkoutSamples.mockResolvedValue([]);
     await (await freshAdapter()).getSnapshot();
     const { startDate } = mockQueryCategorySamples.mock.calls[0]![1].filter.date;
     const yesterday = new Date();
@@ -486,5 +498,82 @@ describe('read-only guarantee', () => {
       }
     }
     expect(offenders).toEqual([]);
+  });
+});
+
+describe('workout discovery', () => {
+  it('reads workouts over the local day and normalizes them', async () => {
+    mockQueryWorkoutSamples.mockResolvedValue([
+      {
+        toJSON: () => ({
+          uuid: 'hk-walk',
+          workoutActivityType: 52,
+          startDate: '2026-08-31T12:42:00.000Z',
+          endDate: '2026-08-31T12:59:00.000Z',
+          duration: { quantity: 1020, unit: 's' },
+          totalDistance: { quantity: 1287.5, unit: 'm' },
+          totalEnergyBurned: { quantity: 64.4, unit: 'kcal' },
+          metadata: {},
+        }),
+      },
+    ]);
+
+    const workouts = await (await freshAdapter()).getTodayWorkouts();
+
+    expect(workouts).toHaveLength(1);
+    const walk = workouts[0]!;
+    expect(walk.externalId).toBe('hk-walk');
+    expect(walk.activityType).toBe('walk');
+    expect(walk.title).toBe('Outdoor Walk');
+    expect(walk.durationSeconds).toBe(1020);
+    // Metres in, miles out — what distanceUnit accepts and the card shows.
+    expect(walk.distanceValue).toBe(0.8);
+    expect(walk.distanceUnit).toBe('mi');
+    expect(walk.caloriesKcal).toBe(64);
+  });
+
+  it('reads the indoor flag so a spin class is not an outdoor ride', async () => {
+    mockQueryWorkoutSamples.mockResolvedValue([
+      {
+        toJSON: () => ({
+          uuid: 'hk-spin',
+          workoutActivityType: 13,
+          startDate: '2026-08-31T07:00:00.000Z',
+          endDate: '2026-08-31T07:45:00.000Z',
+          duration: { quantity: 2700, unit: 's' },
+          metadata: { HKIndoorWorkout: true },
+        }),
+      },
+    ]);
+    const workouts = await (await freshAdapter()).getTodayWorkouts();
+    expect(workouts[0]!.activityType).toBe('indoor_cycle');
+  });
+
+  it('drops a workout with no usable identity rather than inventing one', async () => {
+    /* externalId is the dedupe key. A workout without it could be imported
+       twice, which is the one outcome the story rules out absolutely. */
+    mockQueryWorkoutSamples.mockResolvedValue([
+      { toJSON: () => ({ workoutActivityType: 52, startDate: '2026-08-31T12:00:00.000Z' }) },
+      { toJSON: () => ({ uuid: 'ok', workoutActivityType: 52, startDate: '2026-08-31T12:00:00.000Z', endDate: '2026-08-31T12:10:00.000Z', duration: { quantity: 600 }, metadata: {} }) },
+    ]);
+    const workouts = await (await freshAdapter()).getTodayWorkouts();
+    expect(workouts.map((w) => w.externalId)).toEqual(['ok']);
+  });
+
+  it('returns nothing rather than throwing when workouts are not shared', async () => {
+    mockQueryWorkoutSamples.mockRejectedValue(new Error('not authorized'));
+    await expect((await freshAdapter()).getTodayWorkouts()).resolves.toEqual([]);
+  });
+
+  it('reports workout permission separately from overall connection', async () => {
+    /* "Connected to Apple Health" must not imply "workouts shared" — telling
+       someone their Watch data is unavailable when they never declined it
+       would be a false accusation. */
+    mockGetRequestStatusForAuthorization.mockImplementation((payload: { toRead: string[] }) =>
+      Promise.resolve(payload.toRead.includes('HKWorkoutTypeIdentifier') ? 1 : 2),
+    );
+    const adapter = await freshAdapter();
+    await expect(adapter.getConnectionState()).resolves.toBe('asked');
+    await expect(adapter.canReadWorkouts()).resolves.toBe(false);
   });
 });

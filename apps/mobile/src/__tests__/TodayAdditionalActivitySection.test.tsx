@@ -15,6 +15,27 @@ const mockPost = jest.fn((_path: string, body?: unknown) => Promise.resolve(body
 const mockPatch = jest.fn((_path: string, body?: unknown) => Promise.resolve(body));
 const mockDel = jest.fn((_path: string) => Promise.resolve(undefined));
 
+/* The card now discovers Apple Health workouts, which means it reads the
+   adapter and subscribes to screen focus. Both need standing in for: the
+   real app always renders this inside a navigator, but a unit test does
+   not, and useFocusEffect throws without one. */
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ push: jest.fn(), back: jest.fn() }),
+  useFocusEffect: (cb: () => void) => {
+    const React = jest.requireActual('react') as typeof import('react');
+    React.useEffect(() => cb(), []);
+  },
+}));
+
+jest.mock('../healthkit/HealthKitAdapter', () =>
+  require('../test-support/healthkit-mock').healthKitModuleMock(),
+);
+
+jest.mock('expo-secure-store', () => ({
+  getItemAsync: () => Promise.resolve(null),
+  setItemAsync: () => Promise.resolve(),
+}));
+
 jest.mock('../lib/api-client', () => {
   class ApiError extends Error {
     status: number;

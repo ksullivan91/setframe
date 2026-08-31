@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Pencil, Trash2 } from 'lucide-react-native';
@@ -12,6 +12,8 @@ import {
   validateDurationDraft,
   type DurationDraft,
 } from '@setframe/domain';
+import { useWorkoutDiscovery } from '../healthkit/useWorkoutDiscovery';
+import { toCreateBody, type DiscoveredWorkout, type LoggedSession } from '../healthkit/workout-discovery';
 import { useTheme } from '../theme/ThemeProvider';
 import { typeScale } from '../theme/getTheme';
 import { useApiClient } from '../lib/api-client';
@@ -101,7 +103,15 @@ export function additionalActivitiesQuery(api: ReturnType<typeof useApiClient>, 
   };
 }
 
-export function TodayAdditionalActivitySection({ localDate }: { localDate: string }) {
+export function TodayAdditionalActivitySection({
+  localDate,
+  sessions = [],
+}: {
+  localDate: string;
+  /** Today's logged sessions, so a Watch recording of one is not offered
+   *  back as "additional" activity. See workout-discovery.ts. */
+  sessions?: LoggedSession[];
+}) {
   const theme = useTheme();
   const api = useApiClient();
   const queryClient = useQueryClient();
@@ -139,6 +149,18 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
     enabled: sheetOpen && !editTarget,
   });
   const recentSuggestions = recentsQuery.data?.items ? deriveRecentActivitySuggestions(recentsQuery.data.items) : [];
+
+  /* Story 44 — what Apple Health already knows about today. The external
+     ids of what we have imported feed straight back in, so an activity
+     added from a suggestion is never offered a second time. */
+  const importedExternalIds = useMemo(
+    () =>
+      (query.data?.items ?? [])
+        .filter((item) => item.source === 'apple_health' && item.externalSourceId)
+        .map((item) => item.externalSourceId as string),
+    [query.data?.items],
+  );
+  const discovery = useWorkoutDiscovery({ localDate, sessions, importedExternalIds });
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['additional-activities', localDate] });
   const refreshPresets = () => queryClient.invalidateQueries({ queryKey: ['additional-activity-presets'] });
@@ -179,6 +201,19 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
       setToast({ variant: 'success', message: 'Activity updated.' });
     },
     onError: () => setToast({ variant: 'error', message: 'Could not update activity.' }),
+  });
+
+  const importMutation = useMutation({
+    mutationFn: (workout: DiscoveredWorkout) =>
+      api.post(
+        '/additional-activities',
+        toCreateBody(workout, localDate, Intl.DateTimeFormat().resolvedOptions().timeZone),
+      ),
+    onSuccess: async () => {
+      await refresh();
+      setToast({ variant: 'success', message: 'Added from Apple Health.' });
+    },
+    onError: () => setToast({ variant: 'error', message: 'Could not add that activity.' }),
   });
 
   const deleteMutation = useMutation({
@@ -267,6 +302,76 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
         </>
       ) : null}
 
+      {/* Story 44. Suggestions sit above logged rows and look deliberately
+          unlike them: a tinted block with its own actions, so "we found
+          this" never reads as "we saved this" and Dismiss never reads as
+          Delete. */}
+      {discovery.suggestions.map((workout) => (
+        <View
+          key={workout.externalId}
+          testID={`workout-suggestion-${workout.externalId}`}
+          style={[styles.suggestion, { backgroundColor: theme.surface.raised, borderColor: theme.status.info }]}
+        >
+          <Text style={[styles.suggestionEyebrow, { color: theme.text.secondary }]}>
+            FOUND IN APPLE HEALTH
+          </Text>
+          <Text style={[styles.suggestionTitle, { color: theme.text.primary }]}>{workout.title}</Text>
+          <Text style={{ color: theme.text.secondary, fontSize: typeScale.helper.fontSize }}>
+            {describeWorkout(workout)}
+          </Text>
+          <View style={styles.suggestionActions}>
+            <Button
+              label="Add to today"
+              onPress={() => importMutation.mutate(workout)}
+              loading={importMutation.isPending && importMutation.variables?.externalId === workout.externalId}
+            />
+            <Button
+              label="Dismiss"
+              variant="secondary"
+              onPress={() => discovery.dismiss(workout.externalId)}
+            />
+          </View>
+        </View>
+      ))}
+      {discovery.suggestions.length > 0 ? (
+        <Text style={{ color: theme.text.secondary, fontSize: typeScale.helper.fontSize }}>
+          Setframe never adds these on its own.
+        </Text>
+      ) : null}
+
+      {/* Said out loud on purpose. Silently dropping the one workout the
+          user definitely did looks like the feature is broken. */}
+      {discovery.suppressed.map(({ workout, reason }) => (
+        <View
+          key={workout.externalId}
+          testID={`workout-suppressed-${workout.externalId}`}
+          style={[styles.suppressed, { backgroundColor: theme.surface.raised }]}
+        >
+          <Text style={{ color: theme.text.disabled, fontSize: typeScale.helper.fontSize }}>
+            {workout.title} · {formatActivityDuration(workout.durationSeconds)}
+          </Text>
+          <Text style={{ color: theme.text.secondary, fontSize: typeScale.caption.fontSize }}>
+            {reason}
+          </Text>
+        </View>
+      ))}
+
+      {/* Workouts are their own Apple Health permission, so "connected"
+          does not imply "discoverable" — and someone who granted
+          everything last week still has to grant this. */}
+      {discovery.canRead === false ? (
+        <View style={[styles.permission, { backgroundColor: theme.surface.raised }]} testID="workout-permission">
+          <Text style={{ color: theme.text.primary, fontSize: typeScale.compactBody.fontSize, fontWeight: '600' }}>
+            Your Watch workouts are not shared yet
+          </Text>
+          <Text style={{ color: theme.text.secondary, fontSize: typeScale.helper.fontSize }}>
+            Workouts are a separate Apple Health permission from the steps and calories you already
+            share. Turn it on and Setframe can offer your walks and rides here.
+          </Text>
+          <Button label="Share workouts" onPress={() => void discovery.grant()} loading={discovery.granting} />
+        </View>
+      ) : null}
+
       {items.map((activity) => {
         const detailBits = [
           formatActivityDuration(activity.durationSeconds),
@@ -315,8 +420,25 @@ export function TodayAdditionalActivitySection({ localDate }: { localDate: strin
   );
 }
 
+/** "12:42 PM · 17 min · 0.8 mi", skipping whatever Health did not record. */
+function describeWorkout(workout: DiscoveredWorkout): string {
+  return [
+    formatActivityTime(workout.startedAt),
+    formatActivityDuration(workout.durationSeconds),
+    workout.distanceValue != null ? `${workout.distanceValue} ${workout.distanceUnit ?? 'mi'}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
 const styles = StyleSheet.create({
   card: { gap: spacing[12] },
+  suggestion: { borderRadius: radius.small, padding: spacing[12], gap: spacing[4], borderLeftWidth: 3 },
+  suggestionEyebrow: { fontSize: typeScale.caption.fontSize, letterSpacing: 1, fontWeight: '500' },
+  suggestionTitle: { fontSize: typeScale.compactBody.fontSize, fontWeight: '600' },
+  suggestionActions: { flexDirection: 'row', gap: spacing[8], marginTop: spacing[4] },
+  suppressed: { borderRadius: radius.small, padding: spacing[12], gap: 2 },
+  permission: { borderRadius: radius.small, padding: spacing[12], gap: spacing[8] },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { fontSize: typeScale.sectionTitle.fontSize, fontWeight: '600' },
   errorRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

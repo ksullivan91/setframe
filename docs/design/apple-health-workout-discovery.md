@@ -3,8 +3,10 @@
 Figma: 📱 Mobile → `🔬 Exploration — Apple Health workout discovery, story 44
 (not signed off)`, five 390×844 frames plus a spec board (`node-id=211-962`).
 
-Status: **designed, not built, not signed off.** Backlog item is
-`Backlog/WAIT-apple-health-activity-discovery.md`.
+Status: **built** (mobile only). `apps/mobile/src/healthkit/workout-discovery.ts`
+(pure rules), `useWorkoutDiscovery.ts`, `dismissed-workouts.ts`, and the
+suggestion UI in `src/components/TodayAdditionalActivitySection.tsx`.
+Not yet verified on a real device.
 
 ## The shape
 
@@ -74,16 +76,45 @@ so the import itself needs **no new endpoint and no migration**.
 the overlap-with-session check, the suggestion UI, and one more permission
 type.
 
-## Open — needs a decision before building
+## Decisions taken (2026-08-31)
 
-- **Where dismissals live.** Nothing stores them. On device, a reinstall
-  re-nags with a month of old walks; on the server, it is a new table and
-  endpoint. Leaning device-local with a date floor.
-- **How far back to look.** Today only is simplest and matches the frames. A
-  rolling window matches the reconciliation model but turns first launch into
-  a wall of suggestions.
-- **What counts as overlap.** Any time intersection with a logged session, or
-  a stricter type match? Too loose and a genuine post-gym walk is suppressed;
-  too strict and the double-count returns.
-- **Whether web says anything.** Web cannot read HealthKit. Silence risks
-  reading as a missing feature; a note explains that discovery is phone-only.
+- **Dismissals are device-local and persisted**, in `expo-secure-store`,
+  scoped to one `localDate`. The requirement was explicit: a dismissed
+  suggestion must not return when the app is closed and reopened, so the
+  write reaches storage on every dismissal rather than at some later flush.
+  Scoping to the day means the record clears itself at midnight instead of
+  growing forever.
+
+  `expo-secure-store` rather than AsyncStorage because it is already a direct
+  dependency and already native-linked here (the Clerk token cache uses it),
+  whereas AsyncStorage is present only transitively through a wallet adapter
+  and could vanish on any dependency bump.
+
+- **Today only.** The query window is local midnight → now, the same boundary
+  every other daily read uses.
+
+- **Overlap is time intersection AND a loose type match.** A workout is
+  suppressed only when it overlaps a logged session *and* its Apple type is
+  one that could plausibly *be* that session — the strength/functional/core/
+  cross-training/HIIT family, plus `other`. `other` is included deliberately:
+  it is genuinely ambiguous, and ambiguity should not double-count. The type
+  half is what keeps a genuine walk that merely shares a clock with a lift
+  from being swallowed.
+
+  Abandoned sessions are excluded from the check: nothing was really trained,
+  so a workout over that window is a real separate activity.
+
+- **Web does nothing.** Web is being retired to a landing page and cannot read
+  HealthKit anyway.
+
+## Verified, and not
+
+Unit tests cover the mapping table, the overlap rule, dedupe, dismissal
+persistence across a simulated relaunch, the metres→miles conversion, the
+indoor-cycling flag, and the separate workout permission. Each was
+revert-verified.
+
+**Nothing here has seen a real HealthKit store.** The normalization reads
+through `toJSON()` on nitro proxies, which is the shape the typings describe
+but not one that has been observed. Expect the first device run to need
+corrections.
