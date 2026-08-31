@@ -50,6 +50,38 @@ export function buildApp() {
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
 
+  /**
+   * Treat an empty body under `application/json` as no body at all.
+   *
+   * Fastify's default JSON parser answers 400 FST_ERR_CTP_EMPTY_JSON_BODY
+   * when a request declares `Content-Type: application/json` and sends
+   * nothing. apps/mobile's fetch wrapper set that header on *every*
+   * request, so every bodyless DELETE from the phone was rejected before
+   * it reached a handler — "Could not remove activity" — while the same
+   * call from apps/web succeeded, because its header is conditional.
+   *
+   * The client is fixed too, but this stays: a DELETE with no body is a
+   * well-formed request whatever content-type a client volunteers, and
+   * builds already on testers' phones should not stay broken waiting for
+   * an app update. Malformed *non-empty* JSON still fails as before.
+   */
+  app.addContentTypeParser(
+    'application/json',
+    { parseAs: 'string' },
+    (_request, body: string, done) => {
+      if (body === undefined || body === null || body.length === 0) {
+        done(null, undefined);
+        return;
+      }
+      try {
+        done(null, JSON.parse(body));
+      } catch (error) {
+        (error as { statusCode?: number }).statusCode = 400;
+        done(error as Error, undefined);
+      }
+    },
+  );
+
   app.register(errorHandlerPlugin);
   app.register(authPlugin);
   app.register(cors, {

@@ -468,7 +468,25 @@ export default function TodayScreen() {
 
   const weightDone = manual?.morningWeightValue != null;
   const journalDone = Boolean((manual?.notes ?? '').trim()) || manual?.mood != null;
-  const mealDone = Boolean(manual?.preWorkoutMealLogged);
+  const syncedNutritionKcal = todayQuery.data?.nutritionSnapshot?.caloriesKcal
+    ? Math.round(Number(todayQuery.data.nutritionSnapshot.caloriesKcal))
+    : null;
+  /* Nutrition is the one ritual step we can now observe rather than ask
+     about. When a tracker has written food to Apple Health for today, the
+     step is satisfied as a matter of fact, so the checkbox — which exists
+     only to record what we could not otherwise know — steps aside.
+
+     Derived, never written: copying an imported value into the manual
+     `preWorkoutMealLogged` flag would be exactly the silent overwrite
+     docs/architecture.md §4 rules out, and it would strand a value in our
+     DB that no longer matches its source. */
+  const nutritionKcal = health.metrics.caloriesConsumedKcal ?? syncedNutritionKcal;
+  const nutritionObserved =
+    nutritionKcal != null ||
+    health.metrics.proteinG != null ||
+    health.metrics.carbsG != null ||
+    health.metrics.fatG != null;
+  const mealDone = nutritionObserved || Boolean(manual?.preWorkoutMealLogged);
   /* The header pill must never make a health-access claim.
      It reads the SERVER's sync state, which stays "never synced" until the
      device posts a reconcile payload — and nothing does that yet. So it
@@ -505,9 +523,7 @@ export default function TodayScreen() {
       todayQuery.data?.activitySummary?.exerciseMinutes ??
       todayQuery.data?.activitySummary?.appleMoveTimeMinutes ??
       null,
-    caloriesConsumedKcal: todayQuery.data?.nutritionSnapshot?.caloriesKcal
-      ? Math.round(Number(todayQuery.data.nutritionSnapshot.caloriesKcal))
-      : null,
+    caloriesConsumedKcal: syncedNutritionKcal,
     // The server snapshot does not carry macros yet, so these are
     // device-only until the reconcile payload grows to include them.
     proteinG: null,
@@ -807,12 +823,31 @@ export default function TodayScreen() {
               <Utensils size={18} color={theme.text.primary} />
               <Text style={[styles.stepTitle, { color: theme.text.primary }]}>Nutrition check</Text>
             </View>
-            <Text style={[styles.bodyText, { color: theme.text.secondary }]}>No macro entry here — just confirm the meal/logging step happened.</Text>
-            <View style={styles.checkboxRow}>
-              <Checkbox checked={mealDone} onChange={(checked) => void saveSection({ preWorkoutMealLogged: checked }, setMealStatus, 'meal')} />
-              <Text style={[styles.bodyText, { color: theme.text.primary }]}>Logged in my nutrition app</Text>
-            </View>
-            <SaveFeedback state={mealStatus} />
+            {nutritionObserved ? (
+              <>
+                <Text style={[styles.bodyText, { color: theme.text.secondary }]}>
+                  Already logged — Apple Health has today&apos;s food.
+                </Text>
+                <Text testID="nutrition-observed" style={[styles.helperText, { color: theme.text.secondary }]}>
+                  {[
+                    nutritionKcal != null ? `${nutritionKcal.toLocaleString()} kcal` : null,
+                    health.metrics.proteinG != null ? `${health.metrics.proteinG} g protein` : null,
+                    health.nutritionSource,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={[styles.bodyText, { color: theme.text.secondary }]}>No macro entry here — just confirm the meal/logging step happened.</Text>
+                <View style={styles.checkboxRow}>
+                  <Checkbox checked={mealDone} onChange={(checked) => void saveSection({ preWorkoutMealLogged: checked }, setMealStatus, 'meal')} />
+                  <Text style={[styles.bodyText, { color: theme.text.primary }]}>Logged in my nutrition app</Text>
+                </View>
+                <SaveFeedback state={mealStatus} />
+              </>
+            )}
           </View>
         </View>
       </Card>

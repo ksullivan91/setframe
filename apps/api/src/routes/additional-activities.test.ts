@@ -222,4 +222,46 @@ describe('DELETE /v1/additional-activities/:id', () => {
     expect(mockDelete).toHaveBeenCalled();
     await app.close();
   });
+
+  it('deletes when the client sends a JSON content-type with no body', async () => {
+    /* Exactly what apps/mobile's fetch wrapper sends: it sets
+       `Content-Type: application/json` on every request including bodyless
+       DELETEs, where apps/web sets it only when there is a body. Fastify's
+       JSON parser rejects an empty body under that content-type
+       (FST_ERR_CTP_EMPTY_JSON_BODY, 400), which surfaced in the app as
+       "Could not remove activity." */
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([activityRow]));
+    mockDelete.mockReturnValueOnce({ where: vi.fn().mockResolvedValue([]) });
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'DELETE',
+      url: `/v1/additional-activities/${activityRow.id}`,
+      headers: { ...authHeader, 'content-type': 'application/json' },
+    });
+
+    expect(response.statusCode).toBe(204);
+    await app.close();
+  });
+
+  it('still rejects malformed JSON', async () => {
+    /* The empty-body tolerance above replaces Fastify's global JSON parser,
+       so this guards the half that must keep failing: a body that is
+       present but not JSON is a client bug and has to surface as 400, not
+       be silently swallowed as "no body". */
+    mockSelect.mockReturnValueOnce(selectChain([userRow]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/additional-activities',
+      headers: { ...authHeader, 'content-type': 'application/json' },
+      payload: '{"localDate": ',
+    });
+
+    expect(response.statusCode).toBe(400);
+    await app.close();
+  });
 });

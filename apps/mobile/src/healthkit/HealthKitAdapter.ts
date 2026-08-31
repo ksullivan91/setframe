@@ -145,6 +145,43 @@ export const EMPTY_SNAPSHOT: HealthSnapshot = {
   nutritionSource: null,
 };
 
+/**
+ * The app that wrote a sample, or null if we cannot tell.
+ *
+ * `SourceProxy` extends BOTH nitro's `HybridObject` and HealthKit's
+ * `Source`, and both declare `name`. Nitro's wins at runtime and returns
+ * the *type* name, so reading `.name` directly yields the literal string
+ * "SourceProxy" — which we cheerfully printed to users as the app that
+ * logged their food. `toJSON()` returns the plain `Source`, where `name`
+ * means what it says.
+ *
+ * Anything that still smells like the proxy is discarded rather than
+ * shown: a wrong attribution is worse than no attribution.
+ */
+export function readSourceName(source: unknown): string | null {
+  const candidates: unknown[] = [];
+  try {
+    const proxy = source as { toJSON?: () => { name?: unknown } };
+    if (typeof proxy?.toJSON === 'function') candidates.push(proxy.toJSON()?.name);
+  } catch {
+    /* Hybrid objects can throw on access once the native side is gone. */
+  }
+  try {
+    candidates.push((source as { name?: unknown })?.name);
+  } catch {
+    /* As above. */
+  }
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string') continue;
+    const name = candidate.trim();
+    if (!name) continue;
+    if (/^(source)?proxy$/i.test(name)) continue;
+    if (/^hybrid/i.test(name)) continue;
+    return name;
+  }
+  return null;
+}
+
 /** True when at least one of the four headline metrics came back. */
 export function hasAnyMetric(metrics: DailyHealthMetrics): boolean {
   return (
@@ -345,13 +382,7 @@ class HealthKitAdapter {
       const value =
         typeof quantity === 'number' && Number.isFinite(quantity) ? quantity : null;
       const sources = (result?.sources ?? [])
-        .map((source) => {
-          try {
-            return source?.name ?? null;
-          } catch {
-            return null;
-          }
-        })
+        .map((source) => readSourceName(source))
         .filter((name): name is string => Boolean(name));
       return { value, sources };
     } catch {

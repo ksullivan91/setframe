@@ -386,6 +386,28 @@ describe('nutrition source', () => {
     expect(snapshot.nutritionSource).toBe('MacroFactor');
   });
 
+  it('never reports the nitro proxy as the app that logged your food', async () => {
+    /* SourceProxy extends both nitro's HybridObject and HealthKit's Source,
+       and both declare `name`. Nitro's wins at runtime, so reading `.name`
+       returned the literal "SourceProxy" — which shipped to the user as the
+       name of their nutrition tracker. */
+    mockQueryStatisticsForQuantity.mockResolvedValue({
+      sumQuantity: { quantity: 2100, unit: 'kcal' },
+      sources: [{ name: 'SourceProxy' }],
+    });
+    const snapshot = await (await freshAdapter()).getSnapshot();
+    expect(snapshot.nutritionSource).toBeNull();
+  });
+
+  it('prefers toJSON(), where name means the app name', async () => {
+    mockQueryStatisticsForQuantity.mockResolvedValue({
+      sumQuantity: { quantity: 2100, unit: 'kcal' },
+      sources: [{ name: 'SourceProxy', toJSON: () => ({ name: 'Cronometer' }) }],
+    });
+    const snapshot = await (await freshAdapter()).getSnapshot();
+    expect(snapshot.nutritionSource).toBe('Cronometer');
+  });
+
   it('reports no source when nothing wrote nutrition', async () => {
     mockQueryStatisticsForQuantity.mockResolvedValue({ sources: [] });
     const snapshot = await (await freshAdapter()).getSnapshot();

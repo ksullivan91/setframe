@@ -775,7 +775,19 @@ export function TodayPage() {
   // otherwise the step counter would claim training is done while the card
   // is still offering to resume a workout.
   const workoutDone = Boolean(completedSession) || (Boolean(restDay) && !activeSession);
-  const mealDone = Boolean(manual?.preWorkoutMealLogged);
+  /* Parity with mobile: once a tracker has written today's food through to
+     us, the nutrition step is satisfied as a fact and the checkbox — which
+     exists only to record what we cannot otherwise observe — steps aside.
+     Derived, never written back: copying an imported value into the manual
+     flag is the silent overwrite docs/architecture.md §4 rules out.
+
+     Web has no HealthKit, so it sees this only via the server's reconciled
+     snapshot. */
+  const nutritionKcal = data?.nutritionSnapshot?.caloriesKcal
+    ? Math.round(Number(data.nutritionSnapshot.caloriesKcal))
+    : null;
+  const nutritionObserved = nutritionKcal != null;
+  const mealDone = nutritionObserved || Boolean(manual?.preWorkoutMealLogged);
   const weightDone = manual?.morningWeightValue != null;
   const journalDone = Boolean((manual?.notes ?? '').trim()) || manual?.mood != null;
   const syncDone = Boolean(data?.activitySummary || data?.nutritionSnapshot || data?.syncState?.lastSuccessfulSyncAt);
@@ -1108,6 +1120,13 @@ export function TodayPage() {
                       </StepTitle>
                       {mealDone ? <PassiveChip>Confirmed</PassiveChip> : null}
                     </StepHeader>
+                    {nutritionObserved ? (
+                      <StepBody data-testid="nutrition-observed">
+                        Already logged — Apple Health has today&apos;s food
+                        {nutritionKcal != null ? ` (${nutritionKcal.toLocaleString()} kcal)` : ''}.
+                      </StepBody>
+                    ) : (
+                    <>
                     <StepBody>No macro entry here — just confirm the meal/logging step happened.</StepBody>
                     <InlineRow>
                       <Checkbox
@@ -1120,6 +1139,8 @@ export function TodayPage() {
                         onRetry={() => retrySave({ preWorkoutMealLogged: !mealDone }, mealStatus)}
                       />
                     </InlineRow>
+                    </>
+                    )}
                   </StepContent>
                 </StepRow>
                 <Divider />

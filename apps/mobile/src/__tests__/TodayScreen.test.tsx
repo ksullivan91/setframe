@@ -8,6 +8,7 @@ const mockPush = jest.fn();
 let mockGet: (path: string) => Promise<unknown> = () => Promise.resolve([]);
 const mockPost = jest.fn((_path: string, _body?: unknown) => Promise.resolve({} as unknown));
 const mockDel = jest.fn((_path: string) => Promise.resolve(undefined as unknown));
+const mockPatch = jest.fn((_path: string, _body?: unknown) => Promise.resolve({} as unknown));
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush }),
@@ -79,7 +80,7 @@ jest.mock('../lib/api-client', () => {
     useApiClient: () => ({
       get: (path: string) => mockGet(path),
       post: (path: string, body?: unknown) => mockPost(path, body),
-      patch: () => Promise.resolve({}),
+      patch: (path: string, body?: unknown) => mockPatch(path, body),
       del: (path: string) => mockDel(path),
       delete: (path: string) => mockDel(path),
     }),
@@ -410,5 +411,40 @@ describe('header sync pill', () => {
     const rendered = await renderScreen();
 
     expect(textNodesContaining(rendered, 'Health access needed')).toHaveLength(0);
+  });
+});
+
+describe('nutrition check', () => {
+  it('asks for confirmation when we cannot observe the food', async () => {
+    mockGet = (path: string) => {
+      if (path.startsWith('/dashboard/today')) return Promise.resolve(todayPayload());
+      if (path.startsWith('/programs')) return Promise.resolve([{ id: 'p1', isActive: true }]);
+      return Promise.resolve([]);
+    };
+
+    const rendered = await renderScreen();
+
+    expect(textNodesContaining(rendered, 'Logged in my nutrition app').length).toBeGreaterThan(0);
+    expect(hostsByTestId(rendered, 'nutrition-observed')).toHaveLength(0);
+  });
+
+  it('satisfies itself when a tracker has already written the day', async () => {
+    /* The step exists to record what we cannot otherwise know. Once the
+       data is there, asking the user to confirm it is busywork — and
+       writing the manual flag from an imported value would be the silent
+       overwrite architecture §4 rules out, so this is derived only. */
+    mockGet = (path: string) => {
+      if (path.startsWith('/dashboard/today')) {
+        return Promise.resolve(todayPayload({ nutritionSnapshot: { caloriesKcal: '2180' } }));
+      }
+      if (path.startsWith('/programs')) return Promise.resolve([{ id: 'p1', isActive: true }]);
+      return Promise.resolve([]);
+    };
+
+    const rendered = await renderScreen();
+
+    expect(hostsByTestId(rendered, 'nutrition-observed').length).toBeGreaterThan(0);
+    expect(textNodesContaining(rendered, 'Logged in my nutrition app')).toHaveLength(0);
+    expect(mockPatch).not.toHaveBeenCalled();
   });
 });

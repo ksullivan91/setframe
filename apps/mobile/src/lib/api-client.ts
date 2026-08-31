@@ -22,13 +22,28 @@ async function request<T>(path: string, token: string | null, init?: RequestInit
   const res = await fetch(`${env.apiBaseUrl}${path}`, {
     ...init,
     headers: {
-      'Content-Type': 'application/json',
+      /* Only when there is actually a body. Declaring a JSON content-type
+         on a bodyless DELETE makes Fastify's JSON parser reject the empty
+         body (FST_ERR_CTP_EMPTY_JSON_BODY, 400) — which is why removing an
+         Additional Activity failed on mobile and worked on web, where this
+         header was already conditional. */
+      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init?.headers,
     },
   });
   if (!res.ok) {
-    throw new ApiError(`Request to ${path} failed`, res.status);
+    /* The API answers with { error: { code, message, requestId } }. Dropping
+       it left every failure as "Request to /x failed", which says nothing a
+       reader can act on. */
+    let detail = '';
+    try {
+      const body = (await res.json()) as { error?: { message?: string; code?: string } };
+      if (body?.error?.message) detail = `: ${body.error.message}`;
+    } catch {
+      /* Non-JSON or empty error body; the status alone will have to do. */
+    }
+    throw new ApiError(`Request to ${path} failed (${res.status})${detail}`, res.status);
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
