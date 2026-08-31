@@ -120,7 +120,48 @@ describe('GET /v1/additional-activities', () => {
 });
 
 describe('POST /v1/additional-activities', () => {
-  it('creates a manual activity, ignoring any client-supplied source', async () => {
+  it('records Apple Health provenance when a dedupe key comes with it', async () => {
+    /* This endpoint used to force `source: 'manual'` because there was no
+       discovery flow behind an `apple_health` claim. Story 44 is that flow.
+       The claim is about the user's own data, affects only their own view
+       and their own dedupe, and without it the external id is never stored
+       — which is what made "Add to today" look like a dead button. */
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([]));
+    const insert = insertChain([activityRow]);
+    mockInsert.mockReturnValueOnce(insert);
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/additional-activities',
+      headers: authHeader,
+      payload: {
+        localDate: '2026-08-24',
+        timezone: 'America/Chicago',
+        activityType: 'walk',
+        durationSeconds: 1080,
+        source: 'apple_health',
+        externalSourceId: 'hk-walk-1',
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(insert.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: 'apple_health',
+        externalSourceId: 'hk-walk-1',
+        userId: userRow.id,
+      }),
+    );
+    await app.close();
+  });
+
+  it('downgrades an apple_health claim with no dedupe key to manual', async () => {
+    /* The guard that survives: provenance without an external id cannot be
+       deduped, so a row claiming it would be re-suggested forever. Manual
+       is the honest recording. */
     mockSelect.mockReturnValueOnce(selectChain([userRow]));
     const insert = insertChain([activityRow]);
     mockInsert.mockReturnValueOnce(insert);
@@ -130,22 +171,46 @@ describe('POST /v1/additional-activities', () => {
       method: 'POST',
       url: '/v1/additional-activities',
       headers: authHeader,
-      // A malicious/confused client claiming apple_health provenance must
-      // not be trusted — this endpoint can only ever produce manual rows.
       payload: {
         localDate: '2026-08-24',
         timezone: 'America/Chicago',
         activityType: 'walk',
         durationSeconds: 1080,
         source: 'apple_health',
-        externalSourceId: 'forged-id',
       },
     });
 
     expect(response.statusCode).toBe(201);
     expect(insert.values).toHaveBeenCalledWith(
-      expect.objectContaining({ source: 'manual', externalSourceId: null, userId: userRow.id }),
+      expect.objectContaining({ source: 'manual', externalSourceId: null }),
     );
+    await app.close();
+  });
+
+  it('importing the same workout twice returns the existing row, not an error', async () => {
+    /* There is a unique index on (user_id, source, external_id), so a repeat
+       import would otherwise surface as a 500. Importing twice is a no-op. */
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([activityRow]));
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/additional-activities',
+      headers: authHeader,
+      payload: {
+        localDate: '2026-08-24',
+        timezone: 'America/Chicago',
+        activityType: 'walk',
+        durationSeconds: 1080,
+        source: 'apple_health',
+        externalSourceId: 'hk-walk-1',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(mockInsert).not.toHaveBeenCalled();
     await app.close();
   });
 

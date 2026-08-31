@@ -101,6 +101,13 @@ const styles = StyleSheet.create({
   base: {
     borderRadius: radius.small,
     minHeight: 44,
+    /* `fullWidth` defaults to true, so two buttons side by side each asked
+       for 100% of the row and the second was pushed clean off screen — the
+       Dismiss button on Apple Health suggestions simply was not there, and
+       six other rows (Cancel/Save on the activity sheet, both edit sheets,
+       the picker footer) had the same defect unnoticed.
+       `flexShrink` lets a row of them divide the space instead. */
+    flexShrink: 1,
     paddingVertical: spacing[12],
     paddingHorizontal: spacing[16],
     alignItems: 'center',

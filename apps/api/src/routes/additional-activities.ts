@@ -92,11 +92,52 @@ export const additionalActivityRoutes: FastifyPluginAsyncZod = async (fastify) =
     '/v1/additional-activities',
     {
       preHandler: requireAuth,
-      schema: { body: createAdditionalActivitySchema, response: { 201: additionalActivitySchema } },
+      schema: {
+        body: createAdditionalActivitySchema,
+        // 200 is the already-imported case; 201 is a new row.
+        response: { 200: additionalActivitySchema, 201: additionalActivitySchema },
+      },
     },
     async (request, reply) => {
       const db = getDb();
       const body = request.body;
+
+      /* Story 44 shipped the discovery flow this used to disclaim.
+         `source: 'manual'` and `externalSourceId: null` were hardcoded here
+         because a client-supplied `apple_health` source with no discovery
+         flow behind it would have misrepresented the row's provenance.
+         There is one now, and hardcoding them meant an imported workout
+         came back looking manual — so the dedupe key was never stored, the
+         suggestion never cleared, and tapping "Add to today" appeared to do
+         nothing while quietly allowing duplicates.
+
+         Still guarded: `apple_health` is only honoured with an external id
+         to key it by, and anything else is recorded as manual. */
+      const importedId =
+        body.source === 'apple_health' && body.externalSourceId ? body.externalSourceId : null;
+      const source = importedId ? 'apple_health' : 'manual';
+
+      if (importedId) {
+        // The unique index on (user_id, source, external_id) would turn a
+        // repeat import into a 500. Importing the same workout twice is a
+        // no-op, not an error — return what is already there.
+        const existing = await db
+          .select()
+          .from(additionalActivity)
+          .where(
+            and(
+              eq(additionalActivity.userId, request.userId!),
+              eq(additionalActivity.source, 'apple_health'),
+              eq(additionalActivity.externalSourceId, importedId),
+            ),
+          )
+          .limit(1);
+        if (existing[0]) {
+          reply.status(200);
+          return toActivityResponse(existing[0]);
+        }
+      }
+
       const rows = await db
         .insert(additionalActivity)
         .values({
@@ -106,16 +147,13 @@ export const additionalActivityRoutes: FastifyPluginAsyncZod = async (fastify) =
           startedAt: body.startedAt ? new Date(body.startedAt) : null,
           durationSeconds: body.durationSeconds ?? null,
           activityType: body.activityType,
-          // Manual is the only source this endpoint can produce — a
-          // client-supplied `apple_health` source with no matching
-          // discovery flow would misrepresent the row's provenance.
-          source: 'manual',
+          source,
           title: body.title ?? null,
           distanceValue: body.distanceValue?.toString() ?? null,
           distanceUnit: body.distanceUnit ?? null,
           caloriesKcal: body.caloriesKcal?.toString() ?? null,
           notes: body.notes ?? null,
-          externalSourceId: null,
+          externalSourceId: importedId,
         })
         .returning();
       reply.status(201);

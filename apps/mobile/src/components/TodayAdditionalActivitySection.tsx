@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import { View, Text, StyleSheet, Alert, Pressable, ActivityIndicator } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Pencil, Trash2 } from 'lucide-react-native';
 import { spacing, radius } from '@setframe/design-tokens';
@@ -310,7 +310,7 @@ export function TodayAdditionalActivitySection({
         <View
           key={workout.externalId}
           testID={`workout-suggestion-${workout.externalId}`}
-          style={[styles.suggestion, { backgroundColor: theme.surface.raised, borderColor: theme.status.info }]}
+          style={[styles.suggestion, { backgroundColor: tint(theme.status.info, 0.08) }]}
         >
           <Text style={[styles.suggestionEyebrow, { color: theme.text.secondary }]}>
             FOUND IN APPLE HEALTH
@@ -319,17 +319,44 @@ export function TodayAdditionalActivitySection({
           <Text style={{ color: theme.text.secondary, fontSize: typeScale.helper.fontSize }}>
             {describeWorkout(workout)}
           </Text>
+          {/* Raw Pressables, not <Button>: Button forces width 100% by
+              default, which pushed Dismiss clean off the screen, and it
+              accepts no style prop to size the 62/34 split the design
+              calls for. */}
           <View style={styles.suggestionActions}>
-            <Button
-              label="Add to today"
+            <Pressable
+              testID={`workout-add-${workout.externalId}`}
+              accessibilityRole="button"
+              accessibilityLabel={`Add ${workout.title} to today`}
+              disabled={importMutation.isPending}
               onPress={() => importMutation.mutate(workout)}
-              loading={importMutation.isPending && importMutation.variables?.externalId === workout.externalId}
-            />
-            <Button
-              label="Dismiss"
-              variant="secondary"
+              style={({ pressed }) => [
+                styles.suggestionAdd,
+                { backgroundColor: theme.action.primary, opacity: pressed || importMutation.isPending ? 0.85 : 1 },
+              ]}
+            >
+              {importMutation.isPending && importMutation.variables?.externalId === workout.externalId ? (
+                <ActivityIndicator color={theme.action.primaryText} />
+              ) : (
+                <Text style={[styles.suggestionActionLabel, { color: theme.action.primaryText }]}>
+                  Add to today
+                </Text>
+              )}
+            </Pressable>
+            <Pressable
+              testID={`workout-dismiss-${workout.externalId}`}
+              accessibilityRole="button"
+              accessibilityLabel={`Dismiss ${workout.title}`}
               onPress={() => discovery.dismiss(workout.externalId)}
-            />
+              style={({ pressed }) => [
+                styles.suggestionDismiss,
+                { backgroundColor: theme.surface.raised, opacity: pressed ? 0.85 : 1 },
+              ]}
+            >
+              <Text style={[styles.suggestionActionLabel, { color: theme.text.secondary }]}>
+                Dismiss
+              </Text>
+            </Pressable>
           </View>
         </View>
       ))}
@@ -420,6 +447,15 @@ export function TodayAdditionalActivitySection({
   );
 }
 
+/** A token colour at partial strength. `status.info` has no subtle variant,
+ *  and the suggestion is drawn as an 8% tint of it. */
+function tint(hex: string, alpha: number): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return hex;
+  const int = parseInt(m[1]!, 16);
+  return `rgba(${(int >> 16) & 255}, ${(int >> 8) & 255}, ${int & 255}, ${alpha})`;
+}
+
 /** "12:42 PM · 17 min · 0.8 mi", skipping whatever Health did not record. */
 function describeWorkout(workout: DiscoveredWorkout): string {
   return [
@@ -433,10 +469,14 @@ function describeWorkout(workout: DiscoveredWorkout): string {
 
 const styles = StyleSheet.create({
   card: { gap: spacing[12] },
-  suggestion: { borderRadius: radius.small, padding: spacing[12], gap: spacing[4], borderLeftWidth: 3 },
-  suggestionEyebrow: { fontSize: typeScale.caption.fontSize, letterSpacing: 1, fontWeight: '500' },
+  suggestion: { borderRadius: radius.small, padding: spacing[12], gap: spacing[4] },
+  suggestionEyebrow: { fontSize: typeScale.caption.fontSize, letterSpacing: 0.8, fontWeight: '500' },
   suggestionTitle: { fontSize: typeScale.compactBody.fontSize, fontWeight: '600' },
   suggestionActions: { flexDirection: 'row', gap: spacing[8], marginTop: spacing[4] },
+  // 62/34 of the row, as drawn.
+  suggestionAdd: { flexGrow: 62, flexBasis: 0, height: 36, borderRadius: radius.small, alignItems: 'center', justifyContent: 'center' },
+  suggestionDismiss: { flexGrow: 34, flexBasis: 0, height: 36, borderRadius: radius.small, alignItems: 'center', justifyContent: 'center' },
+  suggestionActionLabel: { fontSize: typeScale.helper.fontSize, fontWeight: '600' },
   suppressed: { borderRadius: radius.small, padding: spacing[12], gap: 2 },
   permission: { borderRadius: radius.small, padding: spacing[12], gap: spacing[8] },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
