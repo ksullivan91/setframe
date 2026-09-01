@@ -290,7 +290,7 @@ Written down so the boundary is a contract rather than an intention.
 
 | | |
 |---|---|
-| Today's completed card | Gains a second stat row (Active kcal, Total kcal, Avg HR) **only** when a Watch workout is attached. The existing Exercises / Sets / Volume row keeps its position and values. Frame 5 is the no-Watch day: no second row, no empty tiles. |
+| Today's completed card | Gains a second stat row (Active cal, Avg HR, Peak HR) **only** when a Watch workout is attached. The existing Exercises / Sets / Volume row keeps its position and values. Frame 5 is the no-Watch day: no second row, no empty tiles. |
 | The v2 logger | Gains the Watch strip below the sticky header, only while recording or after one attaches. Nothing is moved to make room — it is the first item in the existing scroll body. |
 | Session summary | Gains the attached collection as a new card. Existing cards keep their order. |
 

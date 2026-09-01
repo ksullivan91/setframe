@@ -32,7 +32,7 @@ rather than only the sets I typed.
 - Derive heart-rate zones and time-in-zone on read. HealthKit stores no zone
   type, so they are computed from age and resting heart rate using
   heart-rate reserve.
-- Surface rolled-up Active kcal, Total kcal and Average HR on the session
+- Surface rolled-up Active cal, Average HR and Peak HR on the session
   and on Today's completed card.
 
 ## Explicitly not in scope

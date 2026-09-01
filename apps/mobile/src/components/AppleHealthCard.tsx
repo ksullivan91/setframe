@@ -65,14 +65,14 @@ export function AppleHealthCard({
     value == null ? null : unit ? `${value.toLocaleString()} ${unit}` : value.toLocaleString();
   const tiles = [
     { label: 'Steps', value: fmt(metrics.steps) },
-    { label: 'Active energy', value: fmt(metrics.activeEnergyKcal, 'kcal') },
+    { label: 'Active energy', value: fmt(metrics.activeEnergyKcal, 'cal') },
     { label: 'Exercise minutes', value: fmt(metrics.exerciseMinutes, 'min') },
     /* Was "Calories (MFP)". Setframe has no MyFitnessPal integration and
        never had one — it reads whatever any tracker syncs into Apple
        Health. Naming one vendor in the label told users the other trackers
        would not work, which was never true. The actual writer is named in
        the provenance line below, read from the sample's own source. */
-    { label: 'Calories eaten', value: fmt(metrics.caloriesConsumedKcal, 'kcal') },
+    { label: 'Calories eaten', value: fmt(metrics.caloriesConsumedKcal, 'cal') },
   ];
   const missingCount = tiles.filter((t) => t.value == null).length;
 

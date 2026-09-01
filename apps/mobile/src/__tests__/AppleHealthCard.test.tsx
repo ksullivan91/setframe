@@ -108,9 +108,9 @@ describe('AppleHealthCard', () => {
 
     expect(text).toContain('Synced');
     expect(text).toContain('8,432');
-    expect(text).toContain('612 kcal');
+    expect(text).toContain('612 cal');
     expect(text).toContain('48 min');
-    expect(text).toContain('2,180 kcal');
+    expect(text).toContain('2,180 cal');
     // Provenance, not decoration — HealthKit is authoritative for these.
     expect(text).toContain('From Apple Health');
     expect(rendered.root.findAll((n) => n.props?.testID === 'health-preview')).toHaveLength(0);
@@ -204,8 +204,8 @@ describe('AppleHealthCard — server fallback', () => {
     tree = rendered;
     const text = allText(rendered);
 
-    expect(text).toContain('480 kcal');
-    expect(text).toContain('1,900 kcal');
+    expect(text).toContain('480 cal');
+    expect(text).toContain('1,900 cal');
     // And it must stop reading as "nothing arrived", because something did.
     expect(text).not.toContain('No data yet');
     expect(text).toContain('Synced');
@@ -230,8 +230,8 @@ describe('AppleHealthCard — server fallback', () => {
     tree = rendered;
     const text = allText(rendered);
 
-    expect(text).toContain('700 kcal');
-    expect(text).not.toContain('480 kcal');
+    expect(text).toContain('700 cal');
+    expect(text).not.toContain('480 cal');
     // The gaps still fall back.
     expect(text).toContain('30 min');
   });

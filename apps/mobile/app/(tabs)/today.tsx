@@ -839,7 +839,7 @@ export default function TodayScreen() {
                 </Text>
                 <Text testID="nutrition-observed" style={[styles.helperText, { color: theme.text.secondary }]}>
                   {[
-                    nutritionKcal != null ? `${nutritionKcal.toLocaleString()} kcal` : null,
+                    nutritionKcal != null ? `${nutritionKcal.toLocaleString()} cal` : null,
                     health.metrics.proteinG != null ? `${health.metrics.proteinG} g protein` : null,
                     health.nutritionSource,
                   ]

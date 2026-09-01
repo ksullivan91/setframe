@@ -1170,11 +1170,11 @@ export function TodayPage() {
                         <MetaValue>{data?.activitySummary?.exerciseMinutes ?? data?.activitySummary?.appleMoveTimeMinutes ?? '—'}</MetaValue>
                       </MetaTile>
                       <MetaTile>
-                        <MetaLabel>Active kcal</MetaLabel>
+                        <MetaLabel>Active cal</MetaLabel>
                         <MetaValue>{data?.activitySummary?.activeEnergyKcal ? Math.round(Number(data.activitySummary.activeEnergyKcal)) : '—'}</MetaValue>
                       </MetaTile>
                       <MetaTile>
-                        <MetaLabel>Nutrition kcal</MetaLabel>
+                        <MetaLabel>Nutrition cal</MetaLabel>
                         <MetaValue>{data?.nutritionSnapshot?.caloriesKcal ? Math.round(Number(data.nutritionSnapshot.caloriesKcal)) : '—'}</MetaValue>
                       </MetaTile>
                     </MetaList>
