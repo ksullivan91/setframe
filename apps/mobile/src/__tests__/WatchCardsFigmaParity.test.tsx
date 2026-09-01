@@ -71,21 +71,21 @@ const workout = {
 describe('WatchSummaryCard · Figma 265:2 › WatchSummary', () => {
   it('renders three tiles, in order', () => {
     const text = allText(render(<WatchSummaryCard workouts={[workout]} />));
-    for (const s of ['From your Watch', 'Series 9', '612', 'Active kcal', '142', 'Avg HR', '171', 'Peak HR']) {
+    for (const s of ['Activity', 'Series 9', '612', 'Active cal', '142', 'Avg HR', '171', 'Peak HR']) {
       expect(text).toContain(s);
     }
-    const order = ['Active kcal', 'Avg HR', 'Peak HR'].map((l) => text.indexOf(l));
+    const order = ['Active cal', 'Avg HR', 'Peak HR'].map((l) => text.indexOf(l));
     expect(order).toEqual([...order].sort((a, b) => a - b));
   });
 
-  it('carries no Total kcal tile — HealthKit has no such number', () => {
+  it('carries no Total cal tile — HealthKit has no such number', () => {
     /* `HKWorkout.totalEnergyBurned` IS the active energy, so the tile could
        only ever render a dash: nothing populated it, and on the device it
        always showed "—". A real total is active + basal, a second query and
        a second permission. Four tiles also wrapped every label onto two
        lines at 390pt, which is what made the row look broken. */
     const text = allText(render(<WatchSummaryCard workouts={[{ ...workout, totalEnergyKcal: 842 }]} />));
-    expect(text).not.toContain('Total kcal');
+    expect(text).not.toContain('Total cal');
     expect(text).not.toContain('842');
   });
 
@@ -94,10 +94,18 @@ describe('WatchSummaryCard · Figma 265:2 › WatchSummary', () => {
     const rendered = render(<WatchSummaryCard workouts={[workout]} />);
     const labels = rendered.root.findAll(
       (n) => typeof n.type === 'string' && typeof n.props?.children === 'string'
-        && ['Active kcal', 'Avg HR', 'Peak HR'].includes(n.props.children),
+        && ['Active cal', 'Avg HR', 'Peak HR'].includes(n.props.children),
     );
     expect(labels).toHaveLength(3);
     for (const l of labels) expect(l.props.numberOfLines).toBe(1);
+  });
+
+  it('titles the card for what it holds, not where it came from', () => {
+    /* The device name top-right carries provenance. A source in the
+       heading becomes a lie the day these figures come from a Whoop. */
+    const text = allText(render(<WatchSummaryCard workouts={[workout]} />));
+    expect(text).toContain('Activity');
+    expect(text).not.toContain('From your Watch');
   });
 
   it('names the workout and its duration underneath', () => {
@@ -360,7 +368,7 @@ describe('WatchAttachCard · Figma Watch-Live 2 · Found at finish', () => {
     expect(text).toContain('After');
   });
 
-  it("puts each tile's numbers on it — Figma 229:21 shows '142 bpm avg  171 peak  612 kcal'", () => {
+  it("puts each tile's numbers on it — Figma 229:21 shows '142 bpm avg  171 peak  612 cal'", () => {
     /* The tiles are what you decide from; a title and a clock time are not
        enough to tell your lift from someone else's on a shared Watch. */
     const text = allText(
@@ -370,7 +378,7 @@ describe('WatchAttachCard · Figma Watch-Live 2 · Found at finish', () => {
     );
     expect(text).toContain('142 bpm avg');
     expect(text).toContain('171 peak');
-    expect(text).toContain('612 kcal');
+    expect(text).toContain('612 cal');
   });
 
   it('omits the metrics a workout has none of, rather than printing a dash', () => {
@@ -379,7 +387,7 @@ describe('WatchAttachCard · Figma Watch-Live 2 · Found at finish', () => {
       render(<WatchAttachCard candidates={[bare]} onAttach={jest.fn()} onAttachAll={jest.fn()} />),
     );
     expect(text).not.toContain('bpm avg');
-    expect(text).not.toContain('kcal');
+    expect(text).not.toContain(' cal');
     expect(text).toContain('Traditional Strength Training');
   });
 

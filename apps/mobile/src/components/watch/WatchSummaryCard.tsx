@@ -8,7 +8,12 @@ import { useTheme } from '../../theme/ThemeProvider';
 import { typeScale } from '../../theme/getTheme';
 
 /**
- * "From your Watch" — the rolled-up figures for every attached workout.
+ * "Activity" — the rolled-up figures for every attached workout.
+ *
+ * Titled for what it holds, not where it came from. The device name sits
+ * top-right and carries the provenance, so the heading does not have to —
+ * and it stops being a lie the day these figures arrive from something
+ * that is not an Apple Watch.
  *
  * Figma `265:2 › WatchSummary` for the tiles, `229:67 · Attached
  * collection` for the list beneath them. The totals are the headline the
@@ -51,14 +56,14 @@ export function WatchSummaryCard({
 
   const device = workouts.find((w) => w.deviceName)?.deviceName ?? null;
   /* Three tiles, not four.
-     There is no "Total kcal" here because HealthKit does not give one:
+     There is no "Total cal" here because HealthKit does not give one:
      `HKWorkout.totalEnergyBurned` is the ACTIVE energy, which is what
      `activeEnergyKcal` already holds. A true total is active + basal, and
      basal is a separate query over the workout's window — a second read
      and a second permission for a number nobody asked to see. Four tiles
      also wrapped every label onto two lines at 390pt. */
   const tiles: [string, string][] = [
-    ['Active kcal', activeKcal > 0 ? String(activeKcal) : '—'],
+    ['Active cal', activeKcal > 0 ? String(activeKcal) : '—'],
     ['Avg HR', avgHr != null ? String(avgHr) : '—'],
     ['Peak HR', peakHr != null ? String(peakHr) : '—'],
   ];
@@ -66,7 +71,7 @@ export function WatchSummaryCard({
   return (
     <Card style={styles.card} testID="watch-summary">
       <View style={styles.head}>
-        <Text style={[styles.title, { color: theme.text.primary }]}>From your Watch</Text>
+        <Text style={[styles.title, { color: theme.text.primary }]}>Activity</Text>
         {device ? (
           <Text style={[styles.device, { color: theme.text.secondary }]}>{device}</Text>
         ) : null}

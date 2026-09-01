@@ -292,7 +292,10 @@ function metrics(workout: AttachCandidate['workout']): string[] {
   const out: string[] = [];
   if (workout.avgHeartRateBpm != null) out.push(`${workout.avgHeartRateBpm} bpm avg`);
   if (workout.peakHeartRateBpm != null) out.push(`${workout.peakHeartRateBpm} peak`);
-  if (workout.caloriesKcal != null) out.push(`${workout.caloriesKcal.toLocaleString()} kcal`);
+  /* "cal", not "kcal": the number is kilocalories, but every consumer
+     fitness app — Apple's own included — calls that a calorie, and this
+     card is read next to the Watch, not next to a textbook. */
+  if (workout.caloriesKcal != null) out.push(`${workout.caloriesKcal.toLocaleString()} cal`);
   if (workout.distanceValue != null) {
     out.push(`${workout.distanceValue} ${workout.distanceUnit ?? 'mi'}`);
   }
