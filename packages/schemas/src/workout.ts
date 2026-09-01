@@ -54,6 +54,9 @@ export const workoutSetSchema = z.object({
   distanceValue: z.number().nullable(),
   distanceUnit: z.enum(['m', 'km', 'mi']).nullable(),
   rpe: z.number().min(0).max(10).nullable(),
+  /** When the set was performed. Null for sets logged before the column
+   *  existed — it cannot be backfilled. */
+  performedAt: z.string().datetime().nullable().optional(),
   isPrWeight: z.boolean(),
   isPrReps: z.boolean(),
   createdAt: z.string().datetime(),

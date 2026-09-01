@@ -82,6 +82,7 @@ function toSetResponse(row: typeof workoutSet.$inferSelect) {
     distanceValue: row.distanceValue != null ? Number(row.distanceValue) : null,
     distanceUnit: row.distanceUnit,
     rpe: row.rpe != null ? Number(row.rpe) : null,
+    performedAt: row.performedAt ? row.performedAt.toISOString() : null,
     isPrWeight: row.isPrWeight,
     isPrReps: row.isPrReps,
     createdAt: row.createdAt.toISOString(),
@@ -1034,6 +1035,11 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
              the planned-set expansion had. Completion for display is derived
              from field presence, so this column only has to stop lying. */
           completed: hasPerformedValue(request.body),
+          /* Stamped once, the first time a set holds real values. Never
+             updated afterwards: correcting a set later must not move when
+             the work happened, or every chart that aligns sets to a heart
+             rate curve drifts with the correction. */
+          performedAt: hasPerformedValue(request.body) ? new Date() : null,
           isPrWeight: false,
           isPrReps: false,
           notes: null,
@@ -1084,6 +1090,11 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
           // seeded from a program would stay `completed: false` forever and
           // never become PR-eligible.
           completed: request.body.completed ?? true,
+          /* Set once, never moved. `updatedAt` shifts whenever a set is
+             corrected — a flow this app deliberately supports — so it
+             cannot say when the work happened. A set already stamped keeps
+             its original moment. */
+          performedAt: ownedSet.set.performedAt ?? new Date(),
           updatedAt: new Date(),
         })
         .where(eq(workoutSet.id, request.params.setId))

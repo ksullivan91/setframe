@@ -93,6 +93,17 @@ export const workoutSet = pgTable(
     isPrWeight: boolean('is_pr_weight').notNull().default(false),
     isPrReps: boolean('is_pr_reps').notNull().default(false),
     notes: text('notes'),
+    /**
+     * When the set was actually performed. Set once, the first time the set
+     * is marked complete, and never updated — `updatedAt` moves when a set
+     * is corrected, and correcting after completion is a flow this app
+     * supports, so it cannot say when the work happened.
+     *
+     * Nullable because it cannot be backfilled: nothing recorded when a past
+     * set was performed. Every chart that puts sets and heart rate on one
+     * clock depends on this.
+     */
+    performedAt: timestamp('performed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

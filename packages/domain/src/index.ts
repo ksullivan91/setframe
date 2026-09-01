@@ -32,3 +32,4 @@ export * from './training-overview';
 export * from './exercise-picker';
 export * from './schedule-editor';
 export * from './session-to-workout';
+export * from './heart-rate-zones';

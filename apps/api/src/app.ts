@@ -23,6 +23,7 @@ import { notificationPreferenceRoutes } from './routes/notification-preferences.
 import { appleHealthRoutes } from './routes/apple-health.js';
 import { additionalActivityRoutes } from './routes/additional-activities.js';
 import { additionalActivityPresetRoutes } from './routes/additional-activity-presets.js';
+import { sessionWatchWorkoutRoutes } from './routes/session-watch-workouts.js';
 
 function isAllowedOrigin(origin: string, allowedOrigins: string[]) {
   return allowedOrigins.some((allowedOrigin) => {
@@ -126,6 +127,7 @@ export function buildApp() {
   app.register(appleHealthRoutes);
   app.register(additionalActivityRoutes);
   app.register(additionalActivityPresetRoutes);
+  app.register(sessionWatchWorkoutRoutes);
 
   return app;
 }
