@@ -28,6 +28,7 @@ import type { DiscoveredWorkout } from '../healthkit/workout-discovery';
 const mockQueryStatisticsForQuantity = jest.fn();
 const mockQueryCategorySamples = jest.fn();
 const mockQueryWorkoutSamples = jest.fn();
+const mockQueryQuantitySamples = jest.fn();
 const mockGetMostRecentQuantitySample = jest.fn();
 const mockGetBiologicalSex = jest.fn();
 const mockGetDateOfBirth = jest.fn();
@@ -45,6 +46,7 @@ jest.mock(
     queryStatisticsForQuantity: (...args: unknown[]) => mockQueryStatisticsForQuantity(...args),
     queryCategorySamples: (...args: unknown[]) => mockQueryCategorySamples(...args),
     queryWorkoutSamples: (...args: unknown[]) => mockQueryWorkoutSamples(...args),
+    queryQuantitySamples: (...args: unknown[]) => mockQueryQuantitySamples(...args),
     getMostRecentQuantitySample: (...args: unknown[]) => mockGetMostRecentQuantitySample(...args),
     getBiologicalSex: () => mockGetBiologicalSex(),
     getDateOfBirth: () => mockGetDateOfBirth(),
@@ -63,6 +65,12 @@ jest.mock(
  */
 interface Adapter {
   getConnectionState(): Promise<HealthConnectionState>;
+  getWorkoutHeartRate(from: Date, to: Date): Promise<{ offsets: number[]; values: number[] }>;
+  getLiveHeartRate(opts?: { windowSeconds?: number; minSamples?: number }): Promise<{
+    recording: boolean;
+    currentBpm: number | null;
+    avgBpm: number | null;
+  }>;
   canReadWorkouts(): Promise<boolean>;
   getTodayWorkouts(): Promise<DiscoveredWorkout[]>;
   hasUnaskedTypes(): Promise<boolean>;
@@ -86,6 +94,7 @@ beforeEach(() => {
   // the others; each test overrides what it is actually asserting.
   mockQueryCategorySamples.mockResolvedValue([]);
   mockQueryWorkoutSamples.mockResolvedValue([]);
+  mockQueryQuantitySamples.mockResolvedValue([]);
   mockGetMostRecentQuantitySample.mockResolvedValue(undefined);
   mockGetBiologicalSex.mockReturnValue(0);
   mockGetDateOfBirth.mockReturnValue(undefined);
@@ -291,6 +300,7 @@ describe('sleep', () => {
   it('reports no sleep data as null rather than zero minutes', async () => {
     mockQueryCategorySamples.mockResolvedValue([]);
   mockQueryWorkoutSamples.mockResolvedValue([]);
+  mockQueryQuantitySamples.mockResolvedValue([]);
     const snapshot = await (await freshAdapter()).getSnapshot();
     expect(snapshot.recovery.sleepMinutes).toBeNull();
   });
@@ -300,6 +310,7 @@ describe('sleep', () => {
        roughly half a night and calls it a full one. */
     mockQueryCategorySamples.mockResolvedValue([]);
   mockQueryWorkoutSamples.mockResolvedValue([]);
+  mockQueryQuantitySamples.mockResolvedValue([]);
     await (await freshAdapter()).getSnapshot();
     const { startDate } = mockQueryCategorySamples.mock.calls[0]![1].filter.date;
     const yesterday = new Date();
@@ -575,5 +586,96 @@ describe('workout discovery', () => {
     const adapter = await freshAdapter();
     await expect(adapter.getConnectionState()).resolves.toBe('asked');
     await expect(adapter.canReadWorkouts()).resolves.toBe(false);
+  });
+});
+
+describe('workout heart rate', () => {
+  const started = new Date('2026-09-01T17:32:00.000Z');
+  const ended = new Date('2026-09-01T18:36:00.000Z');
+  const sample = (secondsIn: number, bpm: number) => ({
+    startDate: new Date(started.getTime() + secondsIn * 1000).toISOString(),
+    quantity: bpm,
+  });
+
+  it('requests heart rate in bpm, bounded to the workout', () => {
+    /* Per workout, not per day: a lift and the run after it must get their
+       own curves rather than one smeared across the evening. */
+    mockQueryQuantitySamples.mockResolvedValue([]);
+    return freshAdapter().then(async (adapter) => {
+      await adapter.getWorkoutHeartRate(started, ended);
+      const [identifier, options] = mockQueryQuantitySamples.mock.calls[0]!;
+      expect(identifier).toBe('HKQuantityTypeIdentifierHeartRate');
+      expect(options.unit).toBe('count/min');
+      expect(options.filter.date.startDate).toEqual(started);
+      expect(options.filter.date.endDate).toEqual(ended);
+    });
+  });
+
+  it('returns offsets in seconds from the workout start', async () => {
+    // Matches how the series is stored: absolute times are recovered by
+    // addition rather than repeated once per sample.
+    mockQueryQuantitySamples.mockResolvedValue([sample(0, 120), sample(5, 134), sample(10, 141)]);
+    const series = await (await freshAdapter()).getWorkoutHeartRate(started, ended);
+    expect(series.offsets).toEqual([0, 5, 10]);
+    expect(series.values).toEqual([120, 134, 141]);
+  });
+
+  it('drops a reading that cannot be stored as int2', async () => {
+    // The column is smallint; a nonsensical value would wrap silently.
+    mockQueryQuantitySamples.mockResolvedValue([sample(0, 999999)]);
+    const series = await (await freshAdapter()).getWorkoutHeartRate(started, ended);
+    expect(series.values).toEqual([300]);
+  });
+
+  it('never throws when heart rate was not granted', async () => {
+    mockQueryQuantitySamples.mockRejectedValue(new Error('not authorized'));
+    await expect(
+      (await freshAdapter()).getWorkoutHeartRate(started, ended),
+    ).resolves.toEqual({ offsets: [], values: [] });
+  });
+});
+
+describe('live detection', () => {
+  it('reads a run of closely-spaced samples as recording', async () => {
+    /* Cadence, not presence. A Watch samples every few seconds while
+       recording and every several minutes at rest, so density is the only
+       signal available — the workout object does not exist until it ends. */
+    const now = Date.now();
+    mockQueryQuantitySamples.mockResolvedValue(
+      Array.from({ length: 40 }, (_, i) => ({
+        startDate: new Date(now - (40 - i) * 5000).toISOString(),
+        quantity: 140 + i,
+      })),
+    );
+    const live = await (await freshAdapter()).getLiveHeartRate();
+    expect(live.recording).toBe(true);
+    expect(live.currentBpm).toBe(179);
+  });
+
+  it('does not call ordinary background sampling a workout', async () => {
+    const now = Date.now();
+    mockQueryQuantitySamples.mockResolvedValue([
+      { startDate: new Date(now - 240000).toISOString(), quantity: 62 },
+      { startDate: new Date(now - 60000).toISOString(), quantity: 64 },
+    ]);
+    const live = await (await freshAdapter()).getLiveHeartRate();
+    expect(live.recording).toBe(false);
+  });
+
+  it('reports nothing rather than zero when there are no samples', async () => {
+    mockQueryQuantitySamples.mockResolvedValue([]);
+    const live = await (await freshAdapter()).getLiveHeartRate();
+    expect(live).toEqual({ recording: false, currentBpm: null, avgBpm: null });
+  });
+});
+
+describe('read types', () => {
+  it('asks for the heart-rate series, not just its summaries', () => {
+    /* HeartRateVariabilitySDNN and RestingHeartRate are different types.
+       Without HKQuantityTypeIdentifierHeartRate the workout query returns
+       nothing at all while appearing to work. */
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { ALL_READ_TYPES } = require('../healthkit/HealthKitAdapter');
+    expect(ALL_READ_TYPES).toContain('HKQuantityTypeIdentifierHeartRate');
   });
 });

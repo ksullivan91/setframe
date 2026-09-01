@@ -115,6 +115,13 @@ export const EXTENDED_READ_TYPES = [
   // connected before this shipped still has to grant it — which is why it
   // sits here and rides hasUnaskedTypes() rather than a second prompt path.
   'HKWorkoutTypeIdentifier',
+  /* Story 45. The curve itself, and the basal half of a true total-calorie
+     figure. HeartRateVariabilitySDNN and RestingHeartRate above are
+     different types — neither one grants the beat-by-beat series, and
+     without this the workout heart-rate query returns nothing at all while
+     appearing to work. */
+  'HKQuantityTypeIdentifierHeartRate',
+  'HKQuantityTypeIdentifierBasalEnergyBurned',
 ] as const;
 
 export const ALL_READ_TYPES = [...CORE_READ_TYPES, ...EXTENDED_READ_TYPES] as const;
@@ -128,7 +135,14 @@ export const ALL_READ_TYPES = [...CORE_READ_TYPES, ...EXTENDED_READ_TYPES] as co
  * "sleep, heart and body data" again purely because workouts were new.
  */
 export const READ_GROUPS: readonly { label: string; types: readonly string[] }[] = [
-  { label: 'workouts', types: ['HKWorkoutTypeIdentifier'] },
+  {
+    label: 'workouts and heart rate',
+    types: [
+      'HKWorkoutTypeIdentifier',
+      'HKQuantityTypeIdentifierHeartRate',
+      'HKQuantityTypeIdentifierBasalEnergyBurned',
+    ],
+  },
   {
     label: 'sleep and heart data',
     types: [
@@ -682,6 +696,84 @@ class HealthKitAdapter {
     } catch {
       return [];
     }
+  }
+
+  /**
+   * The heart-rate series recorded during one workout, plus its own
+   * statistics.
+   *
+   * Read per workout rather than per day: `WorkoutProxy.getStatistic()`
+   * scopes to that workout, so a lift and the run after it get their own
+   * averages instead of one figure smeared across the evening.
+   *
+   * Offsets are seconds from the workout's start, matching how the series
+   * is stored (ADR 0012) — absolute timestamps are recovered by addition
+   * rather than repeated once per sample.
+   */
+  async getWorkoutHeartRate(
+    startedAt: Date,
+    endedAt: Date,
+  ): Promise<{ offsets: number[]; values: number[] }> {
+    const mod = await this.load();
+    if (!mod) return { offsets: [], values: [] };
+    try {
+      const samples = await mod.queryQuantitySamples(
+        'HKQuantityTypeIdentifierHeartRate' as never,
+        {
+          limit: 0,
+          ascending: true,
+          unit: 'count/min',
+          filter: { date: { startDate: startedAt, endDate: endedAt } },
+        } as never,
+      );
+      const start = startedAt.getTime();
+      const offsets: number[] = [];
+      const values: number[] = [];
+      for (const sample of samples ?? []) {
+        const at = new Date(sample?.startDate ?? '').getTime();
+        const bpm = Number(sample?.quantity);
+        if (!Number.isFinite(at) || !Number.isFinite(bpm) || bpm <= 0) continue;
+        const offset = Math.round((at - start) / 1000);
+        if (offset < 0) continue;
+        offsets.push(offset);
+        // Stored as int2, so a nonsensical reading is dropped rather than
+        // silently wrapping when it is written.
+        values.push(Math.min(300, Math.round(bpm)));
+      }
+      return { offsets, values };
+    } catch {
+      return { offsets: [], values: [] };
+    }
+  }
+
+  /**
+   * Whether a Watch workout appears to be running right now.
+   *
+   * There is no API for this: `HKWorkout` is written on finish, and no
+   * phone-side call observes another app's in-progress session. What can be
+   * seen is the *cadence* of heart-rate samples — a Watch samples every few
+   * seconds while recording and every several minutes at rest — so a run of
+   * closely-spaced recent samples is the signal.
+   *
+   * A heuristic, deliberately. It will occasionally read "recording" for
+   * someone who walked upstairs, which is why the UI states what it sees
+   * and starts nothing.
+   */
+  async getLiveHeartRate(
+    { windowSeconds = 300, minSamples = 8 }: { windowSeconds?: number; minSamples?: number } = {},
+  ): Promise<{ recording: boolean; currentBpm: number | null; avgBpm: number | null }> {
+    const endDate = new Date();
+    const startDate = new Date(endDate.getTime() - windowSeconds * 1000);
+    const { values } = await this.getWorkoutHeartRate(startDate, endDate);
+    if (values.length === 0) return { recording: false, currentBpm: null, avgBpm: null };
+    const sum = values.reduce((n, v) => n + v, 0);
+    return {
+      // Cadence, not presence: a handful of readings over five minutes is
+      // ordinary background sampling, not a workout.
+      recording: values.length >= minSamples,
+      currentBpm: values[values.length - 1] ?? null,
+      avgBpm: Math.round(sum / values.length),
+    };
   }
 
   /** Body measurements and characteristics — context, not daily data. */

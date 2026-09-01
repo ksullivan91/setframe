@@ -4,3 +4,4 @@ export * from './typography';
 export * from './spacing-radius';
 export * from './workout-table';
 export * from './training';
+export * from './heart-rate';
