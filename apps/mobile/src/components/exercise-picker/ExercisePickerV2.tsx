@@ -13,6 +13,7 @@ import {
 import { exercisePicker } from '@setframe/design-tokens';
 import { PickerRowsSkeleton } from '../training-v2/TrainingSkeletons';
 import { useTheme } from '../../theme/ThemeProvider';
+import { useScreenTopPadding } from '../../lib/useScreenInsets';
 
 /**
  * The exercise picker. Counterpart of
@@ -51,6 +52,15 @@ export function ExercisePickerV2({
   loading = false,
 }: ExercisePickerV2Props) {
   const theme = useTheme();
+  /* This renders inside a full-screen <Modal>, which covers the status bar
+     and the Dynamic Island. With only the fixed token padding, Cancel and
+     the search field sat underneath both and could not be tapped — the
+     picker could be opened but not used or closed.
+  
+     The earlier inset audit missed this because it only looked at
+     src/screens; a component presented as a full screen has exactly the
+     same problem. */
+  const topPadding = useScreenTopPadding(exercisePicker.header.paddingTop);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState(ALL_FILTER.key);
   const [selected, setSelected] = useState<string[]>([]);
@@ -66,7 +76,7 @@ export function ExercisePickerV2({
       style={[styles.screen, { backgroundColor: theme.surface.canvas }]}
       testID="exercise-picker"
     >
-      <View style={[styles.header, { backgroundColor: theme.surface.raised }]}>
+      <View style={[styles.header, { backgroundColor: theme.surface.raised, paddingTop: topPadding }]}>
         <View style={styles.titleRow}>
           <Pressable onPress={onCancel} accessibilityRole="button">
             <Text style={[styles.textButton, { color: theme.action.primary }]}>Cancel</Text>

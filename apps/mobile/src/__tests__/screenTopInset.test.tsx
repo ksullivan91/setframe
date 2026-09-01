@@ -68,3 +68,69 @@ describe('screens reserve the status bar', () => {
     expect(withOwnHeader.filter((f) => !known.includes(f))).toEqual([]);
   });
 });
+
+/**
+ * A component presented as a full screen has the same problem as a screen.
+ *
+ * `ExercisePickerV2` renders inside a non-transparent `<Modal>` from three
+ * call sites. It used a fixed padding token, so Cancel and the search field
+ * sat under the Dynamic Island: the picker could be opened but neither used
+ * nor closed. The first pass of this audit only looked at `src/screens`,
+ * which is exactly why it was missed.
+ */
+describe('full-screen modals reserve the status bar', () => {
+  const componentsDir = path.join(__dirname, '..', 'components');
+
+  /** Files rendering a `<Modal>` that is NOT transparent — i.e. a real
+   *  full-screen presentation rather than a bottom sheet. */
+  function fullScreenModalFiles(dir: string, acc: string[] = []): string[] {
+    for (const name of fs.readdirSync(dir)) {
+      const full = path.join(dir, name);
+      let isDir = false;
+      try {
+        fs.readdirSync(full);
+        isDir = true;
+      } catch {
+        isDir = false;
+      }
+      if (isDir) {
+        fullScreenModalFiles(full, acc);
+        continue;
+      }
+      if (!/\.tsx$/.test(name)) continue;
+      if (full.includes('__tests__')) continue;
+      // Strip comments first: prose describing a `<Modal>` is not one, and
+      // the first version of this scan flagged its own explanatory comment.
+      const source = fs
+        .readFileSync(full, 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\/\/.*$/gm, '');
+      for (const m of source.matchAll(/<Modal\b[^>]*>/g)) {
+        if (!/\btransparent\b/.test(m[0])) {
+          acc.push(full);
+          break;
+        }
+      }
+    }
+    return acc;
+  }
+
+  it('the picker presented as a full screen reads the inset', () => {
+    const source = fs.readFileSync(
+      path.join(componentsDir, 'exercise-picker', 'ExercisePickerV2.tsx'),
+      'utf8',
+    );
+    expect(source).toContain('useScreenTopPadding');
+    expect(source).toMatch(/paddingTop:\s*topPadding/);
+  });
+
+  it('no component opens a new full-screen modal without being checked here', () => {
+    /* Bottom sheets are `transparent` and anchor to the bottom, so a top
+       inset does not apply to them. Anything else covers the status bar. */
+    const found = fullScreenModalFiles(path.join(__dirname, '..'))
+      .map((f) => f.split('/src/')[1])
+      .filter((f): f is string => Boolean(f));
+    const known = ['screens/WorkoutSessionScreenV2.tsx', 'screens/WorkoutEditorScreen.tsx'];
+    expect(found.filter((f) => !known.includes(f))).toEqual([]);
+  });
+});
