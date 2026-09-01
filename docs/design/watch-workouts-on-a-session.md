@@ -13,28 +13,42 @@ home. The Watch recorded each of them with heart rate and real calories.
 Collect them onto the Setframe session so the numbers describe the block
 rather than a fragment of it.
 
-## "Live sync" is a watchOS app, and we do not have one
+## Detection is free. Live logging is not.
 
-Hevy detects the Watch and offers live sync because **Hevy ships a watchOS
-companion**. That app runs an `HKWorkoutSession` on the wrist and streams to
-the phone. It is the only way to see a heart rate mid-set.
+Two different things sit behind Hevy's prompt, and only one is expensive.
+Their dialog reads: *"Enabling Apple Watch Live Sync will allow you to
+seamlessly log your workout on your watch and phone at the same time."*
 
-- `startWatchApp(workoutConfiguration)` exists in the library we use, but it
-  launches *your* watch app. With no watch target it has nothing to launch.
-- `enableBackgroundDelivery` wakes the phone when HealthKit changes. It is
-  batched and delayed by design — a freshness optimization, exactly as
-  `docs/architecture.md` §5 already says about health sync. Not live.
-- **What we can do today** is read the finished Watch workout with full
-  per-workout statistics via `WorkoutProxy.getStatistic()` — average and peak
-  heart rate, active energy, duration, distance — and attach it.
+**Detecting the Watch needs no watch app.** Every HealthKit sample carries
+`device` (`model: "Watch"`, hardware version) and
+`sourceRevision.productType`, so we can tell that an Apple Watch wrote a
+workout and name which one. The "Apple Watch detected" prompt in frame 1 is
+buildable today.
 
-That covers every metric in the request except liveness, with no watch
-target. The copy must say so: frame 1 ends with *"Setframe reads these after
-a workout ends, not live during it."*
+**Logging *on* the watch is the expensive half.** Putting sets on the wrist
+needs a UI on the wrist: a watchOS target, its own build and submission, and
+`WatchConnectivity` between them. That is a project, not a story.
+`startWatchApp(workoutConfiguration)` exists in our library but launches
+*your* watch app, so it has nothing to launch until one is built. And
+`enableBackgroundDelivery` is batched and delayed by design — a freshness
+optimization, exactly as `docs/architecture.md` §5 already says.
 
-Building a watchOS companion is a real option later. It is a separate Expo
-target, its own build and submission, and `WatchConnectivity` between them —
-a project, not a story.
+**Neither of which this feature needs.** Heart rate, average heart rate,
+workout time, active and total calories, collected onto the session — every
+metric requested comes from the *finished* workout, read through
+`WorkoutProxy.getStatistic()`. Liveness is the only thing a watch target
+buys, and it was not the request.
+
+### Where this is inference
+
+That Hevy ships a watchOS app is read off their own copy — "log your workout
+on your watch" — not verified. It does not change what we build either way.
+What must stay true is frame 1's last line: *"Setframe reads these after a
+workout ends, not live during it."* Promising live and delivering
+after-the-fact is how trust goes.
+
+A watchOS companion remains a real option later, and it is the only path to
+a heart rate mid-set.
 
 ## Where the collection lives
 
