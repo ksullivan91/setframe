@@ -16,6 +16,10 @@ rather than only the sets I typed.
 
 ## Scope
 - Detect that the Watch has been recording workouts, and offer to attach.
+- While a Watch workout is running, show a live-ish strip on the logger —
+  current and average heart rate, elapsed, calories — built from the samples
+  the Watch writes throughout, since the workout object itself does not
+  exist until it ends.
 - At session finish, offer every Watch workout that overlaps the session or
   starts shortly after it, badged by relationship.
 - Attach as a **collection** — a lift, a run and a walk are one block.
@@ -42,7 +46,12 @@ rather than only the sets I typed.
       figure on Today.
 - [ ] Story 44's suppression becomes an attach candidate rather than a dead
       end.
-- [ ] Tests cover the attach window, dedupe, detach, and the roll-up.
+- [ ] The in-session strip reports only what samples show, starts nothing,
+      and never claims a workout is attached before its object exists.
+- [ ] A Watch workout that ends mid-session attaches then, not only at
+      Finish, so several across one session each land as they complete.
+- [ ] Tests cover the attach window, dedupe, detach, the roll-up, and the
+      recording heuristic's cadence threshold.
 
 ## Product-wide Definition of Done
 - Mobile only. Web is retired to a landing page.

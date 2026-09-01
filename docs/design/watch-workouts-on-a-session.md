@@ -43,6 +43,27 @@ needs a watchOS target, its own build and submission, and
 `WatchConnectivity`. Nothing in this feature blocks it, and this feature
 does not need it — every metric requested comes from the finished workout.
 
+## Detecting a Watch workout while it is still running
+
+Partly possible, and the boundary is exact.
+
+**The workout object does not exist until it ends.** `HKWorkout` is written
+on finish, and no phone-side API observes another app's in-progress
+`HKWorkoutSession`. So there is nothing to *attach* mid-workout.
+
+**But the samples arrive throughout.** The Watch writes heart-rate and
+active-energy samples to HealthKit continuously while it records, and those
+we can read. That is enough for a live-ish strip on the logger.
+
+| | |
+|---|---|
+| How we know it is recording | **Cadence, not presence.** A Watch samples heart rate every few seconds during a workout and only every several minutes at rest, so a run of closely-spaced samples is the signal. `subscribeToChanges('HKQuantityTypeIdentifierHeartRate')` fires as they land; polling recent samples while the logger is open is simpler and enough. |
+| What the strip shows | Current heart rate, running average, elapsed, active calories so far — all from samples, all real (frame A1). |
+| The honest latency | Samples travel wrist → phone → HealthKit. Usually seconds, longer if the phone is locked and away. Not a mirrored session, and the copy says "a few seconds behind" rather than implying otherwise. |
+| Attach as each one ends | The workout object appears at finish. Attaching *then* — mid-session, not only at Finish Workout — means several Watch workouts across one session each land as they complete (frame A3). |
+| Cost of being wrong | A heuristic will occasionally read "recording" when the user walked upstairs. The strip therefore states what it sees and starts nothing, and nothing is attached without a workout object behind it. |
+| Still needs a watch app | A heart rate with no lag, and logging sets on the wrist. Neither is this feature. |
+
 ## Where the collection lives
 
 **Not `additional_activity`.** That entity is a standalone thing the user
