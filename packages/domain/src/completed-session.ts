@@ -38,12 +38,40 @@ export interface CompletedSessionReadout {
   comparedExerciseCount: number;
 }
 
+/** Pounds per kilogram, for the rare set logged in metric. */
+const LB_PER_KG = 2.20462;
+
+/**
+ * One set's contribution to volume, in pounds.
+ *
+ * Units matter here and were handled two different wrong ways. This
+ * function ignored `weightUnit` entirely, so a kilogram set was silently
+ * added as though it were pounds. Today's screen had its own copy that
+ * required `weightUnit === 'lb'` — and since the logger never sends a unit
+ * and the API stores `loadUnit: weightUnit ?? null`, *every* set is null,
+ * so that copy discarded all of them and reported no volume at all while
+ * the session header showed the real figure.
+ *
+ * Null means "the app's own unit", which is pounds. An explicit kilogram
+ * set is converted rather than dropped: dropping it understates the day,
+ * and adding it raw overstates it by 2.2x.
+ */
+function setVolumeLb(set: CompletedExerciseSet): number {
+  const weight = set.weightValue;
+  const reps = set.reps;
+  if (weight == null || reps == null) return 0;
+  const unit = (set.weightUnit ?? 'lb').toLowerCase();
+  if (unit === 'kg') return weight * LB_PER_KG * reps;
+  if (unit !== 'lb') return 0;
+  return weight * reps;
+}
+
 const volumeOf = (
   prescription: Prescription | null | undefined,
   sets: readonly CompletedExerciseSet[],
 ): number =>
   countsTowardVolume(prescription)
-    ? sets.reduce((sum, set) => sum + (set.weightValue ?? 0) * (set.reps ?? 0), 0)
+    ? sets.reduce((sum, set) => sum + setVolumeLb(set), 0)
     : 0;
 
 export function buildCompletedSessionReadout(
@@ -74,10 +102,10 @@ export function buildCompletedSessionReadout(
   }
 
   return {
-    totalVolume,
+    totalVolume: Math.round(totalVolume),
     loggedSetCount,
     personalRecordCount,
-    volumeDelta: comparedExerciseCount > 0 ? totalVolume - previousVolume : null,
+    volumeDelta: comparedExerciseCount > 0 ? Math.round(totalVolume - previousVolume) : null,
     comparedExerciseCount,
   };
 }

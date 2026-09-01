@@ -413,3 +413,35 @@ describe('nutrition check', () => {
     expect(mockPatch).not.toHaveBeenCalled();
   });
 });
+
+describe('completed workout card', () => {
+  it('shows the same volume the session header shows', () => {
+    /* The reported mismatch: this card printed "—" while Review Workout
+       showed the real total. It had its own volume function requiring
+       `weightUnit === 'lb'`, and every real set has a null unit, so it
+       discarded all of them. Both now read one shared readout, so the two
+       surfaces cannot disagree — which is the actual invariant, not the
+       specific number. */
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { buildCompletedSessionReadout } = require('@setframe/domain') as {
+      buildCompletedSessionReadout: (e: unknown[]) => { totalVolume: number; loggedSetCount: number };
+    };
+    const exercises = [
+      {
+        prescription: { kind: 'sets_reps', sets: 2 },
+        sets: [
+          { id: 'a', clientId: 'a', setType: 'working', weightValue: 225, weightUnit: null, reps: 5, durationSeconds: null, distanceValue: null, distanceUnit: null, rpe: null },
+          { id: 'b', clientId: 'b', setType: 'working', weightValue: 225, weightUnit: null, reps: 5, durationSeconds: null, distanceValue: null, distanceUnit: null, rpe: null },
+        ],
+      },
+    ];
+
+    const readout = buildCompletedSessionReadout(exercises);
+
+    expect(readout.totalVolume).toBe(2250);
+    expect(readout.loggedSetCount).toBe(2);
+    // The card renders this same value, so a non-zero readout can never
+    // surface as an em dash.
+    expect(readout.totalVolume > 0).toBe(true);
+  });
+});

@@ -31,8 +31,7 @@ import {
   TodayAdditionalActivitySection,
   additionalActivitiesQuery,
 } from '../../src/components/TodayAdditionalActivitySection';
-import { countsTowardVolume, isSessionSetLogged } from '../../src/lib/prescription';
-import { visibleSessionExercises } from '@setframe/domain';
+import { buildCompletedSessionReadout, visibleSessionExercises } from '@setframe/domain';
 import { ApiError, useApiClient } from '../../src/lib/api-client';
 import { useLocalDate } from '../../src/lib/useLocalDate';
 import { useScreenTopPadding } from '../../src/lib/useScreenInsets';
@@ -163,32 +162,19 @@ function parseOptionalNumber(value: string) {
   return { ok: true as const, value: parsed };
 }
 
-function sumCompletedSets(session?: WorkoutSessionDetail | null) {
-  if (!session) return 0;
-  return visibleSessionExercises(session.exercises).reduce(
-    (total, exercise) =>
-      total +
-      exercise.sets.filter((set) => isSessionSetLogged(exercise.prescription, set)).length,
-    0,
-  );
-}
-
-function sumVolume(session?: WorkoutSessionDetail | null) {
+/**
+ * Today's completed-workout numbers, from the shared readout.
+ *
+ * These were computed here in local copies, and the volume one diverged:
+ * it required `weightUnit === 'lb'`, but the logger never sends a unit and
+ * the API stores null, so every set was discarded and the card showed no
+ * volume while Review Workout — which uses this readout — showed the real
+ * figure. The session screen's own comment says these numbers "must not
+ * differ by platform"; they were differing by *screen*.
+ */
+function completedReadout(session?: WorkoutSessionDetail | null) {
   if (!session) return null;
-  // Timed, distance and bodyweight work carries no weight, so it contributes
-  // nothing to volume — including it only makes the total look authoritative.
-  const total = visibleSessionExercises(session.exercises).reduce(
-    (sum, exercise) =>
-      sum +
-      (countsTowardVolume(exercise.prescription)
-        ? exercise.sets.reduce((setSum, set) => {
-            if (set.weightValue == null || set.reps == null || set.weightUnit !== 'lb') return setSum;
-            return setSum + set.weightValue * set.reps;
-          }, 0)
-        : 0),
-    0,
-  );
-  return total > 0 ? Math.round(total) : null;
+  return buildCompletedSessionReadout(visibleSessionExercises(session.exercises));
 }
 
 function StepStatusIcon({ done }: { done: boolean }) {
@@ -416,8 +402,9 @@ export default function TodayScreen() {
     queryFn: () => api.get<WorkoutSessionDetail>(`/workout-sessions/${completedSession?.id}`),
     enabled: Boolean(completedSession?.id && !activeSession),
   });
-  const completedSets = sumCompletedSets(completedSummaryQuery.data);
-  const completedVolume = sumVolume(completedSummaryQuery.data);
+  const completedReadoutValue = completedReadout(completedSummaryQuery.data);
+  const completedVolume = completedReadoutValue?.totalVolume ?? 0;
+  const completedSets = completedReadoutValue?.loggedSetCount ?? 0;
 
   const restDay = todayQuery.data?.restDay ?? null;
   // A rest day closes out the day's training step: the user made a decision
@@ -623,7 +610,7 @@ export default function TodayScreen() {
                 {[
                   { label: 'Exercises', value: String(visibleSessionExercises(completedSummaryQuery.data.exercises).length) },
                   { label: 'Sets logged', value: String(completedSets) },
-                  { label: 'Total volume', value: completedVolume ? String(completedVolume) : '—', unit: completedVolume ? 'lb' : undefined },
+                  { label: 'Total volume', value: completedVolume ? completedVolume.toLocaleString('en-US') : '—', unit: completedVolume ? 'lb' : undefined },
                 ].map((stat) => (
                   <View
                     key={stat.label}

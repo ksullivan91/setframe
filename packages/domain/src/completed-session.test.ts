@@ -148,3 +148,68 @@ describe('formatSessionTotalSuffix', () => {
     );
   });
 });
+
+describe('volume units', () => {
+  function exercise(sets: { weightValue: number | null; reps: number | null; weightUnit?: string | null }[]) {
+    return {
+      prescription: { kind: 'sets_reps', sets: sets.length } as never,
+      sets: sets.map((set, i) => ({
+        id: `s${i}`,
+        clientId: `c${i}`,
+        setType: 'working' as const,
+        weightValue: set.weightValue,
+        weightUnit: set.weightUnit ?? null,
+        reps: set.reps,
+        durationSeconds: null,
+        distanceValue: null,
+        distanceUnit: null,
+        rpe: null,
+      })),
+    };
+  }
+
+  it('counts a set with no unit, because that is what the app stores', () => {
+    /* The load-bearing case. The logger never sends `weightUnit`, and the
+       API stores `loadUnit: weightUnit ?? null`, so every real set has a
+       null unit. A copy of this on Today required `=== 'lb'` and therefore
+       reported no volume at all while Review Workout showed the true
+       figure — the mismatch that was reported. */
+    const readout = buildCompletedSessionReadout([
+      exercise([{ weightValue: 225, reps: 5, weightUnit: null }]),
+    ] as never);
+    expect(readout.totalVolume).toBe(1125);
+  });
+
+  it('converts a kilogram set rather than adding it raw', () => {
+    /* The other half. Adding kg as though it were lb overstates the day by
+       2.2x; dropping it understates it. */
+    const readout = buildCompletedSessionReadout([
+      exercise([{ weightValue: 100, reps: 5, weightUnit: 'kg' }]),
+    ] as never);
+    expect(readout.totalVolume).toBe(1102); // 100kg × 2.20462 × 5
+  });
+
+  it('ignores a unit it cannot interpret instead of guessing', () => {
+    const readout = buildCompletedSessionReadout([
+      exercise([{ weightValue: 100, reps: 5, weightUnit: 'stone' }]),
+    ] as never);
+    expect(readout.totalVolume).toBe(0);
+  });
+
+  it('contributes nothing for a set with no weight or no reps', () => {
+    const readout = buildCompletedSessionReadout([
+      exercise([
+        { weightValue: null, reps: 5 },
+        { weightValue: 225, reps: null },
+      ]),
+    ] as never);
+    expect(readout.totalVolume).toBe(0);
+  });
+
+  it('rounds once, so two surfaces cannot round differently', () => {
+    const readout = buildCompletedSessionReadout([
+      exercise([{ weightValue: 100, reps: 3, weightUnit: 'kg' }]),
+    ] as never);
+    expect(Number.isInteger(readout.totalVolume)).toBe(true);
+  });
+});
