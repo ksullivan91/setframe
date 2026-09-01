@@ -41,9 +41,11 @@ import { ExerciseActionsSheet } from '../components/workout-v2/ExerciseActionsSh
 import { SaveAsWorkoutCard } from '../components/training-v2/SaveAsWorkoutCard';
 import { useActionFeedback } from '../lib/useActionFeedback';
 import { WatchSummaryCard } from '../components/watch/WatchSummaryCard';
+import { WatchAttachCard } from '../components/watch/WatchAttachCard';
 import { HeartRateCard } from '../components/watch/HeartRateCard';
 import { EffortByExerciseCard } from '../components/watch/EffortByExerciseCard';
-import { useSessionWatchWorkouts } from '../healthkit/useSessionWatchWorkouts';
+import { useSessionWatchWorkouts, candidatesForSession } from '../healthkit/useSessionWatchWorkouts';
+import { useWorkoutDiscovery } from '../healthkit/useWorkoutDiscovery';
 import { useWatchSessionInsights } from '../healthkit/useWatchSessionInsights';
 import {
   SetRowV2,
@@ -374,6 +376,26 @@ export default function WorkoutSessionV2Screen() {
   });
   const insights = useWatchSessionInsights({ workouts: watch.attached, exercises });
 
+  /* The day's Watch workouts, filtered to those belonging to this session:
+     overlapping it, or starting inside the window after it ends. The
+     discovery hook already handles permission, dedupe and dismissal. */
+  const discovery = useWorkoutDiscovery({
+    localDate: session?.localDate ?? '',
+    sessions: [],
+    importedExternalIds: watch.attachedExternalIds,
+  });
+  const attachCandidates = useMemo(
+    () =>
+      session
+        ? candidatesForSession(
+            [...discovery.suggestions, ...discovery.suppressed.map((s) => s.workout)],
+            { startedAt: session.startedAt ?? null, completedAt: session.completedAt ?? null },
+            watch.attachedExternalIds,
+          )
+        : [],
+    [session, discovery.suggestions, discovery.suppressed, watch.attachedExternalIds],
+  );
+
   if (!session) {
     /* The header is chrome, not data — rendering it immediately means the
        screen does not visibly reflow when the session arrives, and there is a
@@ -620,6 +642,16 @@ export default function WorkoutSessionV2Screen() {
         ) : null}
         {sessionComplete ? (
           <>
+            {/* The offer precedes what it buys: with nothing attached the
+                cards below render nothing at all, so this is the only thing
+                on screen until the user confirms. */}
+            <WatchAttachCard
+              candidates={attachCandidates}
+              onAttach={({ workout }) => watch.attach.mutate(workout)}
+              onAttachAll={() => attachCandidates.forEach((c) => watch.attach.mutate(c.workout))}
+              pendingId={watch.attach.isPending ? (watch.attach.variables?.externalId ?? null) : null}
+              busy={watch.attach.isPending}
+            />
             <WatchSummaryCard workouts={watch.attached} />
             {insights.series && insights.model ? (
               <HeartRateCard

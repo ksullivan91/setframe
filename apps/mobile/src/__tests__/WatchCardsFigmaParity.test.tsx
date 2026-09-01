@@ -6,6 +6,7 @@ import { ThemeProvider } from '../theme/ThemeProvider';
 import { WatchSummaryCard } from '../components/watch/WatchSummaryCard';
 import { HeartRateCard } from '../components/watch/HeartRateCard';
 import { EffortByExerciseCard } from '../components/watch/EffortByExerciseCard';
+import { WatchAttachCard } from '../components/watch/WatchAttachCard';
 
 /**
  * Copy and geometry parity with Figma `265:2` — the assembled
@@ -228,5 +229,88 @@ describe('EffortByExerciseCard · Figma 265:2 › EffortByExerciseCard', () => {
 
   it('renders nothing when no exercise could be aligned', () => {
     expect(render(<EffortByExerciseCard efforts={[]} />).toJSON()).toBeNull();
+  });
+});
+
+describe('WatchAttachCard · Figma Watch-Live 2 · Found at finish', () => {
+  const candidate = (over: Record<string, unknown> = {}) => ({
+    relation: 'overlaps' as const,
+    workout: {
+      externalId: 'hk-lift',
+      appleType: 50,
+      activityType: 'other' as const,
+      title: 'Traditional Strength Training',
+      startedAt: '2026-09-01T17:32:00.000Z',
+      endedAt: '2026-09-01T18:36:00.000Z',
+      durationSeconds: 3840,
+      distanceValue: null,
+      distanceUnit: null,
+      caloriesKcal: 612,
+      ...over,
+    },
+  });
+
+  it('offers rather than assumes', () => {
+    const text = allText(
+      render(
+        <WatchAttachCard candidates={[candidate()]} onAttach={jest.fn()} onAttachAll={jest.fn()} />,
+      ),
+    );
+    expect(text).toContain('Your Watch recorded a workout');
+    expect(text).toContain('They overlap this session or follow it closely.');
+    expect(text).toContain('Attach');
+  });
+
+  it('badges how each one relates to the session', () => {
+    /* "After" is the difference between the lift and the walk home, and the
+       user is the one who knows which counts. */
+    const after = { ...candidate(), relation: 'after' as const };
+    const text = allText(
+      render(
+        <WatchAttachCard
+          candidates={[candidate(), { ...after, workout: { ...after.workout, externalId: 'hk-walk', title: 'Walk' } }]}
+          onAttach={jest.fn()}
+          onAttachAll={jest.fn()}
+        />,
+      ),
+    );
+    expect(text).toContain('Overlaps');
+    expect(text).toContain('After');
+  });
+
+  it('offers attach-all only when there is more than one', () => {
+    const one = render(
+      <WatchAttachCard candidates={[candidate()]} onAttach={jest.fn()} onAttachAll={jest.fn()} />,
+    );
+    expect(byTestId(one, 'attach-all')).toHaveLength(0);
+    act(() => tree?.unmount());
+    const two = render(
+      <WatchAttachCard
+        candidates={[candidate(), { ...candidate(), workout: { ...candidate().workout, externalId: 'hk-2' } }]}
+        onAttach={jest.fn()}
+        onAttachAll={jest.fn()}
+      />,
+    );
+    expect(byTestId(two, 'attach-all')).toHaveLength(1);
+  });
+
+  it('attaches only what was tapped', () => {
+    const onAttach = jest.fn();
+    const rendered = render(
+      <WatchAttachCard candidates={[candidate()]} onAttach={onAttach} onAttachAll={jest.fn()} />,
+    );
+    act(() => {
+      rendered.root
+        .findAll((n) => n.props?.testID === 'attach-one-hk-lift' && typeof n.props?.onPress === 'function')[0]!
+        .props.onPress();
+    });
+    expect(onAttach).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders nothing when there is nothing to offer', () => {
+    // The no-Watch day shows no empty card, per frame 5.
+    expect(
+      render(<WatchAttachCard candidates={[]} onAttach={jest.fn()} onAttachAll={jest.fn()} />).toJSON(),
+    ).toBeNull();
   });
 });

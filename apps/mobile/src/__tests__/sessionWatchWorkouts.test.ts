@@ -74,6 +74,22 @@ it('ignores a workout that finished before the session began', () => {
   expect(candidatesForSession([earlier], SESSION, [])).toEqual([]);
 });
 
+it('does not reach backwards, even when the session is short', () => {
+  /* The window is measured from the session's END, so for a long session a
+     backwards match is unreachable — anything close enough would overlap.
+     A short session is where a symmetric window would wrongly claim a
+     workout that finished beforehand, and it is the case that catches it. */
+  const shortSession = {
+    startedAt: '2026-09-01T18:00:00.000Z',
+    completedAt: '2026-09-01T18:10:00.000Z',
+  };
+  const before = workout({
+    startedAt: '2026-09-01T17:30:00.000Z',
+    endedAt: '2026-09-01T17:45:00.000Z',
+  });
+  expect(candidatesForSession([before], shortSession, [])).toEqual([]);
+});
+
 it('never re-offers something already attached', () => {
   expect(candidatesForSession([workout()], SESSION, ['hk-1'])).toEqual([]);
 });
