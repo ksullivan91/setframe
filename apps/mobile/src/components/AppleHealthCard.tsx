@@ -61,6 +61,13 @@ export function AppleHealthCard({
 
   if (state_ === 'unavailable') return null;
 
+  /* Named for the source only while the source is the thing you act on.
+     Once data is flowing, what the card holds is your metrics; where they
+     came from is said in the provenance line underneath, and by the
+     nutrition source. Naming Apple in the heading forever also makes the
+     card read as Apple's, which it is not. */
+  const title = state_ === 'not_connected' || state_ === 'loading' ? 'Apple Health' : 'Health metrics';
+
   const fmt = (value: number | null, unit?: string) =>
     value == null ? null : unit ? `${value.toLocaleString()} ${unit}` : value.toLocaleString();
   const tiles = [
@@ -88,6 +95,11 @@ export function AppleHealthCard({
     { label: 'Sleep', value: formatSleep(recovery.sleepMinutes) },
     { label: 'HRV', value: fmt(recovery.hrvMs, 'ms') },
     { label: 'Resting HR', value: fmt(recovery.restingHeartRateBpm, 'bpm') },
+    /* Cardio fitness. The label carries the reading's age because watchOS
+       only estimates this during a qualifying outdoor walk, run or hike —
+       most days have none, and a bare number invites the reader to assume
+       it is today's when it may be months old. */
+    { label: vo2Label(recovery.vo2MaxAt), value: fmt(recovery.vo2Max) },
   ];
   const showRecovery = hasAnyRecovery(recovery);
   const showBody = hasAnyBody(body);
@@ -106,7 +118,7 @@ export function AppleHealthCard({
     <>
       <Card testID={`apple-health-card-${state_}`}>
         <View style={styles.headerRow}>
-          <Text style={[styles.title, { color: theme.text.primary }]}>Apple Health</Text>
+          <Text style={[styles.title, { color: theme.text.primary }]}>{title}</Text>
           <StatePill state={state_} />
         </View>
 
@@ -268,6 +280,28 @@ function StatePill({ state }: { state: HealthConnection['state'] }) {
       <Text style={[styles.pillLabel, { color: config.color }]}>{config.label}</Text>
     </View>
   );
+}
+
+/**
+ * "VO₂ max", or "VO₂ max · 12d ago" when the reading is not from today.
+ *
+ * Same-day readings say nothing extra — the absence of an age IS the
+ * statement that it is current.
+ */
+function vo2Label(measuredAt: string | null): string {
+  const base = 'VO\u2082 max';
+  if (!measuredAt) return base;
+  const at = new Date(measuredAt);
+  if (Number.isNaN(at.getTime())) return base;
+
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((startOfDay(new Date()) - startOfDay(at)) / 86_400_000);
+
+  if (days <= 0) return base;
+  if (days === 1) return `${base} · yesterday`;
+  if (days < 7) return `${base} · ${days}d ago`;
+  if (days < 60) return `${base} · ${Math.floor(days / 7)}w ago`;
+  return `${base} · ${Math.floor(days / 30)}mo ago`;
 }
 
 function MetricGrid({ tiles }: { tiles: { label: string; value: string | null }[] }) {

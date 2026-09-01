@@ -45,7 +45,7 @@ function connection(overrides: Partial<HealthConnection> = {}): HealthConnection
   return {
     state: 'not_connected' as HealthCardState,
     metrics: { steps: null, activeEnergyKcal: null, exerciseMinutes: null, caloriesConsumedKcal: null, proteinG: null, carbsG: null, fatG: null },
-    recovery: { sleepMinutes: null, hrvMs: null, restingHeartRateBpm: null },
+    recovery: { sleepMinutes: null, hrvMs: null, restingHeartRateBpm: null, vo2Max: null, vo2MaxAt: null },
     body: { weightKg: null, heightCm: null, bodyFatPercent: null, biologicalSex: null, dateOfBirth: null, ageYears: null },
     nutritionSource: null,
     lastSyncedAt: null,
@@ -186,7 +186,7 @@ describe('Apple Health — Figma copy parity', () => {
             carbsG: 210,
             fatG: 70,
           },
-          recovery: { sleepMinutes: 438, hrvMs: 48, restingHeartRateBpm: 54 },
+          recovery: { sleepMinutes: 438, hrvMs: 48, restingHeartRateBpm: 54, vo2Max: 42.3, vo2MaxAt: null },
           body: {
             weightKg: 82.1,
             heightCm: 180,

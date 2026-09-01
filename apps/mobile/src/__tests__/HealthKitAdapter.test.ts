@@ -305,6 +305,49 @@ describe('sleep', () => {
     expect(snapshot.recovery.sleepMinutes).toBeNull();
   });
 
+  it("reads VO2 max as the most recent sample of all time, in HealthKit's own unit", async () => {
+    /* watchOS only estimates cardio fitness during a qualifying outdoor
+       walk, run or hike, so a windowed read shows a dash to someone whose
+       fitness is perfectly well known. The unit string is exact: HealthKit
+       rejects anything but 'ml/(kg*min)' for this type. */
+    const at = new Date('2026-08-20T15:04:00.000Z');
+    mockGetMostRecentQuantitySample.mockImplementation((identifier: string) =>
+      identifier === 'HKQuantityTypeIdentifierVO2Max'
+        ? Promise.resolve({ quantity: 42.28, startDate: at.toISOString() })
+        : Promise.resolve(undefined),
+    );
+
+    const snapshot = await (await freshAdapter()).getSnapshot();
+
+    expect(mockGetMostRecentQuantitySample).toHaveBeenCalledWith(
+      'HKQuantityTypeIdentifierVO2Max',
+      'ml/(kg*min)',
+    );
+    // One decimal — rounding to 42 throws away most of the change anyone
+    // sees year to year.
+    expect(snapshot.recovery.vo2Max).toBe(42.3);
+    expect(snapshot.recovery.vo2MaxAt).toBe(at.toISOString());
+  });
+
+  it('reports no VO2 max as null rather than zero', async () => {
+    mockGetMostRecentQuantitySample.mockResolvedValue(undefined);
+    const snapshot = await (await freshAdapter()).getSnapshot();
+    expect(snapshot.recovery.vo2Max).toBeNull();
+    expect(snapshot.recovery.vo2MaxAt).toBeNull();
+  });
+
+  it('asks for VO2 max as its own permission group', async () => {
+    /* Anyone who connected before this shipped has not granted the type;
+       naming it lets the card say what is missing instead of showing a
+       permanent dash. */
+    const { ALL_READ_TYPES, READ_GROUPS } = require('../healthkit/HealthKitAdapter');
+    expect(ALL_READ_TYPES).toContain('HKQuantityTypeIdentifierVO2Max');
+    const group = READ_GROUPS.find((g: { types: string[] }) =>
+      g.types.includes('HKQuantityTypeIdentifierVO2Max'),
+    );
+    expect(group?.label).toBe('cardio fitness');
+  });
+
   it('looks back to yesterday evening, not to midnight', async () => {
     /* Sleep straddles the date boundary. A midnight-to-now window reports
        roughly half a night and calls it a full one. */

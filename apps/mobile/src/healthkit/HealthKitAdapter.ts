@@ -32,6 +32,24 @@ export interface RecoveryMetrics {
   sleepMinutes: number | null;
   hrvMs: number | null;
   restingHeartRateBpm: number | null;
+  /**
+   * Cardio fitness, in ml/(kg·min).
+   *
+   * Unlike everything else here this is NOT read over last night's window.
+   * watchOS only estimates VO2 max during a qualifying outdoor walk, run
+   * or hike, so most days have no sample at all and a windowed read would
+   * show a dash to someone whose fitness is perfectly well known. It is
+   * the most recent sample of all time instead.
+   */
+  vo2Max: number | null;
+  /**
+   * When that sample was taken, ISO.
+   *
+   * Carried because a VO2 max from four months ago is not today's, and a
+   * bare number invites the reader to assume it is. The tile says how old
+   * it is; nothing else can, since the value alone cannot.
+   */
+  vo2MaxAt: string | null;
 }
 
 /**
@@ -122,6 +140,9 @@ export const EXTENDED_READ_TYPES = [
      appearing to work. */
   'HKQuantityTypeIdentifierHeartRate',
   'HKQuantityTypeIdentifierBasalEnergyBurned',
+  // Cardio fitness. Its own type, so anyone who connected before this
+  // shipped has not granted it and rides hasUnaskedTypes() like the rest.
+  'HKQuantityTypeIdentifierVO2Max',
 ] as const;
 
 export const ALL_READ_TYPES = [...CORE_READ_TYPES, ...EXTENDED_READ_TYPES] as const;
@@ -150,6 +171,10 @@ export const READ_GROUPS: readonly { label: string; types: readonly string[] }[]
       'HKQuantityTypeIdentifierHeartRateVariabilitySDNN',
       'HKQuantityTypeIdentifierRestingHeartRate',
     ],
+  },
+  {
+    label: 'cardio fitness',
+    types: ['HKQuantityTypeIdentifierVO2Max'],
   },
   {
     label: 'body measurements',
@@ -193,6 +218,8 @@ export const EMPTY_RECOVERY: RecoveryMetrics = {
   sleepMinutes: null,
   hrvMs: null,
   restingHeartRateBpm: null,
+  vo2Max: null,
+  vo2MaxAt: null,
 };
 
 export const EMPTY_BODY: BodyProfile = {
@@ -262,7 +289,10 @@ export function hasAnyRecovery(recovery: RecoveryMetrics): boolean {
   return (
     recovery.sleepMinutes != null ||
     recovery.hrvMs != null ||
-    recovery.restingHeartRateBpm != null
+    recovery.restingHeartRateBpm != null ||
+    // Without this, someone whose only reading is a cardio-fitness estimate
+    // gets the whole row hidden — including the one number they have.
+    recovery.vo2Max != null
   );
 }
 
@@ -508,6 +538,32 @@ class HealthKitAdapter {
   }
 
   /**
+   * The most recent sample of a type, with the date it was taken.
+   *
+   * `mostRecentQuantity` discards the date, which is fine for a height and
+   * wrong for anything that goes stale.
+   */
+  private async mostRecentDatedQuantity(
+    mod: NonNullable<HealthKitAdapter['module']>,
+    identifier: string,
+    unit: string,
+  ): Promise<{ value: number | null; at: string | null }> {
+    try {
+      const sample = await mod.getMostRecentQuantitySample(identifier as never, unit as never);
+      const quantity = sample?.quantity;
+      if (typeof quantity !== 'number' || !Number.isFinite(quantity)) return { value: null, at: null };
+      const raw = (sample as { startDate?: string | Date } | null)?.startDate ?? null;
+      const at = raw ? new Date(raw) : null;
+      return {
+        value: quantity,
+        at: at && !Number.isNaN(at.getTime()) ? at.toISOString() : null,
+      };
+    } catch {
+      return { value: null, at: null };
+    }
+  }
+
+  /**
    * Today's totals, summed over the local calendar day.
    *
    * Local midnight (not UTC) defines the day, matching the `local_date`
@@ -596,16 +652,22 @@ class HealthKitAdapter {
     startDate.setHours(18, 0, 0, 0);
     const window = { startDate, endDate };
 
-    const [sleepMinutes, hrvMs, restingHeartRateBpm] = await Promise.all([
+    const [sleepMinutes, hrvMs, restingHeartRateBpm, vo2] = await Promise.all([
       this.getSleepMinutes(mod, window),
       this.averageQuantity(mod, 'HKQuantityTypeIdentifierHeartRateVariabilitySDNN', 'ms', window),
       this.averageQuantity(mod, 'HKQuantityTypeIdentifierRestingHeartRate', 'count/min', window),
+      // Deliberately unwindowed — see RecoveryMetrics.vo2Max.
+      this.mostRecentDatedQuantity(mod, 'HKQuantityTypeIdentifierVO2Max', 'ml/(kg*min)'),
     ]);
 
     return {
       sleepMinutes,
       hrvMs: hrvMs == null ? null : Math.round(hrvMs),
       restingHeartRateBpm: restingHeartRateBpm == null ? null : Math.round(restingHeartRateBpm),
+      // One decimal: HealthKit reports ~38.7, and rounding to 39 throws
+      // away most of the change anyone would ever see year to year.
+      vo2Max: vo2.value == null ? null : Math.round(vo2.value * 10) / 10,
+      vo2MaxAt: vo2.at,
     };
   }
 

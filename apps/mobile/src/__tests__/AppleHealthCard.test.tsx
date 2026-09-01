@@ -13,7 +13,7 @@ function connection(overrides: Partial<HealthConnection> = {}): HealthConnection
   return {
     state: 'not_connected' as HealthCardState,
     metrics: { steps: null, activeEnergyKcal: null, exerciseMinutes: null, caloriesConsumedKcal: null, proteinG: null, carbsG: null, fatG: null },
-    recovery: { sleepMinutes: null, hrvMs: null, restingHeartRateBpm: null },
+    recovery: { sleepMinutes: null, hrvMs: null, restingHeartRateBpm: null, vo2Max: null, vo2MaxAt: null },
     body: { weightKg: null, heightCm: null, bodyFatPercent: null, biologicalSex: null, dateOfBirth: null, ageYears: null },
     nutritionSource: null,
     lastSyncedAt: null,
@@ -267,5 +267,78 @@ describe('AppleHealthCard — offering the rest', () => {
       connection({ state: 'connected', metrics: { ...connection().metrics, steps: 100 }, hasMoreToGrant: false, unaskedGroups: [] }),
     );
     expect(pressableByTestId(rendered, 'health-grant-more')).toHaveLength(0);
+  });
+});
+
+describe('VO\u2082 max', () => {
+  const daysAgo = (n: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    return d.toISOString();
+  };
+  const withVo2 = (vo2Max: number | null, vo2MaxAt: string | null) =>
+    connection({
+      state: 'connected',
+      metrics: { ...connection().metrics, steps: 4200 },
+      recovery: { sleepMinutes: 438, hrvMs: 48, restingHeartRateBpm: 54, vo2Max, vo2MaxAt },
+    });
+
+  it('shows the reading', () => {
+    expect(allText(render(withVo2(42.3, daysAgo(0))))).toContain('42.3');
+  });
+
+  it('says nothing about age when the reading is from today', () => {
+    /* The absence of an age IS the statement that it is current — a
+       "today" suffix on every other tile's neighbour is noise. */
+    const text = allText(render(withVo2(42.3, daysAgo(0))));
+    expect(text).toContain('VO\u2082 max');
+    expect(text).not.toContain('ago');
+    expect(text).not.toContain('yesterday');
+  });
+
+  it('says how old a stale reading is, at the right scale', () => {
+    /* watchOS only estimates this during a qualifying outdoor workout, so
+       months-old values are normal. A bare number would read as today's. */
+    expect(allText(render(withVo2(42.3, daysAgo(1))))).toContain('yesterday');
+    expect(allText(render(withVo2(42.3, daysAgo(3))))).toContain('3d ago');
+    expect(allText(render(withVo2(42.3, daysAgo(21))))).toContain('3w ago');
+    expect(allText(render(withVo2(42.3, daysAgo(120))))).toContain('4mo ago');
+  });
+
+  it('renders the tile with no date rather than inventing one', () => {
+    const text = allText(render(withVo2(42.3, null)));
+    expect(text).toContain('42.3');
+    expect(text).not.toContain('ago');
+  });
+
+  it('keeps the recovery row when cardio fitness is the only reading', () => {
+    // Otherwise the one number this person has is the one they cannot see.
+    const text = allText(
+      render(
+        connection({
+          state: 'connected',
+          metrics: { ...connection().metrics, steps: 4200 },
+          recovery: { sleepMinutes: null, hrvMs: null, restingHeartRateBpm: null, vo2Max: 38.7, vo2MaxAt: daysAgo(9) },
+        }),
+      ),
+    );
+    expect(text).toContain('38.7');
+    expect(text).toContain('1w ago');
+  });
+});
+
+describe('card title', () => {
+  it('names Apple Health while connecting is the thing you do', () => {
+    expect(allText(render(connection({ state: 'not_connected' })))).toContain('Apple Health');
+  });
+
+  it('names the content once data is flowing, not the source', () => {
+    /* Where it came from is said in the provenance line underneath. A
+       permanent "Apple Health" heading also makes the card read as
+       Apple's, which it is not. */
+    const text = allText(
+      render(connection({ state: 'connected', metrics: { ...connection().metrics, steps: 4200 } })),
+    );
+    expect(text).toContain('Health metrics');
   });
 });
