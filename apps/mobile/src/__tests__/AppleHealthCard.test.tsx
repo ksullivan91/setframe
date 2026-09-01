@@ -328,17 +328,17 @@ describe('VO\u2082 max', () => {
 });
 
 describe('card title', () => {
-  it('names Apple Health while connecting is the thing you do', () => {
-    expect(allText(render(connection({ state: 'not_connected' })))).toContain('Apple Health');
-  });
-
-  it('names the content once data is flowing, not the source', () => {
-    /* Where it came from is said in the provenance line underneath. A
-       permanent "Apple Health" heading also makes the card read as
-       Apple's, which it is not. */
-    const text = allText(
-      render(connection({ state: 'connected', metrics: { ...connection().metrics, steps: 4200 } })),
-    );
-    expect(text).toContain('Health metrics');
-  });
+  /* Always the source, in every state. Naming it tells you which app owns
+     the data and where to go when a number looks wrong, and it matches
+     the connect flow and the onboarding prompt. */
+  it.each(['not_connected', 'loading', 'connected', 'no_data'] as const)(
+    'is "Apple Health" in the %s state',
+    (state) => {
+      const text = allText(
+        render(connection({ state, metrics: { ...connection().metrics, steps: 4200 } })),
+      );
+      expect(text).toContain('Apple Health');
+      expect(text).not.toContain('Health metrics');
+    },
+  );
 });

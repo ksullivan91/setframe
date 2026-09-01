@@ -22,6 +22,10 @@ alongside their stories, named `README-{range}-{review}.md`.
   system catalog beyond its current 33 exercises; adds no exercises itself.
 - `WAIT-automated-visual-and-e2e-testing.md` — deferred by request. Filed so the
   gap is tracked, deliberately not started.
+- `WAIT-onboarding-apple-health-prompt.md` — deferred by request. Offer the
+  Apple Health connection during onboarding instead of only from the Today
+  card, which sits below the fold and is the reason permission gaps surface
+  late. Belongs to the onboarding feature, which does not exist yet.
 - `WAIT-figma-accentsubtle-token-fix.md` — deferred by request. Fixes
   `Semantic/Action/AccentSubtle` and other `Semantic/*` alias mismatches
   found during the 2026-08-23 color-token reconciliation (see
