@@ -150,6 +150,29 @@ below with what it costs.
 | 7 | **Effort by exercise** | Average and peak heart rate per lift. Cannot exist in Apple Health (no set log) or in a lifting app alone (no heart rate) — the clearest thing this feature buys. |
 | 8 | The whole block | Lift, run and walk on one clock, with the gaps drawn. The only frame that shows why a *collection* is a better object than one workout. |
 
+### The assembled screen
+
+`Explore/Mobile/Workout complete · with Watch data` puts the whole thing
+together, and lives on **both** ⏱️ Workout Logger and ❤️ Apple Health —
+someone working on the logger needs to see what completion becomes, and
+someone working on Apple Health needs to see where the data lands. A clone
+rather than a component for now: componentising would couple two sections
+that are not signed off.
+
+It is a clone of the shipped completion frame with three cards inserted, so
+the banner and set cards cannot drift from what they extend. Reading order
+is deliberate:
+
+1. **The headline** — volume, duration, sets. Unchanged, still first.
+2. **From your Watch** — active and total calories, average and peak heart
+   rate. What it cost you.
+3. **Heart rate** — the bars and time in zone. *When* it cost you.
+4. **Effort by exercise** — *where* it cost you.
+5. **The set cards** — the record itself, unchanged.
+
+Everything from step 2 down appears only when a Watch workout is attached.
+Frame 5 remains the no-Watch day, and it shows none of it.
+
 ### One column gates half of the rest
 
 `workout_set` has `created_at` and `updated_at` but **no `performed_at`**.
