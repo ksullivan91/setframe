@@ -40,6 +40,11 @@ import { SetTypeSheet } from '../components/workout-v2/SetTypeSheet';
 import { ExerciseActionsSheet } from '../components/workout-v2/ExerciseActionsSheet';
 import { SaveAsWorkoutCard } from '../components/training-v2/SaveAsWorkoutCard';
 import { useActionFeedback } from '../lib/useActionFeedback';
+import { WatchSummaryCard } from '../components/watch/WatchSummaryCard';
+import { HeartRateCard } from '../components/watch/HeartRateCard';
+import { EffortByExerciseCard } from '../components/watch/EffortByExerciseCard';
+import { useSessionWatchWorkouts } from '../healthkit/useSessionWatchWorkouts';
+import { useWatchSessionInsights } from '../healthkit/useWatchSessionInsights';
 import {
   SetRowV2,
   type SetRowStatus,
@@ -359,6 +364,16 @@ export default function WorkoutSessionV2Screen() {
   });
   const hasActiveProgram = programs.some((program) => program.isActive);
 
+  /* Story 45, and above the early return for exactly the reason written
+     above: placing these below `if (!session)` made them conditional hooks
+     and reproduced the crash that comment describes. Lint caught it.
+     `useSessionWatchWorkouts` takes a nullable id and disables its query,
+     so it is safe to call before the session exists. */
+  const watch = useSessionWatchWorkouts(session?.id ?? null, {
+    onError: feedback.report('Could not update Watch data. Try again.'),
+  });
+  const insights = useWatchSessionInsights({ workouts: watch.attached, exercises });
+
   if (!session) {
     /* The header is chrome, not data — rendering it immediately means the
        screen does not visibly reflow when the session arrives, and there is a
@@ -602,6 +617,23 @@ export default function WorkoutSessionV2Screen() {
               busy={saveAsWorkout.isPending}
             />
           )
+        ) : null}
+        {sessionComplete ? (
+          <>
+            <WatchSummaryCard workouts={watch.attached} />
+            {insights.series && insights.model ? (
+              <HeartRateCard
+                series={insights.series}
+                model={insights.model}
+                startedAt={insights.startedAt!}
+                endedAt={insights.endedAt!}
+                selectedIndex={insights.selectedIndex}
+                onSelect={insights.setSelectedIndex}
+                maxIsEstimated={insights.maxIsEstimated}
+              />
+            ) : null}
+            <EffortByExerciseCard efforts={insights.efforts} />
+          </>
         ) : null}
         {exercises.map((log) => {
           const definition = getPrescriptionDefinition(log.prescription);

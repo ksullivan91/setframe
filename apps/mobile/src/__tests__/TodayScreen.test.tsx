@@ -422,7 +422,7 @@ describe('completed workout card', () => {
        discarded all of them. Both now read one shared readout, so the two
        surfaces cannot disagree — which is the actual invariant, not the
        specific number. */
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+     
     const { buildCompletedSessionReadout } = require('@setframe/domain') as {
       buildCompletedSessionReadout: (e: unknown[]) => { totalVolume: number; loggedSetCount: number };
     };

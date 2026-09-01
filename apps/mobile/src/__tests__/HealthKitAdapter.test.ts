@@ -82,7 +82,7 @@ interface Adapter {
 
 async function freshAdapter(): Promise<Adapter> {
   jest.resetModules();
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+   
   const mod = require('../healthkit/HealthKitAdapter');
   return mod.healthKit as Adapter;
 }
@@ -475,9 +475,9 @@ describe('read-only guarantee', () => {
    * shipping.
    */
   it('imports no HealthKit write API at all', () => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+     
     const fs = require('fs') as NodeFs;
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+     
     const path = require('path') as NodePath;
 
     const dir = path.join(__dirname, '..', 'healthkit');
@@ -674,7 +674,7 @@ describe('read types', () => {
     /* HeartRateVariabilitySDNN and RestingHeartRate are different types.
        Without HKQuantityTypeIdentifierHeartRate the workout query returns
        nothing at all while appearing to work. */
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+     
     const { ALL_READ_TYPES } = require('../healthkit/HealthKitAdapter');
     expect(ALL_READ_TYPES).toContain('HKQuantityTypeIdentifierHeartRate');
   });

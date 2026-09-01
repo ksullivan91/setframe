@@ -9,9 +9,9 @@ interface NodeFs {
 interface NodePath {
   join(...parts: string[]): string;
 }
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+ 
 const fs = require('fs') as NodeFs;
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+ 
 const path = require('path') as NodePath;
 
 /**

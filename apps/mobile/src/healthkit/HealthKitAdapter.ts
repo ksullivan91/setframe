@@ -324,7 +324,7 @@ class HealthKitAdapter {
     this.loadAttempted = true;
     if (!this.isSupportedPlatform()) return null;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       this.module = require('@kingstinct/react-native-healthkit');
     } catch {
       this.module = null;
