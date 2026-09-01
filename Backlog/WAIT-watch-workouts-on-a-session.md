@@ -67,6 +67,11 @@ rather than only the sets I typed.
       model re-labels history rather than stranding it.
 - [ ] Every sample query scopes by request.userId. This is per-second heart
       rate; it is the least forgiving place to forget ADR 0002.
+- [ ] Charts reuse the existing scrub grammar (`shouldClaimScrub`,
+      `nearestPointIndex`, stationary readout, commit only on index change)
+      rather than a new interaction model — ADR 0008/0010.
+- [ ] A vertical drag over a chart still scrolls the completion screen, and
+      a tap still reaches the per-bar Pressable for VoiceOver.
 - [ ] Tests cover the attach window, dedupe, detach, the roll-up, the
       recording heuristic's cadence threshold, and time-in-zone maths.
 - [ ] No shared component and no shipped screen is modified; the existing

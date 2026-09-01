@@ -242,6 +242,33 @@ Separately: **`chart.series` in design-tokens currently fails validation** —
 the caution amber is outside the lightness band, and two of five fall under
 3:1 contrast on surface. Worth fixing before anything reaches for it.
 
+## Interaction — inherited, not invented
+
+`Charts.tsx` already scrubs, under ADR 0008 and ADR 0010, and stories 47–49
+validated it on hardware. Nothing here needs a new interaction model; the
+work is applying the existing one to two new forms.
+
+| Surface | Verb | Behaviour |
+|---|---|---|
+| Heart-rate bars | **Scrub** | Horizontal drag, claimed only when clearly horizontal (`shouldClaimScrub`), snapping to the nearest bar via `nearestPointIndex` and committing **only when that index changes** — re-rendering per move event is what makes a native scrub feel bad. Frame 6b. |
+| Heart-rate bars | Tap | Falls through to the per-bar `Pressable`, and with it VoiceOver. This is why a 9pt bar needs no 44pt target: scrub is the primary verb, tap is the accessible one. |
+| Zone rows | Tap to isolate | Dims every bar outside that zone — answers "when was I actually working hard" without another chart. An opacity pass over data already on screen. |
+| Effort by exercise | Tap | No time axis, so scrub means nothing. Tapping a row scrolls to that exercise's set card below: the chart becomes navigation as well as summary. |
+| Block timeline | Tap | A segment opens that Watch workout's own detail. |
+
+**The readout is stationary.** It replaces the header summary in place and
+never floats over the bars — a tooltip that follows a finger on a 390pt
+screen spends its life underneath the finger. Lift off and the summary
+returns.
+
+**A vertical drag still scrolls the page.** The responder claims only
+horizontal movement, which is what keeps a chart embedded in a scrolling
+completion screen from trapping the gesture.
+
+**Not here:** hover, crosshairs, or animated transitions between states. The
+standard dataviz guidance assumes a pointer; on touch the equivalents are
+scrub and tap, and `Charts.tsx` already settled which.
+
 ## Scope boundary — what this must not change
 
 This feature composes with what already ships; it does not rework it.
