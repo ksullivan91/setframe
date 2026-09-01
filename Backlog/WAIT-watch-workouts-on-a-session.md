@@ -25,9 +25,10 @@ rather than only the sets I typed.
 - Attach as a **collection** — a lift, a run and a walk are one block.
 - Store a snapshot per workout: type, start/end, duration, active and total
   calories, average/peak/min heart rate, distance, device.
-- Store **every sample** HealthKit exposes for that workout, row-per-sample
-  (`session_watch_sample`), per ADR 0012 — the curve and everything derived
-  from it depend on it.
+- Store **every heart-rate sample** for that workout in
+  `session_watch_series`, as parallel `int4[]` offsets and `int2[]` values
+  keyed by `(workout, kind)`, per ADR 0012. Active energy is kept as its
+  summary total only — its curve is cumulative and carries little.
 - Derive heart-rate zones and time-in-zone on read. HealthKit stores no zone
   type, so they are computed from age and resting heart rate using
   heart-rate reserve.
@@ -56,8 +57,10 @@ rather than only the sets I typed.
       and never claims a workout is attached before its object exists.
 - [ ] A Watch workout that ends mid-session attaches then, not only at
       Finish, so several across one session each land as they complete.
-- [ ] Every sample for an attached workout is persisted once, keyed by the
+- [ ] The heart-rate series is persisted once at attach time, keyed by the
       workout's HealthKit UUID, and never resent on later reconciles.
+- [ ] Offsets are seconds from the workout's start, so absolute times are
+      recovered by addition rather than stored 720 times.
 - [ ] Detaching deletes the samples — the copy outlives HealthKit, so there
       must be a way back out.
 - [ ] Zones are computed on read, never stored as fact, so changing the

@@ -83,10 +83,16 @@ which are a rolling cache re-reconciled on every foreground. A finished
 workout is not a cache: ADR 0005 already says fact rows are snapshotted and
 never re-derived, so its heart-rate curve is evidence.
 
-So `session_watch_sample` stores row-per-sample — `kind`, `recorded_at`,
-`value`, `unit` — keyed to the attached workout. Row-per-sample rather than
-a JSONB blob because the stated purpose is analysis, and a blob answers
-exactly one question well.
+So `session_watch_series` holds one row per `(workout, kind)` with parallel
+`int4[]` offsets and `int2[]` values — about **4 KB per hour-long workout**,
+**1.1 MB per user per year**. Not row-per-sample: a heart rate is 2 bytes, and
+a naive row wraps it in ~190 bytes of uuids, timestamps and index entries.
+Arrays are 63× smaller with no data point lost, and a new kind is a new row
+rather than a migration.
+
+**Active energy is a summary only.** Its curve is cumulative and monotonic,
+its total is already a column, and expenditure can be approximated from heart
+rate. It is the one series where "every data point" buys the least.
 
 ### This supersedes the suppression rule
 
@@ -179,9 +185,9 @@ it must keep working as suppression whenever the user declines to attach.
 - **Attach all, or choose.** Frame 2 offers both. Attach-all is one tap for
   the common case; Choose exists because a Watch workout during a session
   might be a stray auto-detected walk.
-- ~~Whether a curve is stored.~~ **Settled:** store every sample. See ADR
-  0012 for the volume maths (~1,400 rows and 60 KB per hour-long workout,
-  ~375k rows per user per year) and the three rejected alternatives.
+- ~~Whether a curve is stored.~~ **Settled:** keep every heart-rate sample,
+  as arrays keyed by (workout, kind). ~4 KB per workout, 1.1 MB per user per
+  year. Active energy is kept as its summary total only. See ADR 0012.
 - **Which maximum heart rate defines the zones** — Tanaka estimate from age,
   or the observed maximum across the user's own history. The estimate works
   on day one; the observed value gets better and can move under the user.
