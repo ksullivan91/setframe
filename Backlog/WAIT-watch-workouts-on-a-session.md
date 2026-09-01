@@ -52,6 +52,27 @@ rather than only the sets I typed.
       Finish, so several across one session each land as they complete.
 - [ ] Tests cover the attach window, dedupe, detach, the roll-up, and the
       recording heuristic's cadence threshold.
+- [ ] No shared component and no shipped screen is modified; the existing
+      suites for Today, the logger and Additional activity pass unchanged.
+
+## Scope boundary (see the design doc for the full table)
+
+**Must not be edited:** the shipped Apple Health connection and story 44
+discovery designs; the Additional activity card; `Button`, `Toast`,
+`IconButton`, `Card`, `MetricTile` and the design tokens; `additional_activity`
+and `workout_session` and every route touching them; the exercise picker and
+the logger's set rows.
+
+**Additive only:** Today's completed card gains a second stat row *only*
+when a Watch workout is attached; the logger gains the strip below its
+existing header; session summary gains one card. Nothing is moved,
+reordered or removed on any of them.
+
+**The one deliberate change:** story 44's suppression becomes an attach
+candidate — and must still behave as suppression when the user declines.
+
+If building this needs a shipped frame or a shared component edited, stop
+and re-scope.
 
 ## Product-wide Definition of Done
 - Mobile only. Web is retired to a landing page.

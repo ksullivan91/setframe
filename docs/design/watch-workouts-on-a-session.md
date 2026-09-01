@@ -105,6 +105,42 @@ and basal energy for a true total-calorie figure — ride the existing
 HealthKit active-energy figure on Today. They are the same joules counted
 twice — the session's number is a *subset* of the day's, not an addition.
 
+## Scope boundary — what this must not change
+
+This feature composes with what already ships; it does not rework it.
+Recent work has churned shared primitives — `Button`, `Toast`, `IconButton`
+— and each time the blast radius reached screens nobody was thinking about.
+Written down so the boundary is a contract rather than an intention.
+
+### Untouched — no edits at all
+
+| | |
+|---|---|
+| Shipped Health designs | The Apple Health connection section and the story 44 discovery section stay exactly as they are. This feature adds frames; it does not revise theirs. |
+| Additional activity card | Its layout, ordering, badge and actions are settled. Attached Watch workouts do **not** appear there — that is the whole reason for a separate table. |
+| Shared primitives | `Button`, `Toast`, `IconButton`, `Card`, `MetricTile` and the design tokens are consumed, not modified. If something new is needed, it is a new component beside them. |
+| Existing endpoints and tables | No change to `additional_activity`, `workout_session`, or any route touching them. One new table, one new endpoint. |
+| Picker and logger rows | Set logging, prescriptions and the exercise picker are untouched. The logger gains a strip above them and nothing else. |
+
+### Additive only — gains something conditional, loses nothing
+
+| | |
+|---|---|
+| Today's completed card | Gains a second stat row (Active kcal, Total kcal, Avg HR) **only** when a Watch workout is attached. The existing Exercises / Sets / Volume row keeps its position and values. Frame 5 is the no-Watch day: no second row, no empty tiles. |
+| The v2 logger | Gains the Watch strip below the sticky header, only while recording or after one attaches. Nothing is moved to make room — it is the first item in the existing scroll body. |
+| Session summary | Gains the attached collection as a new card. Existing cards keep their order. |
+
+### Deliberately changed — the one exception
+
+Story 44's suppression. The Watch's record of your own lift currently reads
+*"Not offered — this is your Upper A session"*. It becomes an **attach
+candidate** instead. This is intended and is the point of the feature — and
+it must keep working as suppression whenever the user declines to attach.
+
+> If building this requires editing a shipped frame or a shared component,
+> that is a signal to stop and re-scope rather than proceed — the same rule
+> that kept story 44 from ever writing to Apple Health.
+
 ## Open — needs a decision
 
 - **What belongs to a block.** Overlap is obvious for the lift. A run 40
