@@ -120,6 +120,22 @@ describe('HeartRateCard · Figma 265:2 › HeartRateCard', () => {
     expect(text).toContain('max 186');
   });
 
+  it("headlines the workout's own avg/peak, not the series' — Figma 265:2 shows the same 142/171 as the summary tiles above it", () => {
+    /* HealthKit averages every sample the Watch took; `series` is the
+       downsampled copy we store, so deriving the header from it puts a
+       different "avg HR" a few hundred pixels under WatchSummaryCard's. */
+    const derived = allText(render(<HeartRateCard {...props} />));
+    expect(derived).not.toContain('142 avg');
+
+    const text = allText(render(<HeartRateCard {...props} avgBpm={142} peakBpm={171} />));
+    expect(text).toContain('142 avg · 171 peak');
+  });
+
+  it('falls back to the series when the workout carries no statistic', () => {
+    const text = allText(render(<HeartRateCard {...props} avgBpm={null} peakBpm={null} />));
+    expect(text).toMatch(/\d+ avg · \d+ peak/);
+  });
+
   it('lists zones from 5 down to 1, as the design does', () => {
     const text = allText(render(<HeartRateCard {...props} />));
     const order = ['Zone 5', 'Zone 4', 'Zone 3', 'Zone 2', 'Zone 1'].map((z) => text.indexOf(z));
@@ -246,6 +262,8 @@ describe('WatchAttachCard · Figma Watch-Live 2 · Found at finish', () => {
       distanceValue: null,
       distanceUnit: null,
       caloriesKcal: 612,
+      avgHeartRateBpm: 142,
+      peakHeartRateBpm: 171,
       ...over,
     },
   });
@@ -278,33 +296,117 @@ describe('WatchAttachCard · Figma Watch-Live 2 · Found at finish', () => {
     expect(text).toContain('After');
   });
 
-  it('offers attach-all only when there is more than one', () => {
-    const one = render(
-      <WatchAttachCard candidates={[candidate()]} onAttach={jest.fn()} onAttachAll={jest.fn()} />,
+  it("puts each tile's numbers on it — Figma 229:21 shows '142 bpm avg  171 peak  612 kcal'", () => {
+    /* The tiles are what you decide from; a title and a clock time are not
+       enough to tell your lift from someone else's on a shared Watch. */
+    const text = allText(
+      render(
+        <WatchAttachCard candidates={[candidate()]} onAttach={jest.fn()} onAttachAll={jest.fn()} />,
+      ),
     );
-    expect(byTestId(one, 'attach-all')).toHaveLength(0);
-    act(() => tree?.unmount());
-    const two = render(
+    expect(text).toContain('142 bpm avg');
+    expect(text).toContain('171 peak');
+    expect(text).toContain('612 kcal');
+  });
+
+  it('omits the metrics a workout has none of, rather than printing a dash', () => {
+    const bare = candidate({ avgHeartRateBpm: null, peakHeartRateBpm: null, caloriesKcal: null });
+    const text = allText(
+      render(<WatchAttachCard candidates={[bare]} onAttach={jest.fn()} onAttachAll={jest.fn()} />),
+    );
+    expect(text).not.toContain('bpm avg');
+    expect(text).not.toContain('kcal');
+    expect(text).toContain('Traditional Strength Training');
+  });
+
+  it('carries no per-tile Attach button — the design puts the actions in one row at the foot', () => {
+    const rendered = render(
       <WatchAttachCard
         candidates={[candidate(), { ...candidate(), workout: { ...candidate().workout, externalId: 'hk-2' } }]}
         onAttach={jest.fn()}
         onAttachAll={jest.fn()}
       />,
     );
-    expect(byTestId(two, 'attach-all')).toHaveLength(1);
+    expect(byTestId(rendered, 'attach-one-hk-lift')).toHaveLength(0);
+    expect(byTestId(rendered, 'attach-all')).toHaveLength(1);
+    expect(byTestId(rendered, 'attach-choose')).toHaveLength(1);
   });
 
-  it('attaches only what was tapped', () => {
+  it('collapses to a single Attach when there is only one — choosing among one is not a choice', () => {
     const onAttach = jest.fn();
-    const rendered = render(
+    const one = render(
       <WatchAttachCard candidates={[candidate()]} onAttach={onAttach} onAttachAll={jest.fn()} />,
     );
+    expect(byTestId(one, 'attach-choose')).toHaveLength(0);
+    const text = allText(one);
+    expect(text).toContain('Attach');
+    expect(text).not.toContain('Attach all');
+
     act(() => {
-      rendered.root
-        .findAll((n) => n.props?.testID === 'attach-one-hk-lift' && typeof n.props?.onPress === 'function')[0]!
+      one.root
+        .findAll((n) => n.props?.testID === 'attach-all' && typeof n.props?.onPress === 'function')[0]!
         .props.onPress();
     });
     expect(onAttach).toHaveBeenCalledTimes(1);
+  });
+
+  it('Choose attaches only what was picked', () => {
+    /* Figma 230:56: Choose exists because a Watch workout inside your
+       session might be someone else's data on a shared device. */
+    const onAttach = jest.fn();
+    const onAttachAll = jest.fn();
+    const two = [
+      candidate(),
+      { ...candidate(), workout: { ...candidate().workout, externalId: 'hk-2', title: 'Walk' } },
+    ];
+    const rendered = render(
+      <WatchAttachCard candidates={two} onAttach={onAttach} onAttachAll={onAttachAll} />,
+    );
+
+    const press = (testID: string) =>
+      act(() => {
+        rendered.root
+          .findAll((n) => n.props?.testID === testID && typeof n.props?.onPress === 'function')[0]!
+          .props.onPress();
+      });
+
+    press('attach-choose');
+    /* Nothing picked yet, so the confirm is genuinely disabled — a
+       Pressable in that state passes no onPress to its host view, so it
+       cannot be tapped at all rather than tapping to no effect. */
+    const confirm = byTestId(rendered, 'attach-chosen')[0]!;
+    expect(confirm.props.accessibilityState).toMatchObject({ disabled: true });
+    expect(typeof confirm.props.onPress).not.toBe('function');
+    expect(onAttach).not.toHaveBeenCalled();
+
+    press('attach-candidate-hk-2');
+    press('attach-chosen');
+    expect(onAttach).toHaveBeenCalledTimes(1);
+    expect(onAttach.mock.calls[0]![0].workout.externalId).toBe('hk-2');
+    expect(onAttachAll).not.toHaveBeenCalled();
+  });
+
+  it('Cancel leaves the choice without attaching anything', () => {
+    const onAttach = jest.fn();
+    const two = [
+      candidate(),
+      { ...candidate(), workout: { ...candidate().workout, externalId: 'hk-2' } },
+    ];
+    const rendered = render(
+      <WatchAttachCard candidates={two} onAttach={onAttach} onAttachAll={jest.fn()} />,
+    );
+    const press = (testID: string) =>
+      act(() => {
+        rendered.root
+          .findAll((n) => n.props?.testID === testID && typeof n.props?.onPress === 'function')[0]!
+          .props.onPress();
+      });
+    press('attach-choose');
+    press('attach-candidate-hk-2');
+    press('attach-cancel');
+    expect(onAttach).not.toHaveBeenCalled();
+    // Back to the offer, not stuck in selection.
+    expect(byTestId(rendered, 'attach-all')).toHaveLength(1);
   });
 
   it('renders nothing when there is nothing to offer', () => {

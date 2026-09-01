@@ -543,6 +543,58 @@ describe('workout discovery', () => {
     expect(walk.caloriesKcal).toBe(64);
   });
 
+  it("reads each workout's own heart-rate statistic, so the attach tile can show it", async () => {
+    /* `getStatistic` is scoped to the proxy, so an evening's lift and the
+       run after it get their own figures rather than one average smeared
+       across both. Read at discovery because a statistic is one aggregate;
+       the sample series is only pulled once a workout is attached. */
+    const getStatistic = jest.fn().mockResolvedValue({
+      averageQuantity: { quantity: 141.6 },
+      maximumQuantity: { quantity: 171.2 },
+    });
+    mockQueryWorkoutSamples.mockResolvedValue([
+      {
+        getStatistic,
+        toJSON: () => ({
+          uuid: 'hk-lift',
+          workoutActivityType: 50,
+          startDate: '2026-08-31T17:32:00.000Z',
+          endDate: '2026-08-31T18:36:00.000Z',
+          duration: { quantity: 3840, unit: 's' },
+          metadata: {},
+        }),
+      },
+    ]);
+
+    const workouts = await (await freshAdapter()).getTodayWorkouts();
+
+    expect(getStatistic).toHaveBeenCalledWith('HKQuantityTypeIdentifierHeartRate', 'count/min');
+    expect(workouts[0]!.avgHeartRateBpm).toBe(142);
+    expect(workouts[0]!.peakHeartRateBpm).toBe(171);
+  });
+
+  it('treats a workout with no heart rate as ordinary, not an error', async () => {
+    // A pool swim, or a manually-logged session: nulls, and the tile omits
+    // the line rather than printing a dash.
+    mockQueryWorkoutSamples.mockResolvedValue([
+      {
+        getStatistic: jest.fn().mockRejectedValue(new Error('no such type')),
+        toJSON: () => ({
+          uuid: 'hk-swim',
+          workoutActivityType: 46,
+          startDate: '2026-08-31T07:00:00.000Z',
+          endDate: '2026-08-31T07:30:00.000Z',
+          duration: { quantity: 1800, unit: 's' },
+          metadata: {},
+        }),
+      },
+    ]);
+    const workouts = await (await freshAdapter()).getTodayWorkouts();
+    expect(workouts).toHaveLength(1);
+    expect(workouts[0]!.avgHeartRateBpm).toBeNull();
+    expect(workouts[0]!.peakHeartRateBpm).toBeNull();
+  });
+
   it('reads the indoor flag so a spin class is not an outdoor ride', async () => {
     mockQueryWorkoutSamples.mockResolvedValue([
       {

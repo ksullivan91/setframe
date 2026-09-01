@@ -106,10 +106,18 @@ export function useSessionWatchWorkouts(
         endedAt: workout.endedAt,
         durationSeconds: workout.durationSeconds,
         activeEnergyKcal: workout.caloriesKcal,
-        avgHeartRateBpm: series.values.length
-          ? Math.round(series.values.reduce((n, v) => n + v, 0) / series.values.length)
-          : null,
-        peakHeartRateBpm: series.values.length ? Math.max(...series.values) : null,
+        /* HealthKit's own statistic wins over a mean of the series: it
+           averages every sample the Watch took, while `series` is the copy
+           we store. The attach card shows the statistic before you tap, so
+           storing the other number would change it under you. Falls back to
+           the series when the workout carries no statistic. */
+        avgHeartRateBpm:
+          workout.avgHeartRateBpm ??
+          (series.values.length
+            ? Math.round(series.values.reduce((n, v) => n + v, 0) / series.values.length)
+            : null),
+        peakHeartRateBpm:
+          workout.peakHeartRateBpm ?? (series.values.length ? Math.max(...series.values) : null),
         minHeartRateBpm: series.values.length ? Math.min(...series.values) : null,
         distanceValue: workout.distanceValue,
         distanceUnit: workout.distanceUnit,

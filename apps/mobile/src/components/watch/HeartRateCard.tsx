@@ -36,6 +36,18 @@ export interface HeartRateCardProps {
   onSelect?: (index: number | null) => void;
   /** Set when the max is estimated rather than observed, for the footnote. */
   maxIsEstimated?: boolean;
+  /**
+   * The workout's own average/peak, as HealthKit reported them.
+   *
+   * These must win over anything derived from `series`: HealthKit averages
+   * every sample the Watch took, while `series` is the downsampled copy we
+   * store, so the two disagree by a few bpm. `WatchSummaryCard` sits
+   * directly above this one showing the HealthKit numbers — recomputing
+   * here would put two different "avg HR" on one screen. Falls back to the
+   * series when the workout carries no statistic.
+   */
+  avgBpm?: number | null;
+  peakBpm?: number | null;
 }
 
 const BAR_COUNT = 25;
@@ -48,6 +60,8 @@ export function HeartRateCard({
   selectedIndex = null,
   onSelect,
   maxIsEstimated = true,
+  avgBpm = null,
+  peakBpm = null,
 }: HeartRateCardProps) {
   const theme = useTheme();
   const bands = useMemo(() => zoneBands(model), [model]);
@@ -84,7 +98,7 @@ export function HeartRateCard({
   const selectedZone = selected ? zoneOf(selected.bpm, bands) : null;
   const readout = selected
     ? `${formatClock(startedAt, series, selected.index)} · ${selected.bpm} bpm · Zone ${selectedZone?.zone ?? '—'}`
-    : `${summary.avgBpm ?? '—'} avg · ${summary.peakBpm ?? '—'} peak`;
+    : `${avgBpm ?? summary.avgBpm ?? '—'} avg · ${peakBpm ?? summary.peakBpm ?? '—'} peak`;
 
   return (
     <Card style={styles.card} testID="heart-rate-card">

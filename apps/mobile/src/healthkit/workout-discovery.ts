@@ -20,6 +20,17 @@ export interface DiscoveredWorkout {
   distanceValue: number | null;
   distanceUnit: 'mi' | 'km' | null;
   caloriesKcal: number | null;
+  /**
+   * The workout's own heart-rate statistics, from
+   * `WorkoutProxy.getStatistic()`.
+   *
+   * Read at discovery because a statistic is a single aggregate — unlike
+   * the sample series, which is only pulled once a workout is actually
+   * attached. Null when the Watch recorded no heart rate (a pool swim, a
+   * manually-entered workout) or when the read was refused.
+   */
+  avgHeartRateBpm: number | null;
+  peakHeartRateBpm: number | null;
 }
 
 /** A workout we are not offering, and the reason, so the UI can say so. */

@@ -22,6 +22,8 @@ function workout(over: Partial<DiscoveredWorkout> = {}): DiscoveredWorkout {
     startedAt: '2026-09-01T18:45:00.000Z',
     endedAt: '2026-09-01T19:00:00.000Z',
     durationSeconds: 900,
+    avgHeartRateBpm: 118,
+    peakHeartRateBpm: 141,
     distanceValue: 0.8,
     distanceUnit: 'mi',
     caloriesKcal: 64,

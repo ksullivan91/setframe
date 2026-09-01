@@ -662,6 +662,8 @@ export default function WorkoutSessionV2Screen() {
                 selectedIndex={insights.selectedIndex}
                 onSelect={insights.setSelectedIndex}
                 maxIsEstimated={insights.maxIsEstimated}
+                avgBpm={insights.avgBpm}
+                peakBpm={insights.peakBpm}
               />
             ) : null}
             <EffortByExerciseCard efforts={insights.efforts} />

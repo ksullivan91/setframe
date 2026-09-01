@@ -8,7 +8,7 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web",
+    "web": "node scripts/patch-web-polyfills.mjs && expo start --web",
     "build": "expo export",
     "typecheck": "tsc --noEmit",
     "test": "jest",
@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@clerk/clerk-expo": "2.20.0",
+    "@expo/metro-runtime": "~57.0.15",
     "@hookform/resolvers": "5.9.1",
     "@kingstinct/react-native-healthkit": "14.0.2",
     "@setframe/design-tokens": "0.0.0",
@@ -45,6 +46,7 @@
     "react-native-safe-area-context": "5.9.1",
     "react-native-screens": "4.27.0",
     "react-native-svg": "15.15.5",
+    "react-native-web": "^0.21.2",
     "zod": "4.4.3"
   },
   "devDependencies": {

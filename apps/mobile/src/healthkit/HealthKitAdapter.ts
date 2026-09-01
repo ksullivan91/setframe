@@ -690,7 +690,8 @@ class HealthKitAdapter {
       const out: DiscoveredWorkout[] = [];
       for (const proxy of proxies ?? []) {
         const workout = readWorkout(proxy);
-        if (workout) out.push(workout);
+        if (!workout) continue;
+        out.push({ ...workout, ...(await readWorkoutHeartRateStats(proxy)) });
       }
       return out.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
     } catch {
@@ -895,7 +896,48 @@ function readWorkout(proxy: unknown): DiscoveredWorkout | null {
     distanceValue,
     distanceUnit,
     caloriesKcal,
+    /* Filled in by `readWorkoutHeartRateStats` — `getStatistic` is async
+       and this reader is not. */
+    avgHeartRateBpm: null,
+    peakHeartRateBpm: null,
   };
+}
+
+/**
+ * A workout's own average and peak heart rate.
+ *
+ * `getStatistic` scoped to the proxy, so an evening's lift and the run
+ * after it get their own figures rather than one average smeared across
+ * both. Returns nulls rather than throwing: a workout with no heart rate
+ * (a pool swim, a manually-logged session) is ordinary, not an error.
+ */
+async function readWorkoutHeartRateStats(
+  proxy: unknown,
+): Promise<{ avgHeartRateBpm: number | null; peakHeartRateBpm: number | null }> {
+  const none = { avgHeartRateBpm: null, peakHeartRateBpm: null };
+  const p = proxy as {
+    getStatistic?: (type: string, unit?: string) => Promise<unknown>;
+  } | null;
+  if (typeof p?.getStatistic !== 'function') return none;
+  try {
+    const stat = (await p.getStatistic('HKQuantityTypeIdentifierHeartRate', 'count/min')) as {
+      averageQuantity?: { quantity?: number };
+      maximumQuantity?: { quantity?: number };
+    } | null;
+    if (!stat) return none;
+    return {
+      avgHeartRateBpm: bpm(stat.averageQuantity?.quantity),
+      peakHeartRateBpm: bpm(stat.maximumQuantity?.quantity),
+    };
+  } catch {
+    return none;
+  }
+}
+
+/** A heart rate we are willing to store: positive, and inside int2. */
+function bpm(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return null;
+  return Math.min(300, Math.round(value));
 }
 
 export const healthKit = new HealthKitAdapter();

@@ -98,6 +98,12 @@ export function useWatchSessionInsights({
     efforts,
     startedAt: primary?.startedAt ?? null,
     endedAt: primary?.endedAt ?? null,
+    /* HealthKit's own statistics for the primary workout — what
+       `WatchSummaryCard` shows. The chart header reads these rather than
+       recomputing from the downsampled series, so one screen never carries
+       two different averages. */
+    avgBpm: primary?.avgHeartRateBpm ?? null,
+    peakBpm: primary?.peakHeartRateBpm ?? null,
     selectedIndex,
     setSelectedIndex,
   };

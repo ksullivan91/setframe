@@ -20,6 +20,8 @@ function workout(over: Partial<DiscoveredWorkout> = {}): DiscoveredWorkout {
     distanceValue: 0.8,
     distanceUnit: 'mi',
     caloriesKcal: 64,
+    avgHeartRateBpm: 118,
+    peakHeartRateBpm: 141,
     ...over,
   };
 }
