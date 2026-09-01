@@ -25,8 +25,9 @@ rather than only the sets I typed.
   and on Today's completed card.
 
 ## Explicitly not in scope
-- **Live heart rate during a set.** That needs a watchOS companion app; see
-  the design doc. The feature must not imply it.
+- **A watchOS app for logging sets on the wrist.** Wanted later and tracked
+  separately. Independent of this story: nothing here blocks it, and every
+  metric this story needs comes from the finished Watch workout.
 
 ## Acceptance Criteria
 - [ ] Heart rate and basal energy join `EXTENDED_READ_TYPES` and ride the

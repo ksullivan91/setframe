@@ -13,42 +13,35 @@ home. The Watch recorded each of them with heart rate and real calories.
 Collect them onto the Setframe session so the numbers describe the block
 rather than a fragment of it.
 
-## Detection is free. Live logging is not.
+## How a Watch session finds its Setframe session
 
-Two different things sit behind Hevy's prompt, and only one is expensive.
-Their dialog reads: *"Enabling Apple Watch Live Sync will allow you to
-seamlessly log your workout on your watch and phone at the same time."*
+Both sides already carry what is needed to match them: a start and an end. A
+Setframe session has `startedAt` and `completedAt`; a HealthKit workout has
+`startDate`, `endDate` and its own UUID. Matching is a time comparison, and
+the UUID is what stops it happening twice.
 
-**Detecting the Watch needs no watch app.** Every HealthKit sample carries
-`device` (`model: "Watch"`, hardware version) and
-`sourceRevision.productType`, so we can tell that an Apple Watch wrote a
-workout and name which one. The "Apple Watch detected" prompt in frame 1 is
-buildable today.
+**The match.** On finish — and again on foreground, for sessions closed
+earlier — query the Watch workouts around the session and offer any that
+overlap it or begin shortly after. Overlap covers the lift; the window
+covers the run and the walk home. Confirmed by the user, never attached
+silently.
 
-**Logging *on* the watch is the expensive half.** Putting sets on the wrist
-needs a UI on the wrist: a watchOS target, its own build and submission, and
-`WatchConnectivity` between them. That is a project, not a story.
-`startWatchApp(workoutConfiguration)` exists in our library but launches
-*your* watch app, so it has nothing to launch until one is built. And
-`enableBackgroundDelivery` is batched and delayed by design — a freshness
-optimization, exactly as `docs/architecture.md` §5 already says.
+**What each attached workout carries.** `WorkoutProxy.getStatistic()`
+returns per-workout statistics, so each one brings its own average and peak
+heart rate, active energy, duration and distance — scoped to that workout
+rather than smeared across the day. That is what makes a collection worth
+more than a single number.
 
-**Neither of which this feature needs.** Heart rate, average heart rate,
-workout time, active and total calories, collected onto the session — every
-metric requested comes from the *finished* workout, read through
-`WorkoutProxy.getStatistic()`. Liveness is the only thing a watch target
-buys, and it was not the request.
+**Detecting the Watch** needs no watch app. Every sample carries `device`
+(`model: "Watch"`, hardware version) and `sourceRevision.productType`, so
+frame 1's prompt can name the actual watch that wrote the workouts.
 
-### Where this is inference
+### A watch app is a later feature
 
-That Hevy ships a watchOS app is read off their own copy — "log your workout
-on your watch" — not verified. It does not change what we build either way.
-What must stay true is frame 1's last line: *"Setframe reads these after a
-workout ends, not live during it."* Promising live and delivering
-after-the-fact is how trust goes.
-
-A watchOS companion remains a real option later, and it is the only path to
-a heart rate mid-set.
+Logging sets on the wrist is wanted eventually and is out of scope here: it
+needs a watchOS target, its own build and submission, and
+`WatchConnectivity`. Nothing in this feature blocks it, and this feature
+does not need it — every metric requested comes from the finished workout.
 
 ## Where the collection lives
 
