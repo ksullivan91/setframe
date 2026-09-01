@@ -139,6 +139,67 @@ band. Because the samples are kept and the zones are not, changing the zone
 model later **re-labels all history** instead of stranding it. Frame 6 says
 which model produced the numbers, for exactly that reason.
 
+## What the data can be charted into
+
+Frames 6–8 are the three worth building first. Everything else is ranked
+below with what it costs.
+
+| Frame | Chart | Why it earns the space |
+|---|---|---|
+| 6 | Heart-rate curve + time in zone | The curve is the reason to keep every sample. Set markers along the axis are the join between our data and theirs. |
+| 7 | **Effort by exercise** | Average and peak heart rate per lift. Cannot exist in Apple Health (no set log) or in a lifting app alone (no heart rate) — the clearest thing this feature buys. |
+| 8 | The whole block | Lift, run and walk on one clock, with the gaps drawn. The only frame that shows why a *collection* is a better object than one workout. |
+
+### One column gates half of the rest
+
+`workout_set` has `created_at` and `updated_at` but **no `performed_at`**.
+`updated_at` moves when a set is corrected — and correcting after completion
+is a flow this app deliberately supports — so it cannot say when a set
+actually happened.
+
+Add `performed_at`, set once when a set is first marked complete and never
+updated. One nullable column, and **no backfill is possible**: you cannot
+recover when a past set was performed, so every day without it is a day of
+charts that can never exist.
+
+It unlocks every chart that puts sets and heart rate on one clock — set
+markers, effort by exercise, rest quality, recovery between sets. Without
+it, the heart-rate curve is just a curve.
+
+### Ranked, beyond the three
+
+1. **Recovery between sets** ★ — how fast heart rate drops in each rest,
+   trended within the session. A real fitness marker no lifting app shows,
+   because none hold both halves. Needs `performed_at`.
+2. **Cardiac drift** — first third against last third at matched intensity.
+   Free from the curve alone.
+3. **Calories by activity** — how the block's energy split. Free; the totals
+   are already per workout.
+4. **Zone mix over weeks** — whether you train the range you think you do.
+   Needs history, then free.
+5. **Same-workout trend** — is Upper A getting easier? Needs repeats.
+6. **Effort per unit of work** — volume ÷ average heart rate. Worth a spike
+   first; may be too noisy at set resolution to mean anything.
+7. **Heart rate against load** — tempting, probably noise. Heart rate lags
+   effort by tens of seconds, so a 20-second set ends before its peak
+   arrives.
+
+### Why none of these use a rainbow
+
+The first zone chart did. Five zones meant five categorical hues that also
+had to read as ordered — the standard fitness-app chart, which the palette
+validator fails and colour-blind readers cannot use at all.
+
+What replaced it: the trace is **one series** in `action.primary`, which
+passes every check. Zones became recessive background bands named at the
+edge, and time-in-zone a single-hue stacked bar with each segment directly
+labelled beneath. Position and text carry identity; colour carries nothing
+it cannot afford to lose.
+
+Separately: **`chart.series` in design-tokens currently fails validation** —
+the caution amber is outside the lightness band, and two of five fall under
+3:1 contrast on surface. Worth fixing before anything reaches for it.
+
 ## Scope boundary — what this must not change
 
 This feature composes with what already ships; it does not rework it.

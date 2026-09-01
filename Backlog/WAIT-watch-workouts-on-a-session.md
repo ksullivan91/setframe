@@ -72,6 +72,16 @@ rather than only the sets I typed.
 - [ ] No shared component and no shipped screen is modified; the existing
       suites for Today, the logger and Additional activity pass unchanged.
 
+## Prerequisite — add `workout_set.performed_at`
+
+Set once when a set is first marked complete, never updated. `updated_at`
+moves when a set is corrected, so it cannot say when the set happened.
+
+**No backfill is possible.** Every day without this column is a day whose
+sets can never be placed on a clock, so it should land before the rest of
+the story rather than with it. It gates set markers on the curve, effort by
+exercise, rest quality and recovery between sets.
+
 ## Scope boundary (see the design doc for the full table)
 
 **Must not be edited:** the shipped Apple Health connection and story 44
