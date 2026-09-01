@@ -76,11 +76,17 @@ active kcal, total kcal, average/peak/min HR, distance, device name.
 Append-mostly and snapshotted at attach time per ADR 0005, so nothing later
 changes what a past session reports.
 
-**Summary, not samples.** `docs/architecture.md` §4: imported metrics are
-stored as a normalized snapshot, never raw samples. A 60-minute workout is
-hundreds of heart-rate readings. Store the statistics; if a chart needs a
-curve, store a deliberately downsampled series in its own column and record
-how many points it holds.
+**Every sample, not a summary.** Reversed after discussion, and written up
+as **ADR 0012**. `docs/architecture.md` §4 said imported metrics are stored
+as a snapshot, never raw samples — that rule stands for *daily* metrics,
+which are a rolling cache re-reconciled on every foreground. A finished
+workout is not a cache: ADR 0005 already says fact rows are snapshotted and
+never re-derived, so its heart-rate curve is evidence.
+
+So `session_watch_sample` stores row-per-sample — `kind`, `recorded_at`,
+`value`, `unit` — keyed to the attached workout. Row-per-sample rather than
+a JSONB blob because the stated purpose is analysis, and a blob answers
+exactly one question well.
 
 ### This supersedes the suppression rule
 
@@ -104,6 +110,28 @@ and basal energy for a true total-calorie figure — ride the existing
 **Watch out:** do not add the attached active calories to the day's
 HealthKit active-energy figure on Today. They are the same joules counted
 twice — the session's number is a *subset* of the day's, not an addition.
+
+## Heart-rate zones are computed, never stored
+
+**HealthKit has no zone type.** The only `Zone` identifier in its entire
+surface is `HKTimeZone`. Apple Watch computes zones for display in the
+Workout app and never persists them, so zones can only be *derived* — which
+is the sharpest argument for keeping every sample.
+
+Derived from inputs we already read:
+
+- **Age** from `HKCharacteristicTypeIdentifierDateOfBirth`.
+- **Resting heart rate** from `HKQuantityTypeIdentifierRestingHeartRate`,
+  which enables heart-rate-**reserve** (Karvonen) zones rather than the
+  cruder percentage-of-max.
+- **Maximum** heart rate: estimated by Tanaka (`208 − 0.7 × age`, more
+  accurate than `220 − age`), or the observed maximum across the user's own
+  history — an open call.
+
+Time-in-zone is the summed interval between consecutive samples in each
+band. Because the samples are kept and the zones are not, changing the zone
+model later **re-labels all history** instead of stranding it. Frame 6 says
+which model produced the numbers, for exactly that reason.
 
 ## Scope boundary — what this must not change
 
@@ -151,8 +179,11 @@ it must keep working as suppression whenever the user declines to attach.
 - **Attach all, or choose.** Frame 2 offers both. Attach-all is one tap for
   the common case; Choose exists because a Watch workout during a session
   might be a stray auto-detected walk.
-- **Whether a curve is stored.** Average and peak answer most questions. A
-  heart-rate graph over the session is the reason to store a series, and the
-  reason this is not free.
+- ~~Whether a curve is stored.~~ **Settled:** store every sample. See ADR
+  0012 for the volume maths (~1,400 rows and 60 KB per hour-long workout,
+  ~375k rows per user per year) and the three rejected alternatives.
+- **Which maximum heart rate defines the zones** — Tanaka estimate from age,
+  or the observed maximum across the user's own history. The estimate works
+  on day one; the observed value gets better and can move under the user.
 - **Retro-attaching.** Only new sessions, or a backfill over recent ones?
   The Watch data is already in HealthKit for past weeks.

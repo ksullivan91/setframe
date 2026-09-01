@@ -25,6 +25,12 @@ rather than only the sets I typed.
 - Attach as a **collection** — a lift, a run and a walk are one block.
 - Store a snapshot per workout: type, start/end, duration, active and total
   calories, average/peak/min heart rate, distance, device.
+- Store **every sample** HealthKit exposes for that workout, row-per-sample
+  (`session_watch_sample`), per ADR 0012 — the curve and everything derived
+  from it depend on it.
+- Derive heart-rate zones and time-in-zone on read. HealthKit stores no zone
+  type, so they are computed from age and resting heart rate using
+  heart-rate reserve.
 - Surface rolled-up Active kcal, Total kcal and Average HR on the session
   and on Today's completed card.
 
@@ -50,8 +56,16 @@ rather than only the sets I typed.
       and never claims a workout is attached before its object exists.
 - [ ] A Watch workout that ends mid-session attaches then, not only at
       Finish, so several across one session each land as they complete.
-- [ ] Tests cover the attach window, dedupe, detach, the roll-up, and the
-      recording heuristic's cadence threshold.
+- [ ] Every sample for an attached workout is persisted once, keyed by the
+      workout's HealthKit UUID, and never resent on later reconciles.
+- [ ] Detaching deletes the samples — the copy outlives HealthKit, so there
+      must be a way back out.
+- [ ] Zones are computed on read, never stored as fact, so changing the
+      model re-labels history rather than stranding it.
+- [ ] Every sample query scopes by request.userId. This is per-second heart
+      rate; it is the least forgiving place to forget ADR 0002.
+- [ ] Tests cover the attach window, dedupe, detach, the roll-up, the
+      recording heuristic's cadence threshold, and time-in-zone maths.
 - [ ] No shared component and no shipped screen is modified; the existing
       suites for Today, the logger and Additional activity pass unchanged.
 
