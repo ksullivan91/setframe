@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Setframe mark: the brand initial drawn in the same rounded-bar
+       geometry the app uses for its charts (heartRateChart.barRadius).
+       Single open path, round caps, no fill — so it holds its weight at
+       every size and inverts cleanly. -->
+  <path d="M700 320 H424 a96 96 0 0 0 0 192 h176 a96 96 0 0 1 0 192 H324"
+        fill="none" stroke="#364bf2" stroke-width="104" stroke-linecap="round"/>
+</svg>

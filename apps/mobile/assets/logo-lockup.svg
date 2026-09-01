@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 200" width="760" height="200">
+  <!-- Horizontal lockup: mark + wordmark. Clear space either side equals
+       the mark's cap height. Wordmark is set in the system UI face, which
+       is what the app itself renders in on iOS. -->
+  <g transform="translate(20,36) scale(0.125)">
+    <path d="M700 320 H424 a96 96 0 0 0 0 192 h176 a96 96 0 0 1 0 192 H324"
+          fill="none" stroke="#364bf2" stroke-width="104" stroke-linecap="round"/>
+  </g>
+  <text x="168" y="130" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', system-ui, sans-serif"
+        font-size="104" font-weight="600" letter-spacing="-3" fill="#151522">Setframe</text>
+</svg>

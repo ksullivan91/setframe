@@ -17,7 +17,11 @@
       }
     },
     "android": {
-      "package": "com.setframe.app"
+      "package": "com.setframe.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#364bf2"
+      }
     },
     "plugins": [
       "expo-router",
@@ -27,7 +31,16 @@
           "background": false
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "backgroundColor": "#364bf2"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
@@ -38,6 +51,10 @@
         "projectId": "e4fc691d-addc-43b4-b078-31e6aad6b013"
       }
     },
-    "owner": "setframes-team"
+    "owner": "setframes-team",
+    "icon": "./assets/icon.png",
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
   }
 }
