@@ -146,7 +146,7 @@ below with what it costs.
 
 | Frame | Chart | Why it earns the space |
 |---|---|---|
-| 6 | Heart-rate curve + time in zone | The curve is the reason to keep every sample. Set markers along the axis are the join between our data and theirs. |
+| 6 | Heart-rate bars + time in zone | The curve is the reason to keep every sample; bars show the sawtooth of sets and rests better than a line does. |
 | 7 | **Effort by exercise** | Average and peak heart rate per lift. Cannot exist in Apple Health (no set log) or in a lifting app alone (no heart rate) — the clearest thing this feature buys. |
 | 8 | The whole block | Lift, run and walk on one clock, with the gaps drawn. The only frame that shows why a *collection* is a better object than one workout. |
 
@@ -184,17 +184,36 @@ it, the heart-rate curve is just a curve.
    effort by tens of seconds, so a 20-second set ends before its peak
    arrives.
 
-### Why none of these use a rainbow
+### The zone chart: bars, and why not a rainbow
 
-The first zone chart did. Five zones meant five categorical hues that also
-had to read as ordered — the standard fitness-app chart, which the palette
-validator fails and colour-blind readers cannot use at all.
+The chart is **vertical bars over time, coloured by zone** — the shape of the
+session at a glance, with the zone rows beneath giving the exact minutes.
 
-What replaced it: the trace is **one series** in `action.primary`, which
-passes every check. Zones became recessive background bands named at the
-edge, and time-in-zone a single-hue stacked bar with each segment directly
-labelled beneath. Position and text carry identity; colour carries nothing
-it cannot afford to lose.
+The colour took some getting to. Five zone colours means five hues that must
+*also* read as ordered, which is the standard fitness-app chart and does not
+survive colour blindness: the usual amber and orange sit **ΔE 3.7** apart for
+a deuteranope, so Zone 3 and Zone 4 are literally the same colour. 192
+generated candidate ramps were tested against the palette validator and
+**none passed** — five ordered hues cannot all separate within a light
+surface's lightness band. That is a real constraint, not a failed search.
+
+The way out is that **in a heart-rate chart the zone is the height**. That
+makes this *magnitude*, not identity — and magnitude takes a sequential
+single-hue ramp. Accent 300 → 900, monotonic in lightness by 0.08–0.12 per
+step:
+
+| Zone | Step | OKLab L |
+|---|---|---|
+| 1 · Very light | accent 300 | 0.749 |
+| 2 · Light | accent 500 | 0.628 |
+| 3 · Moderate | accent 600 | 0.517 |
+| 4 · Hard | accent 700 | 0.437 |
+| 5 · Peak | accent 900 | 0.299 |
+
+Lightness ordering is something every reader gets regardless of colour
+vision, and a reader who perceives no hue at all still reads the zone off the
+bar's height. The legend rows carry number, name, bpm range and time, so
+identity is never colour-alone there either.
 
 Separately: **`chart.series` in design-tokens currently fails validation** —
 the caution amber is outside the lightness band, and two of five fall under
