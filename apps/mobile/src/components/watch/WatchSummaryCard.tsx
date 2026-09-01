@@ -20,7 +20,6 @@ export function WatchSummaryCard({ workouts }: { workouts: readonly SessionWatch
     workouts.reduce((total, w) => total + (pick(w) ?? 0), 0);
 
   const activeKcal = Math.round(sum((w) => w.activeEnergyKcal));
-  const totalKcal = Math.round(sum((w) => w.totalEnergyKcal));
 
   /* Averaged by DURATION, not by workout. A 4-minute walk and a 64-minute
      lift are not two equal opinions about the session's heart rate. */
@@ -39,9 +38,15 @@ export function WatchSummaryCard({ workouts }: { workouts: readonly SessionWatch
   );
 
   const device = workouts.find((w) => w.deviceName)?.deviceName ?? null;
+  /* Three tiles, not four.
+     There is no "Total kcal" here because HealthKit does not give one:
+     `HKWorkout.totalEnergyBurned` is the ACTIVE energy, which is what
+     `activeEnergyKcal` already holds. A true total is active + basal, and
+     basal is a separate query over the workout's window — a second read
+     and a second permission for a number nobody asked to see. Four tiles
+     also wrapped every label onto two lines at 390pt. */
   const tiles: [string, string][] = [
     ['Active kcal', activeKcal > 0 ? String(activeKcal) : '—'],
-    ['Total kcal', totalKcal > 0 ? String(totalKcal) : '—'],
     ['Avg HR', avgHr != null ? String(avgHr) : '—'],
     ['Peak HR', peakHr != null ? String(peakHr) : '—'],
   ];
@@ -61,8 +66,23 @@ export function WatchSummaryCard({ workouts }: { workouts: readonly SessionWatch
             testID={`watch-tile-${label}`}
             style={[styles.tile, { backgroundColor: theme.surface.sunken }]}
           >
-            <Text style={[styles.tileValue, { color: theme.text.primary }]}>{value}</Text>
-            <Text style={[styles.tileLabel, { color: theme.text.secondary }]}>{label}</Text>
+            <Text
+              numberOfLines={1}
+              style={[styles.tileValue, { color: theme.text.primary }]}
+            >
+              {value}
+            </Text>
+            {/* One line, always. A wrapped label makes its tile taller than
+                the others and the row stops reading as a row — which is
+                what four tiles did at 390pt. */}
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.85}
+              style={[styles.tileLabel, { color: theme.text.secondary }]}
+            >
+              {label}
+            </Text>
           </View>
         ))}
       </View>
@@ -96,14 +116,19 @@ const styles = StyleSheet.create({
   tiles: { flexDirection: 'row', gap: spacing[8] },
   tile: {
     flex: 1,
+    /* Equal widths regardless of content: without a zero basis a long
+       value ("1,284") makes its tile wider than its neighbours. */
+    flexBasis: 0,
+    minWidth: 0,
     borderRadius: radius.small,
-    paddingTop: spacing[8] + 2,
-    paddingBottom: spacing[8] + 2,
-    paddingLeft: spacing[8] + 2,
-    paddingRight: spacing[8],
+    // Symmetric. The old left/right pair differed by 2pt, which read as
+    // the text sitting slightly off-centre in every tile.
+    paddingVertical: spacing[8] + 2,
+    paddingHorizontal: spacing[8] + 2,
     gap: 2,
   },
   tileValue: { fontSize: 17, fontWeight: '600' },
   tileLabel: { fontSize: 10 },
+
   note: { fontSize: typeScale.caption.fontSize, lineHeight: 15 },
 });

@@ -68,13 +68,35 @@ const workout = {
 };
 
 describe('WatchSummaryCard · Figma 265:2 › WatchSummary', () => {
-  it('renders the four tiles the design specifies, in order', () => {
+  it('renders three tiles, in order', () => {
     const text = allText(render(<WatchSummaryCard workouts={[workout]} />));
-    for (const s of ['From your Watch', 'Series 9', '612', 'Active kcal', '842', 'Total kcal', '142', 'Avg HR', '171', 'Peak HR']) {
+    for (const s of ['From your Watch', 'Series 9', '612', 'Active kcal', '142', 'Avg HR', '171', 'Peak HR']) {
       expect(text).toContain(s);
     }
-    const order = ['Active kcal', 'Total kcal', 'Avg HR', 'Peak HR'].map((l) => text.indexOf(l));
+    const order = ['Active kcal', 'Avg HR', 'Peak HR'].map((l) => text.indexOf(l));
     expect(order).toEqual([...order].sort((a, b) => a - b));
+  });
+
+  it('carries no Total kcal tile — HealthKit has no such number', () => {
+    /* `HKWorkout.totalEnergyBurned` IS the active energy, so the tile could
+       only ever render a dash: nothing populated it, and on the device it
+       always showed "—". A real total is active + basal, a second query and
+       a second permission. Four tiles also wrapped every label onto two
+       lines at 390pt, which is what made the row look broken. */
+    const text = allText(render(<WatchSummaryCard workouts={[{ ...workout, totalEnergyKcal: 842 }]} />));
+    expect(text).not.toContain('Total kcal');
+    expect(text).not.toContain('842');
+  });
+
+  it('keeps every tile label on one line', () => {
+    // A wrapped label makes its tile taller than its neighbours.
+    const rendered = render(<WatchSummaryCard workouts={[workout]} />);
+    const labels = rendered.root.findAll(
+      (n) => typeof n.type === 'string' && typeof n.props?.children === 'string'
+        && ['Active kcal', 'Avg HR', 'Peak HR'].includes(n.props.children),
+    );
+    expect(labels).toHaveLength(3);
+    for (const l of labels) expect(l.props.numberOfLines).toBe(1);
   });
 
   it('names the workout and its duration underneath', () => {

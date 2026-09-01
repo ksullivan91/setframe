@@ -132,6 +132,19 @@ export default function DevWatchGallery() {
         <WatchSummaryCard workouts={[WORKOUT]} />
       </Section>
 
+      <Section label="Summary — the device's real session (3 workouts, 2h12m)">
+        <WatchSummaryCard
+          workouts={[
+            { ...WORKOUT, title: 'Traditional Strength Training', durationSeconds: 5796,
+              activeEnergyKcal: 429, avgHeartRateBpm: 92, peakHeartRateBpm: 132 },
+            { ...WORKOUT, id: 'w2', externalId: 'hk-walk', title: 'Outdoor Walk', durationSeconds: 653,
+              activeEnergyKcal: 51, avgHeartRateBpm: 86, peakHeartRateBpm: 94 },
+            { ...WORKOUT, id: 'w3', externalId: 'hk-cycle', title: 'Outdoor Cycle', durationSeconds: 1488,
+              activeEnergyKcal: 204, avgHeartRateBpm: 129, peakHeartRateBpm: 149 },
+          ]}
+        />
+      </Section>
+
       <Section label="Heart rate — resting">
         <HeartRateCard
           series={SERIES}
