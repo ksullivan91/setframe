@@ -74,7 +74,7 @@ HealthKit ──> mobile sync coordinator ──> normalized daily payload
 | Data | Authoritative source | Notes |
 |---|---|---|
 | Workouts (programs/sessions/sets) | Our DB | HealthKit is not involved. |
-| Imported health metrics (steps, HR, weight if imported, activity rings) | HealthKit | DB stores normalized snapshot + provenance, not raw samples. |
+| Imported health metrics (steps, HR, weight if imported, activity rings) | HealthKit | DB stores normalized snapshot + provenance, not raw samples. **Exception:** the full sample series of a workout attached to a session is stored row-per-sample — see ADR 0012. A rolling daily metric is a cache; a finished workout is evidence. |
 | Manual metrics (weight entered by user, BP, notes) | Our DB | Coexists with an imported HealthKit weight value; UI shows deterministic source precedence, never silently overwrites. |
 | Nutrition (calories/macros) | MyFitnessPal → Apple Health → HealthKit read | No direct MFP integration. |
 
