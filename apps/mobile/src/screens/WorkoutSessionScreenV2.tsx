@@ -648,7 +648,12 @@ export default function WorkoutSessionV2Screen() {
           )
         ) : null}
         {sessionComplete ? (
-          <>
+          /* Pinned to CARD_WIDTH, the same width the exercise cards use.
+             The scroll body centres its children, so a bare Card hugs its
+             content and lands narrower than everything below it — which is
+             exactly how the Activity card ended up visibly inset from the
+             set cards on device. */
+          <View style={styles.watchBlock}>
             {/* The offer precedes what it buys: with nothing attached the
                 cards below render nothing at all, so this is the only thing
                 on screen until the user confirms. */}
@@ -679,7 +684,7 @@ export default function WorkoutSessionV2Screen() {
               />
             ) : null}
             <EffortByExerciseCard efforts={insights.efforts} />
-          </>
+          </View>
         ) : null}
         {exercises.map((log) => {
           const definition = getPrescriptionDefinition(log.prescription);
@@ -911,6 +916,7 @@ const styles = StyleSheet.create({
   bannerTotalValue: { fontSize: 32, fontWeight: '600' },
   bannerTotalUnit: { fontSize: 13, fontWeight: '500' },
   body: { alignItems: 'center', gap: 12, padding: 16 },
+  watchBlock: { width: CARD_WIDTH, gap: 12 },
   bottomBar: { paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1, alignItems: 'center' },
   addExercise: { width: CARD_WIDTH, height: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   addExerciseText: { fontSize: 14, fontWeight: '600' },

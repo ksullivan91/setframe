@@ -328,17 +328,16 @@ describe('VO\u2082 max', () => {
 });
 
 describe('card title', () => {
-  /* Always the source, in every state. Naming it tells you which app owns
-     the data and where to go when a number looks wrong, and it matches
-     the connect flow and the onboarding prompt. */
+  /* "Health metrics" in every state. The provenance line and the connect
+     button still name Apple Health, so the source is never in doubt where
+     it matters. */
   it.each(['not_connected', 'loading', 'connected', 'no_data'] as const)(
-    'is "Apple Health" in the %s state',
+    'is "Health metrics" in the %s state',
     (state) => {
       const text = allText(
         render(connection({ state, metrics: { ...connection().metrics, steps: 4200 } })),
       );
-      expect(text).toContain('Apple Health');
-      expect(text).not.toContain('Health metrics');
+      expect(text).toContain('Health metrics');
     },
   );
 });

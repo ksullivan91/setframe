@@ -6,6 +6,7 @@ import { WatchSummaryCard } from '../src/components/watch/WatchSummaryCard';
 import { HeartRateCard } from '../src/components/watch/HeartRateCard';
 import { EffortByExerciseCard } from '../src/components/watch/EffortByExerciseCard';
 import { useTheme } from '../src/theme/ThemeProvider';
+import { CARD_WIDTH } from '../src/components/workout-v2/ExerciseTableCard';
 
 /**
  * A development gallery for the story 45 cards.
@@ -137,7 +138,8 @@ export default function DevWatchGallery() {
         <WatchSummaryCard workouts={[WORKOUT]} />
       </Section>
 
-      <Section label="Summary — the device's real session (3 workouts, 2h12m)">
+      <Section label="Width check — block pinned to CARD_WIDTH (358), as the screen does">
+        <View style={styles.block}>
         <WatchSummaryCard
           workouts={[
             { ...WORKOUT, title: 'Traditional Strength Training', durationSeconds: 5796,
@@ -149,6 +151,7 @@ export default function DevWatchGallery() {
           ]}
           onRemove={() => {}}
         />
+        </View>
       </Section>
 
       <Section label="Heart rate — resting">
@@ -203,7 +206,8 @@ function Section({ label, children }: { label: string; children: React.ReactNode
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 16, gap: 24, maxWidth: 390, alignSelf: 'center', width: '100%' },
+  content: { padding: 16, gap: 24, maxWidth: 390, alignSelf: 'center', width: '100%', alignItems: 'center' },
+  block: { width: CARD_WIDTH, gap: 12 },
   heading: { fontSize: 26, fontWeight: '600' },
   note: { fontSize: 12 },
   section: { gap: 8 },

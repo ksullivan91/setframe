@@ -39,7 +39,13 @@ jest.mock('../healthkit/HealthKitAdapter', () => ({
   HEALTH_READ_TYPES: [],
 }));
 
-jest.mock('../lib/useScreenInsets', () => ({ useScreenTopPadding: () => 0 }));
+/* Both helpers. A partial module mock is how this suite has been misled
+   before: the missing export throws at render, not at import, so the
+   failure names the screen rather than the mock. */
+jest.mock('../lib/useScreenInsets', () => ({
+  useScreenTopPadding: () => 0,
+  useStackBottomPadding: () => 0,
+}));
 
 function connection(overrides: Partial<HealthConnection> = {}): HealthConnection {
   return {

@@ -3,7 +3,7 @@ import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator } from
 import { useRouter } from 'expo-router';
 import { useTheme } from '../theme/ThemeProvider';
 import { radius, spacing, typeScale } from '../theme/getTheme';
-import { useScreenTopPadding } from '../lib/useScreenInsets';
+import { useScreenTopPadding, useStackBottomPadding } from '../lib/useScreenInsets';
 import { healthKit } from '../healthkit/HealthKitAdapter';
 
 /**
@@ -47,6 +47,10 @@ export function HealthAccessScreen() {
   const theme = useTheme();
   const router = useRouter();
   const topPadding = useScreenTopPadding();
+  /* This is a Stack route with headerShown:false, so nothing sits between
+     the footer and the home indicator. Without this the Continue button
+     ends 16pt from the bottom of the glass and crowds the indicator. */
+  const bottomPadding = useStackBottomPadding();
   const [asking, setAsking] = useState(false);
 
   async function ask() {
@@ -99,7 +103,16 @@ export function HealthAccessScreen() {
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, { backgroundColor: theme.surface.raised, borderTopColor: theme.border.subtle }]}>
+      <View
+        style={[
+          styles.footer,
+          {
+            backgroundColor: theme.surface.raised,
+            borderTopColor: theme.border.subtle,
+            paddingBottom: bottomPadding,
+          },
+        ]}
+      >
         <Pressable
           testID="health-continue"
           accessibilityRole="button"

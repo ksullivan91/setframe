@@ -134,3 +134,41 @@ describe('full-screen modals reserve the status bar', () => {
     expect(found.filter((f) => !known.includes(f))).toEqual([]);
   });
 });
+
+/**
+ * And every screen with a bottom-anchored bar must clear the home
+ * indicator.
+ *
+ * Same reasoning as above, same blindness in jest: the insets mock returns
+ * zero, so a rendered assertion passes whether or not the screen reads
+ * them. HealthAccessScreen's Continue button shipped 16pt from the bottom
+ * of the glass, crowding the indicator on every home-indicator iPhone.
+ */
+const SCREENS_WITH_BOTTOM_BAR = ['HealthAccessScreen.tsx', 'WorkoutSessionScreenV2.tsx'];
+
+describe('screens clear the home indicator', () => {
+  it.each(SCREENS_WITH_BOTTOM_BAR)('%s reads the safe-area bottom inset', (file) => {
+    const source = fs.readFileSync(path.join(dir, file), 'utf8');
+    // Either the shared helper or the raw inset — both clear the indicator.
+    expect(source).toMatch(/useStackBottomPadding|insets\.bottom/);
+    // And applies it to a paddingBottom, rather than reading and dropping it.
+    expect(source).toMatch(/paddingBottom:\s*(bottomPadding|Math\.max\(insets\.bottom)/);
+  });
+});
+
+/**
+ * The Watch cards line up with the exercise cards.
+ *
+ * The session screen's scroll body centres its children, so a card with no
+ * width hugs its content. That is how the Activity card shipped visibly
+ * narrower than the set cards directly beneath it — a difference no
+ * rendered test would catch either, since jest does no layout.
+ */
+describe('the completed-session cards align', () => {
+  it('pins the Watch block to the same width as the exercise cards', () => {
+    const source = fs.readFileSync(path.join(dir, 'WorkoutSessionScreenV2.tsx'), 'utf8');
+    expect(source).toMatch(/watchBlock:\s*\{[^}]*width:\s*CARD_WIDTH/);
+    // And actually wraps the cards in it.
+    expect(source).toContain('style={styles.watchBlock}');
+  });
+});

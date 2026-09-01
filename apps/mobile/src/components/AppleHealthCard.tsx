@@ -61,11 +61,11 @@ export function AppleHealthCard({
 
   if (state_ === 'unavailable') return null;
 
-  /* Always "Apple Health", in every state. Naming the source is the
-     point: it tells you which app owns the data and where to go when a
-     number looks wrong, and it stays consistent with the connect flow and
-     with onboarding, which will prompt for this by name. */
-  const title = 'Apple Health';
+  /* "Health metrics" in every state. What the card holds is your metrics;
+     where they came from is said in the provenance line underneath, and
+     the connect button names Apple Health explicitly, so the source is
+     never in doubt where it matters. */
+  const title = 'Health metrics';
 
   const fmt = (value: number | null, unit?: string) =>
     value == null ? null : unit ? `${value.toLocaleString()} ${unit}` : value.toLocaleString();
