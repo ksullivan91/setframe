@@ -20,6 +20,21 @@ import * as SecureStore from 'expo-secure-store';
  */
 const KEY = 'setframe.dismissedWorkouts.v1';
 
+/**
+ * Watch workouts dismissed from a session's *attach* offer.
+ *
+ * A separate key from Today's suggestions on purpose. The two look alike
+ * but mean different things: dismissing a walk on Today says "don't log
+ * this as an activity", while dismissing it here says "this wasn't part of
+ * my session". Sharing one store would make the first silently do the
+ * second, which is the kind of surprise a user never traces back.
+ *
+ * Date-scoped for the same reason as the other: the attach card only ever
+ * offers today's workouts, so the record clears itself at midnight instead
+ * of growing forever.
+ */
+const ATTACH_KEY = 'setframe.dismissedAttachCandidates.v1';
+
 interface Stored {
   localDate: string;
   ids: string[];
@@ -53,12 +68,36 @@ export async function loadDismissedWorkouts(localDate: string): Promise<string[]
  * if two suggestions are dismissed in quick succession.
  */
 export async function dismissWorkout(localDate: string, externalId: string): Promise<string[]> {
+  return add(KEY, localDate, externalId);
+}
+
+/** As `loadDismissedWorkouts`, for the session attach offer. */
+export async function loadDismissedAttachCandidates(localDate: string): Promise<string[]> {
   try {
-    const raw = await SecureStore.getItemAsync(KEY);
-    const ids = parse(raw, localDate);
+    return [...parse(await SecureStore.getItemAsync(ATTACH_KEY), localDate)];
+  } catch {
+    return [];
+  }
+}
+
+/** As `dismissWorkout`, for the session attach offer. */
+export async function dismissAttachCandidate(
+  localDate: string,
+  externalId: string,
+): Promise<string[]> {
+  return add(ATTACH_KEY, localDate, externalId);
+}
+
+/**
+ * Re-reads before writing so a dismissal is not lost to a stale snapshot
+ * if two are dismissed in quick succession.
+ */
+async function add(key: string, localDate: string, externalId: string): Promise<string[]> {
+  try {
+    const ids = parse(await SecureStore.getItemAsync(key), localDate);
     ids.add(externalId);
     const next: Stored = { localDate, ids: [...ids] };
-    await SecureStore.setItemAsync(KEY, JSON.stringify(next));
+    await SecureStore.setItemAsync(key, JSON.stringify(next));
     return next.ids;
   } catch {
     return [externalId];

@@ -1,18 +1,30 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Alert } from 'react-native';
+import { Trash2 } from 'lucide-react-native';
 import { radius, spacing } from '@setframe/design-tokens';
 import type { SessionWatchWorkout } from '@setframe/schemas';
 import { Card } from '../Card';
+import { IconButton } from '../IconButton';
 import { useTheme } from '../../theme/ThemeProvider';
 import { typeScale } from '../../theme/getTheme';
 
 /**
  * "From your Watch" — the rolled-up figures for every attached workout.
  *
- * Figma `265:2 › WatchSummary`. Four tiles, because the block's totals are
- * the headline the collection buys; the individual workouts are named
- * underneath rather than listed, since a session usually has one.
+ * Figma `265:2 › WatchSummary` for the tiles, `229:67 · Attached
+ * collection` for the list beneath them. The totals are the headline the
+ * collection buys; the rows exist so an accidental attachment can be
+ * removed, which needs something to hang the control off.
  */
-export function WatchSummaryCard({ workouts }: { workouts: readonly SessionWatchWorkout[] }) {
+export function WatchSummaryCard({
+  workouts,
+  onRemove,
+  removingId,
+}: {
+  workouts: readonly SessionWatchWorkout[];
+  /** Detaches one workout. Same confirm-then-delete shape as Today. */
+  onRemove?: (id: string) => void;
+  removingId?: string | null;
+}) {
   const theme = useTheme();
   if (workouts.length === 0) return null;
 
@@ -86,9 +98,64 @@ export function WatchSummaryCard({ workouts }: { workouts: readonly SessionWatch
           </View>
         ))}
       </View>
+      {/* One row per attached workout, so a mis-attached walk can be taken
+          back off. Only worth the space when removal is possible — with no
+          handler the single summary line still says it better. */}
+      {onRemove ? (
+        <View style={styles.rows}>
+          {workouts.map((w) => (
+            <View
+              key={w.id}
+              testID={`watch-attached-${w.id}`}
+              style={[styles.row, { backgroundColor: theme.surface.sunken }]}
+            >
+              <View style={styles.rowMeta}>
+                <Text
+                  numberOfLines={1}
+                  style={[styles.rowTitle, { color: theme.text.primary }]}
+                >
+                  {w.title}
+                </Text>
+                <Text style={[styles.rowDetail, { color: theme.text.secondary }]}>
+                  {rowDetail(w)}
+                </Text>
+              </View>
+              {/* Same control as a logged activity on Today: a subtle trash,
+                  and a confirm before anything goes. */}
+              <IconButton
+                icon={Trash2}
+                size={28}
+                variant="subtle"
+                disabled={removingId === w.id}
+                accessibilityLabel={`Remove ${w.title}`}
+                onPress={() =>
+                  Alert.alert(`Remove ${w.title}?`, 'This detaches it from this session.', [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Remove', style: 'destructive', onPress: () => onRemove(w.id) },
+                  ])
+                }
+              />
+            </View>
+          ))}
+        </View>
+      ) : null}
       <Text style={[styles.note, { color: theme.text.secondary }]}>{describe(workouts)}</Text>
     </Card>
   );
+}
+
+/** "5:32 PM · 1h 04m · 142 avg" — enough to tell two apart before removing one. */
+function rowDetail(w: SessionWatchWorkout): string {
+  const minutes = Math.round(w.durationSeconds / 60);
+  return [
+    new Date(w.startedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+    minutes >= 60
+      ? `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m`
+      : `${minutes} min`,
+    w.avgHeartRateBpm != null ? `${w.avgHeartRateBpm} avg` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 }
 
 /** "Traditional Strength Training · 1h 04m, attached to this session." */
@@ -131,4 +198,17 @@ const styles = StyleSheet.create({
   tileLabel: { fontSize: 10 },
 
   note: { fontSize: typeScale.caption.fontSize, lineHeight: 15 },
+  rows: { gap: spacing[8] - 2 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[8],
+    borderRadius: radius.small,
+    paddingVertical: spacing[8],
+    paddingLeft: spacing[12],
+    paddingRight: spacing[8],
+  },
+  rowMeta: { flex: 1, minWidth: 0, gap: 1 },
+  rowTitle: { fontSize: 13, fontWeight: '600' },
+  rowDetail: { fontSize: 11 },
 });

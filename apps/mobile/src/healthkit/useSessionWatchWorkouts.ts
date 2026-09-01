@@ -1,9 +1,13 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SessionWatchWorkout } from '@setframe/schemas';
 import { healthKit } from './HealthKitAdapter';
 import { overlaps, type DiscoveredWorkout } from './workout-discovery';
 import { useApiClient } from '../lib/api-client';
+import {
+  dismissAttachCandidate,
+  loadDismissedAttachCandidates,
+} from './dismissed-workouts';
 
 /**
  * Watch workouts attached to one Setframe session (story 45).
@@ -72,8 +76,9 @@ export function candidatesForSession(
  */
 export function useSessionWatchWorkouts(
   sessionId: string | null,
-  { onError }: { onError: (message: string) => void },
+  { onError, localDate }: { onError: (message: string) => void; localDate: string },
 ) {
+  const { dismissedExternalIds, dismiss } = useDismissedAttachCandidates(localDate);
   const api = useApiClient();
   const queryClient = useQueryClient();
   const key = ['session-watch-workouts', sessionId];
@@ -141,5 +146,48 @@ export function useSessionWatchWorkouts(
     [queryClient, sessionId],
   );
 
-  return { attached, attachedExternalIds, attach, detach, refresh, isLoading: query.isLoading };
+  return {
+    attached,
+    attachedExternalIds,
+    attach,
+    detach,
+    refresh,
+    isLoading: query.isLoading,
+    dismissedExternalIds,
+    dismiss,
+  };
+}
+
+/**
+ * Candidates the user has waved off for the day, kept on the device.
+ *
+ * Mirrors Today's suggestion dismissal exactly — persistent, so a dismissed
+ * candidate does not come back when the app is closed and reopened, and
+ * optimistic, so the tile leaves on tap rather than after a write.
+ */
+export function useDismissedAttachCandidates(localDate: string) {
+  const [dismissedExternalIds, setIds] = useState<readonly string[]>([]);
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    mounted.current = true;
+    void loadDismissedAttachCandidates(localDate).then((ids) => {
+      if (mounted.current) setIds(ids);
+    });
+    return () => {
+      mounted.current = false;
+    };
+  }, [localDate]);
+
+  const dismiss = useCallback(
+    (externalId: string) => {
+      setIds((prev) => (prev.includes(externalId) ? prev : [...prev, externalId]));
+      void dismissAttachCandidate(localDate, externalId).then((ids) => {
+        if (mounted.current) setIds(ids);
+      });
+    },
+    [localDate],
+  );
+
+  return { dismissedExternalIds, dismiss };
 }

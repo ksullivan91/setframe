@@ -1,5 +1,6 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { Alert } from 'react-native';
 import { effortChart, heartRateChart, heartRateZoneColors } from '@setframe/design-tokens';
 import { zoneBands } from '@setframe/domain';
 import { ThemeProvider } from '../theme/ThemeProvider';
@@ -113,6 +114,47 @@ describe('WatchSummaryCard · Figma 265:2 › WatchSummary', () => {
     // Weighted: (142×3840 + 90×240) / 4080 ≈ 139. A plain mean would say 116.
     expect(text).toContain('139');
     expect(text).not.toContain('116');
+  });
+
+  it('lists each attached workout with a Remove control, like a Today row', () => {
+    const second = { ...workout, id: 'w2', externalId: 'hk-2', title: 'Outdoor Walk' };
+    const rendered = render(
+      <WatchSummaryCard workouts={[workout, second]} onRemove={jest.fn()} />,
+    );
+    expect(byTestId(rendered, 'watch-attached-w1')).toHaveLength(1);
+    expect(byTestId(rendered, 'watch-attached-w2')).toHaveLength(1);
+    const text = allText(rendered);
+    expect(text).toContain('Outdoor Walk');
+  });
+
+  it('confirms before detaching — a tap never removes on its own', () => {
+    /* Same shape as removing a logged activity on Today: Alert with Cancel
+       and a destructive Remove, and the mutation only runs from the latter. */
+    const onRemove = jest.fn();
+    const spy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const rendered = render(<WatchSummaryCard workouts={[workout]} onRemove={onRemove} />);
+
+    act(() => {
+      rendered.root
+        .findAll((n) => n.props?.accessibilityLabel === `Remove ${workout.title}`
+          && typeof n.props?.onPress === 'function')[0]!
+        .props.onPress();
+    });
+
+    expect(onRemove).not.toHaveBeenCalled();
+    expect(spy).toHaveBeenCalledTimes(1);
+    const buttons = spy.mock.calls[0]![2] as { text: string; style?: string; onPress?: () => void }[];
+    expect(buttons.map((b) => b.text)).toEqual(['Cancel', 'Remove']);
+    expect(buttons[1]!.style).toBe('destructive');
+
+    act(() => buttons[1]!.onPress!());
+    expect(onRemove).toHaveBeenCalledWith('w1');
+    spy.mockRestore();
+  });
+
+  it('shows no rows when removal is not offered — the summary line says it better', () => {
+    const rendered = render(<WatchSummaryCard workouts={[workout]} />);
+    expect(byTestId(rendered, 'watch-attached-w1')).toHaveLength(0);
   });
 
   it('renders nothing when no workout is attached', () => {
@@ -429,6 +471,46 @@ describe('WatchAttachCard · Figma Watch-Live 2 · Found at finish', () => {
     expect(onAttach).not.toHaveBeenCalled();
     // Back to the offer, not stuck in selection.
     expect(byTestId(rendered, 'attach-all')).toHaveLength(1);
+  });
+
+  it('offers Dismiss on each candidate, the way Today does', () => {
+    /* Today's suggestion pairs its action with a subtle Dismiss. Dismissing
+       removes nothing — it only stops us asking again today — so it never
+       wears a destructive treatment. */
+    const onDismiss = jest.fn();
+    const rendered = render(
+      <WatchAttachCard
+        candidates={[candidate()]}
+        onAttach={jest.fn()}
+        onAttachAll={jest.fn()}
+        onDismiss={onDismiss}
+      />,
+    );
+    expect(allText(rendered)).toContain('Dismiss');
+    act(() => {
+      rendered.root
+        .findAll((n) => n.props?.testID === 'attach-dismiss-hk-lift' && typeof n.props?.onPress === 'function')[0]!
+        .props.onPress();
+    });
+    expect(onDismiss).toHaveBeenCalledWith('hk-lift');
+  });
+
+  it('hides Dismiss while choosing, where a tap means pick', () => {
+    const rendered = render(
+      <WatchAttachCard
+        candidates={[candidate(), { ...candidate(), workout: { ...candidate().workout, externalId: 'hk-2' } }]}
+        onAttach={jest.fn()}
+        onAttachAll={jest.fn()}
+        onDismiss={jest.fn()}
+      />,
+    );
+    expect(byTestId(rendered, 'attach-dismiss-hk-lift')).toHaveLength(1);
+    act(() => {
+      rendered.root
+        .findAll((n) => n.props?.testID === 'attach-choose' && typeof n.props?.onPress === 'function')[0]!
+        .props.onPress();
+    });
+    expect(byTestId(rendered, 'attach-dismiss-hk-lift')).toHaveLength(0);
   });
 
   it('renders nothing when there is nothing to offer', () => {

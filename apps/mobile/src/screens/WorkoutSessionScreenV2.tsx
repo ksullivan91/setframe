@@ -373,6 +373,7 @@ export default function WorkoutSessionV2Screen() {
      so it is safe to call before the session exists. */
   const watch = useSessionWatchWorkouts(session?.id ?? null, {
     onError: feedback.report('Could not update Watch data. Try again.'),
+    localDate: session?.localDate ?? '',
   });
   const insights = useWatchSessionInsights({ workouts: watch.attached, exercises });
 
@@ -391,9 +392,15 @@ export default function WorkoutSessionV2Screen() {
             [...discovery.suggestions, ...discovery.suppressed.map((s) => s.workout)],
             { startedAt: session.startedAt ?? null, completedAt: session.completedAt ?? null },
             watch.attachedExternalIds,
-          )
+          ).filter((c) => !watch.dismissedExternalIds.includes(c.workout.externalId))
         : [],
-    [session, discovery.suggestions, discovery.suppressed, watch.attachedExternalIds],
+    [
+      session,
+      discovery.suggestions,
+      discovery.suppressed,
+      watch.attachedExternalIds,
+      watch.dismissedExternalIds,
+    ],
   );
 
   if (!session) {
@@ -649,10 +656,15 @@ export default function WorkoutSessionV2Screen() {
               candidates={attachCandidates}
               onAttach={({ workout }) => watch.attach.mutate(workout)}
               onAttachAll={() => attachCandidates.forEach((c) => watch.attach.mutate(c.workout))}
+              onDismiss={watch.dismiss}
               pendingId={watch.attach.isPending ? (watch.attach.variables?.externalId ?? null) : null}
               busy={watch.attach.isPending}
             />
-            <WatchSummaryCard workouts={watch.attached} />
+            <WatchSummaryCard
+              workouts={watch.attached}
+              onRemove={(id) => watch.detach.mutate(id)}
+              removingId={watch.detach.isPending ? (watch.detach.variables ?? null) : null}
+            />
             {insights.series && insights.model ? (
               <HeartRateCard
                 series={insights.series}

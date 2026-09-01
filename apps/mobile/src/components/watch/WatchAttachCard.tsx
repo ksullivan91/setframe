@@ -26,12 +26,15 @@ export function WatchAttachCard({
   candidates,
   onAttach,
   onAttachAll,
+  onDismiss,
   pendingId,
   busy,
 }: {
   candidates: readonly AttachCandidate[];
   onAttach: (candidate: AttachCandidate) => void;
   onAttachAll: () => void;
+  /** Waves one candidate off for the day. Same treatment as Today. */
+  onDismiss?: (externalId: string) => void;
   pendingId?: string | null;
   busy?: boolean;
 }) {
@@ -110,6 +113,25 @@ export function WatchAttachCard({
                 </Text>
               ))}
             </View>
+            {/* Same treatment as Today's suggestion: a subtle Dismiss beside
+                the offer, never a destructive-looking one — this removes
+                nothing, it only stops us asking again today. Hidden while
+                choosing, where tapping the tile means "pick", not "go". */}
+            {onDismiss && !choosing ? (
+              <Pressable
+                testID={`attach-dismiss-${workout.externalId}`}
+                accessibilityRole="button"
+                accessibilityLabel={`Dismiss ${workout.title}`}
+                disabled={busy}
+                onPress={() => onDismiss(workout.externalId)}
+                style={({ pressed }) => [
+                  styles.dismiss,
+                  { backgroundColor: theme.surface.raised, opacity: pressed || busy ? 0.7 : 1 },
+                ]}
+              >
+                <Text style={[styles.dismissLabel, { color: theme.text.secondary }]}>Dismiss</Text>
+              </Pressable>
+            ) : null}
           </>
         );
 
@@ -306,6 +328,17 @@ const styles = StyleSheet.create({
   candidateDetail: { fontSize: 11 },
   metrics: { flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing[12], rowGap: 2 },
   metric: { fontSize: 11 },
+  dismiss: {
+    /* Trailing, as on Today, where Dismiss is the right-hand half of the
+       pair. Left-aligned and alone it read as the tile's primary action,
+       which is the opposite of what it is. */
+    alignSelf: 'flex-end',
+    height: 32,
+    justifyContent: 'center',
+    paddingHorizontal: spacing[12],
+    borderRadius: radius.small,
+  },
+  dismissLabel: { fontSize: 13, fontWeight: '600' },
   badge: { borderRadius: radius.full, paddingVertical: 2, paddingHorizontal: spacing[8] },
   badgeLabel: { fontSize: 9, fontWeight: '500' },
   actions: { flexDirection: 'row', gap: spacing[8] },

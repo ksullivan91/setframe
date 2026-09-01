@@ -125,7 +125,12 @@ export default function DevWatchGallery() {
       </Text>
 
       <Section label="Attach — two candidates">
-        <WatchAttachCard candidates={CANDIDATES} onAttach={() => {}} onAttachAll={() => {}} />
+        <WatchAttachCard
+          candidates={CANDIDATES}
+          onAttach={() => {}}
+          onAttachAll={() => {}}
+          onDismiss={() => {}}
+        />
       </Section>
 
       <Section label="Summary">
@@ -142,6 +147,7 @@ export default function DevWatchGallery() {
             { ...WORKOUT, id: 'w3', externalId: 'hk-cycle', title: 'Outdoor Cycle', durationSeconds: 1488,
               activeEnergyKcal: 204, avgHeartRateBpm: 129, peakHeartRateBpm: 149 },
           ]}
+          onRemove={() => {}}
         />
       </Section>
 
