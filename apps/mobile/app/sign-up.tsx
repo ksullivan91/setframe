@@ -28,7 +28,7 @@ export default function SignUpScreen() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  if (isSignedIn) return <Redirect href="/(tabs)/today" />;
+  if (isSignedIn) return <Redirect href="/" />;
 
   async function handleSignUp() {
     if (!isLoaded) return;
@@ -38,7 +38,7 @@ export default function SignUpScreen() {
       const result = await signUp.create({ emailAddress: email, password });
       if (result.status === 'complete') {
         await setActive({ session: result.createdSessionId });
-        router.replace('/(tabs)/today');
+        router.replace('/');
         return;
       }
       // Same silent dead-end as sign-in: `missing_requirements` (email

@@ -42,13 +42,13 @@ export default function SignInScreen() {
   const [secondFactor, setSecondFactor] = useState<{ strategy: string } | null>(null);
   const [code, setCode] = useState('');
 
-  if (isSignedIn) return <Redirect href="/(tabs)/today" />;
+  if (isSignedIn) return <Redirect href="/" />;
 
   async function finish(createdSessionId: string | null) {
     // `setActive` is only present once Clerk has loaded; `isLoaded` is
     // checked by every caller, but the type stays optional.
     await setActive?.({ session: createdSessionId });
-    router.replace('/(tabs)/today');
+    router.replace('/');
   }
 
   /* Google is enabled on the Clerk instance as an `oauth_google` first
@@ -65,7 +65,7 @@ export default function SignInScreen() {
       });
       if (createdSessionId) {
         await setSsoActive?.({ session: createdSessionId });
-        router.replace('/(tabs)/today');
+        router.replace('/');
         return;
       }
       // No session means Clerk needs another step (MFA, or completing a

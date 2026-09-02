@@ -121,3 +121,57 @@ describe('guided setup writes the week before leaving step 4', () => {
     expect(source).not.toMatch(/onAddAnother=\{\(\) => \{ setWorkoutName/);
   });
 });
+
+describe('the launch path cannot flash, stick, or loop', () => {
+  const entry = () => app('index.tsx');
+  const flow = () => src('screens', 'onboarding', 'OnboardingFlow.tsx');
+  const ready = () => src('lib', 'appReady.ts');
+
+  it('decides before navigating, so Today never renders on the way', () => {
+    /* Deciding inside the tab shell meant Today mounted first and was
+       visibly replaced a moment later — what a new account actually saw. */
+    const source = entry();
+    expect(source).toContain("queryKey: ['me']");
+    expect(source).toContain('if (me.isPending) return null;');
+    expect(source).toContain('href="/onboarding"');
+  });
+
+  it('caps the splash unconditionally, not inside one screen', () => {
+    /* The cap first lived in Today's readiness effect, so a user routed to
+       onboarding never armed it and sat behind the logo forever. */
+    const source = ready();
+    const hold = source.slice(source.indexOf('export function holdSplash'));
+    expect(hold).toContain('setTimeout(releaseSplash, SPLASH_MAX_MS)');
+  });
+
+  it('releases the splash from onboarding too', () => {
+    // It is a first surface like Today and the auth screens.
+    expect(flow()).toContain('useEffect(releaseSplash, [])');
+  });
+
+  it('writes the finished user into cache rather than invalidating', () => {
+    /* Invalidating leaves the stale user in cache while it refetches, so
+       the gate reads onboardedAt: null, bounces back, and loops. */
+    const source = flow();
+    const success = source.slice(source.indexOf('const finish = useMutation'));
+    expect(success.slice(0, 700)).toContain("setQueryData(['me'], updated)");
+    expect(success.slice(0, 700)).not.toContain("invalidateQueries({ queryKey: ['me'] })");
+  });
+});
+
+describe('no authenticated entry bypasses the decision', () => {
+  /* This is the one that actually bit: index.tsx decided correctly, but
+     sign-in and sign-up both replaced straight to /(tabs)/today, so a new
+     account mounted Today and watched it be replaced. The destination
+     must not be what decides whether you belong at the destination. */
+  it.each(['sign-in.tsx', 'sign-up.tsx'])('%s routes through / , not the tabs', (file) => {
+    const source = app(file);
+    expect(source).not.toContain('(tabs)/today');
+    expect(source).toMatch(/replace\('\/'\)|href="\/"/);
+  });
+
+  it('leaves the tab layout as a backstop for deep links', () => {
+    // Belt and braces: a link straight into the shell still gets checked.
+    expect(app('(tabs)', '_layout.tsx')).toContain('href="/onboarding"');
+  });
+});

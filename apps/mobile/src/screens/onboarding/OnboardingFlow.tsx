@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { User } from '@setframe/schemas';
@@ -10,6 +10,7 @@ import { Button } from '../../components/Button';
 import { useHealthConnection } from '../../healthkit/useHealthConnection';
 import { GuidedSetupFlow } from '../../components/guided-setup/GuidedSetupFlow';
 import { OnboardingScaffold, onboardingText as T } from './OnboardingScaffold';
+import { releaseSplash } from '../../lib/appReady';
 
 /**
  * First run. Figma page `🚀 Onboarding`.
@@ -33,10 +34,20 @@ export function OnboardingFlow({ onFinished }: { onFinished: () => void }) {
   const health = useHealthConnection();
   const [step, setStep] = useState<Step>('welcome');
 
+  /* Onboarding is a first surface, like Today and the auth screens, so it
+     has to release the launch screen. It did not, and nothing else routes
+     here — so a new account sat behind the logo with no way forward. */
+  useEffect(releaseSplash, []);
+
   const finish = useMutation({
     mutationFn: () => api.post<User>('/me/onboarded', {}),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['me'] });
+    onSuccess: (updated) => {
+      /* Write the response in rather than invalidating.
+         Invalidating leaves the STALE user in cache while it refetches, so
+         the gate we are navigating towards would read onboardedAt: null,
+         bounce straight back here, and loop. The endpoint returns the
+         updated user, so there is nothing to refetch. */
+      queryClient.setQueryData(['me'], updated);
       onFinished();
     },
     /* A failed write must not trap anyone in onboarding. Worst case it

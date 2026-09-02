@@ -14,20 +14,6 @@ import * as SplashScreen from 'expo-splash-screen';
  */
 let hidden = false;
 
-/** Called once at module load in the root layout. */
-export function holdSplash(): void {
-  void SplashScreen.preventAutoHideAsync().catch(() => {
-    // Already hidden, or unavailable in this environment. Never fatal:
-    // a splash that will not hold is a worse launch, not a broken app.
-  });
-}
-
-export function releaseSplash(): void {
-  if (hidden) return;
-  hidden = true;
-  void SplashScreen.hideAsync().catch(() => {});
-}
-
 /**
  * The upper bound on how long the logo may stay up.
  *
@@ -37,3 +23,26 @@ export function releaseSplash(): void {
  * tells the user something is happening.
  */
 export const SPLASH_MAX_MS = 2500;
+
+
+/** Called once at module load in the root layout. */
+export function holdSplash(): void {
+  void SplashScreen.preventAutoHideAsync().catch(() => {
+    // Already hidden, or unavailable in this environment. Never fatal:
+    // a splash that will not hold is a worse launch, not a broken app.
+  });
+
+  /* The cap belongs HERE, not in whichever screen happens to render.
+     It first lived inside Today's readiness effect — so a user routed to
+     onboarding instead never armed it, nothing ever called release(), and
+     the app sat behind the logo forever. A held splash and a hung app look
+     identical from outside, which is exactly why the guarantee has to be
+     unconditional. */
+  setTimeout(releaseSplash, SPLASH_MAX_MS);
+}
+
+export function releaseSplash(): void {
+  if (hidden) return;
+  hidden = true;
+  void SplashScreen.hideAsync().catch(() => {});
+}
