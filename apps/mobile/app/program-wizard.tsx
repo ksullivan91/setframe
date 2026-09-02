@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, View, Text, Alert, StyleSheet,
+import {
+  ActivityIndicator,
+  Alert,
   Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MoreVertical } from 'lucide-react-native';
@@ -414,6 +421,11 @@ export default function ProgramWizardScreen() {
 
   const goToEditor = () => router.replace('/(tabs)/training');
 
+  /* Leaving keeps whatever exists. The program is created at step one, so
+     there is always something real to return to rather than a half-written
+     record to clean up. */
+  const leaveSetup = () => router.replace('/(tabs)/training');
+
   const handleProgramNext = () => {
     if (!canContinueFromProgram) return;
     if (programId) {
@@ -430,7 +442,25 @@ export default function ProgramWizardScreen() {
       contentContainerStyle={[styles.content, { paddingTop: topPadding, paddingBottom: bottomPadding }]}
     >
       <View style={styles.header}>
-        <Text style={[styles.eyebrow, { color: theme.text.secondary }]}>New here?</Text>
+        <View style={styles.headerTop}>
+          <Text style={[styles.eyebrow, { color: theme.text.secondary }]}>New here?</Text>
+          {/* The only exit. Every other Cancel on this screen belongs to a
+              sub-sheet, so a user who changed their mind could leave only
+              by the OS back gesture. Whatever has been created so far is
+              already saved — a program with no workouts, or workouts with
+              no schedule, are both valid states you can return to. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Leave guided setup"
+            onPress={leaveSetup}
+            hitSlop={8}
+            testID="wizard-leave"
+          >
+            <Text style={[styles.leave, { color: theme.action.primary }]}>
+              {programId ? 'Save & exit' : 'Cancel'}
+            </Text>
+          </Pressable>
+        </View>
         <Text style={[styles.title, { color: theme.text.primary }]}>Guided program setup</Text>
         <Text style={{ color: theme.text.secondary }}>
           Build the basics in four focused steps. You can fine-tune everything else on web anytime.
@@ -658,7 +688,11 @@ export default function ProgramWizardScreen() {
               loading={currentStep === 0 && createProgram.isPending}
             />
           ) : (
-            <Button label="Finish" onPress={goToEditor} disabled={!programId || !hasSchedule} />
+            /* A schedule is not required to finish. A program with workouts
+               and no schedule is a valid, useful thing — you train from it
+               ad hoc and add the week later — and demanding one here, with
+               no exit, was a dead end. */
+            <Button label="Finish" onPress={goToEditor} disabled={!programId} />
           )}
         </View>
       </Card>
@@ -823,6 +857,8 @@ const styles = StyleSheet.create({
   eyebrow: {
     fontSize: typeScale.label.fontSize,
   },
+  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  leave: { fontSize: typeScale.helper.fontSize, fontWeight: '600' },
   title: {
     fontSize: typeScale.pageTitle.fontSize,
     fontWeight: '600',

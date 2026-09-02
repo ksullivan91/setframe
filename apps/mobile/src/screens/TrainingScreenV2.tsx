@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { DayType, ProgramScheduleSlot, TrainingProgram } from '@setframe/schemas';
 import {
   buildWeekStrip,
@@ -19,6 +19,7 @@ import { WeekStrip } from '../components/training-v2/WeekStrip';
 import { Card, CardAction, CardHeadRow, CardLabel, ListRow } from '../components/training-v2/TrainingCards';
 import { NoPlanRoutes } from '../components/training-v2/NoPlanRoutes';
 import { ListRowsSkeleton, WeekStripSkeleton } from '../components/training-v2/TrainingSkeletons';
+import { NameWorkoutSheet } from '../components/training-v2/NameWorkoutSheet';
 import { useActionFeedback } from '../lib/useActionFeedback';
 
 /**
@@ -40,7 +41,6 @@ import { useActionFeedback } from '../lib/useActionFeedback';
  * Every other control now reaches its own pushed screen. Creating a *new*
  * workout is guided setup's job, which story 83 rebuilds.
  */
-const MANAGE_ROUTE = '/training-manage';
 
 function todayLocalDate(): string {
   const now = new Date();
@@ -139,6 +139,25 @@ export function TrainingScreenV2() {
    * Creates a real `workout_session` with a null `templateId` — which the
    * schema already permits and explicitly blesses with a comment.
    */
+  const queryClient = useQueryClient();
+  const [namingWorkout, setNamingWorkout] = useState(false);
+
+  /* Stories 79-81 shipped the pushed v2 surfaces, but "+ New" was never
+     repointed off `/training-manage` — which is why creating a workout
+     still dropped the user into the retired three-tab editor. The editor
+     is addressed by dayTypeId, so the workout has to exist first. */
+  const createWorkout = useMutation({
+    mutationFn: (name: string) =>
+      api.post<DayType>('/day-types', { name, programId: activeProgram?.id }),
+    onSuccess: (created) => {
+      setNamingWorkout(false);
+      void queryClient.invalidateQueries({ queryKey: ['day-types'] });
+      void queryClient.invalidateQueries({ queryKey: ['program-day-types'] });
+      router.push(`/workout-editor?dayTypeId=${created.id}`);
+    },
+    onError: feedback.report('Could not create that workout. Try again.'),
+  });
+
   const startAdHoc = useMutation({
     mutationFn: () =>
       api.post<{ id: string }>('/workout-sessions', {
@@ -252,8 +271,12 @@ export function TrainingScreenV2() {
         <WeekStrip
           days={strip}
           /* Navigates only. The strip never starts a session — ADR 0009: a
-             mount effect that POSTed one is what destroyed real data. */
-          onSelectDay={() => router.push('/(tabs)/today')}
+             mount effect that POSTed one is what destroyed real data.
+             It used to discard the day and push Today, so every tile went
+             to the same place regardless of which one you pressed. The
+             week strip is a readout of the schedule, so a tap belongs on
+             the schedule — where that day can actually be changed. */
+          onSelectDay={() => router.push('/schedule')}
         />
         )}
       </Card>
@@ -261,7 +284,7 @@ export function TrainingScreenV2() {
       <Card testID="workouts-card">
         <CardHeadRow>
           <CardLabel>Workouts</CardLabel>
-          <CardAction label="+ New" onPress={() => router.push(MANAGE_ROUTE)} />
+          <CardAction label="+ New" onPress={() => setNamingWorkout(true)} />
         </CardHeadRow>
         {dayTypesPending ? (
           <ListRowsSkeleton />
@@ -285,6 +308,14 @@ export function TrainingScreenV2() {
         )}
       </Card>
       {feedback.node}
+
+      <NameWorkoutSheet
+        visible={namingWorkout}
+        onCancel={() => setNamingWorkout(false)}
+        onCreate={(name) => createWorkout.mutate(name)}
+        busy={createWorkout.isPending}
+      />
+
     </ScrollView>
   );
 }
