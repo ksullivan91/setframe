@@ -205,7 +205,7 @@ export function TrainingScreenV2() {
         </Card>
         <NoPlanRoutes
           onJustStart={() => startAdHoc.mutate()}
-          onBuildYourOwn={() => router.push('/program-wizard')}
+          onBuildYourOwn={() => router.push('/guided-setup')}
           busy={startAdHoc.isPending}
         />
         {feedback.node}
@@ -229,7 +229,7 @@ export function TrainingScreenV2() {
         </View>
         <NoPlanRoutes
           onJustStart={() => startAdHoc.mutate()}
-          onBuildYourOwn={() => router.push('/program-wizard')}
+          onBuildYourOwn={() => router.push('/guided-setup')}
           busy={startAdHoc.isPending}
         />
         {feedback.node}

@@ -6,6 +6,7 @@ import { WatchSummaryCard } from '../src/components/watch/WatchSummaryCard';
 import { HeartRateCard } from '../src/components/watch/HeartRateCard';
 import { EffortByExerciseCard } from '../src/components/watch/EffortByExerciseCard';
 import { useTheme } from '../src/theme/ThemeProvider';
+import { GuidedSetupFlow } from '../src/components/guided-setup/GuidedSetupFlow';
 import { CARD_WIDTH } from '../src/components/workout-v2/ExerciseTableCard';
 
 /**
@@ -124,6 +125,12 @@ export default function DevWatchGallery() {
       <Text style={[styles.note, { color: theme.text.secondary }]}>
         Development gallery. Fixtures only — no auth, no network, no HealthKit.
       </Text>
+
+      <Section label="Guided setup — Training host (live component)">
+        <View style={{ height: 720, width: CARD_WIDTH, overflow: 'hidden', borderRadius: 12 }}>
+          <GuidedSetupFlow host="training" onExit={() => {}} />
+        </View>
+      </Section>
 
       <Section label="Attach — two candidates">
         <WatchAttachCard

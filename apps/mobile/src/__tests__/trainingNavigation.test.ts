@@ -43,23 +43,53 @@ describe('Training v2 no longer falls back to the retired editor', () => {
 });
 
 describe('guided setup is not a dead end', () => {
-  const wizard = () =>
-    fs.readFileSync(path.join(__dirname, '..', '..', 'app', 'program-wizard.tsx'), 'utf8');
+  /* The four-tab wizard is gone; these now hold against the shared flow
+     that replaced it. Both defects it had must stay fixed: it had no exit
+     of its own, and it refused to finish without a schedule. */
+  const flow = () => read('components', 'guided-setup', 'GuidedSetupFlow.tsx');
+  const chrome = () => read('components', 'guided-setup', 'SetupChrome.tsx');
 
-  it('offers a way out that keeps what was created', () => {
-    /* Every other Cancel on that screen belongs to a sub-sheet, so the
-       only exit was the OS back gesture. */
-    const source = wizard();
-    expect(source).toContain('testID="wizard-leave"');
-    expect(source).toContain('Save & exit');
+  it('offers a way out from every step', () => {
+    // The chrome renders the exit, so it exists on all four steps rather
+    // than only on the last one.
+    expect(chrome()).toContain('testID="setup-exit"');
+    expect(chrome()).toContain('Save & exit');
+    expect(chrome()).toContain("'Skip'");
   });
 
-  it('lets you finish without a schedule', () => {
+  it('finishes without requiring a schedule', () => {
     /* A program with workouts and no schedule is valid — you train from it
        ad hoc. Requiring one, with no exit, trapped the user on the last
-       step. */
-    const source = wizard();
-    expect(source).toMatch(/label="Finish"[^/]*disabled=\{!programId\}/);
-    expect(source).not.toMatch(/label="Finish"[^/]*hasSchedule/);
+       step of the old wizard. */
+    const source = flow();
+    expect(source).toMatch(/days\.length \? saveDays\.mutate\(days\) : onExit\(\)/);
+  });
+
+  it('does not gate the exercises step on having added any', () => {
+    /* A workout with no exercises is a valid thing to come back to.
+       Reading the returned Button itself rather than a slice of the file —
+       the first version of this ran past the block into the next one. */
+    const source = flow();
+    const step3 = source.slice(source.indexOf('if (step === 3)'));
+    const returned = step3.slice(step3.indexOf('return <Button'), step3.indexOf('/>') + 2);
+    expect(returned).toContain('onPress={onExercisesDone}');
+    expect(returned).not.toContain('disabled');
+  });
+});
+
+describe('guided setup is one flow with two hosts', () => {
+  it('branches on the host in the chrome and nowhere else', () => {
+    /* Building it per-flow is how this codebase ended up with two
+       divergent exercise pickers before story 78 unified them. */
+    const flowSource = read('components', 'guided-setup', 'GuidedSetupFlow.tsx');
+    const code = flowSource.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    expect(code).not.toContain("'onboarding'");
+    expect(code).not.toContain("host ===");
+  });
+
+  it('lets the chrome differ in exactly the three ways the spec allows', () => {
+    const source = read('components', 'guided-setup', 'SetupChrome.tsx');
+    expect(source).toContain('Step ${step} of ${totalSteps}');
+    expect(source).toContain("planName ?? 'New plan'");
   });
 });

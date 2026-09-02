@@ -124,7 +124,7 @@ export function PlansScreen() {
         </Text>
 
         <Pressable
-          onPress={() => router.push('/program-wizard')}
+          onPress={() => router.push('/guided-setup')}
           accessibilityRole="button"
           testID="new-plan"
           style={[styles.newPlan, { backgroundColor: theme.surface.sunken }]}

@@ -670,7 +670,7 @@ export default function TodayScreen() {
             <View style={styles.ctaStack}>
               {todayWorkoutState === 'no-program' ? (
                 hasNoProgram ? (
-                  <Button label="Start guided setup" onPress={() => router.push('/program-wizard')} />
+                  <Button label="Start guided setup" onPress={() => router.push('/guided-setup')} />
                 ) : (
                   <Button label="Choose a program" onPress={() => router.push('/(tabs)/training')} />
                 )

@@ -130,7 +130,15 @@ describe('full-screen modals reserve the status bar', () => {
     const found = fullScreenModalFiles(path.join(__dirname, '..'))
       .map((f) => f.split('/src/')[1])
       .filter((f): f is string => Boolean(f));
-    const known = ['screens/WorkoutSessionScreenV2.tsx', 'screens/WorkoutEditorScreen.tsx'];
+    /* Each of these presents ExercisePickerV2 full-screen, and the picker
+       reads the inset itself — asserted in the test above. A file appearing
+       here that is NOT in this list is a new full-screen modal nobody has
+       checked. */
+    const known = [
+      'screens/WorkoutSessionScreenV2.tsx',
+      'screens/WorkoutEditorScreen.tsx',
+      'components/guided-setup/GuidedSetupFlow.tsx',
+    ];
     expect(found.filter((f) => !known.includes(f))).toEqual([]);
   });
 });
