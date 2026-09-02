@@ -131,13 +131,23 @@ export function useSessionWatchWorkouts(
           : undefined,
       });
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: key }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: key });
+      /* Today decides what to offer as Additional Activity from the set of
+         attached ids, so it goes stale the moment one is attached. */
+      void queryClient.invalidateQueries({ queryKey: ['today'] });
+    },
     onError: () => onError('Could not attach that Watch workout. Try again.'),
   });
 
   const detach = useMutation({
     mutationFn: (id: string) => api.del(`/workout-sessions/${sessionId}/watch-workouts/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: key }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: key });
+      /* Today decides what to offer as Additional Activity from the set of
+         attached ids, so it goes stale the moment one is attached. */
+      void queryClient.invalidateQueries({ queryKey: ['today'] });
+    },
     onError: () => onError('Could not remove that Watch workout. Try again.'),
   });
 

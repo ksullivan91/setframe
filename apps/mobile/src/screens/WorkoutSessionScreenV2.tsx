@@ -1,5 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState, type RefObject } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  KeyboardAwareScrollProvider,
+  useKeyboardAwareScrollProps,
+} from '../lib/keyboardAwareScroll';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -109,7 +113,22 @@ function draftSet(exerciseLogId: string, clientId: string, sortOrder: number) {
 
 const DEFAULT_ADDED_PRESCRIPTION = { kind: 'sets_reps' as const, sets: 1 };
 
+/**
+ * The provider has to sit above the screen that consumes it, and both need
+ * the same ScrollView ref — so the ref is created here and handed down
+ * rather than the screen trying to provide and consume in one component.
+ */
 export default function WorkoutSessionV2Screen() {
+  const scrollRef = useRef<ScrollView | null>(null);
+  return (
+    <KeyboardAwareScrollProvider scrollRef={scrollRef}>
+      <SessionContent scrollRef={scrollRef} />
+    </KeyboardAwareScrollProvider>
+  );
+}
+
+function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null> }) {
+  const keyboardScrollProps = useKeyboardAwareScrollProps();
   const { sessionId: raw } = useLocalSearchParams<{ sessionId?: string | string[] }>();
   const sessionId = Array.isArray(raw) ? raw[0] : raw;
   const api = useApiClient();
@@ -136,8 +155,17 @@ export default function WorkoutSessionV2Screen() {
   const [saveOfferDismissed, setSaveOfferDismissed] = useState(false);
   const [savedWorkoutName, setSavedWorkoutName] = useState<string | null>(null);
 
-  const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: ['workout-session', sessionId] });
+  /* Both keys, always.
+     Today renders this session's status and volume from ['today', date],
+     and nothing here ever told it anything had changed — so finishing a
+     workout left Today still offering "Resume Workout", and still offering
+     the day's Watch activity as unattached. Prefix-matched, so it covers
+     whichever date the session belongs to without this screen having to
+     know it. */
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: ['workout-session', sessionId] });
+    void queryClient.invalidateQueries({ queryKey: ['today'] });
+  };
 
   const sessionKey = ['workout-session', sessionId];
 
@@ -628,7 +656,12 @@ export default function WorkoutSessionV2Screen() {
         </View>
       )}
 
-      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={styles.body}
+        keyboardShouldPersistTaps="handled"
+        {...keyboardScrollProps}
+      >
         {/* Under the banner, never over it: the workout is already recorded,
             so the offer must not block the acknowledgement of what was just
             done. */}

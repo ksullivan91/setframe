@@ -106,11 +106,16 @@ export function additionalActivitiesQuery(api: ReturnType<typeof useApiClient>, 
 export function TodayAdditionalActivitySection({
   localDate,
   sessions = [],
+  attachedWatchExternalIds = [],
 }: {
   localDate: string;
   /** Today's logged sessions, so a Watch recording of one is not offered
    *  back as "additional" activity. See workout-discovery.ts. */
   sessions?: LoggedSession[];
+  /** HealthKit ids already attached to one of the day's sessions in the
+   *  logger. Comes from the dashboard so it reflects every session, not
+   *  just the one this screen happens to know about. */
+  attachedWatchExternalIds?: readonly string[];
 }) {
   const theme = useTheme();
   const api = useApiClient();
@@ -154,11 +159,17 @@ export function TodayAdditionalActivitySection({
      ids of what we have imported feed straight back in, so an activity
      added from a suggestion is never offered a second time. */
   const importedExternalIds = useMemo(
-    () =>
-      (query.data?.items ?? [])
+    () => [
+      ...(query.data?.items ?? [])
         .filter((item) => item.source === 'apple_health' && item.externalSourceId)
         .map((item) => item.externalSourceId as string),
-    [query.data?.items],
+      /* And anything already attached to one of the day's workout sessions.
+         A Watch workout attached in the logger is already recorded against
+         the session; offering it again here invites logging the same hour
+         twice and double-counting the day. */
+      ...attachedWatchExternalIds,
+    ],
+    [query.data?.items, attachedWatchExternalIds],
   );
   const discovery = useWorkoutDiscovery({ localDate, sessions, importedExternalIds });
 

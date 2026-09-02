@@ -52,6 +52,10 @@ interface DashboardSessionSummary {
 }
 
 interface DashboardTodayResponse {
+  /** HealthKit ids already attached to one of the day's sessions, so the
+   *  Additional Activity block never offers a workout that is already
+   *  recorded against a workout. */
+  attachedWatchExternalIds?: string[];
   localDate: string;
   sessions: DashboardSessionSummary[];
   manualEntry: {
@@ -717,7 +721,11 @@ export default function TodayScreen() {
           Not gated on the dashboard's error state: its data is independent,
           so a failed Today should not take a working feature down with it. */}
       {!isPageLoading ? (
-        <TodayAdditionalActivitySection localDate={localDate} sessions={loggedSessions} />
+        <TodayAdditionalActivitySection
+          localDate={localDate}
+          sessions={loggedSessions}
+          attachedWatchExternalIds={todayQuery.data?.attachedWatchExternalIds ?? []}
+        />
       ) : null}
 
       {toast ? (

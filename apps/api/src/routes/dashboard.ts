@@ -11,6 +11,7 @@ import {
   programVersion,
   restDay,
   scheduleOverride,
+  sessionWatchWorkout,
   trainingProgram,
   workoutSession,
 } from '@setframe/database';
@@ -102,8 +103,17 @@ export const dashboardRoutes: FastifyPluginAsyncZod = async (fastify) => {
       const userId = request.userId!;
       const { localDate } = request.query;
 
-      const [sessions, manual, activity, nutrition, syncState, nextDayType, override, rest] =
-        await Promise.all([
+      const [
+        sessions,
+        manual,
+        activity,
+        nutrition,
+        syncState,
+        nextDayType,
+        override,
+        rest,
+        attachedWatch,
+      ] = await Promise.all([
         db
           .select()
           .from(workoutSession)
@@ -139,11 +149,31 @@ export const dashboardRoutes: FastifyPluginAsyncZod = async (fastify) => {
           .from(restDay)
           .where(and(eq(restDay.userId, userId), eq(restDay.localDate, localDate)))
           .limit(1),
+        /* HealthKit ids of Watch workouts already attached to one of the
+           day's sessions. Today uses these to stop offering the same
+           workout as an Additional Activity — it is already recorded
+           against the workout, and logging it twice double-counts the day.
+           Scoped by user_id on BOTH sides of the join, per ADR 0002: the
+           join reaches a second table, and without its own predicate a
+           session id belonging to someone else would expose their
+           attached workouts. */
+        db
+          .select({ externalId: sessionWatchWorkout.externalId })
+          .from(sessionWatchWorkout)
+          .innerJoin(workoutSession, eq(sessionWatchWorkout.sessionId, workoutSession.id))
+          .where(
+            and(
+              eq(sessionWatchWorkout.userId, userId),
+              eq(workoutSession.userId, userId),
+              eq(workoutSession.localDate, localDate),
+            ),
+          ),
       ]);
 
       return {
         localDate,
         sessions: sessions.map(toSessionResponse),
+        attachedWatchExternalIds: attachedWatch.map((row) => row.externalId),
         manualEntry: manual[0] ?? null,
         activitySummary: activity[0] ?? null,
         nutritionSnapshot: nutrition[0] ?? null,

@@ -169,3 +169,24 @@ describe('import body', () => {
     expect(body.durationSeconds).toBeNull();
   });
 });
+
+describe('a Watch workout attached to a session is not offered again', () => {
+  /* Reported from the device: Traditional Strength Training and Cooldown
+     were attached to the morning's workout in the logger, then offered
+     again as Additional Activity on Today. Logging the same hour twice
+     double-counts the day. */
+  it('suppresses ids already attached to a session', () => {
+    const attached = workout({ externalId: 'hk-strength-1', activityType: 'other' });
+    const other = workout({ externalId: 'hk-cooldown', activityType: 'walk' });
+
+    const open = partitionWorkouts([attached, other], [], {});
+    expect(open.suggestions.map((w) => w.externalId)).toContain('hk-strength-1');
+
+    const filtered = partitionWorkouts([attached, other], [], {
+      importedExternalIds: ['hk-strength-1'],
+    });
+    expect(filtered.suggestions.map((w) => w.externalId)).not.toContain('hk-strength-1');
+    // And leaves the others alone.
+    expect(filtered.suggestions.map((w) => w.externalId)).toContain('hk-cooldown');
+  });
+});

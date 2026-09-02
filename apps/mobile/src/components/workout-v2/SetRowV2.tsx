@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useKeepFieldVisible } from '../../lib/keyboardAwareScroll';
 import type { SessionField } from '@setframe/domain';
 import { workoutTable } from '@setframe/design-tokens';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -158,35 +159,20 @@ export function SetRowV2({
         ) : null}
       </View>
 
-      {fields.map((field) => {
-        const filled = draft[field] !== '';
-        return (
-          <TextInput
-            key={field}
-            value={draft[field]}
-            placeholder={targets[field] ?? ''}
-            placeholderTextColor={theme.text.disabled}
-            keyboardType="decimal-pad"
-            selectTextOnFocus
-            onFocus={() => {
-              focusedCount.current += 1;
-            }}
-            onBlur={handleFieldBlur}
-            onChangeText={(text) => setDraft((prev) => ({ ...prev, [field]: text }))}
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.surface.canvas,
-                borderColor: theme.border.default,
-                color: filled ? theme.text.primary : theme.text.disabled,
-                fontWeight: filled ? '600' : '400',
-              },
-            ]}
-            accessibilityLabel={fieldLabel(field) + ', set ' + label + ', ' + exerciseName}
-            testID={'set-input-' + field + '-' + setId}
-          />
-        );
-      })}
+      {fields.map((field) => (
+        <SetField
+          key={field}
+          field={field}
+          draft={draft}
+          targets={targets}
+          setDraft={setDraft}
+          focusedCount={focusedCount}
+          handleFieldBlur={handleFieldBlur}
+          label={label}
+          exerciseName={exerciseName}
+          setId={setId}
+        />
+      ))}
 
       {status === 'error' ? (
         <Pressable
@@ -215,6 +201,68 @@ export function SetRowV2({
         </View>
       )}
     </View>
+  );
+}
+
+/**
+ * One numeric field.
+ *
+ * Its own component so it can hold a ref: `useKeepFieldVisible` needs a
+ * handle on the node to measure it against the keyboard, and a ref cannot
+ * be created inside the `fields.map` callback.
+ */
+function SetField({
+  field,
+  draft,
+  targets,
+  setDraft,
+  focusedCount,
+  handleFieldBlur,
+  label,
+  exerciseName,
+  setId,
+}: {
+  field: Exclude<SessionField, 'setType'>;
+  draft: SetRowValues;
+  targets: Partial<Record<Exclude<SessionField, 'setType'>, string>>;
+  setDraft: (update: (prev: SetRowValues) => SetRowValues) => void;
+  focusedCount: { current: number };
+  handleFieldBlur: () => void;
+  label: string;
+  exerciseName: string;
+  setId: string;
+}) {
+  const theme = useTheme();
+  const { ref, onFocusKeepVisible } = useKeepFieldVisible();
+  const filled = draft[field] !== '';
+
+  return (
+    <TextInput
+      ref={ref}
+      value={draft[field]}
+      placeholder={targets[field] ?? ''}
+      placeholderTextColor={theme.text.disabled}
+      keyboardType="decimal-pad"
+      selectTextOnFocus
+      onFocus={() => {
+        focusedCount.current += 1;
+        // Scrolls only if the keyboard is actually covering this row.
+        onFocusKeepVisible();
+      }}
+      onBlur={handleFieldBlur}
+      onChangeText={(text) => setDraft((prev) => ({ ...prev, [field]: text }))}
+      style={[
+        styles.input,
+        {
+          backgroundColor: theme.surface.canvas,
+          borderColor: theme.border.default,
+          color: filled ? theme.text.primary : theme.text.disabled,
+          fontWeight: filled ? '600' : '400',
+        },
+      ]}
+      accessibilityLabel={fieldLabel(field) + ', set ' + label + ', ' + exerciseName}
+      testID={'set-input-' + field + '-' + setId}
+    />
   );
 }
 
