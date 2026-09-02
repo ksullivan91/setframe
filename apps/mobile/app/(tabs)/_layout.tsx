@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { User } from '@setframe/schemas';
 import { Home, Dumbbell, TrendingUp, Settings as SettingsIcon } from 'lucide-react-native';
 import { useTheme } from '../../src/theme/ThemeProvider';
+import { AppLoading } from '../../src/components/AppLoading';
 import { useApiClient } from '../../src/lib/api-client';
 
 /**
@@ -29,11 +30,11 @@ export default function TabsLayout() {
     staleTime: 5 * 60 * 1000,
   });
 
-  if (!isLoaded) return null;
+  if (!isLoaded) return <AppLoading />;
   if (!isSignedIn) return <Redirect href="/sign-in" />;
   /* Hold rather than guess. Rendering the tabs first and redirecting once
      `me` lands would flash Today at someone who has never seen the app. */
-  if (me.isPending) return null;
+  if (me.isPending) return <AppLoading />;
   if (me.data && me.data.onboardedAt == null) return <Redirect href="/onboarding" />;
 
   return (

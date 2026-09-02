@@ -3,6 +3,7 @@ import { useAuth } from '@clerk/clerk-expo';
 import { useQuery } from '@tanstack/react-query';
 import type { User } from '@setframe/schemas';
 import { useApiClient } from '../src/lib/api-client';
+import { AppLoading } from '../src/components/AppLoading';
 
 /**
  * Entry route — decides where a launch lands.
@@ -25,11 +26,11 @@ export default function Index() {
     staleTime: 5 * 60 * 1000,
   });
 
-  if (!isLoaded) return null;
+  if (!isLoaded) return <AppLoading />;
   if (!isSignedIn) return <Redirect href="/sign-in" />;
   /* Hold while we do not know. The splash cap in appReady means this can
      never become an indefinite blank screen. */
-  if (me.isPending) return null;
+  if (me.isPending) return <AppLoading />;
   /* An errored /me falls through to Today rather than trapping the user:
      a first-run flow is worth less than a reachable app, and the tab
      layout re-checks anyway once the query recovers. */

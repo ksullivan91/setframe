@@ -31,9 +31,14 @@ describe('the run-once gate', () => {
   });
 
   it('holds rather than flashing Today before it knows', () => {
-    // Rendering tabs first and redirecting later shows the app to someone
-    // who has never seen it.
-    expect(layout()).toContain('if (me.isPending) return null;');
+    /* Rendering tabs first and redirecting later shows the app to someone
+       who has never seen it. Asserts that it HOLDS, not what it holds
+       with — pinning `return null` broke the moment that became
+       <AppLoading />, while the rule was unchanged. */
+    const source = layout();
+    const gate = source.slice(source.indexOf('if (me.isPending)'));
+    expect(gate.slice(0, 60)).toMatch(/return <AppLoading \/>|return null/);
+    expect(source.indexOf('if (me.isPending)')).toBeLessThan(source.indexOf('<Tabs'));
   });
 
   it('does not infer completion from having a program or Health', () => {
@@ -132,7 +137,9 @@ describe('the launch path cannot flash, stick, or loop', () => {
        visibly replaced a moment later — what a new account actually saw. */
     const source = entry();
     expect(source).toContain("queryKey: ['me']");
-    expect(source).toContain('if (me.isPending) return null;');
+    // Holds while pending, whatever it holds with.
+    const gate = source.slice(source.indexOf('if (me.isPending)'));
+    expect(gate.slice(0, 60)).toMatch(/return <AppLoading \/>|return null/);
     expect(source).toContain('href="/onboarding"');
   });
 
@@ -173,5 +180,30 @@ describe('no authenticated entry bypasses the decision', () => {
   it('leaves the tab layout as a backstop for deep links', () => {
     // Belt and braces: a link straight into the shell still gets checked.
     expect(app('(tabs)', '_layout.tsx')).toContain('href="/onboarding"');
+  });
+});
+
+describe('nothing renders before it knows what to render', () => {
+  it('holds with the launch screen, not a blank one', () => {
+    /* `return null` is invisible only while the native splash covers it.
+       The moment the 2.5s cap fires it becomes a blank screen — splash,
+       blank, app. AppLoading is the same background and mark at the same
+       size, so the handover cannot be seen. */
+    for (const file of [app('index.tsx'), app('(tabs)', '_layout.tsx')]) {
+      expect(file).toContain('<AppLoading />');
+      expect(file).not.toMatch(/if \([^)]*\) return null;/);
+    }
+    const loading = src('components', 'AppLoading.tsx');
+    expect(loading).toContain('#364bf2');
+    expect(loading).toContain('splash-icon.png');
+  });
+
+  it('never shows an empty plan list while the plans are loading', () => {
+    /* It rendered straight from `data = []`, so a user with four plans was
+       told they had none — the same defect the week strip had, reading
+       "Rest" every day until the slots arrived. */
+    const source = src('screens', 'PlansScreen.tsx');
+    expect(source).toContain('programsQuery.isPending ? (');
+    expect(source).not.toContain('const { data: programs = [] }');
   });
 });

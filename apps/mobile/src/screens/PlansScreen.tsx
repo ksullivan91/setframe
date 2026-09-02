@@ -6,6 +6,7 @@ import type { TrainingProgram } from '@setframe/schemas';
 import { describeRepeatMode, planBadge, planSwitchLabel } from '@setframe/domain';
 import { training, workoutEditor } from '@setframe/design-tokens';
 import { useApiClient } from '../lib/api-client';
+import { ListRowsSkeleton } from '../components/training-v2/TrainingSkeletons';
 import { useScreenTopPadding } from '../lib/useScreenInsets';
 import { useTheme } from '../theme/ThemeProvider';
 import { Card } from '../components/training-v2/TrainingCards';
@@ -31,10 +32,11 @@ export function PlansScreen() {
   const topPadding = useScreenTopPadding(workoutEditor.header.paddingTop);
   const queryClient = useQueryClient();
 
-  const { data: programs = [] } = useQuery({
+  const programsQuery = useQuery({
     queryKey: ['programs'],
     queryFn: () => api.get<TrainingProgram[]>('/programs'),
   });
+  const programs = programsQuery.data ?? [];
 
   const [error, setError] = useState<string | null>(null);
 
@@ -74,7 +76,14 @@ export function PlansScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>
-        {sorted.map((program) => {
+        {/* Skeletons, not an empty list. Rendering `programs = []` while
+            the query is in flight tells a user with four plans that they
+            have none — the same defect Today's week strip had, where the
+            week read "Rest" every day until the slots arrived. */}
+        {programsQuery.isPending ? (
+          <ListRowsSkeleton />
+        ) : (
+        sorted.map((program) => {
           const badge = planBadge(program.isActive);
           return (
             <Card key={program.id} testID={`plan-${program.id}`}>
@@ -114,7 +123,7 @@ export function PlansScreen() {
               )}
             </Card>
           );
-        })}
+        }))}
 
         {/* Answered before they press, because it is the thing a user would
             most reasonably fear about these buttons. */}
