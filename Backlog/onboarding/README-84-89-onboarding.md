@@ -159,6 +159,30 @@ behind `hasUnaskedTypes()`.
 
 ---
 
+## Every route that must be repointed
+
+Story 86 is a swap across **seven call sites in four files**. Enumerated
+here because "switch Training onto the shared flow" is not an instruction
+anyone can check off:
+
+| File | Line | Control |
+|---|---|---|
+| `src/screens/TrainingScreenV2.tsx` | 208 | Build your own (no-plan state) |
+| `src/screens/TrainingScreenV2.tsx` | 232 | Build your own (empty-plan state) |
+| `src/screens/PlansScreen.tsx` | 127 | New plan |
+| `app/(tabs)/today.tsx` | 673 | Start guided setup |
+| `app/training-manage.tsx` | 539, 584, 683 | Start guided setup ×3 |
+
+**The last three are already unreachable.** Nothing links to
+`/training-manage` any more — the overview's last reference to it went when
+`+ New` was repointed. Its only remaining referent is its own test. So 86
+should **delete `app/training-manage.tsx`** rather than repoint it, along
+with `ProgramEditorScreen.test.tsx`, and the build pack for training-v2
+should be updated to say the retirement finally happened.
+
+`app/program-wizard.tsx` itself is deleted once the shared flow is live —
+not before, so Training is never without a working path.
+
 ## Order, and why
 
 | # | Story | Depends on |
@@ -183,10 +207,20 @@ that is not there yet, which is how the seam ends up wrong.
   a rewrite; the old wizard is deleted only once the shared flow is live.
 - **The exercise picker stays single.** Story 78 unified it. 6c reuses it and
   adds nothing of its own.
-- **No new API.** Every write above already exists.
+- **No new API for the setup steps.** Every write in the table above
+  already exists. Onboarding itself needs one addition — see below.
 - **Onboarding runs once**, and never for an account that already has data —
   a user who signs in on a second device must not be walked through setup
   again. Gate on server state, not a device flag.
+
+  **This needs a column, and there is not one today.** `user` has no
+  `onboarded_at` and nothing else records that the flow ran. Inferring it
+  from existing state does not work: someone who legitimately skipped
+  everything is indistinguishable from a brand-new account, so they would
+  be re-onboarded on every launch — which is the exact bug the rule exists
+  to prevent. Story 87 adds `user.onboarded_at timestamptz null`, set when
+  the flow is completed OR skipped. Migrations here are hand-written and
+  applied manually before the API that needs them ships (docs/handoff.md §2).
 - **Everything remains reachable afterwards.** "Set up your training" stays
   on Today, and the Health card keeps offering the connection. Nothing in
   onboarding is a one-time chance, and step 7 says so.
