@@ -7,6 +7,8 @@ import { HeartRateCard } from '../src/components/watch/HeartRateCard';
 import { EffortByExerciseCard } from '../src/components/watch/EffortByExerciseCard';
 import { useTheme } from '../src/theme/ThemeProvider';
 import { GuidedSetupFlow } from '../src/components/guided-setup/GuidedSetupFlow';
+import { OnboardingScaffold, onboardingText as OT } from '../src/screens/onboarding/OnboardingScaffold';
+import { Button } from '../src/components/Button';
 import { CARD_WIDTH } from '../src/components/workout-v2/ExerciseTableCard';
 
 /**
@@ -125,6 +127,36 @@ export default function DevWatchGallery() {
       <Text style={[styles.note, { color: theme.text.secondary }]}>
         Development gallery. Fixtures only — no auth, no network, no HealthKit.
       </Text>
+
+      <Section label="Onboarding 2 · Apple Health (live scaffold + real copy)">
+        <View style={{ height: 700, width: CARD_WIDTH, overflow: 'hidden', borderRadius: 12 }}>
+          <OnboardingScaffold
+            actions={<>
+              <Button label="Enable Apple Health" onPress={() => {}} />
+              <Button label="Not now" variant="secondary" onPress={() => {}} />
+            </>}
+          >
+            <Text style={[OT.title, { color: theme.text.primary }]}>Connect Apple Health</Text>
+            <Text style={[OT.body, { color: theme.text.secondary }]}>
+              One tap, and most of what follows fills itself in. Setframe reads your activity,
+              heart and body data so Today reflects everything you did — not only what you logged
+              here.
+            </Text>
+            <View style={{ backgroundColor: theme.surface.raised, borderRadius: 12, padding: 16, gap: 8 }}>
+              <Text style={[OT.eyebrow, { color: theme.text.disabled }]}>WHAT IT READS</Text>
+              {['Steps, active energy and exercise minutes',
+                'Heart rate, resting heart rate and HRV',
+                'Sleep, VO₂ max and body measurements',
+                'Apple Watch workouts, to attach to a session'].map((l) => (
+                <Text key={l} style={{ fontSize: 13, lineHeight: 19, color: theme.text.primary }}>·  {l}</Text>
+              ))}
+            </View>
+            <Text style={[OT.note, { color: theme.text.secondary }]}>
+              Read only. Setframe never writes anything to Apple Health.
+            </Text>
+          </OnboardingScaffold>
+        </View>
+      </Section>
 
       <Section label="Guided setup — Training host (live component)">
         <View style={{ height: 720, width: CARD_WIDTH, overflow: 'hidden', borderRadius: 12 }}>

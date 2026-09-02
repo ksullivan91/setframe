@@ -6,6 +6,8 @@ export const userSchema = z.object({
   displayName: z.string().nullable(),
   preferredUnits: z.enum(['imperial', 'metric']).default('imperial'),
   timezone: z.string(),
+  /** When onboarding finished — completed or skipped. Null = never run. */
+  onboardedAt: z.string().datetime().nullable(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

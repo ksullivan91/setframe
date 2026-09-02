@@ -17,6 +17,15 @@ export const user = pgTable(
     displayName: text('display_name'),
     preferredUnits: preferredUnitsEnum('preferred_units').notNull().default('imperial'),
     timezone: text('timezone'),
+    /**
+     * When onboarding finished — completed OR skipped.
+     *
+     * Null means it has never run. Nothing else can tell us: a user who
+     * skipped every step looks exactly like a brand-new account, so
+     * inferring it from whether they have a program or a Health connection
+     * would re-run the flow forever for anyone who declined it.
+     */
+    onboardedAt: timestamp('onboarded_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

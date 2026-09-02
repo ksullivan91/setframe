@@ -71,6 +71,13 @@
       "when": 1788300000000,
       "tag": "0009_session_watch_workout",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788300000001,
+      "tag": "0010_user_onboarded_at",
+      "breakpoints": true
     }
   ]
 }
