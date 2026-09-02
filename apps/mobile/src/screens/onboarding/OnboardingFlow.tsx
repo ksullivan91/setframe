@@ -58,6 +58,12 @@ export function OnboardingFlow({ onFinished }: { onFinished: () => void }) {
 
   const afterAbout = () => setStep(hasHealthData ? 'measured' : 'program');
 
+  /* Both Health-derived screens are skipped together when nothing came
+     through. "About you" reads entirely from Health and Setframe never
+     writes back, so with no data it is four rows of "Not set" and no way
+     to set any of them — a worse dead end than not showing it. */
+  const afterHealth = () => setStep(hasHealthData ? 'about' : 'program');
+
   if (step === 'setup') {
     return (
       <GuidedSetupFlow
@@ -104,14 +110,14 @@ export function OnboardingFlow({ onFinished }: { onFinished: () => void }) {
                 loading={health.connecting}
                 onPress={async () => {
                   await health.connect();
-                  setStep('about');
+                  afterHealth();
                 }}
               />
               {/* "Not now" never calls requestAuthorization, so iOS never
                   shows its sheet and the state stays not_asked — which is
                   what lets us ask again later. Declining Apple's own sheet
                   is permanent; declining ours is not. */}
-              <Button label="Not now" variant="secondary" onPress={() => setStep('about')} />
+              <Button label="Not now" variant="secondary" onPress={() => setStep('program')} />
             </>
           }
         >
@@ -223,8 +229,8 @@ function OnboardingSteps({
       >
         <Text style={[T.title, { color: theme.text.primary }]}>About you</Text>
         <Text style={[T.body, { color: theme.text.secondary }]}>
-          Used for heart-rate zones and to show weights the way you think about them. Change
-          anything that looks wrong in Settings.
+          Used for heart-rate zones and to show weights the way you think about them. These come
+          from Apple Health — if something looks wrong, change it there and it updates here.
         </Text>
         {rows.map(([label, value, prefilled]) => (
           <View

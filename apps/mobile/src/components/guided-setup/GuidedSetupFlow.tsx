@@ -133,6 +133,12 @@ export function GuidedSetupFlow({ host, onExit }: { host: SetupHost; onExit: () 
     onError: feedback.report('Could not remove that exercise. Try again.'),
   });
 
+  /* Leaving step 4 by EITHER path has to write first.
+     "Add another workout" used to reset `days` and jump to step 2 while
+     saveDays had only ever been wired to Done — so the days picked for
+     the first workout were silently dropped and only the last workout
+     was ever scheduled. Every step writes as it completes; this one was
+     writing as the flow ended, which is not the same thing. */
   const saveDays = useMutation({
     mutationFn: async (selected: number[]) => {
       /* `dayIndex` and `sortOrder`, matching ScheduleScreen and the
@@ -151,10 +157,7 @@ export function GuidedSetupFlow({ host, onExit }: { host: SetupHost; onExit: () 
         });
       }
     },
-    onSuccess: () => {
-      invalidate();
-      onExit();
-    },
+    onSuccess: () => invalidate(),
     onError: feedback.report('Could not save your week. The workout is still saved.'),
   });
 
@@ -163,6 +166,22 @@ export function GuidedSetupFlow({ host, onExit }: { host: SetupHost; onExit: () 
      this — so back exits rather than disappearing. A chrome whose left
      side is blank on the first screen reads as a dead end, which is the
      defect the old wizard actually had. */
+  const startAnotherWorkout = () => {
+    setWorkoutName('');
+    setDayType(null);
+    setDays([]);
+    setStep(2);
+  };
+
+  /** Writes the week, then does whatever came next. */
+  const commitDays = (next: () => void) => {
+    if (days.length === 0) {
+      next();
+      return;
+    }
+    saveDays.mutate(days, { onSuccess: next });
+  };
+
   const back = step > 1 ? () => setStep((n) => n - 1) : onExit;
   const active = exercises.find((e) => e.id === sheetFor) ?? null;
   const byId = new Map((catalogue.data ?? []).map((e) => [e.id, e] as const));
@@ -184,8 +203,8 @@ export function GuidedSetupFlow({ host, onExit }: { host: SetupHost; onExit: () 
           onCreatePlan={() => createProgram.mutate(planName.trim())}
           onCreateWorkout={() => createWorkout.mutate(workoutName.trim())}
           onExercisesDone={() => setStep(4)}
-          onAddAnother={() => { setWorkoutName(''); setDayType(null); setDays([]); setStep(2); }}
-          onFinish={() => (days.length ? saveDays.mutate(days) : onExit())}
+          onAddAnother={() => commitDays(startAnotherWorkout)}
+          onFinish={() => commitDays(onExit)}
         />}
       >
         {step === 1 ? (

@@ -60,9 +60,16 @@ describe('guided setup is not a dead end', () => {
   it('finishes without requiring a schedule', () => {
     /* A program with workouts and no schedule is valid — you train from it
        ad hoc. Requiring one, with no exit, trapped the user on the last
-       step of the old wizard. */
+       step of the old wizard.
+
+       Asserts the RULE, not the expression: the first version of this
+       pinned `days.length ? saveDays.mutate(days) : onExit()` and then
+       failed when that was refactored into commitDays — while the
+       behaviour it cared about was unchanged. */
     const source = flow();
-    expect(source).toMatch(/days\.length \? saveDays\.mutate\(days\) : onExit\(\)/);
+    const commit = source.slice(source.indexOf('const commitDays'));
+    expect(commit.slice(0, 220)).toMatch(/if \(days\.length === 0\)/);
+    expect(commit.slice(0, 220)).toContain('next();');
   });
 
   it('does not gate the exercises step on having added any', () => {
