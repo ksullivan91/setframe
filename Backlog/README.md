@@ -22,10 +22,11 @@ alongside their stories, named `README-{range}-{review}.md`.
   system catalog beyond its current 33 exercises; adds no exercises itself.
 - `WAIT-automated-visual-and-e2e-testing.md` — deferred by request. Filed so the
   gap is tracked, deliberately not started.
-- `WAIT-onboarding-apple-health-prompt.md` — deferred by request. Offer the
-  Apple Health connection during onboarding instead of only from the Today
-  card, which sits below the fold and is the reason permission gaps surface
-  late. Belongs to the onboarding feature, which does not exist yet.
+- `onboarding/` — stories 84–89. A first-run experience, and guided program
+  setup rebuilt as ONE implementation used from two places (onboarding and
+  Training's "Build your own"). Designs on the Figma 🚀 Onboarding page,
+  prototype wired. Supersedes `WAIT-onboarding-apple-health-prompt.md`,
+  which is folded in as step 2.
 - `WAIT-figma-accentsubtle-token-fix.md` — deferred by request. Fixes
   `Semantic/Action/AccentSubtle` and other `Semantic/*` alias mismatches
   found during the 2026-08-23 color-token reconciliation (see
