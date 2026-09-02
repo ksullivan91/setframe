@@ -29,6 +29,9 @@ import type { SetupHost } from './SetupChrome';
  * states the Training tab already renders. Leaving keeps what exists.
  */
 const TOTAL_STEPS = 4;
+/** Matches WorkoutEditorScreen: the API requires a prescription, and this
+ *  is the least-assuming one that still lets a session build a row. */
+const DEFAULT_PICKED_PRESCRIPTION = { kind: 'sets_reps' as const, sets: 1 };
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 export function GuidedSetupFlow({ host, onExit }: { host: SetupHost; onExit: () => void }) {
@@ -92,7 +95,15 @@ export function GuidedSetupFlow({ host, onExit }: { host: SetupHost; onExit: () 
   const addExercises = useMutation({
     mutationFn: async (ids: string[]) => {
       for (const exerciseId of ids) {
-        await api.post(`/day-types/${dayType!.id}/exercises`, { exerciseId, prescription: null });
+        /* `prescription` is required by addDayTypeExerciseSchema — sending
+           null fails validation. Same default the workout editor uses: a
+           set count and no reps, which is enough for a session to
+           instantiate a row to log into without inventing a rep target the
+           user never chose. Blank targets stay legitimate (story 19). */
+        await api.post(`/day-types/${dayType!.id}/exercises`, {
+          exerciseId,
+          prescription: DEFAULT_PICKED_PRESCRIPTION,
+        });
       }
     },
     onSuccess: () => {
@@ -124,10 +135,18 @@ export function GuidedSetupFlow({ host, onExit }: { host: SetupHost; onExit: () 
 
   const saveDays = useMutation({
     mutationFn: async (selected: number[]) => {
-      for (const dayOfWeek of selected) {
+      /* `dayIndex` and `sortOrder`, matching ScheduleScreen and the
+         programScheduleSlot schema. The first version of this sent
+         `dayOfWeek` — a field that does not exist — so every schedule
+         would have failed validation on the last step of the flow.
+         weekNumber stays null: that is "repeats every week", and pinning
+         a slot to one week of a block is the part of the model still
+         undesigned (training-v2 pack, "What is still open"). */
+      for (const [index, dayIndex] of selected.entries()) {
         await api.post(`/programs/${program!.id}/schedule-slots`, {
-          dayOfWeek,
           dayTypeId: dayType!.id,
+          dayIndex,
+          sortOrder: index,
           weekNumber: null,
         });
       }

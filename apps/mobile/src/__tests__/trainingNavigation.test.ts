@@ -93,3 +93,52 @@ describe('guided setup is one flow with two hosts', () => {
     expect(source).toContain("planName ?? 'New plan'");
   });
 });
+
+describe('guided setup writes what the API actually accepts', () => {
+  /* The first version of step 4 sent `dayOfWeek`, which is not a field on
+     programScheduleSlot — every schedule would have failed validation on
+     the last step, after the plan and workout had already been created.
+     Written from the build pack's prose rather than from the endpoint. */
+  const flow = () => read('components', 'guided-setup', 'GuidedSetupFlow.tsx');
+
+  it('posts schedule slots with dayIndex and sortOrder', () => {
+    const source = flow();
+    const call = source.slice(source.indexOf('/schedule-slots`'));
+    expect(call.slice(0, 260)).toContain('dayIndex');
+    expect(call.slice(0, 260)).toContain('sortOrder');
+    expect(call.slice(0, 260)).not.toContain('dayOfWeek');
+  });
+
+  it('matches the fields ScheduleScreen already proves against the API', () => {
+    const mine = flow();
+    const proven = read('screens', 'ScheduleScreen.tsx');
+    for (const field of ['dayTypeId', 'dayIndex', 'sortOrder', 'weekNumber']) {
+      expect(mine).toContain(field);
+      expect(proven).toContain(field);
+    }
+  });
+});
+
+describe('guided setup sends a valid prescription when adding exercises', () => {
+  /* addDayTypeExerciseSchema requires `prescription`; it is not nullable.
+     The first version sent null, so adding any exercise would have 400ed —
+     again written from prose rather than from the schema. */
+  it('does not post a null prescription', () => {
+    /* Anchored on the mutation, not on "/exercises" — the first match for
+       that is the GET query further up the file, which is how the first
+       version of this test failed against correct code. */
+    const source = read('components', 'guided-setup', 'GuidedSetupFlow.tsx');
+    const block = source.slice(source.indexOf('const addExercises'));
+    const body = block.slice(0, block.indexOf('onSuccess'));
+    expect(body).not.toContain('prescription: null');
+    expect(body).toContain('DEFAULT_PICKED_PRESCRIPTION');
+  });
+
+  it('uses the same default the workout editor proved', () => {
+    const mine = read('components', 'guided-setup', 'GuidedSetupFlow.tsx');
+    const proven = read('screens', 'WorkoutEditorScreen.tsx');
+    const shape = "{ kind: 'sets_reps' as const, sets: 1 }";
+    expect(mine).toContain(shape);
+    expect(proven).toContain(shape);
+  });
+});
