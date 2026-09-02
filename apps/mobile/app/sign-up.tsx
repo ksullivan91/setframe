@@ -1,8 +1,9 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
 import { useAuth, useSignUp } from '@clerk/clerk-expo';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { describeClerkError, describeIncompleteSignUp } from '../src/lib/clerk-errors';
+import { releaseSplash } from '../src/lib/appReady';
 import { Card } from '../src/components/Card';
 import { Input } from '../src/components/Input';
 import { Button } from '../src/components/Button';
@@ -15,6 +16,9 @@ import { spacing, typeScale } from '../src/theme/getTheme';
  * reads "Create Account"; footer links back to Sign In.
  */
 export default function SignUpScreen() {
+  // Nothing to wait for here, so the logo should not linger over it.
+  useEffect(releaseSplash, []);
+
   const theme = useTheme();
   const router = useRouter();
   const { isSignedIn } = useAuth();

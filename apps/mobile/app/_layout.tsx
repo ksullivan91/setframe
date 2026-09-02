@@ -8,8 +8,13 @@ import { ThemeProvider } from '../src/theme/ThemeProvider';
 import { PopoverHost } from '../src/components/PopoverHost';
 import { env } from '../src/lib/env';
 import { tokenCache } from '../src/lib/token-cache';
+import { holdSplash } from '../src/lib/appReady';
 
 const queryClient = new QueryClient();
+
+/* Module scope, before the first render: the splash hides on the first
+   frame otherwise, and the first frame is the auth gate's `null`. */
+holdSplash();
 
 /**
  * Root layout — wires ClerkProvider (bearer-token auth per ADR 0002),

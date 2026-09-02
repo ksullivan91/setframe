@@ -21,6 +21,7 @@ import {
   Utensils,
 } from 'lucide-react-native';
 import { Card } from '../../src/components/Card';
+import { releaseSplash, SPLASH_MAX_MS } from '../../src/lib/appReady';
 import { Button } from '../../src/components/Button';
 import { Input } from '../../src/components/Input';
 import { SyncStatusPill, type SyncStatus } from '../../src/components/SyncStatusPill';
@@ -243,6 +244,8 @@ export default function TodayScreen() {
   /* Every panel on this screen waits for this one flag. Previously each
      decided for itself, so Additional activity — which fetches separately —
      drew its finished card above a check-in card still full of blanks. */
+  /* Declared before the queries it reads so the skeleton branch below can
+     use it; the value is computed from them further down. */
   const isPageLoading = todayQuery.isLoading || additionalActivities.isLoading;
 
   const manual = todayQuery.data?.manualEntry;
@@ -409,6 +412,33 @@ export default function TodayScreen() {
   const completedReadoutValue = completedReadout(completedSummaryQuery.data);
   const completedVolume = completedReadoutValue?.totalVolume ?? 0;
   const completedSets = completedReadoutValue?.loggedSetCount ?? 0;
+
+  /* The card cannot render truthfully until the summary behind it has
+     landed. `completedSummaryQuery` cannot even START until the dashboard
+     names a completed session, so the two resolve in sequence — which is
+     why the card was seen going "Review workout", then "Review workout"
+     with its tiles a beat later. Waiting on the pair collapses that into
+     one render. */
+  const awaitingCompletedSummary =
+    Boolean(completedSession?.id) && !activeSession && completedSummaryQuery.isPending;
+
+  /* One gate for the whole screen. Everything the check-in card asserts —
+     whether a workout happened, and what it came to — has to be known
+     before any of it is drawn, or the card states a different thing on
+     each pass. */
+  const showSkeleton = isPageLoading || awaitingCompletedSummary;
+
+  /* And the launch screen stays up until that is true, so the logo covers
+     the resolution rather than the user watching it happen. Capped: a held
+     splash and a hung app look identical from outside. */
+  useEffect(() => {
+    if (!showSkeleton) {
+      releaseSplash();
+      return;
+    }
+    const timer = setTimeout(releaseSplash, SPLASH_MAX_MS);
+    return () => clearTimeout(timer);
+  }, [showSkeleton]);
 
   const restDay = todayQuery.data?.restDay ?? null;
   // A rest day closes out the day's training step: the user made a decision
@@ -593,7 +623,7 @@ export default function TodayScreen() {
             </View>
           ) : null}
         </View>
-        {todayQuery.isLoading || programsQuery.isLoading ? <ActivityIndicator color={theme.action.primary} /> : null}
+        {showSkeleton || programsQuery.isLoading ? <ActivityIndicator color={theme.action.primary} /> : null}
         {todayQuery.isError ? (
           <View style={[styles.statusBlock, { backgroundColor: theme.surface.sunken, borderColor: theme.border.default }]}>
             <AlertTriangle size={18} color={theme.status.caution} />
@@ -720,7 +750,7 @@ export default function TodayScreen() {
           used to paint its finished card above content that had not arrived.
           Not gated on the dashboard's error state: its data is independent,
           so a failed Today should not take a working feature down with it. */}
-      {!isPageLoading ? (
+      {!showSkeleton ? (
         <TodayAdditionalActivitySection
           localDate={localDate}
           sessions={loggedSessions}
@@ -736,7 +766,7 @@ export default function TodayScreen() {
           cards rendered immediately with every value blank, which reads as
           "you have logged nothing today" rather than "this is still
           loading" — a meaningfully wrong message on a check-in screen. */}
-      {isPageLoading ? (
+      {showSkeleton ? (
         <Card>
           <SkeletonStack gap={16}>
             {[0, 1, 2].map((row) => (

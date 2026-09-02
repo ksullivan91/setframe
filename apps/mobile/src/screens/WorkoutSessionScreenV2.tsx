@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   KeyboardAwareScrollProvider,
@@ -49,6 +49,7 @@ import { WatchAttachCard } from '../components/watch/WatchAttachCard';
 import { HeartRateCard } from '../components/watch/HeartRateCard';
 import { EffortByExerciseCard } from '../components/watch/EffortByExerciseCard';
 import { useSessionWatchWorkouts, candidatesForSession } from '../healthkit/useSessionWatchWorkouts';
+import { isTrainingType } from '../healthkit/workout-discovery';
 import { useWorkoutDiscovery } from '../healthkit/useWorkoutDiscovery';
 import { useWatchSessionInsights } from '../healthkit/useWatchSessionInsights';
 import {
@@ -387,11 +388,12 @@ function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null>
    */
   const sessionCompleteForOffer = session?.status === 'completed';
   const sessionIsUnplanned = session?.templateId == null;
-  const { data: programs = [] } = useQuery({
+  const programsQuery = useQuery({
     queryKey: ['programs'],
     queryFn: () => api.get<{ id: string; isActive: boolean }[]>('/programs'),
     enabled: sessionCompleteForOffer && sessionIsUnplanned,
   });
+  const programs = programsQuery.data ?? [];
   const hasActiveProgram = programs.some((program) => program.isActive);
 
   /* Story 45, and above the early return for exactly the reason written
@@ -430,6 +432,52 @@ function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null>
       watch.dismissedExternalIds,
     ],
   );
+
+  /* Two kinds of candidate, and only one of them is a question.
+     A Watch workout that OVERLAPS the session and is a training type is
+     the session — it is the same test that already hides it from Today's
+     Additional Activity ("this is your Upper A session, already logged
+     here"). Acting on that conclusion in one place and discarding it in
+     the other left the workout attached to nothing and offered nowhere.
+     Everything else is the "After" case — the run, the walk home — where
+     only you know whether it counted, so that still asks. */
+  const [autoAttach, toOffer] = useMemo(() => {
+    const auto: typeof attachCandidates = [];
+    const offer: typeof attachCandidates = [];
+    for (const candidate of attachCandidates) {
+      const unambiguous =
+        candidate.relation === 'overlaps' && isTrainingType(candidate.workout.appleType);
+      (unambiguous ? auto : offer).push(candidate);
+    }
+    return [auto, offer];
+  }, [attachCandidates]);
+
+  /* Attempted ids, not attached ids: the attach is optimistic and the list
+     it lands in is refetched, so keying off `attached` would fire the
+     mutation again on every render until the round trip completed. */
+  const autoAttempted = useRef(new Set<string>());
+  useEffect(() => {
+    if (!sessionCompleteForOffer) return;
+    for (const candidate of autoAttach) {
+      const id = candidate.workout.externalId;
+      if (autoAttempted.current.has(id)) continue;
+      autoAttempted.current.add(id);
+      watch.attach.mutate(candidate.workout);
+    }
+  }, [autoAttach, sessionCompleteForOffer, watch.attach]);
+
+  /* Everything below the exercise list is a second wave.
+     None of these queries can start until the session query names an id
+     and a date, so they all land after the page is already on screen and
+     each one pops its card in while the user is reading. Held together
+     and rendered once: a block that may legitimately render nothing is
+     worse as a skeleton than as a beat of nothing.
+     `canRead === null` is discovery's undetermined state — it has no
+     separate loading flag. */
+  const completedBlockReady =
+    !watch.isLoading &&
+    discovery.canRead !== null &&
+    !(sessionCompleteForOffer && sessionIsUnplanned && programsQuery.isPending);
 
   if (!session) {
     /* The header is chrome, not data — rendering it immediately means the
@@ -665,7 +713,7 @@ function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null>
         {/* Under the banner, never over it: the workout is already recorded,
             so the offer must not block the acknowledgement of what was just
             done. */}
-        {sessionComplete && isUnplanned && !saveOfferDismissed ? (
+        {sessionComplete && completedBlockReady && isUnplanned && !saveOfferDismissed ? (
           savedWorkoutName ? (
             <Text style={[styles.savedNotice, { color: theme.text.secondary }]} testID="saved-workout-notice">
               Saved as {savedWorkoutName}. You can start it from Training whenever you like.
@@ -680,7 +728,7 @@ function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null>
             />
           )
         ) : null}
-        {sessionComplete ? (
+        {sessionComplete && completedBlockReady ? (
           /* Pinned to CARD_WIDTH, the same width the exercise cards use.
              The scroll body centres its children, so a bare Card hugs its
              content and lands narrower than everything below it — which is
@@ -691,16 +739,26 @@ function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null>
                 cards below render nothing at all, so this is the only thing
                 on screen until the user confirms. */}
             <WatchAttachCard
-              candidates={attachCandidates}
+              candidates={toOffer}
               onAttach={({ workout }) => watch.attach.mutate(workout)}
-              onAttachAll={() => attachCandidates.forEach((c) => watch.attach.mutate(c.workout))}
+              onAttachAll={() => toOffer.forEach((c) => watch.attach.mutate(c.workout))}
               onDismiss={watch.dismiss}
               pendingId={watch.attach.isPending ? (watch.attach.variables?.externalId ?? null) : null}
               busy={watch.attach.isPending}
             />
             <WatchSummaryCard
               workouts={watch.attached}
-              onRemove={(id) => watch.detach.mutate(id)}
+              onRemove={(id) => {
+                /* Dismiss as well as detach. Without this, removing an
+                   auto-attached workout only holds until the screen
+                   remounts — the candidate reappears and the effect
+                   attaches it again. Removing it has to mean it stays
+                   gone, so it goes into the same device-local dismissal
+                   the offer flow uses. */
+                const removed = watch.attached.find((w) => w.id === id);
+                if (removed) watch.dismiss(removed.externalId);
+                watch.detach.mutate(id);
+              }}
               removingId={watch.detach.isPending ? (watch.detach.variables ?? null) : null}
             />
             {insights.series && insights.model ? (

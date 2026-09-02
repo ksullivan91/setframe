@@ -332,11 +332,12 @@ const styles = StyleSheet.create({
   metrics: { flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing[12], rowGap: 2 },
   metric: { fontSize: 11 },
   dismiss: {
-    /* Trailing, as on Today, where Dismiss is the right-hand half of the
-       pair. Left-aligned and alone it read as the tile's primary action,
-       which is the opposite of what it is. */
-    alignSelf: 'flex-end',
+    /* Full width of the tile. Alone on its row a fixed-width button reads
+       as a fragment of a missing pair; stretched, it reads as this tile's
+       action, which is what it is. */
+    alignSelf: 'stretch',
     height: 32,
+    alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing[12],
     borderRadius: radius.small,

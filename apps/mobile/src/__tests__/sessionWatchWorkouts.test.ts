@@ -1,5 +1,5 @@
 import { candidatesForSession, ATTACH_WINDOW_SECONDS } from '../healthkit/useSessionWatchWorkouts';
-import type { DiscoveredWorkout } from '../healthkit/workout-discovery';
+import { isTrainingType, type DiscoveredWorkout } from '../healthkit/workout-discovery';
 
 /**
  * Which Watch workouts belong to a session.
@@ -116,4 +116,29 @@ it('treats an in-progress session as ending at its start', () => {
     endedAt: '2026-09-01T18:00:00.000Z',
   });
   expect(candidatesForSession([during], inProgress, [])).toHaveLength(1);
+});
+
+describe('which candidates are a question, and which are not', () => {
+  /* Auto-attach the unambiguous case only: a training-type workout that
+     OVERLAPS the session is the session — the same test that already hides
+     it from Today's Additional Activity. The "After" case still asks,
+     because only the user knows whether the walk home counted. */
+  const unambiguous = (relation: 'overlaps' | 'after', appleType: number) =>
+    relation === 'overlaps' && isTrainingType(appleType);
+
+  it('treats an overlapping training workout as settled', () => {
+    expect(unambiguous('overlaps', 50)).toBe(true); // traditional strength training
+  });
+
+  it('still asks about a workout that merely follows the session', () => {
+    // The run afterwards, the walk home. Overlap is the whole signal.
+    expect(unambiguous('after', 37)).toBe(false);
+    expect(unambiguous('after', 52)).toBe(false);
+  });
+
+  it('still asks about a non-training overlap', () => {
+    /* A walk that happens to overlap a lift is not the lift. Requiring the
+       type match is what stops the gym-floor pacing being swallowed. */
+    expect(unambiguous('overlaps', 52)).toBe(false);
+  });
 });

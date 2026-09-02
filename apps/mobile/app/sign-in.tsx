@@ -3,8 +3,9 @@ import { Redirect, useRouter } from 'expo-router';
 import { useAuth, useSSO, useSignIn } from '@clerk/clerk-expo';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { describeClerkError, describeIncompleteSignIn } from '../src/lib/clerk-errors';
+import { releaseSplash } from '../src/lib/appReady';
 import { Card } from '../src/components/Card';
 import { Input } from '../src/components/Input';
 import { Button } from '../src/components/Button';
@@ -22,6 +23,9 @@ import { spacing, typeScale } from '../src/theme/getTheme';
 WebBrowser.maybeCompleteAuthSession();
 
 export default function SignInScreen() {
+  // Nothing to wait for here, so the logo should not linger over it.
+  useEffect(releaseSplash, []);
+
   const theme = useTheme();
   const router = useRouter();
   const { isSignedIn } = useAuth();
