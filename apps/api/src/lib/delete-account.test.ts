@@ -26,17 +26,50 @@ function schemaSource(): string {
     .join('\n');
 }
 
-/** Every table declaring a foreign key to `user.id`, by SQL name. */
-function tablesOwnedByAUser(): string[] {
+/** `constName` -> sql name, and the table constants each one references. */
+function schemaGraph(): { sqlName: Map<string, string>; refs: Map<string, string[]> } {
   const source = schemaSource();
-  const owned: string[] = [];
-  // pgTable('name', { ... }) blocks, matched non-greedily to the next one.
-  const blocks = source.matchAll(/pgTable\(\s*'([a-z_]+)'[\s\S]*?(?=pgTable\(|$)/g);
+  const sqlName = new Map<string, string>();
+  const refs = new Map<string, string[]>();
+  const blocks = source.matchAll(
+    /export const ([a-zA-Z]+) = pgTable\(\s*'([a-z_]+)'([\s\S]*?)(?=export const [a-zA-Z]+ = pgTable\(|$)/g,
+  );
   for (const block of blocks) {
-    const [body, name] = [block[0], block[1]!];
-    if (/references\(\(\)\s*=>\s*user\.id\)/.test(body)) owned.push(name);
+    const [, constName, table, body] = block as unknown as [string, string, string, string];
+    sqlName.set(constName, table);
+    const referenced = [...body.matchAll(/references\(\(\)\s*=>\s*([a-zA-Z]+)\./g)].map((m) => m[1]!);
+    refs.set(constName, [...new Set(referenced)]);
   }
-  return [...new Set(owned)];
+  return { sqlName, refs };
+}
+
+/**
+ * Every table reachable from `user` by following foreign keys.
+ *
+ * Direct references are the obvious half. The half that would slip through
+ * is a GRANDCHILD — a new table hanging off workout_session, say, which
+ * carries user data without ever naming the user. `workout_set` is already
+ * exactly that shape, and a check that only looked one level deep would
+ * happily miss its successor.
+ *
+ * Shared tables are excluded by construction: muscle_group and
+ * progression_rule reference nothing user-owned, so nothing reaches them.
+ */
+function tablesOwnedByAUser(): string[] {
+  const { sqlName, refs } = schemaGraph();
+  const owned = new Set<string>(['user']);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const [constName, referenced] of refs) {
+      if (owned.has(constName)) continue;
+      if (referenced.some((r) => owned.has(r))) {
+        owned.add(constName);
+        grew = true;
+      }
+    }
+  }
+  return [...owned].map((c) => sqlName.get(c)!).filter(Boolean);
 }
 
 describe('account deletion covers the whole schema', () => {
