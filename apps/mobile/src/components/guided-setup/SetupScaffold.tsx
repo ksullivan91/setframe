@@ -1,9 +1,10 @@
-import { useEffect, useRef, type ReactNode } from 'react';
-import { View, ScrollView, StyleSheet, Animated, Easing } from 'react-native';
+import { type ReactNode } from 'react';
+import { View, ScrollView, StyleSheet, Animated } from 'react-native';
 import { spacing } from '@setframe/design-tokens';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useScreenTopPadding, useStackBottomPadding } from '../../lib/useScreenInsets';
 import { SetupChrome, type SetupHost } from './SetupChrome';
+import { useStepTransition, flowSpacing } from '../../lib/useStepTransition';
 
 /**
  * The shell every guided-setup step renders inside.
@@ -44,19 +45,7 @@ export function SetupScaffold({
   const topPadding = useScreenTopPadding(spacing[8]);
   const bottomPadding = useStackBottomPadding(spacing[24]);
 
-  /* Re-runs on every step change: the body drops back to invisible and
-     8pt low, then rises. The chrome and the action bar are outside this
-     and do not move. */
-  const enter = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    enter.setValue(0);
-    Animated.timing(enter, {
-      toValue: 1,
-      duration: 200,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
-    }).start();
-  }, [step, enter]);
+  const motion = useStepTransition(step);
 
   return (
     <View style={[styles.fill, { backgroundColor: theme.surface.canvas, paddingTop: topPadding }]}>
@@ -80,10 +69,13 @@ export function SetupScaffold({
             which it did not — the header is the same header. */}
         <Animated.View
           style={{
-            opacity: enter,
-            transform: [
-              { translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) },
-            ],
+            /* The gap lives HERE, not on the scroll content.
+               Wrapping the step in one animated view left the content
+               container with a single child, so its `gap` applied between
+               nothing and every element inside sat flush — the label
+               against the help text, the field against the card. */
+            gap: flowSpacing.body,
+            ...motion,
           }}
         >
           {children}
@@ -97,6 +89,6 @@ export function SetupScaffold({
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  body: { padding: spacing[24], paddingTop: spacing[16], gap: spacing[16] },
-  actions: { paddingHorizontal: spacing[24], paddingTop: spacing[12], gap: spacing[8] },
+  body: { padding: spacing[24] },
+  actions: { paddingHorizontal: spacing[24], paddingTop: spacing[12], gap: flowSpacing.actions },
 });

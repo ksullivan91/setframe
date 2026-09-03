@@ -49,9 +49,12 @@ export function Button({
         ? theme.action.destructive
         : variant === 'success'
           ? theme.status.success
-          : 'transparent';
+          : /* Secondary is a filled grey, not an outline. Every full-size
+               secondary in the Figma file draws neutral-100 with no stroke
+               (Skip, Not now, Add another workout, and the delete sheet's
+               Cancel); the bordered-white version here predated them. */
+            theme.surface.sunken;
   const textColor = variant === 'secondary' ? theme.text.primary : theme.action.primaryText;
-  const borderColor = variant === 'secondary' ? theme.border.subtle : 'transparent';
 
   return (
     <Pressable
@@ -66,8 +69,6 @@ export function Button({
         styles.base,
         {
           backgroundColor,
-          borderColor,
-          borderWidth: variant === 'secondary' ? 1 : 0,
           opacity: isDisabled ? 0.5 : pressed ? 0.85 : 1,
           width: fullWidth ? '100%' : undefined,
         },

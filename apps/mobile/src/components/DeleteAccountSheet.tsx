@@ -34,6 +34,9 @@ export function DeleteAccountSheet({
       visible={visible}
       onRequestClose={busy ? () => {} : onCancel}
       backdropTestID="delete-account-backdrop"
+      /* The confirm sheet sits wider off the edges than Sheet's default 16,
+         and lifts further off the home indicator -- Figma 352:11. */
+      padding={{ top: spacing[24], bottom: spacing[40], left: spacing[24], right: spacing[24] }}
     >
       <Text style={[styles.title, { color: theme.text.primary }]}>Delete your account?</Text>
       <Text style={[styles.body, { color: theme.text.secondary }]}>

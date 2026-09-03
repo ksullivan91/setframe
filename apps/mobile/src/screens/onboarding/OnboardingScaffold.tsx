@@ -1,8 +1,9 @@
 import { type ReactNode } from 'react';
-import { View, ScrollView, StyleSheet } from 'react-native';
+import { View, ScrollView, StyleSheet, Animated } from 'react-native';
 import { spacing } from '@setframe/design-tokens';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useScreenTopPadding, useStackBottomPadding } from '../../lib/useScreenInsets';
+import { useStepTransition, flowSpacing } from '../../lib/useStepTransition';
 
 /**
  * The shell every onboarding step renders inside.
@@ -17,13 +18,20 @@ export function OnboardingScaffold({
   children,
   actions,
   testID,
+  stepIndex = 0,
 }: {
   children: ReactNode;
   actions: ReactNode;
   testID?: string;
+  /** Position in the flow, so the body can move in the right direction. */
+  stepIndex?: number;
 }) {
   const theme = useTheme();
-  const topPadding = useScreenTopPadding(spacing[24] + spacing[16]);
+  const motion = useStepTransition(stepIndex);
+  /* Figma puts the body 72 from the top of an 844pt frame that draws no
+     status bar; that frame's safe-area top is 47, so the designed gutter
+     below the inset is 24 -- the same 24 the body uses on its sides. */
+  const topPadding = useScreenTopPadding(spacing[24]);
   const bottomPadding = useStackBottomPadding(spacing[24]);
 
   return (
@@ -36,7 +44,10 @@ export function OnboardingScaffold({
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
       >
-        {children}
+        {/* Only the body moves. The action stack below is outside this and
+            stays put, which is what makes the flow feel like one screen
+            changing its question rather than a series of screens. */}
+        <Animated.View style={[styles.stepBody, motion]}>{children}</Animated.View>
       </ScrollView>
       <View style={[styles.actions, { paddingBottom: bottomPadding }]}>{actions}</View>
     </View>
@@ -45,8 +56,9 @@ export function OnboardingScaffold({
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  body: { paddingHorizontal: spacing[24], paddingBottom: spacing[24], gap: spacing[12] + 2 },
-  actions: { paddingHorizontal: spacing[24], paddingTop: spacing[12], gap: spacing[8] },
+  body: { paddingHorizontal: spacing[24], paddingBottom: spacing[24] },
+  stepBody: { gap: flowSpacing.body },
+  actions: { paddingHorizontal: spacing[24], paddingTop: spacing[12], gap: flowSpacing.actions },
 });
 
 export const onboardingText = StyleSheet.create({

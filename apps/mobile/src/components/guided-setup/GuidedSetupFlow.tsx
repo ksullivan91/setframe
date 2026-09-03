@@ -34,7 +34,25 @@ const TOTAL_STEPS = 4;
 const DEFAULT_PICKED_PRESCRIPTION = { kind: 'sets_reps' as const, sets: 1 };
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
-export function GuidedSetupFlow({ host, onExit }: { host: SetupHost; onExit: () => void }) {
+export function GuidedSetupFlow({
+  host,
+  onExit,
+  onBack,
+}: {
+  host: SetupHost;
+  /** Leaving the flow entirely — Skip, or Save & exit, or Done. */
+  onExit: () => void;
+  /**
+   * Going back one, from the FIRST step.
+   *
+   * Distinct from `onExit` on purpose. Back on step 1 used to call
+   * `onExit`, which in onboarding means "skip the whole setup" — so the
+   * back chevron and Skip did the same thing, which is not what a back
+   * chevron means anywhere. Falls back to `onExit` for a host with
+   * nothing behind it.
+   */
+  onBack?: () => void;
+}) {
   const theme = useTheme();
   const api = useApiClient();
   const queryClient = useQueryClient();
@@ -182,7 +200,10 @@ export function GuidedSetupFlow({ host, onExit }: { host: SetupHost; onExit: () 
     saveDays.mutate(days, { onSuccess: next });
   };
 
-  const back = step > 1 ? () => setStep((n) => n - 1) : onExit;
+  /* Back is a step backwards, never an exit in disguise. On step 1 it
+     leaves to whatever is behind this flow — the previous onboarding
+     screen, or Training — which is still "backwards", not "skip". */
+  const back = step > 1 ? () => setStep((n) => n - 1) : (onBack ?? onExit);
   const active = exercises.find((e) => e.id === sheetFor) ?? null;
   const byId = new Map((catalogue.data ?? []).map((e) => [e.id, e] as const));
 
@@ -384,8 +405,11 @@ function StepActions({
 
 const styles = StyleSheet.create({
   title: { fontSize: 26, fontWeight: '600' },
-  help: { fontSize: typeScale.helper.fontSize, lineHeight: 20 },
-  hint: { borderRadius: radius.small + 2, padding: spacing[12], gap: spacing[4] },
+  /* 14, from the frames. typeScale.helper is 12 and made every step's
+     body copy read a size smaller than designed. */
+  help: { fontSize: 14, lineHeight: 20 },
+  /* padding 14, from the frame; spacing[12] read tight against the 14 body rhythm. */
+  hint: { borderRadius: radius.small + 2, padding: 14, gap: spacing[4] },
   hintLabel: { fontSize: 10, fontWeight: '500', letterSpacing: 0.6 },
   hintBody: { fontSize: 13 },
   row: {

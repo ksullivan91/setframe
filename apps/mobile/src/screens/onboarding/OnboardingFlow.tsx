@@ -26,6 +26,11 @@ import { releaseSplash } from '../../lib/appReady';
  */
 type Step = 'welcome' | 'health' | 'about' | 'measured' | 'program' | 'setup' | 'done';
 
+/** Order on screen, so the body knows which way it is travelling. */
+const STEP_INDEX: Record<Step, number> = {
+  welcome: 0, health: 1, about: 2, measured: 3, program: 4, setup: 5, done: 6,
+};
+
 export function OnboardingFlow({ onFinished }: { onFinished: () => void }) {
   const theme = useTheme();
   const api = useApiClient();
@@ -82,6 +87,9 @@ export function OnboardingFlow({ onFinished }: { onFinished: () => void }) {
         /* Skip and Done both land here: whatever was created is already
            written, so there is nothing to discard either way. */
         onExit={() => setStep('done')}
+        /* Back from the first step returns to the screen that offered the
+           setup, rather than skipping past it. */
+        onBack={() => setStep('program')}
       />
     );
   }
@@ -91,6 +99,7 @@ export function OnboardingFlow({ onFinished }: { onFinished: () => void }) {
       {step === 'welcome' ? (
         <OnboardingScaffold
           testID="onboarding-welcome"
+          stepIndex={STEP_INDEX.welcome}
           actions={
             <>
               <Button label="Get started" onPress={() => setStep('health')} />
@@ -114,6 +123,7 @@ export function OnboardingFlow({ onFinished }: { onFinished: () => void }) {
       {step === 'health' ? (
         <OnboardingScaffold
           testID="onboarding-health"
+          stepIndex={STEP_INDEX.health}
           actions={
             <>
               <Button
@@ -137,7 +147,7 @@ export function OnboardingFlow({ onFinished }: { onFinished: () => void }) {
             One tap, and most of what follows fills itself in. Setframe reads your activity, heart
             and body data so Today reflects everything you did — not only what you logged here.
           </Text>
-          <View style={[styles.card, { backgroundColor: theme.surface.raised }]}>
+          <View style={[styles.listCard, { backgroundColor: theme.surface.raised }]}>
             <Text style={[T.eyebrow, { color: theme.text.disabled }]}>WHAT IT READS</Text>
             {[
               'Steps, active energy and exercise minutes',
@@ -159,6 +169,7 @@ export function OnboardingFlow({ onFinished }: { onFinished: () => void }) {
       {step === 'done' ? (
         <OnboardingScaffold
           testID="onboarding-done"
+          stepIndex={STEP_INDEX.done}
           actions={
             <Button label="Go to Today" loading={finish.isPending} onPress={() => finish.mutate()} />
           }
@@ -236,6 +247,7 @@ function OnboardingSteps({
     return (
       <OnboardingScaffold
         testID="onboarding-about"
+        stepIndex={STEP_INDEX.about}
         actions={<Button label="Continue" onPress={onAboutContinue} />}
       >
         <Text style={[T.title, { color: theme.text.primary }]}>About you</Text>
@@ -277,6 +289,7 @@ function OnboardingSteps({
     return (
       <OnboardingScaffold
         testID="onboarding-measured"
+        stepIndex={STEP_INDEX.measured}
         actions={<Button label="Continue" onPress={onMeasuredContinue} />}
       >
         <Text style={[T.title, { color: theme.text.primary }]}>Already measured</Text>
@@ -312,6 +325,7 @@ function OnboardingSteps({
   return (
     <OnboardingScaffold
       testID="onboarding-program"
+        stepIndex={STEP_INDEX.program}
       actions={
         <>
           <Button label="Set up my training" onPress={onSetUp} />
@@ -345,7 +359,16 @@ function OnboardingSteps({
 
 const styles = StyleSheet.create({
   centered: { textAlign: 'center' },
-  card: { borderRadius: radius.small + 4, padding: spacing[16], gap: spacing[8] },
+  /* Two card rhythms in the frames, not one. Prose cards ("compare") pad 16
+     and breathe 12 between blocks; the read-permission list pads 18 top and
+     bottom and runs a tighter 10 between its lines. */
+  card: { borderRadius: radius.small + 4, padding: spacing[16], gap: spacing[12] },
+  listCard: {
+    borderRadius: radius.small + 4,
+    paddingVertical: 18,
+    paddingHorizontal: spacing[16],
+    gap: 10,
+  },
   bullet: { fontSize: 13, lineHeight: 19 },
   field: {
     flexDirection: 'row',
