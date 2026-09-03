@@ -331,6 +331,13 @@ export function countsTowardVolume(
   return getPrescriptionDefinition(prescription).countsTowardVolume;
 }
 
+/** What a prescription's session is measured in. See `SummaryMetric`. */
+export function summaryMetricFor(
+  prescription: Prescription | PrescriptionKind | null | undefined,
+): SummaryMetric {
+  return getPrescriptionDefinition(prescription).summaryMetric;
+}
+
 /**
  * An exercise removed from a session ("Remove from today's workout") is
  * soft-deleted via `skipped` — its log and any logged sets stay in the

@@ -1,5 +1,5 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { buildLogWeek } from '@setframe/domain';
+import { buildLogWeek, sessionHeadlineStats } from '@setframe/domain';
 import { LogHeader } from '../src/components/log/LogHeader';
 import { LogWeekStrip } from '../src/components/log/LogWeekStrip';
 import { LogHero } from '../src/components/log/LogHero';
@@ -147,6 +147,49 @@ export default function DevLogGallery() {
             { value: '8,240', label: 'volume lb' },
             { value: '2', label: 'PRs', highlight: true },
           ]}
+          primary={{ label: 'Review workout', onPress: () => {} }}
+        />
+      </HeroFrame>
+
+      <HeroFrame label="79 · Hero — a recovery walk">
+        <LogHero
+          state="completed"
+          eyebrow="DONE TODAY"
+          chip="finished 07:12"
+          title="Treadmill"
+          titleAccent="Walk"
+          stats={sessionHeadlineStats({
+            totalVolume: 0,
+            loggedSetCount: 1,
+            personalRecordCount: 0,
+            volumeDelta: null,
+            comparedExerciseCount: 0,
+            summaryMetric: 'duration',
+            totalDurationSeconds: 2530,
+            totalDistanceMiles: 2.1,
+            totalReps: 0,
+          })}
+          primary={{ label: 'Review workout', onPress: () => {} }}
+        />
+      </HeroFrame>
+
+      <HeroFrame label="79 · Hero — bodyweight session">
+        <LogHero
+          state="completed"
+          eyebrow="DONE TODAY"
+          title="Pull-ups"
+          titleAccent="& Dips"
+          stats={sessionHeadlineStats({
+            totalVolume: 0,
+            loggedSetCount: 6,
+            personalRecordCount: 1,
+            volumeDelta: null,
+            comparedExerciseCount: 0,
+            summaryMetric: 'reps',
+            totalDurationSeconds: 0,
+            totalDistanceMiles: 0,
+            totalReps: 62,
+          })}
           primary={{ label: 'Review workout', onPress: () => {} }}
         />
       </HeroFrame>

@@ -5,6 +5,7 @@ import {
   formatSessionMeta,
   formatSessionTotalSuffix,
   type CompletedSessionExercise,
+  sessionHeadlineStats,
 } from './completed-session';
 
 const set = (over: Partial<CompletedSessionExercise['sets'][number]> = {}) => ({
@@ -128,7 +129,16 @@ describe('formatSessionMeta', () => {
 });
 
 describe('formatSessionTotalSuffix', () => {
-  const base = { totalVolume: 0, loggedSetCount: 0, personalRecordCount: 0, comparedExerciseCount: 1 };
+  const base = {
+    totalVolume: 0,
+    loggedSetCount: 0,
+    personalRecordCount: 0,
+    comparedExerciseCount: 1,
+    summaryMetric: 'volume' as const,
+    totalDurationSeconds: 0,
+    totalDistanceMiles: 0,
+    totalReps: 0,
+  };
 
   it('signs an increase and formats thousands', () => {
     expect(formatSessionTotalSuffix({ ...base, volumeDelta: 1340 })).toBe(
@@ -146,6 +156,14 @@ describe('formatSessionTotalSuffix', () => {
     expect(formatSessionTotalSuffix({ ...base, volumeDelta: 0 })).toBe(
       'lb total · matched last session',
     );
+  });
+
+  it('claims no pounds for a session that was never measured in them', () => {
+    // A treadmill walk has no lb total and never did.
+    expect(
+      formatSessionTotalSuffix({ ...base, summaryMetric: 'duration', volumeDelta: null }),
+    ).toBe('');
+    expect(formatSessionTotalSuffix({ ...base, summaryMetric: 'distance', volumeDelta: 0 })).toBe('');
   });
 });
 
@@ -211,5 +229,115 @@ describe('volume units', () => {
       exercise([{ weightValue: 100, reps: 3, weightUnit: 'kg' }]),
     ] as never);
     expect(Number.isInteger(readout.totalVolume)).toBe(true);
+  });
+});
+
+
+describe('the headline stats', () => {
+  const statsFor = (exercises: unknown[]) =>
+    sessionHeadlineStats(buildCompletedSessionReadout(exercises as never)).map((s) => `${s.value} ${s.label}`);
+
+  it('leads a walk with its duration', () => {
+    expect(
+      statsFor([
+        {
+          prescription: { kind: 'duration', durationMinutes: 40 },
+          sets: [{ durationSeconds: 2530, distanceValue: 2.1 }],
+        },
+      ]),
+    ).toEqual(['42:10 duration', '2.10 miles', '1 entry']);
+  });
+
+  it('leads bodyweight work with reps, never with 0 lb', () => {
+    const stats = statsFor([
+      { prescription: { kind: 'bodyweight_reps', sets: 3, reps: 12 }, sets: [{ reps: 12 }, { reps: 10 }] },
+    ]);
+    expect(stats).toContain('22 total reps');
+    expect(stats.some((s) => s.includes('volume'))).toBe(false);
+  });
+
+  it('leads strength work with volume, as before', () => {
+    expect(
+      statsFor([
+        { prescription: { kind: 'sets_reps', sets: 1, reps: 5 }, sets: [{ weightValue: 225, reps: 5 }] },
+      ]),
+    ).toEqual(['1 sets', '1,125 volume lb', '0 PRs']);
+  });
+
+  it('omits a distance a duration session never recorded', () => {
+    const stats = statsFor([
+      { prescription: { kind: 'duration', durationMinutes: 20 }, sets: [{ durationSeconds: 1200 }] },
+    ]);
+    expect(stats.some((s) => s.includes('miles'))).toBe(false);
+  });
+});
+
+describe('session shapes', () => {
+  /* Eight prescription kinds exist and every consumer of this readout used
+     to assume the first. These are the other seven. */
+  const walk = {
+    prescription: { kind: 'duration' as const, durationMinutes: 40 },
+    sets: [{ durationSeconds: 2530, reps: null, weightValue: null, distanceValue: 2.1 }],
+  };
+
+  it('reports a treadmill walk as time, not as zero pounds', () => {
+    const r = buildCompletedSessionReadout([walk as never]);
+    expect(r.summaryMetric).toBe('duration');
+    expect(r.totalDurationSeconds).toBe(2530);
+    expect(r.totalVolume).toBe(0);
+    // The bug this story exists for: 0 lb was being shown as the headline.
+    expect(formatSessionTotalSuffix(r)).toBe('');
+  });
+
+  it('counts reps for bodyweight work, where volume is always zero', () => {
+    const r = buildCompletedSessionReadout([
+      {
+        prescription: { kind: 'bodyweight_reps' as const, sets: 5, reps: 12 },
+        sets: [{ reps: 12 }, { reps: 12 }, { reps: 10 }],
+      } as never,
+    ]);
+    expect(r.summaryMetric).toBe('reps');
+    expect(r.totalReps).toBe(34);
+    expect(r.totalVolume).toBe(0);
+  });
+
+  it('adds distance across sets, converting kilometres', () => {
+    const r = buildCompletedSessionReadout([
+      {
+        prescription: { kind: 'distance' as const, distanceMiles: 5 },
+        sets: [
+          { distanceValue: 3, distanceUnit: 'mi' },
+          { distanceValue: 5, distanceUnit: 'km' },
+        ],
+      } as never,
+    ]);
+    expect(r.summaryMetric).toBe('distance');
+    // 3 + (5km → 3.11mi)
+    expect(r.totalDistanceMiles).toBeCloseTo(6.11, 1);
+  });
+
+  it('calls a session mixed when it genuinely is', () => {
+    const r = buildCompletedSessionReadout([
+      { prescription: { kind: 'sets_reps' as const, sets: 3, reps: 5 }, sets: [{ weightValue: 225, reps: 5 }] },
+      walk,
+    ] as never);
+    expect(r.summaryMetric).toBe('mixed');
+    expect(r.totalVolume).toBeGreaterThan(0);
+    expect(r.totalDurationSeconds).toBe(2530);
+  });
+
+  it('ignores an exercise the user never logged when deciding the shape', () => {
+    // An untouched accessory should not make a walk look mixed.
+    const r = buildCompletedSessionReadout([
+      walk,
+      { prescription: { kind: 'sets_reps' as const, sets: 3, reps: 5 }, sets: [{ weightValue: null, reps: null }] },
+    ] as never);
+    expect(r.summaryMetric).toBe('duration');
+  });
+
+  it('falls back to volume for a session with nothing logged at all', () => {
+    const r = buildCompletedSessionReadout([]);
+    expect(r.summaryMetric).toBe('volume');
+    expect(r.totalDurationSeconds).toBe(0);
   });
 });

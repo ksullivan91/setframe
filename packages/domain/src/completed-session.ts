@@ -1,6 +1,11 @@
 import type { Prescription } from '@setframe/schemas';
 import type { CompletedExerciseSet } from './completed-exercise';
-import { countsTowardVolume, isSessionSetLogged } from './prescription-fields';
+import {
+  countsTowardVolume,
+  isSessionSetLogged,
+  summaryMetricFor,
+  type SummaryMetric,
+} from './prescription-fields';
 
 /**
  * Session-level figures for the v2 logger's completion banner.
@@ -36,10 +41,51 @@ export interface CompletedSessionReadout {
   volumeDelta: number | null;
   /** Exercises that contributed to the comparison, for the honest label. */
   comparedExerciseCount: number;
+  /**
+   * What this session actually measured.
+   *
+   * There are eight prescription kinds and every consumer of this readout
+   * assumed the first. A treadmill walk reported `1 set · 0 volume lb ·
+   * 0 PRs`, which is worse than useless after forty minutes of work: it
+   * reads as a failure rather than as a session the app cannot describe.
+   *
+   * `mixed` is a real session — accessories logged alongside a carry — and
+   * falls back to volume, which is the metric most of it will be in.
+   */
+  summaryMetric: SummaryMetric | 'mixed';
+  /** Seconds across every timed or duration set. */
+  totalDurationSeconds: number;
+  /** Miles across every distance set. */
+  totalDistanceMiles: number;
+  /** Reps across every set, for bodyweight work where volume is always zero. */
+  totalReps: number;
 }
 
 /** Pounds per kilogram, for the rare set logged in metric. */
 const LB_PER_KG = 2.20462;
+
+/**
+ * A set's duration in seconds.
+ *
+ * `duration` and `distanceDuration` are prescribed in minutes while `timed`
+ * is in seconds — `prescriptionDefinitions` carries that per kind, and
+ * ignoring it would report a 42-minute walk as 42 seconds.
+ */
+function durationSecondsOf(
+  prescription: Prescription | null | undefined,
+  set: CompletedExerciseSet,
+): number {
+  const raw = set.durationSeconds;
+  if (typeof raw !== 'number' || Number.isNaN(raw)) return 0;
+  return raw;
+}
+
+/** A set's distance in miles, converting the rare kilometre entry. */
+function distanceMilesOf(set: CompletedExerciseSet): number {
+  const raw = set.distanceValue;
+  if (typeof raw !== 'number' || Number.isNaN(raw)) return 0;
+  return set.distanceUnit === 'km' ? raw * 0.621371 : raw;
+}
 
 /**
  * One set's contribution to volume, in pounds.
@@ -82,6 +128,10 @@ export function buildCompletedSessionReadout(
   let personalRecordCount = 0;
   let previousVolume = 0;
   let comparedExerciseCount = 0;
+  let totalDurationSeconds = 0;
+  let totalDistanceMiles = 0;
+  let totalReps = 0;
+  const metrics = new Set<SummaryMetric>();
 
   for (const exercise of exercises) {
     totalVolume += volumeOf(exercise.prescription, exercise.sets);
@@ -93,6 +143,19 @@ export function buildCompletedSessionReadout(
     personalRecordCount += exercise.sets.filter(
       (set) => set.isPrWeight === true || set.isPrReps === true,
     ).length;
+
+    const metric = summaryMetricFor(exercise.prescription);
+    /* Only exercises the user actually logged get a say in what the session
+       was about — an untouched accessory should not make a walk look mixed. */
+    if (exercise.sets.some((set) => isSessionSetLogged(exercise.prescription, set))) {
+      metrics.add(metric);
+    }
+    for (const set of exercise.sets) {
+      if (!isSessionSetLogged(exercise.prescription, set)) continue;
+      totalDurationSeconds += durationSecondsOf(exercise.prescription, set);
+      totalDistanceMiles += distanceMilesOf(set);
+      totalReps += typeof set.reps === 'number' ? set.reps : 0;
+    }
 
     const previous = exercise.previousSession?.sets;
     if (previous && previous.length > 0 && countsTowardVolume(exercise.prescription)) {
@@ -107,6 +170,10 @@ export function buildCompletedSessionReadout(
     personalRecordCount,
     volumeDelta: comparedExerciseCount > 0 ? Math.round(totalVolume - previousVolume) : null,
     comparedExerciseCount,
+    summaryMetric: metrics.size === 1 ? [...metrics][0]! : metrics.size === 0 ? 'volume' : 'mixed',
+    totalDurationSeconds: Math.round(totalDurationSeconds),
+    totalDistanceMiles: Math.round(totalDistanceMiles * 100) / 100,
+    totalReps,
   };
 }
 
@@ -168,9 +235,77 @@ export function formatSessionMeta(parts: {
  * data does not support.
  */
 export function formatSessionTotalSuffix(readout: CompletedSessionReadout): string {
+  /* Only a volume session has a pounds total to compare. A walk has no
+     "lb total" and never did — the literal was simply never questioned. */
+  if (readout.summaryMetric !== 'volume' && readout.summaryMetric !== 'mixed') return '';
   if (readout.volumeDelta == null) return 'lb total';
   const rounded = Math.round(readout.volumeDelta);
   if (rounded === 0) return 'lb total · matched last session';
   const sign = rounded > 0 ? '+' : '−';
   return `lb total · ${sign}${Math.abs(rounded).toLocaleString('en-US')} lb vs last session`;
+}
+
+/** One headline figure on the completed hero. */
+export interface SessionHeadlineStat {
+  value: string;
+  label: string;
+  highlight?: boolean;
+}
+
+function formatDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const sec = seconds % 60;
+  if (m >= 60) {
+    const h = Math.floor(m / 60);
+    return `${h}h ${String(m % 60).padStart(2, '0')}m`;
+  }
+  return `${m}:${String(sec).padStart(2, '0')}`;
+}
+
+/**
+ * The three figures a finished session leads with.
+ *
+ * Driven by what the session measured rather than by what strength work
+ * happens to have. A duration session has no meaningful volume and a
+ * bodyweight one has none at all, so both would otherwise headline a zero.
+ */
+export function sessionHeadlineStats(readout: CompletedSessionReadout): SessionHeadlineStat[] {
+  const prs: SessionHeadlineStat = {
+    value: String(readout.personalRecordCount),
+    label: readout.personalRecordCount === 1 ? 'PR' : 'PRs',
+    highlight: readout.personalRecordCount > 0,
+  };
+
+  switch (readout.summaryMetric) {
+    case 'duration':
+      return [
+        { value: formatDuration(readout.totalDurationSeconds), label: 'duration' },
+        ...(readout.totalDistanceMiles > 0
+          ? [{ value: readout.totalDistanceMiles.toFixed(2), label: 'miles' }]
+          : []),
+        { value: String(readout.loggedSetCount), label: readout.loggedSetCount === 1 ? 'entry' : 'entries' },
+      ];
+    case 'distance':
+      return [
+        { value: readout.totalDistanceMiles.toFixed(2), label: 'miles' },
+        ...(readout.totalDurationSeconds > 0
+          ? [{ value: formatDuration(readout.totalDurationSeconds), label: 'duration' }]
+          : []),
+        { value: String(readout.loggedSetCount), label: readout.loggedSetCount === 1 ? 'entry' : 'entries' },
+      ];
+    case 'reps':
+      return [
+        { value: String(readout.loggedSetCount), label: 'sets' },
+        { value: readout.totalReps.toLocaleString('en-US'), label: 'total reps' },
+        prs,
+      ];
+    case 'volume':
+    case 'mixed':
+    default:
+      return [
+        { value: String(readout.loggedSetCount), label: 'sets' },
+        { value: readout.totalVolume ? readout.totalVolume.toLocaleString('en-US') : '—', label: 'volume lb' },
+        prs,
+      ];
+  }
 }

@@ -40,6 +40,7 @@ import {
   addDays,
   buildCompletedSessionReadout,
   buildLogWeek,
+  sessionHeadlineStats,
   startOfWeek,
   visibleSessionExercises,
 } from '@setframe/domain';
@@ -546,11 +547,11 @@ export default function TodayScreen() {
   const completedDuration = formatTime(completedSession?.completedAt)
     ? `finished ${formatTime(completedSession?.completedAt)}`
     : null;
-  const completedStats: LogHeroProps['stats'] = [
-    { value: String(completedSets), label: 'sets' },
-    { value: completedVolume ? completedVolume.toLocaleString('en-US') : '—', label: 'volume lb' },
-    { value: String(completedReadoutValue?.personalRecordCount ?? 0), label: 'PRs', highlight: (completedReadoutValue?.personalRecordCount ?? 0) > 0 },
-  ];
+  /* What the session measured decides what it leads with — a treadmill walk
+     has no volume to report and used to headline `0 lb`. */
+  const completedStats: LogHeroProps['stats'] = completedReadoutValue
+    ? sessionHeadlineStats(completedReadoutValue)
+    : undefined;
   /* The design shows "6 of 14 sets logged", but /dashboard/today returns no
      planned set count for a running session — only the logger knows it.
      Omitted rather than guessed; the hero renders without the bar. */
