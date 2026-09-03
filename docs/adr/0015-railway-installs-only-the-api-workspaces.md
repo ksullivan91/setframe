@@ -52,6 +52,15 @@ bundle, so `tsx` and the type packages it loads are needed at runtime even
 though they are devDependencies. Omitting them produces an image that
 installs faster and then cannot boot.
 
+### The config that defines the build must watch itself
+
+`watchPatterns` was `["apps/api/**", "packages/**"]`, so the very commit
+that fixed the build command changed nothing Railway considered watched
+and the deploy was skipped with "No changes to watched files" — leaving
+the broken build live. `railway.json`, `package.json` and
+`package-lock.json` are now watched too: the build command and the
+dependency tree it installs both live outside `apps/api`.
+
 ## Consequences
 
 - Adding a workspace that the API imports means adding it here too.

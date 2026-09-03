@@ -5,7 +5,10 @@
     "buildCommand": "npm install --include-workspace-root --workspace=@setframe/api --workspace=@setframe/config --workspace=@setframe/database --workspace=@setframe/domain --workspace=@setframe/schemas",
     "watchPatterns": [
       "apps/api/**",
-      "packages/**"
+      "packages/**",
+      "railway.json",
+      "package.json",
+      "package-lock.json"
     ]
   },
   "deploy": {
