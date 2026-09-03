@@ -25,6 +25,8 @@ import { Card } from '../../src/components/Card';
 import { LogHeader } from '../../src/components/log/LogHeader';
 import { LogWeekStrip } from '../../src/components/log/LogWeekStrip';
 import { LogHero, type LogHeroState, type LogHeroProps } from '../../src/components/log/LogHero';
+import { LogEntryRow } from '../../src/components/log/LogEntryRow';
+import { JournalSheet, NutritionSheet, WeightSheet } from '../../src/components/log/LogEditSheets';
 import { releaseSplash, SPLASH_MAX_MS } from '../../src/lib/appReady';
 import { Button } from '../../src/components/Button';
 import { Input } from '../../src/components/Input';
@@ -146,6 +148,12 @@ function formatShortDate(localDate: string) {
   });
 }
 
+function formatSleep(minutes: unknown): string {
+  const value = typeof minutes === 'number' ? minutes : Number(minutes);
+  if (!Number.isFinite(value) || value <= 0) return '—';
+  return `${Math.floor(value / 60)}h ${String(Math.round(value % 60)).padStart(2, '0')}m`;
+}
+
 function formatLongDate(localDate: string) {
   return new Date(`${localDate}T12:00:00`).toLocaleDateString(undefined, {
     weekday: 'long',
@@ -257,6 +265,9 @@ export default function TodayScreen() {
   const [mealStatus, setMealStatus] = useState<SaveState>('idle');
   const [weightError, setWeightError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ variant: 'success' | 'error'; message: string } | null>(null);
+  const [weightSheet, setWeightSheet] = useState(false);
+  const [journalSheet, setJournalSheet] = useState(false);
+  const [nutritionSheet, setNutritionSheet] = useState(false);
   const initialHydratedRef = useRef(false);
   const hydratedLocalDateRef = useRef<string | null>(null);
   const lastSavedSectionRef = useRef<'weight' | 'journal' | 'meal' | null>(null);
@@ -483,8 +494,8 @@ export default function TodayScreen() {
     }
   }
 
-  function saveWeight() {
-    const parsed = parseOptionalNumber(weight);
+  function saveWeight(raw?: string) {
+    const parsed = parseOptionalNumber(raw ?? weight);
     if (!parsed.ok) {
       setWeightError('Enter a valid weight before saving.');
       setWeightStatus('error');
@@ -844,6 +855,41 @@ export default function TodayScreen() {
     fatG: null,
   };
 
+  /* The day's body signals, summarised — depth lives in Trends.
+     Sleep and resting heart rate come from the device snapshot: the server's
+     activity summary does not carry them yet. */
+  /* A HealthKit weight for the same day, shown in the sheet so the user can
+     see both. Manual and imported coexist under source precedence — neither
+     overwrites the other. */
+  const importedWeight = (() => {
+    const kg = health.body?.weightKg;
+    if (kg == null) return null;
+    /* HealthKit stores kilograms; the sheet shows whichever unit the user's
+       own entry is in, so convert when that is pounds. */
+    const unit = manual?.morningWeightUnit ?? 'lb';
+    const value = unit === 'kg' ? kg : kg * 2.20462;
+    return String(Math.round(value * 10) / 10);
+  })();
+
+  const daySignals = [
+    {
+      label: 'steps',
+      value: health.metrics.steps != null ? health.metrics.steps.toLocaleString('en-US') : '—',
+    },
+    { label: 'sleep', value: formatSleep(health.recovery.sleepMinutes) },
+    {
+      label: 'cal',
+      value: syncedMetrics.activeEnergyKcal != null ? String(syncedMetrics.activeEnergyKcal) : '—',
+    },
+    {
+      label: 'rest HR',
+      value:
+        health.recovery.restingHeartRateBpm != null
+          ? String(Math.round(health.recovery.restingHeartRateBpm))
+          : '—',
+    },
+  ];
+
   return (
     <ScrollView
       style={{ backgroundColor: theme.surface.canvas }}
@@ -920,139 +966,93 @@ export default function TodayScreen() {
         </Card>
       ) : (
       <>
-      <Card>
-        <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Today&apos;s check-in</Text>
-
-        <View style={styles.stepRow}>
-          <StepStatusIcon done={weightDone} />
-          <View style={styles.stepContent}>
-            <View style={styles.stepHeader}>
-              <View style={styles.titleWithIcon}>
-                <Scale size={18} color={theme.text.primary} />
-                <Text style={[styles.stepTitle, { color: theme.text.primary }]}>Morning weight</Text>
-              </View>
-              {weightDone ? (
-                <View style={[styles.chip, { backgroundColor: theme.surface.sunken }]}>
-                  <Text style={[styles.chipLabel, { color: theme.text.secondary }]}>
-                    {manual?.morningWeightValue} {manual?.morningWeightUnit ?? 'lb'}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-            {isPast ? (
-              <Text style={[styles.bodyText, { color: theme.text.secondary }]}>
-                {weightDone ? 'Recorded on the day.' : 'Nothing was recorded.'}
-              </Text>
-            ) : (
-              <>
-                <Text style={[styles.bodyText, { color: theme.text.secondary }]}>One quick weigh-in to anchor the day.</Text>
-                <Input label="Weight" value={weight} onChangeText={(value) => { setWeight(value); setWeightError(null); if (weightStatus === 'error') setWeightStatus('idle'); }} numeric unit={manual?.morningWeightUnit ?? 'lb'} errorMessage={weightError ?? undefined} />
-                <Button label="Save weight" variant="secondary" loading={weightStatus === 'saving'} onPress={saveWeight} />
-                <SaveFeedback state={weightStatus} errorMessage={weightError} />
-              </>
-            )}
-          </View>
+      <View style={styles.section}>
+        <View style={styles.sectionHead}>
+          <Text style={[styles.sectionLabel, { color: theme.text.secondary }]}>ALSO TODAY</Text>
+          <Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/trends')} hitSlop={8}>
+            <Text style={[styles.sectionLink, { color: theme.action.primary }]}>Trends ›</Text>
+          </Pressable>
         </View>
-
-        <View style={[styles.divider, { backgroundColor: theme.border.subtle }]} />
-
-        <View style={styles.stepRow}>
-          <StepStatusIcon done={journalDone} />
-          <View style={styles.stepContent}>
-            <View style={styles.titleWithIcon}>
-              <NotebookText size={18} color={theme.text.primary} />
-              <Text style={[styles.stepTitle, { color: theme.text.primary }]}>Mood + journal</Text>
+        <View style={[styles.signals, { backgroundColor: theme.surface.raised }]}>
+          {daySignals.map((signal) => (
+            <View key={signal.label} style={styles.signal}>
+              <Text style={[styles.signalValue, { color: theme.text.primary }]}>{signal.value}</Text>
+              <Text style={[styles.signalLabel, { color: theme.text.secondary }]}>{signal.label}</Text>
             </View>
-            <Text style={[styles.bodyText, { color: theme.text.secondary }]}>Just enough context for energy, soreness, sleep, or anything worth remembering later.</Text>
-            <View style={styles.moodRow}>
-              {moodOptions.map((mood) => {
-                const selected = selectedMood === mood.value;
-                return (
-                  <Pressable
-                    key={mood.value}
-                    accessibilityRole="button"
-                    accessibilityLabel={mood.label}
-                    accessibilityState={{ selected }}
-                    disabled={isPast}
-                    onPress={() => setSelectedMood(selected ? null : mood.value)}
-                    style={[
-                      styles.moodButton,
-                      {
-                        borderColor: selected ? theme.action.primary : theme.border.default,
-                        backgroundColor: selected ? theme.action.accentSubtle : theme.surface.raised,
-                      },
-                    ]}
-                  >
-                    <Text style={styles.moodEmoji}>{mood.emoji}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            {isPast ? (
-              <Text style={[styles.bodyText, { color: theme.text.secondary }]}>
-                {journal ? journal : 'Nothing was written.'}
-              </Text>
-            ) : (
-              <>
-                <TextInput
-                  multiline
-                  value={journal}
-                  onChangeText={setJournal}
-                  placeholder="Energy, soreness, sleep, stress, or anything to remember after the workout."
-                  placeholderTextColor={theme.text.disabled}
-                  style={[
-                    styles.notesArea,
-                    {
-                      color: theme.text.primary,
-                      borderColor: theme.border.default,
-                      backgroundColor: theme.surface.raised,
-                    },
-                  ]}
-                />
-                <Button label="Save journal" variant="secondary" loading={journalStatus === 'saving'} onPress={() => void saveSection({ notes: journal || null, mood: selectedMood }, setJournalStatus, 'journal')} />
-                <SaveFeedback state={journalStatus} />
-              </>
-            )}
-          </View>
+          ))}
         </View>
+      </View>
 
-        <View style={[styles.divider, { backgroundColor: theme.border.subtle }]} />
-
-        <View style={styles.stepRow}>
-          <StepStatusIcon done={mealDone} />
-          <View style={styles.stepContent}>
-            <View style={styles.titleWithIcon}>
-              <Utensils size={18} color={theme.text.primary} />
-              <Text style={[styles.stepTitle, { color: theme.text.primary }]}>Nutrition check</Text>
-            </View>
-            {nutritionObserved ? (
-              <>
-                <Text style={[styles.bodyText, { color: theme.text.secondary }]}>
-                  Already logged — Apple Health has today&apos;s food.
-                </Text>
-                <Text testID="nutrition-observed" style={[styles.helperText, { color: theme.text.secondary }]}>
-                  {[
-                    nutritionKcal != null ? `${nutritionKcal.toLocaleString()} cal` : null,
-                    health.metrics.proteinG != null ? `${health.metrics.proteinG} g protein` : null,
-                    health.nutritionSource,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </Text>
-              </>
-            ) : (
-              <>
-                <Text style={[styles.bodyText, { color: theme.text.secondary }]}>No macro entry here — just confirm the meal/logging step happened.</Text>
-                <View style={styles.checkboxRow}>
-                  <Checkbox checked={mealDone} onChange={(checked) => void saveSection({ preWorkoutMealLogged: checked }, setMealStatus, 'meal')} />
-                  <Text style={[styles.bodyText, { color: theme.text.primary }]}>Logged in my nutrition app</Text>
-                </View>
-                <SaveFeedback state={mealStatus} />
-              </>
-            )}
-          </View>
+      <View style={styles.section}>
+        <View style={styles.sectionHead}>
+          <Text style={[styles.sectionLabel, { color: theme.text.secondary }]}>YOUR LOG</Text>
         </View>
-      </Card>
+        <LogEntryRow
+          testID="row-weight"
+          label="Morning weight"
+          value={weightDone ? `${manual?.morningWeightValue} ${manual?.morningWeightUnit ?? 'lb'}` : null}
+          emptyLabel="Not recorded"
+          state={weightStatus === 'saving' ? 'pending' : weightStatus === 'error' ? 'error' : 'settled'}
+          onPress={isPast ? undefined : () => setWeightSheet(true)}
+          onRetry={() => saveWeight()}
+        />
+        <LogEntryRow
+          testID="row-journal"
+          label="Journal"
+          value={journal ? journal : null}
+          emptyLabel="Write an entry"
+          state={journalStatus === 'saving' ? 'pending' : journalStatus === 'error' ? 'error' : 'settled'}
+          onPress={isPast ? undefined : () => setJournalSheet(true)}
+          onRetry={() => void saveSection({ notes: journal || null, mood: selectedMood }, setJournalStatus, 'journal')}
+        />
+        <LogEntryRow
+          /* The observed testID is load-bearing: it is how the screen says
+             a tracker already wrote the day, so we neither ask again nor
+             write the manual flag from an imported value (architecture §4
+             rules that silent overwrite out). */
+          testID={nutritionObserved ? 'nutrition-observed' : 'row-nutrition'}
+          label="Nutrition check"
+          value={mealDone ? 'Logged' : nutritionObserved ? 'Tracked in Apple Health' : null}
+          emptyLabel="Not confirmed"
+          state={mealStatus === 'saving' ? 'pending' : mealStatus === 'error' ? 'error' : 'settled'}
+          onPress={isPast ? undefined : () => setNutritionSheet(true)}
+        />
+      </View>
+
+      <WeightSheet
+        visible={weightSheet}
+        initialValue={weight}
+        unit={(manual?.morningWeightUnit ?? 'lb') as 'lb' | 'kg'}
+        importedValue={importedWeight}
+        errorMessage={weightError}
+        onCancel={() => setWeightSheet(false)}
+        onSave={(value) => {
+          setWeight(value);
+          /* The sheet closes immediately: the row already shows the value,
+             which is the whole point of saving optimistically. */
+          setWeightSheet(false);
+          saveWeight(value);
+        }}
+      />
+      <JournalSheet
+        visible={journalSheet}
+        initialText={journal}
+        initialMood={selectedMood}
+        onCancel={() => setJournalSheet(false)}
+        onSave={(text, mood) => {
+          setJournal(text);
+          setSelectedMood(mood);
+          setJournalSheet(false);
+          void saveSection({ notes: text || null, mood }, setJournalStatus, 'journal');
+        }}
+      />
+      <NutritionSheet
+        visible={nutritionSheet}
+        logged={mealDone}
+        observed={nutritionObserved}
+        onClose={() => setNutritionSheet(false)}
+        onToggle={(checked) => void saveSection({ preWorkoutMealLogged: checked }, setMealStatus, 'meal')}
+      />
 
       {/* Replaces the old "Apple Health sync" card, which described a
           connection the user had no way to make: nothing in the app had
@@ -1084,6 +1084,14 @@ const styles = StyleSheet.create({
   restPrompt: { gap: 4 },
   restPromptTitle: { fontSize: 13, fontWeight: '600' },
   restPromptBody: { fontSize: 12, lineHeight: 17 },
+  section: { gap: spacing[8] },
+  sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  sectionLabel: { fontSize: typeScale.caption.fontSize, fontWeight: '500', letterSpacing: 0.6 },
+  sectionLink: { fontSize: typeScale.label.fontSize, fontWeight: '500' },
+  signals: { flexDirection: 'row', borderRadius: radius.small, padding: spacing[16] },
+  signal: { flex: 1, gap: spacing[4] },
+  signalValue: { fontSize: typeScale.sectionTitle.fontSize, fontWeight: '600' },
+  signalLabel: { fontSize: typeScale.caption.fontSize },
   heroSkeleton: {
     borderRadius: 16,
     padding: 24,

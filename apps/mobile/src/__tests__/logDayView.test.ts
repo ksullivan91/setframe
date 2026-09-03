@@ -47,7 +47,12 @@ describe('the day view', () => {
     expect(ungated).toEqual([]);
   });
 
-  it('keeps the mood picker disabled on a past date', () => {
-    expect(log()).toContain('disabled={isPast}');
+  it('gives a past date no way into the editors at all', () => {
+    // Stronger than disabling the controls: the rows take no press handler,
+    // so the sheets that hold the mood picker and the text field cannot be
+    // opened on a day that is a record.
+    const s = log();
+    const handlers = [...s.matchAll(/onPress=\{isPast \? undefined : \(\) => set\w+Sheet\(true\)\}/g)];
+    expect(handlers.length).toBeGreaterThanOrEqual(3);
   });
 });

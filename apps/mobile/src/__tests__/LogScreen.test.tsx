@@ -181,7 +181,7 @@ describe('LogScreen loading state', () => {
     const texts = textsIn(rendered);
     expect(texts).toContain('Today');
     expect(texts).not.toContain('Additional activity');
-    expect(texts).not.toContain("Today's check-in");
+    expect(texts).not.toContain('YOUR LOG');
   });
 
   it('keeps them hidden while only the additional-activity request is outstanding', async () => {
@@ -198,14 +198,14 @@ describe('LogScreen loading state', () => {
 
     const texts = textsIn(rendered);
     expect(texts).not.toContain('Additional activity');
-    expect(texts).not.toContain("Today's check-in");
+    expect(texts).not.toContain('YOUR LOG');
   });
 
   it('shows the screen once everything has loaded', async () => {
     mockGet = getFor(todayPayload());
     const rendered = await renderScreen();
 
-    expect(textsIn(rendered)).toContain("Today's check-in");
+    expect(textsIn(rendered)).toContain('YOUR LOG');
   });
 });
 
@@ -408,7 +408,9 @@ describe('nutrition check', () => {
 
     const rendered = await renderScreen();
 
-    expect(textNodesContaining(rendered, 'Logged in my nutrition app').length).toBeGreaterThan(0);
+    // The row asks by saying the day is unconfirmed; the checkbox itself
+    // now lives in the sheet it opens.
+    expect(textNodesContaining(rendered, 'Not confirmed').length).toBeGreaterThan(0);
     expect(hostsByTestId(rendered, 'nutrition-observed')).toHaveLength(0);
   });
 
@@ -428,7 +430,9 @@ describe('nutrition check', () => {
     const rendered = await renderScreen();
 
     expect(hostsByTestId(rendered, 'nutrition-observed').length).toBeGreaterThan(0);
-    expect(textNodesContaining(rendered, 'Logged in my nutrition app')).toHaveLength(0);
+    expect(textNodesContaining(rendered, 'Not confirmed')).toHaveLength(0);
+    // Still the important half: an imported value is never written back as
+    // the user's own manual flag.
     expect(mockPatch).not.toHaveBeenCalled();
   });
 });
