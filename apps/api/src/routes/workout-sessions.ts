@@ -865,14 +865,46 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
     '/v1/workout-sessions/:sessionId/complete',
     {
       preHandler: requireAuth,
-      schema: { params: sessionParamsSchema, response: { 200: workoutSessionSchema } },
+      schema: {
+        params: sessionParamsSchema,
+        /**
+         * `completedAt` exists for ADR 0014: a session the user walked away
+         * from is closed on the next foreground, and stamping it with the
+         * moment of closing would record them finishing at 09:00 the
+         * following morning. The caller passes the last logged set's
+         * timestamp instead. Omitted, it means now — an ordinary Finish.
+         */
+        body: z
+          .object({ completedAt: z.string().datetime().optional() })
+          .optional(),
+        response: {
+          200: workoutSessionSchema,
+          400: z.object({ message: z.string() }),
+        },
+      },
     },
-    async (request) => {
+    async (request, reply) => {
       const db = getDb();
-      await getOwnedSession(db, request.params.sessionId, request.userId!);
+      const session = await getOwnedSession(db, request.params.sessionId, request.userId!);
+      const requested = request.body?.completedAt ? new Date(request.body.completedAt) : null;
+
+      if (requested) {
+        /* A completion in the future, or before the session began, is not a
+           correction — it is a bad clock or a bad caller, and either way it
+           would write a session that finished before it started. */
+        if (requested.getTime() > Date.now()) {
+          return reply.code(400).send({ message: 'completedAt cannot be in the future.' });
+        }
+        if (session.startedAt && requested.getTime() < session.startedAt.getTime()) {
+          return reply
+            .code(400)
+            .send({ message: 'completedAt cannot be before the session started.' });
+        }
+      }
+
       const rows = await db
         .update(workoutSession)
-        .set({ status: 'completed', completedAt: new Date(), updatedAt: new Date() })
+        .set({ status: 'completed', completedAt: requested ?? new Date(), updatedAt: new Date() })
         .where(eq(workoutSession.id, request.params.sessionId))
         .returning();
       return toSessionResponse(rows[0]!);

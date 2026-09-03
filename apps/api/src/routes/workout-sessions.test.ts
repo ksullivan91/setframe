@@ -1011,3 +1011,57 @@ describe('POST /v1/workout-exercise-logs/:id/sets ordering', () => {
     await app.close();
   });
 });
+
+describe('POST /v1/workout-sessions/:id/complete — closing an abandoned session', () => {
+  it('accepts the last logged set’s timestamp instead of now', async () => {
+    // ADR 0014: a session closed on the next foreground must not record the
+    // user finishing at 09:00 the following morning.
+    const startedAt = new Date('2026-09-02T18:00:00Z');
+    const lastSet = new Date('2026-09-02T19:04:00Z');
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([{ ...sessionRow, startedAt, status: 'in_progress' }]));
+    mockUpdate.mockReturnValueOnce(
+      updateChain([{ ...sessionRow, status: 'completed', completedAt: lastSet }]),
+    );
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/workout-sessions/${sessionRow.id}/complete`,
+      headers: authHeader,
+      payload: { completedAt: lastSet.toISOString() },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().completedAt).toBe(lastSet.toISOString());
+  });
+
+  it('refuses a completion in the future', async () => {
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([{ ...sessionRow, status: 'in_progress' }]));
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/workout-sessions/${sessionRow.id}/complete`,
+      headers: authHeader,
+      payload: { completedAt: new Date(Date.now() + 86_400_000).toISOString() },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('refuses a completion before the session started', async () => {
+    // Would write a session that finished before it began.
+    const startedAt = new Date('2026-09-02T18:00:00Z');
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([{ ...sessionRow, startedAt, status: 'in_progress' }]));
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/workout-sessions/${sessionRow.id}/complete`,
+      headers: authHeader,
+      payload: { completedAt: '2026-09-02T17:00:00Z' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+});

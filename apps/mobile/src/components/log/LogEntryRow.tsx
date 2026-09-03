@@ -37,21 +37,23 @@ export function LogEntryRow({
   const theme = useTheme();
   const readOnly = !onPress;
 
+  /* Retry is a sibling of the row's own press target, never a child of it.
+     Nesting them produces a button inside a button — invalid markup on web,
+     and on native the outer touchable swallows the inner one's presses, so
+     Retry would silently reopen the editor instead of retrying. */
   return (
-    <Pressable
-      testID={testID}
-      accessibilityRole={readOnly ? undefined : 'button'}
-      accessibilityLabel={`${label}. ${value ?? emptyLabel}`}
-      disabled={readOnly}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.row,
-        { backgroundColor: theme.surface.raised, opacity: pressed && !readOnly ? 0.8 : 1 },
-      ]}
-    >
-      <View style={styles.meta}>
-        <Text style={[styles.label, { color: theme.text.primary }]}>{label}</Text>
-        {state === 'error' ? (
+    <View style={[styles.row, { backgroundColor: theme.surface.raised }]}>
+      <Pressable
+        testID={testID}
+        accessibilityRole={readOnly ? undefined : 'button'}
+        accessibilityLabel={`${label}. ${value ?? emptyLabel}`}
+        disabled={readOnly}
+        onPress={onPress}
+        style={({ pressed }) => [styles.pressArea, { opacity: pressed && !readOnly ? 0.8 : 1 }]}
+      >
+        <View style={styles.meta}>
+          <Text style={[styles.label, { color: theme.text.primary }]}>{label}</Text>
+          {state === 'error' ? (
           <View style={styles.statusLine}>
             {/* The colour is in the dot and the meaning is in the words:
                 status.error is 2.85:1 on white and fails as text. */}
@@ -76,10 +78,17 @@ export function LogEntryRow({
             ) : null}
           </View>
         )}
-      </View>
+        </View>
+      </Pressable>
 
       {state === 'error' && onRetry ? (
-        <Pressable accessibilityRole="button" onPress={onRetry} hitSlop={12} testID={`${testID}-retry`}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Retry saving ${label}`}
+          onPress={onRetry}
+          hitSlop={12}
+          testID={`${testID}-retry`}
+        >
           <Text style={[styles.retry, { color: theme.action.primary }]}>Retry</Text>
         </Pressable>
       ) : readOnly ? null : value ? (
@@ -87,7 +96,7 @@ export function LogEntryRow({
       ) : (
         <Plus size={18} color={theme.action.primary} />
       )}
-    </Pressable>
+    </View>
   );
 }
 
@@ -101,7 +110,10 @@ const styles = StyleSheet.create({
     padding: spacing[16],
     minHeight: 44,
   },
-  meta: { flex: 1, gap: spacing[4] },
+  /* The press target fills the row so the whole card is tappable, with
+     Retry sitting outside it. */
+  pressArea: { flex: 1 },
+  meta: { gap: spacing[4] },
   label: { fontSize: typeScale.compactBody.fontSize, fontWeight: '500' },
   statusLine: { flexDirection: 'row', alignItems: 'center', gap: spacing[8] },
   value: { flexShrink: 1, fontSize: typeScale.label.fontSize },
