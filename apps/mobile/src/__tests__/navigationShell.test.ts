@@ -18,6 +18,19 @@ const app = (...p: string[]) => path.join(__dirname, '..', '..', 'app', ...p);
 const read = (...p: string[]) => fs.readFileSync(app(...p), 'utf8');
 
 /**
+ * Source with comment bodies blanked, newlines kept.
+ *
+ * Matching raw source means a comment *describing* the rule satisfies the
+ * test for it. That is not hypothetical: the comment explaining why
+ * settings needs a sign-in redirect contains the redirect, so the first
+ * version of the gate test passed with the gate deleted.
+ */
+const code = (...p: string[]) =>
+  read(...p)
+    .replace(/\/\*[\s\S]*?\*\//g, (m: string) => m.replace(/[^\n]/g, ' '))
+    .replace(/^(\s*)\/\/.*$/gm, '$1');
+
+/**
  * The navigation shape from ADR 0013.
  *
  * Source-level because these are route-graph facts, not rendered behaviour:
@@ -59,5 +72,28 @@ describe('the navigation shell', () => {
     for (const file of ['index.tsx', 'onboarding.tsx', 'session-summary.tsx']) {
       expect(read(file)).not.toContain('(tabs)/today');
     }
+  });
+
+  it('gates every signed-in stack route, not just the tabs', () => {
+    /* The tab layout redirects to /sign-in when the session goes. A stack
+       route outside it inherits nothing, so signing out leaves the screen
+       mounted over a dead session — every query 401s behind a UI that looks
+       frozen, and the app has to be force-quit. That shipped in build 17
+       for exactly one screen: settings, which story 75 moved out of the
+       tabs and left ungated. */
+    const stackRoutes = ['settings.tsx'];
+    for (const route of stackRoutes) {
+      const source = code(route);
+      expect(source).toMatch(/isSignedIn/);
+      expect(source).toMatch(/<Redirect href="\/sign-in"/);
+    }
+  });
+
+  it('signs out by navigating, not only by clearing the session', () => {
+    // Clerk's state takes a frame to propagate. Without an explicit
+    // navigation the screen renders at least once signed-out.
+    const source = code('settings.tsx');
+    expect(source).toMatch(/await signOut\(\)/);
+    expect(source).toMatch(/router\.replace\('\/sign-in'\)/);
   });
 });

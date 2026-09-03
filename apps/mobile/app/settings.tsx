@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, View, Text, Switch, StyleSheet, ActivityIndicator } from 'react-native';
+import { Redirect, useRouter } from 'expo-router';
 import { useClerk, useAuth, useUser } from '@clerk/clerk-expo';
 import { DeleteAccountSheet } from '../src/components/DeleteAccountSheet';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -78,7 +79,19 @@ export default function SettingsScreen() {
   const feedback = useActionFeedback();
   const theme = useTheme();
   const { user } = useUser();
-  const { signOut } = useAuth();
+  const router = useRouter();
+  const { signOut, isLoaded, isSignedIn } = useAuth();
+
+  async function handleSignOut() {
+    /* Clear first: a cached `me` re-rendering against a dead session is
+       what made this look frozen rather than merely slow. */
+    queryClient.clear();
+    await signOut();
+    /* The redirect above catches this too, but only once Clerk's state has
+       propagated. Navigating explicitly means the screen never has a frame
+       to render signed-out. */
+    router.replace('/sign-in');
+  }
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const { openUserProfile } = useClerk();
@@ -145,6 +158,21 @@ export default function SettingsScreen() {
   const syncLoading = health.state === 'loading';
   const syncStatus = useMemo(() => formatHealthStatus(health.state), [health.state]);
   const topPadding = useScreenTopPadding();
+
+
+  /**
+   * Settings is a stack route, not a tab.
+   *
+   * It used to live in `app/(tabs)/` and inherit that layout's redirect.
+   * Moving it out (story 75) left it with no gate at all, so signing out
+   * cleared the session and left this screen mounted on top of a dead one —
+   * every query 401ing behind a UI that looked frozen. The app had to be
+   * force-quit to escape it.
+   *
+   * Placed below every hook deliberately: an early return above them
+   * changes the hook order between renders, which React forbids.
+   */
+  if (isLoaded && !isSignedIn) return <Redirect href="/sign-in" />;
 
   return (
     <ScrollView
@@ -260,7 +288,12 @@ export default function SettingsScreen() {
         />
       </Card>
 
-      <Button label="Sign out" variant="secondary" onPress={() => signOut()} />
+      <Button
+        label="Sign out"
+        variant="secondary"
+        testID="sign-out"
+        onPress={() => void handleSignOut()}
+      />
 
       <DeleteAccountSheet
         visible={confirmingDelete}

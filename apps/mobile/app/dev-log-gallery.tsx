@@ -389,21 +389,6 @@ export default function DevLogGallery() {
         </View>
       </Frame>
 
-      <Frame label="75 · Header — syncing">
-        <View style={{ paddingTop: FRAME_TOP, paddingHorizontal: spacing[24] }}>
-          <LogHeader
-            title="Today"
-            dateLabel="Wednesday, 3 September"
-            onPressDate={() => {}}
-            onPressAccount={() => {}}
-            status={
-              <View style={[styles.pill, { backgroundColor: theme.surface.sunken }]}>
-                <Text style={[styles.pillLabel, { color: theme.text.secondary }]}>Syncing</Text>
-              </View>
-            }
-          />
-        </View>
-      </Frame>
     </ScrollView>
   );
 }

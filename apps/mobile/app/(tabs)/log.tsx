@@ -32,7 +32,6 @@ import { JournalSheet, NutritionSheet, WeightSheet } from '../../src/components/
 import { releaseSplash, SPLASH_MAX_MS } from '../../src/lib/appReady';
 import { Button } from '../../src/components/Button';
 import { Input } from '../../src/components/Input';
-import { SyncStatusPill, type SyncStatus } from '../../src/components/SyncStatusPill';
 import { Checkbox } from '../../src/components/Checkbox';
 import { Skeleton, SkeletonStack } from '../../src/components/Skeleton';
 import { Toast } from '../../src/components/Toast';
@@ -290,15 +289,28 @@ export default function TodayScreen() {
   const weekQuery = useQuery({
     queryKey: ['log-week', weekStart],
     queryFn: async () => {
-      const [overview, rest] = await Promise.all([
+      /* Anchored to the week being shown, not to the server's idea of today.
+         `/progress/overview` windows N weeks back from `localDate`, which
+         defaults to the server's UTC date — so browsing to an older week
+         returned a window that did not contain it, and the strip came back
+         blank. Two weeks, because the window buckets by week and the
+         selected one has to fall wholly inside it. */
+      const [trained, rested] = await Promise.allSettled([
         api.get<{ training: { days: { localDate: string; completedCount: number }[] } }>(
-          '/progress/overview?weeks=8',
+          `/progress/overview?weeks=2&localDate=${weekEnd}`,
         ),
         api.get<{ localDate: string }[]>(`/rest-days?from=${weekStart}&to=${weekEnd}`),
       ]);
+      /* Settled independently: with Promise.all, `/rest-days` 404ing on an
+         API that had not deployed yet took the training marks down with it,
+         so a week of finished workouts showed as empty. One source failing
+         should cost only its own marks. */
       return {
-        trainedDates: overview.training.days.filter((d) => d.completedCount > 0).map((d) => d.localDate),
-        restDates: rest.map((r) => r.localDate),
+        trainedDates:
+          trained.status === 'fulfilled'
+            ? trained.value.training.days.filter((d) => d.completedCount > 0).map((d) => d.localDate)
+            : [],
+        restDates: rested.status === 'fulfilled' ? rested.value.map((r) => r.localDate) : [],
       };
     },
   });
@@ -828,26 +840,6 @@ export default function TodayScreen() {
     health.metrics.carbsG != null ||
     health.metrics.fatG != null;
   const mealDone = nutritionObserved || Boolean(manual?.preWorkoutMealLogged);
-  /* The header pill must never make a health-access claim.
-     It reads the SERVER's sync state, which stays "never synced" until the
-     device posts a reconcile payload — and nothing does that yet. So it
-     rendered "Health access needed" indefinitely, including while the card
-     directly below it was happily showing Apple Health data.
-
-     My first attempt suppressed it only when the card was ALSO warning,
-     which got it exactly backwards: that is the one case where the two
-     agreed. The pill stayed visible precisely when it was most wrong.
-
-     Access is the card's story, because the card is the only thing that
-     can do anything about it. This pill now says one of: refreshing,
-     up to date, or nothing at all. */
-  const headerPillStatus: SyncStatus | null = todayQuery.isFetching
-    ? 'syncing'
-    : health.state === 'connected'
-      ? 'synced'
-      : health.state === 'unavailable' && todayQuery.data?.syncState?.lastSuccessfulSyncAt
-        ? 'synced'
-        : null;
 
   const dateLabel = formatLongDate(todayQuery.data?.localDate ?? localDate);
   /* The server's reconciled snapshot for today. HealthKit wins where the
@@ -916,7 +908,6 @@ export default function TodayScreen() {
         title={isToday ? 'Today' : formatShortDate(localDate)}
         dateLabel={dateLabel}
         onPressAccount={() => router.push('/settings')}
-        status={headerPillStatus ? <SyncStatusPill status={headerPillStatus} /> : null}
       />
       <LogWeekStrip
         days={weekDays}

@@ -10,8 +10,6 @@ export interface LogHeaderProps {
   dateLabel: string;
   onPressDate?: () => void;
   onPressAccount: () => void;
-  /** The sync pill, when there is something to say about it. */
-  status?: React.ReactNode;
 }
 
 /**
@@ -25,7 +23,7 @@ export interface LogHeaderProps {
  * Figma frame without an authenticated session — these are first-run and
  * date-dependent states that are otherwise awkward to reach twice.
  */
-export function LogHeader({ title, dateLabel, onPressDate, onPressAccount, status }: LogHeaderProps) {
+export function LogHeader({ title, dateLabel, onPressDate, onPressAccount }: LogHeaderProps) {
   const theme = useTheme();
 
   return (
@@ -44,7 +42,6 @@ export function LogHeader({ title, dateLabel, onPressDate, onPressAccount, statu
         <Text style={[styles.date, { color: theme.text.secondary }]}>{dateLabel}</Text>
       </Pressable>
       <View style={styles.actions}>
-        {status}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Account and settings"
