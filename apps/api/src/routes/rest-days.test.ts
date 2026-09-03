@@ -66,6 +66,44 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+describe('GET /v1/rest-days', () => {
+  it('returns the rest days inside the range, scoped to the caller', async () => {
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([restRow]));
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/rest-days?from=2026-08-24&to=2026-08-30',
+      headers: authHeader,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual([
+      expect.objectContaining({ localDate: '2026-08-24', timezone: 'America/Chicago' }),
+    ]);
+  });
+
+  it('rejects a range that is not a pair of dates', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/rest-days?from=not-a-date&to=2026-08-30',
+      headers: authHeader,
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('needs both ends of the range', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/rest-days?from=2026-08-24',
+      headers: authHeader,
+    });
+    expect(res.statusCode).toBe(400);
+  });
+});
+
 describe('POST /v1/rest-days', () => {
   it('records a rest day on a day with no workout', async () => {
     mockSelect

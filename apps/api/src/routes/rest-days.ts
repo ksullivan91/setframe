@@ -1,5 +1,5 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, gte, lte } from 'drizzle-orm';
 import { z } from 'zod';
 import { restDay, workoutSession } from '@setframe/database';
 import { createRestDaySchema, restDaySchema } from '@setframe/schemas';
@@ -26,6 +26,40 @@ function toRestDayResponse(row: typeof restDay.$inferSelect) {
 }
 
 export const restDayRoutes: FastifyPluginAsyncZod = async (fastify) => {
+  /**
+   * Rest days across a range.
+   *
+   * The week strip on Log needs to mark seven days at once, and every other
+   * route that knows about rest is single-date (`/dashboard/today` takes one
+   * `localDate`). Without this the strip's only options were seven parallel
+   * dashboard requests or no rest marks at all.
+   */
+  fastify.get(
+    '/v1/rest-days',
+    {
+      preHandler: requireAuth,
+      schema: {
+        querystring: z.object({ from: z.string().date(), to: z.string().date() }),
+        response: { 200: z.array(restDaySchema) },
+      },
+    },
+    async (request) => {
+      const db = getDb();
+      const { from, to } = request.query;
+      const rows = await db
+        .select()
+        .from(restDay)
+        .where(
+          and(
+            eq(restDay.userId, request.userId!),
+            gte(restDay.localDate, from),
+            lte(restDay.localDate, to),
+          ),
+        );
+      return rows.map(toRestDayResponse);
+    },
+  );
+
   fastify.post(
     '/v1/rest-days',
     {
