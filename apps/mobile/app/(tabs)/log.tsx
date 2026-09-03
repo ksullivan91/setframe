@@ -23,6 +23,7 @@ import {
 } from 'lucide-react-native';
 import { Card } from '../../src/components/Card';
 import { LogHeader } from '../../src/components/log/LogHeader';
+import { LogWeekStrip } from '../../src/components/log/LogWeekStrip';
 import { releaseSplash, SPLASH_MAX_MS } from '../../src/lib/appReady';
 import { Button } from '../../src/components/Button';
 import { Input } from '../../src/components/Input';
@@ -34,7 +35,13 @@ import {
   TodayAdditionalActivitySection,
   additionalActivitiesQuery,
 } from '../../src/components/TodayAdditionalActivitySection';
-import { buildCompletedSessionReadout, visibleSessionExercises } from '@setframe/domain';
+import {
+  addDays,
+  buildCompletedSessionReadout,
+  buildLogWeek,
+  startOfWeek,
+  visibleSessionExercises,
+} from '@setframe/domain';
 import { ApiError, useApiClient } from '../../src/lib/api-client';
 import { useLocalDate } from '../../src/lib/useLocalDate';
 import { useScreenTopPadding } from '../../src/lib/useScreenInsets';
@@ -129,6 +136,14 @@ const moodOptions = [
 ] as const;
 
 
+function formatShortDate(localDate: string) {
+  return new Date(`${localDate}T12:00:00`).toLocaleDateString(undefined, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  });
+}
+
 function formatLongDate(localDate: string) {
   return new Date(`${localDate}T12:00:00`).toLocaleDateString(undefined, {
     weekday: 'long',
@@ -214,7 +229,22 @@ export default function TodayScreen() {
   const router = useRouter();
   const api = useApiClient();
   const queryClient = useQueryClient();
-  const localDate = useLocalDate();
+  const today = useLocalDate();
+  /* The screen is about a date, not about today (ADR 0013). Today is only
+     the default; everything below keys off `localDate` exactly as before,
+     so a past date re-reads the whole screen rather than patching it. */
+  const [localDate, setLocalDate] = useState(today);
+  /* If the app is open across local midnight, the default must move with it
+     — but only when the user has not navigated away from today themselves. */
+  const previousTodayRef = useRef(today);
+  useEffect(() => {
+    if (previousTodayRef.current !== today) {
+      setLocalDate((current) => (current === previousTodayRef.current ? today : current));
+      previousTodayRef.current = today;
+    }
+  }, [today]);
+  const isToday = localDate === today;
+  const isPast = localDate < today;
   const topPadding = useScreenTopPadding();
   const [weight, setWeight] = useState('');
   const [journal, setJournal] = useState('');
@@ -233,6 +263,38 @@ export default function TodayScreen() {
     queryKey: ['programs'],
     queryFn: () => api.get<{ id: string; isActive: boolean }[]>('/programs'),
   });
+
+  /* The strip needs seven days at once. `progress/overview` already returns a
+     sparse per-day rollup, and `/v1/rest-days` takes a range as of story 76,
+     so this is two requests rather than seven dashboard round trips. */
+  const weekStart = startOfWeek(localDate);
+  const weekEnd = addDays(weekStart, 6);
+  const weekQuery = useQuery({
+    queryKey: ['log-week', weekStart],
+    queryFn: async () => {
+      const [overview, rest] = await Promise.all([
+        api.get<{ training: { days: { localDate: string; completedCount: number }[] } }>(
+          '/progress/overview?weeks=8',
+        ),
+        api.get<{ localDate: string }[]>(`/rest-days?from=${weekStart}&to=${weekEnd}`),
+      ]);
+      return {
+        trainedDates: overview.training.days.filter((d) => d.completedCount > 0).map((d) => d.localDate),
+        restDates: rest.map((r) => r.localDate),
+      };
+    },
+  });
+
+  const weekDays = useMemo(
+    () =>
+      buildLogWeek({
+        selectedDate: localDate,
+        today,
+        trainedDates: weekQuery.data?.trainedDates ?? [],
+        restDates: weekQuery.data?.restDates ?? [],
+      }),
+    [localDate, today, weekQuery.data],
+  );
 
   const todayQuery = useQuery({
     queryKey: ['today', localDate],
@@ -580,10 +642,18 @@ export default function TodayScreen() {
       contentContainerStyle={[styles.content, { paddingTop: topPadding }]}
     >
       <LogHeader
-        title="Today"
+        title={isToday ? 'Today' : formatShortDate(localDate)}
         dateLabel={dateLabel}
         onPressAccount={() => router.push('/settings')}
         status={headerPillStatus ? <SyncStatusPill status={headerPillStatus} /> : null}
+      />
+      <LogWeekStrip
+        days={weekDays}
+        onSelect={(date) => {
+          /* A future date holds nothing and can be given nothing, so the
+             strip shows it but will not travel to it. */
+          if (date <= today) setLocalDate(date);
+        }}
       />
       {todayQuery.dataUpdatedAt ? (
         <Text style={[styles.helperText, { color: theme.text.secondary }]}>Last updated {formatDateTime(new Date(todayQuery.dataUpdatedAt).toISOString())}</Text>
@@ -801,10 +871,18 @@ export default function TodayScreen() {
                 </View>
               ) : null}
             </View>
-            <Text style={[styles.bodyText, { color: theme.text.secondary }]}>One quick weigh-in to anchor the day.</Text>
-            <Input label="Weight" value={weight} onChangeText={(value) => { setWeight(value); setWeightError(null); if (weightStatus === 'error') setWeightStatus('idle'); }} numeric unit={manual?.morningWeightUnit ?? 'lb'} errorMessage={weightError ?? undefined} />
-            <Button label="Save weight" variant="secondary" loading={weightStatus === 'saving'} onPress={saveWeight} />
-            <SaveFeedback state={weightStatus} errorMessage={weightError} />
+            {isPast ? (
+              <Text style={[styles.bodyText, { color: theme.text.secondary }]}>
+                {weightDone ? 'Recorded on the day.' : 'Nothing was recorded.'}
+              </Text>
+            ) : (
+              <>
+                <Text style={[styles.bodyText, { color: theme.text.secondary }]}>One quick weigh-in to anchor the day.</Text>
+                <Input label="Weight" value={weight} onChangeText={(value) => { setWeight(value); setWeightError(null); if (weightStatus === 'error') setWeightStatus('idle'); }} numeric unit={manual?.morningWeightUnit ?? 'lb'} errorMessage={weightError ?? undefined} />
+                <Button label="Save weight" variant="secondary" loading={weightStatus === 'saving'} onPress={saveWeight} />
+                <SaveFeedback state={weightStatus} errorMessage={weightError} />
+              </>
+            )}
           </View>
         </View>
 
@@ -827,6 +905,7 @@ export default function TodayScreen() {
                     accessibilityRole="button"
                     accessibilityLabel={mood.label}
                     accessibilityState={{ selected }}
+                    disabled={isPast}
                     onPress={() => setSelectedMood(selected ? null : mood.value)}
                     style={[
                       styles.moodButton,
@@ -841,23 +920,31 @@ export default function TodayScreen() {
                 );
               })}
             </View>
-            <TextInput
-              multiline
-              value={journal}
-              onChangeText={setJournal}
-              placeholder="Energy, soreness, sleep, stress, or anything to remember after the workout."
-              placeholderTextColor={theme.text.disabled}
-              style={[
-                styles.notesArea,
-                {
-                  color: theme.text.primary,
-                  borderColor: theme.border.default,
-                  backgroundColor: theme.surface.raised,
-                },
-              ]}
-            />
-            <Button label="Save journal" variant="secondary" loading={journalStatus === 'saving'} onPress={() => void saveSection({ notes: journal || null, mood: selectedMood }, setJournalStatus, 'journal')} />
-            <SaveFeedback state={journalStatus} />
+            {isPast ? (
+              <Text style={[styles.bodyText, { color: theme.text.secondary }]}>
+                {journal ? journal : 'Nothing was written.'}
+              </Text>
+            ) : (
+              <>
+                <TextInput
+                  multiline
+                  value={journal}
+                  onChangeText={setJournal}
+                  placeholder="Energy, soreness, sleep, stress, or anything to remember after the workout."
+                  placeholderTextColor={theme.text.disabled}
+                  style={[
+                    styles.notesArea,
+                    {
+                      color: theme.text.primary,
+                      borderColor: theme.border.default,
+                      backgroundColor: theme.surface.raised,
+                    },
+                  ]}
+                />
+                <Button label="Save journal" variant="secondary" loading={journalStatus === 'saving'} onPress={() => void saveSection({ notes: journal || null, mood: selectedMood }, setJournalStatus, 'journal')} />
+                <SaveFeedback state={journalStatus} />
+              </>
+            )}
           </View>
         </View>
 
