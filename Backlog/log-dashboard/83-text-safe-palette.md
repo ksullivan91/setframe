@@ -5,13 +5,16 @@ this is a shipped accessibility defect, not new work.
 
 ## The defect
 
-Two semantic tokens are used as ordinary text and neither passes WCAG AA
-(4.5:1 for body text):
+Three semantic tokens are used as ordinary text and none passes WCAG AA
+(4.5:1 for body text). The third was found on 2026-09-03 while checking
+the Log frames against the gallery — it had been invisible because a
+green "↓ 1.2" reads as decoration until you measure it:
 
 | Token | Value | On white | Used as text in |
 |---|---|---|---|
 | `text.disabled` | `#a9a9bc` | **2.31:1** | **43 call sites** |
 | `status.error` | `#FF647C` | **2.85:1** | the delete button, and every destructive control |
+| `status.success` | `#00C48C` | **2.26:1** | trend deltas, and anywhere green means "good" |
 
 `text.disabled` is not marking disabled controls. It is on eyebrows in
 onboarding, field labels in the prescription sheet, notes in
@@ -28,6 +31,10 @@ same class of bug and the same fix.
   a disabled control, use `text.secondary` (`#65658b`, 7.0:1). Reserve
   `text.disabled` for genuinely disabled controls, where the low
   contrast *is* the signal.
+- Add a **text-safe step to the success ramp** as well — `#00674B`
+  measures 5.9:1 and is what the Trends deltas use. `status.success` is a
+  surface and an icon colour; it has never been a text colour, and using
+  it as one is how the trend arrows ended up at 2.26:1.
 - Add a **text-safe step to the error ramp** — the ramp currently has no
   step that passes as text on white. `#A11133` measures 7.1:1 and is the
   value the Log designs use.
