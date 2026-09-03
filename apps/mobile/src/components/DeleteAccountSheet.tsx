@@ -77,7 +77,7 @@ export function DeleteAccountSheet({
 const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '600' },
   body: { fontSize: 14, lineHeight: 20 },
-  list: { borderRadius: radius.small + 2, padding: spacing[12] + 2, gap: spacing[4] + 2 },
+  list: { borderRadius: radius.small, padding: spacing[12], gap: spacing[4] },
   eyebrow: { fontSize: 10, fontWeight: '500', letterSpacing: 0.6 },
   item: { fontSize: 13, lineHeight: 19 },
   note: { fontSize: typeScale.caption.fontSize, lineHeight: 17 },

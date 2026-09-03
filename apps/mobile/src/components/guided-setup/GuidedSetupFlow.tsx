@@ -408,14 +408,14 @@ const styles = StyleSheet.create({
   /* typeScale.helper is 12, which made every step's body copy read a size
      smaller than the frames intend; body is the 14 they were drawn at. */
   help: { fontSize: typeScale.body.fontSize, lineHeight: typeScale.body.lineHeight },
-  hint: { borderRadius: radius.small + 2, padding: spacing[12], gap: spacing[4] },
+  hint: { borderRadius: radius.small, padding: spacing[12], gap: spacing[4] },
   hintLabel: { fontSize: 10, fontWeight: '500', letterSpacing: 0.6 },
   hintBody: { fontSize: 13 },
   row: {
     flexDirection: 'row', alignItems: 'center', gap: spacing[8],
-    borderRadius: radius.small + 2, paddingVertical: spacing[12], paddingHorizontal: spacing[12],
+    borderRadius: radius.small, paddingVertical: spacing[12], paddingHorizontal: spacing[12],
   },
-  rowMeta: { flex: 1, minWidth: 0, gap: 2 },
+  rowMeta: { flex: 1, minWidth: 0, gap: spacing[4] },
   rowTitle: { fontSize: 14, fontWeight: '600' },
   rowDetail: { fontSize: 11 },
   rowAction: { fontSize: 12, fontWeight: '500' },
@@ -424,7 +424,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[12], alignItems: 'center',
   },
   addLabel: { fontSize: 14, fontWeight: '600' },
-  days: { flexDirection: 'row', gap: spacing[4] + 2 },
+  days: { flexDirection: 'row', gap: spacing[4] },
   day: { flex: 1, borderRadius: radius.full, paddingVertical: spacing[12], alignItems: 'center' },
   dayLabel: { fontSize: 14, fontWeight: '600' },
 });
