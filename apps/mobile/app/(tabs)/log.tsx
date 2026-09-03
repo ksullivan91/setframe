@@ -26,6 +26,7 @@ import { LogHeader } from '../../src/components/log/LogHeader';
 import { LogWeekStrip } from '../../src/components/log/LogWeekStrip';
 import { LogHero, type LogHeroState, type LogHeroProps } from '../../src/components/log/LogHero';
 import { LogEntryRow } from '../../src/components/log/LogEntryRow';
+import { useCloseAbandonedSessions } from '../../src/lib/useCloseAbandonedSessions';
 import { JournalSheet, NutritionSheet, WeightSheet } from '../../src/components/log/LogEditSheets';
 import { releaseSplash, SPLASH_MAX_MS } from '../../src/lib/appReady';
 import { Button } from '../../src/components/Button';
@@ -268,6 +269,10 @@ export default function TodayScreen() {
   const [weightSheet, setWeightSheet] = useState(false);
   const [journalSheet, setJournalSheet] = useState(false);
   const [nutritionSheet, setNutritionSheet] = useState(false);
+  /* A session left open past its day is closed on the next foreground and
+     announced here, rather than making today offer to resume a workout that
+     ended yesterday (ADR 0014). */
+  const [closedSession, setClosedSession] = useState<{ loggedSetCount: number } | null>(null);
   const initialHydratedRef = useRef(false);
   const hydratedLocalDateRef = useRef<string | null>(null);
   const lastSavedSectionRef = useRef<'weight' | 'journal' | 'meal' | null>(null);
@@ -316,6 +321,10 @@ export default function TodayScreen() {
     queryFn: () => api.get<{ id: string; name: string }[]>('/day-types'),
   });
   const hasNoWorkouts = Boolean(dayTypesQuery.data && dayTypesQuery.data.length === 0);
+
+  useCloseAbandonedSessions(api, today, (summary) =>
+    setClosedSession({ loggedSetCount: summary.loggedSetCount }),
+  );
 
   const todayQuery = useQuery({
     queryKey: ['today', localDate],
@@ -707,9 +716,13 @@ export default function TodayScreen() {
           title: 'Your call today',
           body: 'This is not a training day in your plan. Pick a workout anyway, or take the day.',
           primary: { label: 'Choose a workout', testID: 'choose-workout', onPress: () => router.push('/(tabs)/training') },
-          secondary: isPast
-            ? undefined
-            : { label: 'Take a rest day', testID: 'mark-rest-day', onPress: () => markRestDayMutation.mutate() },
+          /* The one thing a past day can still change (ADR 0013). Marking a
+             day you forgot is the whole reason to travel back to it. */
+          secondary: {
+            label: 'Take a rest day',
+            testID: 'mark-rest-day',
+            onPress: () => markRestDayMutation.mutate(),
+          },
           footer: isPast ? undefined : restPrompt,
         };
       case 'scheduled':
@@ -726,9 +739,13 @@ export default function TodayScreen() {
             loading: startWorkoutMutation.isPending,
             onPress: () => startWorkoutMutation.mutate(),
           },
-          secondary: isPast
-            ? undefined
-            : { label: 'Take a rest day', testID: 'mark-rest-day', onPress: () => markRestDayMutation.mutate() },
+          /* The one thing a past day can still change (ADR 0013). Marking a
+             day you forgot is the whole reason to travel back to it. */
+          secondary: {
+            label: 'Take a rest day',
+            testID: 'mark-rest-day',
+            onPress: () => markRestDayMutation.mutate(),
+          },
           footer: isPast ? undefined : restPrompt,
         };
     }
@@ -913,6 +930,27 @@ export default function TodayScreen() {
         <Text style={[styles.helperText, { color: theme.text.secondary }]}>Last updated {formatDateTime(new Date(todayQuery.dataUpdatedAt).toISOString())}</Text>
       ) : null}
 
+      {closedSession ? (
+        <View style={[styles.closedNotice, { backgroundColor: theme.surface.raised }]}>
+          <View style={styles.closedMeta}>
+            <Text style={[styles.closedTitle, { color: theme.text.primary }]}>
+              We closed your last workout
+            </Text>
+            <Text style={[styles.closedBody, { color: theme.text.secondary }]}>
+              It was still open when you left. Everything you logged is saved —{' '}
+              {closedSession.loggedSetCount}{' '}
+              {closedSession.loggedSetCount === 1 ? 'set' : 'sets'}.
+            </Text>
+          </View>
+          <Button
+            label="Dismiss"
+            variant="secondary"
+            fullWidth={false}
+            onPress={() => setClosedSession(null)}
+          />
+        </View>
+      ) : null}
+
       {showSkeleton || programsQuery.isLoading ? (
         <View style={[styles.heroSkeleton, { backgroundColor: theme.surface.sunken }]}>
           <ActivityIndicator color={theme.action.primary} />
@@ -1084,6 +1122,10 @@ const styles = StyleSheet.create({
   restPrompt: { gap: 4 },
   restPromptTitle: { fontSize: 13, fontWeight: '600' },
   restPromptBody: { fontSize: 12, lineHeight: 17 },
+  closedNotice: { borderRadius: radius.small, padding: spacing[16], gap: spacing[12] },
+  closedMeta: { gap: spacing[4] },
+  closedTitle: { fontSize: typeScale.compactBody.fontSize, fontWeight: '600' },
+  closedBody: { fontSize: typeScale.label.fontSize, lineHeight: 17 },
   section: { gap: spacing[8] },
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   sectionLabel: { fontSize: typeScale.caption.fontSize, fontWeight: '500', letterSpacing: 0.6 },

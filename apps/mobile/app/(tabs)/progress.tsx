@@ -1212,7 +1212,13 @@ export default function ProgressScreen() {
         </View>
 
         <View onLayout={captureOffset('body_weight')}>
-          <BodyWeightSection bodyWeight={bodyWeight} localDate={localDate} />
+          {/* Body weight moved to Trends (ADR 0013). The split is by
+              provenance: Progress is computed from sets you logged, Trends is
+              measured about you and is true whether or not you train. Weight
+              is measured, and it already coexists with a HealthKit value
+              under source precedence — so it belongs with the rest of them.
+              `BodyWeightSection` is still exported and still tested; it is
+              simply no longer rendered here. */}
         </View>
 
         {hasAnyVolume ? (

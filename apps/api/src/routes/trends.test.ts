@@ -60,7 +60,7 @@ describe('GET /v1/trends', () => {
         day('2026-09-02'),
         day('2026-09-03', { weightValue: '168.6', restingHeartRate: '54' }),
       ]),
-    );
+    ).mockReturnValueOnce(selectChain([]));
     const app = await buildApp();
     const res = await app.inject({ method: 'GET', url: '/v1/trends?from=2026-09-01&to=2026-09-03', headers: authHeader });
     expect(res.statusCode).toBe(200);
@@ -79,7 +79,8 @@ describe('GET /v1/trends', () => {
   it('reports no change for a single reading', async () => {
     mockSelect
       .mockReturnValueOnce(selectChain([userRow]))
-      .mockReturnValueOnce(selectChain([day('2026-09-03', { steps: 8412 })]));
+      .mockReturnValueOnce(selectChain([day('2026-09-03', { steps: 8412 })]))
+      .mockReturnValueOnce(selectChain([]));
     const app = await buildApp();
     const res = await app.inject({ method: 'GET', url: '/v1/trends?from=2026-09-01&to=2026-09-03', headers: authHeader });
     const steps = seriesFor(res.json(), 'steps');
@@ -91,12 +92,53 @@ describe('GET /v1/trends', () => {
   it('returns an empty series rather than omitting a metric nobody records', async () => {
     mockSelect
       .mockReturnValueOnce(selectChain([userRow]))
-      .mockReturnValueOnce(selectChain([day('2026-09-03', { steps: 1000 })]));
+      .mockReturnValueOnce(selectChain([day('2026-09-03', { steps: 1000 })]))
+      .mockReturnValueOnce(selectChain([]));
     const app = await buildApp();
     const res = await app.inject({ method: 'GET', url: '/v1/trends?from=2026-09-01&to=2026-09-03', headers: authHeader });
     const vo2 = seriesFor(res.json(), 'vo2Max');
     expect(vo2.points).toEqual([]);
     expect(vo2.latest).toBeNull();
+  });
+
+  it('prefers the user’s own weigh-in over the imported one', async () => {
+    /* Architecture §4: a manual entry is shown first and neither source
+       overwrites the other. Reading only the snapshot would show nothing at
+       all to anyone who weighs in by hand. */
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([day('2026-09-03', { weightValue: '170.4' })]))
+      .mockReturnValueOnce(
+        selectChain([{ localDate: '2026-09-03', value: '168.6', unit: 'lb' }]),
+      );
+    const app = await buildApp();
+    const res = await app.inject({ method: 'GET', url: '/v1/trends?from=2026-09-01&to=2026-09-03', headers: authHeader });
+    expect(seriesFor(res.json(), 'weight').points).toEqual([
+      { localDate: '2026-09-03', value: 168.6 },
+    ]);
+  });
+
+  it('converts a weigh-in entered in kilograms', async () => {
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([day('2026-09-03')]))
+      .mockReturnValueOnce(selectChain([{ localDate: '2026-09-03', value: '76.5', unit: 'kg' }]));
+    const app = await buildApp();
+    const res = await app.inject({ method: 'GET', url: '/v1/trends?from=2026-09-01&to=2026-09-03', headers: authHeader });
+    // 76.5kg is 168.7lb, not 76.5.
+    expect(seriesFor(res.json(), 'weight').points[0]!.value).toBeCloseTo(168.7, 1);
+  });
+
+  it('still shows an imported weight on a day with no manual entry', async () => {
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([day('2026-09-02', { weightValue: '170.4' })]))
+      .mockReturnValueOnce(selectChain([]));
+    const app = await buildApp();
+    const res = await app.inject({ method: 'GET', url: '/v1/trends?from=2026-09-01&to=2026-09-03', headers: authHeader });
+    expect(seriesFor(res.json(), 'weight').points).toEqual([
+      { localDate: '2026-09-02', value: 170.4 },
+    ]);
   });
 
   it('refuses a backwards range', async () => {
