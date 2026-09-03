@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, View, Text, Switch, StyleSheet, ActivityIndicator } from 'react-native';
 import { useClerk, useAuth, useUser } from '@clerk/clerk-expo';
+import { DeleteAccountSheet } from '../../src/components/DeleteAccountSheet';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { NotificationPreference, User } from '@setframe/schemas';
 import { Card } from '../../src/components/Card';
@@ -78,9 +79,25 @@ export default function SettingsScreen() {
   const theme = useTheme();
   const { user } = useUser();
   const { signOut } = useAuth();
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
   const { openUserProfile } = useClerk();
   const apiClient = useApiClient();
   const queryClient = useQueryClient();
+
+  const deleteAccount = useMutation({
+    mutationFn: () => apiClient.del('/me'),
+    onSuccess: async () => {
+      /* Signing out is what actually gets the user off the screen: the
+         account is gone, so every query behind this one would 401. The
+         cache is cleared first so nothing re-renders with a dead user. */
+      setConfirmingDelete(false);
+      queryClient.clear();
+      await signOut();
+    },
+    onError: () =>
+      feedback.report('Could not delete your account. Nothing was removed — try again.')(),
+  });
   const [workoutReminders, setWorkoutReminders] = useState(true);
   const [weeklySummary, setWeeklySummary] = useState(true);
 
@@ -235,10 +252,22 @@ export default function SettingsScreen() {
       <Text style={[styles.sectionHeading, { color: theme.status.error }]}>Danger zone</Text>
       <Card>
         <SettingsRow label="Delete account" value="This cannot be undone" valueTone="destructive" />
-        <Button label="Delete account" variant="destructive" onPress={() => {}} />
+        <Button
+          label="Delete account"
+          variant="destructive"
+          onPress={() => setConfirmingDelete(true)}
+          testID="open-delete-account"
+        />
       </Card>
 
       <Button label="Sign out" variant="secondary" onPress={() => signOut()} />
+
+      <DeleteAccountSheet
+        visible={confirmingDelete}
+        onCancel={() => setConfirmingDelete(false)}
+        onConfirm={() => deleteAccount.mutate()}
+        busy={deleteAccount.isPending}
+      />
       {feedback.node}
     </ScrollView>
   );

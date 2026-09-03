@@ -1,10 +1,13 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
+import { z } from 'zod';
 import { eq, sql } from 'drizzle-orm';
 import { updateMeSchema, userSchema } from '@setframe/schemas';
 import { user } from '@setframe/database';
 import { getDb } from '../lib/db.js';
+import { deleteAccountData } from '../lib/delete-account.js';
+import { deleteClerkUser } from '../lib/clerk.js';
 import { requireAuth } from '../plugins/auth.js';
-import { notFound } from '../lib/errors.js';
+import { ApiError, notFound } from '../lib/errors.js';
 
 function toUserResponse(row: typeof user.$inferSelect) {
   return {
@@ -20,6 +23,44 @@ function toUserResponse(row: typeof user.$inferSelect) {
 }
 
 export const meRoutes: FastifyPluginAsyncZod = async (fastify) => {
+  /**
+   * Deletes the account and everything in it.
+   *
+   * Required by App Store Review Guideline 5.1.1(v): an app that lets you
+   * create an account has to let you delete it from inside the app.
+   *
+   * Database first, Clerk second, and the order is load-bearing. If Clerk
+   * fails after the rows are gone, the user can still sign in and gets a
+   * fresh empty account — recoverable, and they can try again. The reverse
+   * leaves data belonging to an identity nobody can authenticate as.
+   *
+   * The database side is one batch, which Neon runs as a transaction, so a
+   * half-deleted account is not a state this can produce.
+   */
+  fastify.delete(
+    '/v1/me',
+    { preHandler: requireAuth, schema: { response: { 204: z.null() } } },
+    async (request, reply) => {
+      const db = getDb();
+      await deleteAccountData(db, request.userId!);
+
+      /* Clerk failing here is reported, not swallowed: the data is gone
+         either way, but the user needs to know their email is still
+         claimed rather than discovering it at sign-up. */
+      try {
+        await deleteClerkUser(request.clerkUserId!);
+      } catch {
+        throw new ApiError(
+          502,
+          'ACCOUNT_PARTIALLY_DELETED',
+          'Your data was deleted, but the sign-in could not be removed. Sign in again to retry.',
+        );
+      }
+
+      return reply.code(204).send(null);
+    },
+  );
+
   /**
    * Marks onboarding finished — completed or skipped, which are the same
    * thing here: both are decisions the user made.
