@@ -3,6 +3,7 @@ import { buildLogWeek, sessionHeadlineStats } from '@setframe/domain';
 import { LogHeader } from '../src/components/log/LogHeader';
 import { LogWeekStrip } from '../src/components/log/LogWeekStrip';
 import { LogHero } from '../src/components/log/LogHero';
+import { LogEntryRow } from '../src/components/log/LogEntryRow';
 import { useTheme } from '../src/theme/ThemeProvider';
 import { spacing } from '../src/theme/getTheme';
 
@@ -238,6 +239,43 @@ export default function DevLogGallery() {
           secondary={{ label: 'Take a rest day instead', onPress: () => {} }}
         />
       </HeroFrame>
+
+      <Frame label="80 · Log rows — the three save states">
+        <View style={{ paddingTop: spacing[24], paddingHorizontal: spacing[24], gap: spacing[8] }}>
+          <LogEntryRow label="Morning weight" value="168.6 lb" emptyLabel="Not recorded" onPress={() => {}} />
+          <LogEntryRow
+            label="Morning weight"
+            value="169.2 lb"
+            emptyLabel="Not recorded"
+            state="pending"
+            onPress={() => {}}
+          />
+          <LogEntryRow
+            label="Morning weight"
+            value="168.6 lb"
+            emptyLabel="Not recorded"
+            state="error"
+            onPress={() => {}}
+            onRetry={() => {}}
+          />
+          <LogEntryRow label="Activity" value={null} emptyLabel="Nothing added" onPress={() => {}} />
+          <LogEntryRow
+            label="Journal"
+            value="Felt strong. Bar speed good on the top set."
+            emptyLabel="Write an entry"
+            onPress={() => {}}
+          />
+          <LogEntryRow label="Journal" value={null} emptyLabel="Write an entry" onPress={() => {}} />
+        </View>
+      </Frame>
+
+      <Frame label="80 · Log rows — a past date, read only">
+        <View style={{ paddingTop: spacing[24], paddingHorizontal: spacing[24], gap: spacing[8] }}>
+          <LogEntryRow label="Morning weight" value="169.1 lb" emptyLabel="Not recorded" />
+          <LogEntryRow label="Activity" value="Walk · 32 min" emptyLabel="Nothing added" />
+          <LogEntryRow label="Journal" value="Easy day. Legs felt heavy from Monday." emptyLabel="Nothing written" />
+        </View>
+      </Frame>
 
       <Frame label="75 · Header — syncing">
         <View style={{ paddingTop: FRAME_TOP, paddingHorizontal: spacing[24] }}>

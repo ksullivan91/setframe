@@ -354,8 +354,44 @@ export default function TodayScreen() {
     lastSavedSectionRef.current = null;
   }, [manual, localDate]);
 
+  /**
+   * The day's manual entry, saved optimistically.
+   *
+   * Same contract WorkoutSessionScreenV2 uses: write the value into the
+   * cache, keep the previous copy, put it back if the request fails. The
+   * value is on screen the moment the user commits — no spinner between
+   * typing a number and seeing it.
+   */
   const saveMutation = useMutation({
     mutationFn: (body: DailyManualEntryPatch) => api.patch('/me/daily-entries/' + localDate, body),
+    onMutate: async (body) => {
+      const key = ['today', localDate];
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<DashboardTodayResponse>(key);
+      queryClient.setQueryData<DashboardTodayResponse>(key, (current) =>
+        current
+          ? {
+              ...current,
+              manualEntry: {
+                localDate,
+                morningWeightValue: null,
+                morningWeightUnit: null,
+                notes: null,
+                mood: null,
+                preWorkoutMealLogged: null,
+                ...(current.manualEntry ?? {}),
+                ...body,
+              } as DashboardTodayResponse['manualEntry'],
+            }
+          : current,
+      );
+      return { previous };
+    },
+    onError: (_error, _body, context) => {
+      /* Put back exactly what the server had. A failed save must not leave
+         the optimistic value on screen as though it had been written. */
+      if (context?.previous) queryClient.setQueryData(['today', localDate], context.previous);
+    },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['today', localDate] });
     },
@@ -436,6 +472,14 @@ export default function TodayScreen() {
     } catch {
       lastSavedSectionRef.current = null;
       setStatus('error');
+      /* The journal does not roll back. A set row can, because the number is
+         still in the input beside it; a journal entry is prose the user
+         typed, and discarding it to match the server destroys the only copy.
+         The local `journal` state keeps the text and the row says it is
+         unsent. */
+      if (section === 'journal' && typeof body.notes === 'string') {
+        setJournal(body.notes);
+      }
     }
   }
 

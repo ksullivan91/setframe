@@ -55,6 +55,12 @@ export const colorRamps = {
     successSubtle: '#DFF5EC',
     successSubtleDark: '#11312A',
     error: '#FF647C',
+    /* `error` and `success` are surface and icon colours. Measured against
+       white they are 2.85:1 and 2.26:1 — both fail WCAG AA for text, and
+       both were being used as text anyway. These are the same hues carried
+       dark enough to read: 7.1:1 and 5.9:1. */
+    errorText: '#A11133',
+    successText: '#00674B',
     caution: '#F5A623',
     info: '#3E8FF5',
   },

@@ -40,6 +40,8 @@ export const lightTheme = {
     success: colorRamps.status.success,
     successSubtle: colorRamps.status.successSubtle,
     error: colorRamps.status.error,
+    errorText: colorRamps.status.errorText,
+    successText: colorRamps.status.successText,
     caution: colorRamps.status.caution,
     info: colorRamps.status.info,
   },
@@ -107,6 +109,8 @@ export const darkTheme = {
     success: colorRamps.status.success,
     successSubtle: colorRamps.status.successSubtleDark,
     error: colorRamps.status.error,
+    errorText: colorRamps.status.errorText,
+    successText: colorRamps.status.successText,
     caution: colorRamps.status.caution,
     info: colorRamps.status.info,
   },
@@ -186,7 +190,16 @@ export interface SemanticTheme {
     accentSubtle: string;
     destructive: string;
   };
-  status: { success: string; successSubtle: string; error: string; caution: string; info: string };
+  status: {
+    success: string;
+    successSubtle: string;
+    error: string;
+    /** Text-safe steps. `error` and `success` are for fills and icons only. */
+    errorText: string;
+    successText: string;
+    caution: string;
+    info: string;
+  };
   /**
    * A deliberately dark surface inside whichever theme is active.
    *
