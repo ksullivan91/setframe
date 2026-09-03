@@ -1,6 +1,6 @@
 # Story 83 — Text-safe colours: `text.disabled` and `status.error`
 
-**Status:** Open. Independent of the rest of the batch, and overdue —
+**Status:** Shipped 2026-09-03. Independent of the rest of the batch, and overdue —
 this is a shipped accessibility defect, not new work.
 
 ## The defect

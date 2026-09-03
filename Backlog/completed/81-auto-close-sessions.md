@@ -1,6 +1,6 @@
 # Story 81 — Close the session the user walked away from
 
-**Status:** Open. **Read ADR 0014 first** — this is a deliberate
+**Status:** Shipped 2026-09-03. **Read ADR 0014 first** — this is a deliberate
 exception to ADR 0009.
 **Figma:** `Log v3 · Session closed for you`.
 

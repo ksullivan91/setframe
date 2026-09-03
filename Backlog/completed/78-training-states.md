@@ -1,6 +1,6 @@
 # Story 78 — The six training states, and splitting the seventh
 
-**Status:** Open. Depends on 75.
+**Status:** Shipped 2026-09-03. Depends on 75.
 **Design:** `docs/design/log-dashboard.md` §3.
 **Figma:** `Log v3 ·` In progress / No program yet / Program, no
 workouts / Nothing scheduled today / Rest day.

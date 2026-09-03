@@ -1,6 +1,6 @@
 # Story 77 — Trends: what your body is doing
 
-**Status:** Open. Depends on 75.
+**Status:** Shipped 2026-09-03. Depends on 75.
 **Design:** `docs/design/log-dashboard.md`. ADR 0013.
 **Figma:** `Trends v3 · Body, recovery, capacity`.
 

@@ -1,6 +1,6 @@
 # Story 80 — Weight, activity and journal, saved optimistically
 
-**Status:** Open. Depends on 75.
+**Status:** Shipped 2026-09-03. Depends on 75.
 **Design:** `docs/design/log-dashboard.md` §6.
 **Figma:** `Sheet ·` Log weight / Journal entry / Review Apple Health
 activity; `Log v3 · Saving (optimistic)`; `Log v3 · Save failed`;

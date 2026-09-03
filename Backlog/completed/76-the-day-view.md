@@ -1,6 +1,6 @@
 # Story 76 — The day view: a week strip, and past dates
 
-**Status:** Open. Depends on 75.
+**Status:** Shipped 2026-09-03. Depends on 75.
 **Design:** `docs/design/log-dashboard.md` §1–2. ADR 0013.
 **Figma:** `Log v3 · Today, scheduled`, `Log v3 · Today, completed`.
 

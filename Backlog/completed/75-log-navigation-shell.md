@@ -1,6 +1,6 @@
 # Story 75 — Navigation shell: Log, Trends, and the account avatar
 
-**Status:** Open. Shell story — 76–82 build on it.
+**Status:** Shipped 2026-09-03. Shell story — 76–82 build on it.
 **Design:** `docs/design/log-dashboard.md` §1. ADR 0013.
 **Figma:** `Log v3 · Today, scheduled` (`388:357` section).
 

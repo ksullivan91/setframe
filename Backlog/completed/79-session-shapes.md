@@ -1,6 +1,6 @@
 # Story 79 — Session shapes: not every workout has sets
 
-**Status:** Open. Depends on 78. **Domain change first.**
+**Status:** Shipped 2026-09-03. Depends on 78. **Domain change first.**
 **Design:** `docs/design/log-dashboard.md` §4.
 **Figma:** `Session shapes — flexible stats` (`392:180`).
 

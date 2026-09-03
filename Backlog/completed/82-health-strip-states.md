@@ -1,6 +1,6 @@
 # Story 82 — The health strip, including the state we cannot detect
 
-**Status:** Open. Depends on 75.
+**Status:** Shipped 2026-09-03. Depends on 75.
 **Design:** `docs/design/log-dashboard.md` §5.
 **Figma:** `Spec/Health states`.
 
