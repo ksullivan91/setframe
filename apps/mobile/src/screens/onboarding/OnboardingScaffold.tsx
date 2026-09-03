@@ -3,7 +3,7 @@ import { View, ScrollView, StyleSheet, Animated } from 'react-native';
 import { spacing } from '@setframe/design-tokens';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useScreenTopPadding, useStackBottomPadding } from '../../lib/useScreenInsets';
-import { useStepTransition, flowSpacing } from '../../lib/useStepTransition';
+import { useStepTransition } from '../../lib/useStepTransition';
 
 /**
  * The shell every onboarding step renders inside.
@@ -57,8 +57,8 @@ export function OnboardingScaffold({
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   body: { paddingHorizontal: spacing[24], paddingBottom: spacing[24] },
-  stepBody: { gap: flowSpacing.body },
-  actions: { paddingHorizontal: spacing[24], paddingTop: spacing[12], gap: flowSpacing.actions },
+  stepBody: { gap: spacing[16] },
+  actions: { paddingHorizontal: spacing[24], paddingTop: spacing[12], gap: spacing[8] },
 });
 
 export const onboardingText = StyleSheet.create({

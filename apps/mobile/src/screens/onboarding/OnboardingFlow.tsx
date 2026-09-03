@@ -359,16 +359,10 @@ function OnboardingSteps({
 
 const styles = StyleSheet.create({
   centered: { textAlign: 'center' },
-  /* Two card rhythms in the frames, not one. Prose cards ("compare") pad 16
-     and breathe 12 between blocks; the read-permission list pads 18 top and
-     bottom and runs a tighter 10 between its lines. */
+  /* Two card rhythms: prose cards breathe 12 between blocks, the
+     read-permission list runs tighter at 8. */
   card: { borderRadius: radius.small + 4, padding: spacing[16], gap: spacing[12] },
-  listCard: {
-    borderRadius: radius.small + 4,
-    paddingVertical: 18,
-    paddingHorizontal: spacing[16],
-    gap: 10,
-  },
+  listCard: { borderRadius: radius.small + 4, padding: spacing[16], gap: spacing[8] },
   bullet: { fontSize: 13, lineHeight: 19 },
   field: {
     flexDirection: 'row',

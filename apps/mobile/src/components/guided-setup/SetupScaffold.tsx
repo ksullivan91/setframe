@@ -4,7 +4,7 @@ import { spacing } from '@setframe/design-tokens';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useScreenTopPadding, useStackBottomPadding } from '../../lib/useScreenInsets';
 import { SetupChrome, type SetupHost } from './SetupChrome';
-import { useStepTransition, flowSpacing } from '../../lib/useStepTransition';
+import { useStepTransition } from '../../lib/useStepTransition';
 
 /**
  * The shell every guided-setup step renders inside.
@@ -74,7 +74,7 @@ export function SetupScaffold({
                container with a single child, so its `gap` applied between
                nothing and every element inside sat flush — the label
                against the help text, the field against the card. */
-            gap: flowSpacing.body,
+            gap: spacing[16],
             ...motion,
           }}
         >
@@ -90,5 +90,5 @@ export function SetupScaffold({
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   body: { padding: spacing[24] },
-  actions: { paddingHorizontal: spacing[24], paddingTop: spacing[12], gap: flowSpacing.actions },
+  actions: { paddingHorizontal: spacing[24], paddingTop: spacing[12], gap: spacing[8] },
 });

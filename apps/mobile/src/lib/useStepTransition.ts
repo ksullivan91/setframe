@@ -47,12 +47,3 @@ export function useStepTransition(index: number) {
   };
 }
 
-/**
- * The flow frames' own rhythm, from Figma.
- *
- * 14 between body items and 10 between stacked actions are not on the
- * 4/8/12/16 spacing scale, and rounding them to 16 and 8 is what made the
- * built screens read looser than the design. Named rather than written as
- * `spacing[12] + 2` at four call sites.
- */
-export const flowSpacing = { body: 14, actions: 10 } as const;

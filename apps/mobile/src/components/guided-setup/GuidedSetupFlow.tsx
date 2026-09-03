@@ -405,11 +405,10 @@ function StepActions({
 
 const styles = StyleSheet.create({
   title: { fontSize: 26, fontWeight: '600' },
-  /* 14, from the frames. typeScale.helper is 12 and made every step's
-     body copy read a size smaller than designed. */
-  help: { fontSize: 14, lineHeight: 20 },
-  /* padding 14, from the frame; spacing[12] read tight against the 14 body rhythm. */
-  hint: { borderRadius: radius.small + 2, padding: 14, gap: spacing[4] },
+  /* typeScale.helper is 12, which made every step's body copy read a size
+     smaller than the frames intend; body is the 14 they were drawn at. */
+  help: { fontSize: typeScale.body.fontSize, lineHeight: typeScale.body.lineHeight },
+  hint: { borderRadius: radius.small + 2, padding: spacing[12], gap: spacing[4] },
   hintLabel: { fontSize: 10, fontWeight: '500', letterSpacing: 0.6 },
   hintBody: { fontSize: 13 },
   row: {

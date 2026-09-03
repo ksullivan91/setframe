@@ -117,8 +117,7 @@ export function Input({
 
 const styles = StyleSheet.create({
   container: {
-    /* 6 between label and box, per the field spec in the flow frames. */
-    gap: 6,
+    gap: spacing[4],
   },
   label: {
     fontSize: typeScale.label.fontSize,
