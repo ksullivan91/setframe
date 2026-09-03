@@ -9,6 +9,14 @@ alongside their stories, named `README-{range}-{review}.md`.
 
 ## Open
 
+- `log-dashboard/` — stories 75–83. Today becomes **Log**: a browsable day
+  view with a date control and a week strip, Settings moves to an avatar,
+  and the freed tab becomes **Trends** (what your body is doing, split from
+  Progress on the provenance boundary). Also splits `unscheduled` into two
+  real states, makes the session summary kind-aware so a treadmill walk
+  stops reporting `0 lb`, closes sessions the user walked away from, and
+  fixes two colour tokens that fail WCAG AA in 43 shipped places. Design
+  record: `docs/design/log-dashboard.md`. ADRs 0013, 0014.
 - `workout-logger-v2-completion/` — stories 69–74. The v2 table logger is live
   on the canonical route but unfinished: the SET chip and the exercise `⋯` are
   no-ops and `+ Add exercise` has no handler at all, so **a set cannot be
