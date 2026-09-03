@@ -4,7 +4,16 @@ import { useTheme } from '../theme/ThemeProvider';
 import { radius, spacing } from '@setframe/design-tokens';
 import { typeScale } from '../theme/getTheme';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'destructive' | 'success';
+export type ButtonVariant =
+  | 'primary'
+  | 'secondary'
+  | 'destructive'
+  | 'success'
+  /* On Log's dark hero: a white fill reads as primary against near-black,
+     where the brand blue would not. */
+  | 'onDark'
+  /* The quiet action under it — rest, or an escape hatch. */
+  | 'ghostOnDark';
 
 export interface ButtonProps {
   label: string;
@@ -49,12 +58,23 @@ export function Button({
         ? theme.action.destructive
         : variant === 'success'
           ? theme.status.success
-          : /* Secondary is a filled grey, not an outline. Every full-size
-               secondary in the Figma file draws neutral-100 with no stroke
-               (Skip, Not now, Add another workout, and the delete sheet's
-               Cancel); the bordered-white version here predated them. */
-            theme.surface.sunken;
-  const textColor = variant === 'secondary' ? theme.text.primary : theme.action.primaryText;
+          : variant === 'onDark'
+            ? theme.text.inverse
+            : variant === 'ghostOnDark'
+              ? 'transparent'
+              : /* Secondary is a filled grey, not an outline. Every full-size
+                   secondary in the Figma file draws neutral-100 with no stroke
+                   (Skip, Not now, Add another workout, and the delete sheet's
+                   Cancel); the bordered-white version here predated them. */
+                theme.surface.sunken;
+  const textColor =
+    variant === 'secondary'
+      ? theme.text.primary
+      : variant === 'onDark'
+        ? theme.text.primary
+        : variant === 'ghostOnDark'
+          ? theme.inverse.textMuted
+          : theme.action.primaryText;
 
   return (
     <Pressable

@@ -24,6 +24,7 @@ import {
 import { Card } from '../../src/components/Card';
 import { LogHeader } from '../../src/components/log/LogHeader';
 import { LogWeekStrip } from '../../src/components/log/LogWeekStrip';
+import { LogHero, type LogHeroState, type LogHeroProps } from '../../src/components/log/LogHero';
 import { releaseSplash, SPLASH_MAX_MS } from '../../src/lib/appReady';
 import { Button } from '../../src/components/Button';
 import { Input } from '../../src/components/Input';
@@ -124,7 +125,7 @@ interface DailyManualEntryPatch {
   preWorkoutMealLogged?: boolean | null;
 }
 
-type TodayWorkoutState = 'no-program' | 'unscheduled' | 'scheduled' | 'in-progress' | 'completed' | 'rested';
+type TodayWorkoutState = LogHeroState;
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
 const moodOptions = [
@@ -295,6 +296,14 @@ export default function TodayScreen() {
       }),
     [localDate, today, weekQuery.data],
   );
+
+  /* Only to distinguish "your plan is empty" from "nothing today". Cheap,
+     cached, and the picker on Training reads the same key. */
+  const dayTypesQuery = useQuery({
+    queryKey: ['day-types'],
+    queryFn: () => api.get<{ id: string; name: string }[]>('/day-types'),
+  });
+  const hasNoWorkouts = Boolean(dayTypesQuery.data && dayTypesQuery.data.length === 0);
 
   const todayQuery = useQuery({
     queryKey: ['today', localDate],
@@ -527,7 +536,161 @@ export default function TodayScreen() {
           ? 'no-program'
           : todayQuery.data?.dayTypeId
             ? 'scheduled'
-            : 'unscheduled';
+            /* "No workouts at all" and "nothing on this date" are different
+               problems with different fixes. Collapsed together, the screen
+               offered "Choose workout" to someone with none to choose. */
+            : hasNoWorkouts
+              ? 'program-empty'
+              : 'unscheduled';
+
+  const completedDuration = formatTime(completedSession?.completedAt)
+    ? `finished ${formatTime(completedSession?.completedAt)}`
+    : null;
+  const completedStats: LogHeroProps['stats'] = [
+    { value: String(completedSets), label: 'sets' },
+    { value: completedVolume ? completedVolume.toLocaleString('en-US') : '—', label: 'volume lb' },
+    { value: String(completedReadoutValue?.personalRecordCount ?? 0), label: 'PRs', highlight: (completedReadoutValue?.personalRecordCount ?? 0) > 0 },
+  ];
+  /* The design shows "6 of 14 sets logged", but /dashboard/today returns no
+     planned set count for a running session — only the logger knows it.
+     Omitted rather than guessed; the hero renders without the bar. */
+  const activeSetProgress = undefined;
+
+  const restPrompt = (
+    <View style={styles.restPrompt}>
+      <Text style={[styles.restPromptTitle, { color: theme.inverse.text }]}>Need a day off?</Text>
+      <Text style={[styles.restPromptBody, { color: theme.inverse.textMuted }]}>
+        Logging a rest day keeps the record honest without changing your program or breaking your
+        consistency.
+      </Text>
+    </View>
+  );
+
+  const heroProps: LogHeroProps = useMemo(() => {
+    const dayName = todayQuery.data?.dayLabel ?? 'Training';
+    /* The design splits the title across two lines, the second in the accent.
+       "Upper Body — Push" is the shape day types take, so the em dash is the
+       natural break; anything without one keeps a single line. */
+    const [head, tail] = dayName.includes(' — ') ? dayName.split(' — ') : [dayName, undefined];
+    /* The design shows the day's exercises as chips, but /dashboard/today
+       returns only the day type's id, name and duration — the exercise list
+       would need a join it does not do. Left out rather than faked; the hero
+       renders without chips. */
+
+    switch (todayWorkoutState) {
+      case 'in-progress':
+        return {
+          state: 'in-progress',
+          eyebrow: 'IN PROGRESS',
+          title: head!,
+          titleAccent: tail,
+          primary: {
+            label: 'Resume workout',
+            testID: 'resume-workout',
+            loading: startWorkoutMutation.isPending,
+            onPress: () => startWorkoutMutation.mutate(),
+          },
+        };
+      case 'completed':
+        return {
+          state: 'completed',
+          eyebrow: isToday ? 'DONE TODAY' : 'WHAT YOU DID',
+          chip: completedDuration ?? undefined,
+          title: head!,
+          titleAccent: tail,
+          stats: completedStats,
+          primary: completedSession
+            ? {
+                label: 'Review workout',
+                onPress: () => router.push(`/workout/${completedSession.id}`),
+              }
+            : undefined,
+        };
+      case 'rested':
+        return {
+          state: 'rested',
+          eyebrow: 'REST DAY',
+          chip: 'Logged',
+          /* A rested day is a closed training step, not an open one — the
+             badge is what says so at a glance. */
+          doneBadge: (
+            <View testID="workout-done-badge" style={[styles.doneBadge, { backgroundColor: theme.inverse.raised }]}>
+              <Moon size={16} strokeWidth={2.5} color={theme.inverse.success} />
+            </View>
+          ),
+          title: 'Rest day',
+          body: 'Recovery is training. A rest day will not count against your training — it keeps the record honest without breaking your consistency.',
+          primary: isPast
+            ? undefined
+            : { label: 'Train anyway', onPress: () => startWorkoutMutation.mutate() },
+          secondary: { label: 'Undo rest day', testID: 'undo-rest-day', onPress: () => undoRestDayMutation.mutate() },
+        };
+      case 'no-program':
+        return {
+          state: 'no-program',
+          eyebrow: 'NO PLAN YET',
+          title: 'Nothing scheduled',
+          body: 'Set up a plan and Log will know what comes next. It takes about two minutes, and you can change all of it later.',
+          primary: { label: 'Set up my training', testID: 'start-guided-setup', onPress: () => router.push('/guided-setup') },
+          secondary: { label: 'Just start a workout', onPress: () => startWorkoutMutation.mutate() },
+        };
+      case 'program-empty':
+        return {
+          state: 'program-empty',
+          eyebrow: 'YOUR PLAN',
+          chip: 'No workouts',
+          title: 'Your plan is empty',
+          body: 'The plan exists but has no workouts in it yet. Add one and it can start landing on your week.',
+          primary: { label: 'Add a workout', testID: 'add-a-workout', onPress: () => router.push('/(tabs)/training') },
+          secondary: { label: 'Just start a workout', onPress: () => startWorkoutMutation.mutate() },
+        };
+      case 'unscheduled':
+        return {
+          state: 'unscheduled',
+          eyebrow: 'NOTHING ON THE SCHEDULE',
+          title: 'Your call today',
+          body: 'This is not a training day in your plan. Pick a workout anyway, or take the day.',
+          primary: { label: 'Choose a workout', testID: 'choose-workout', onPress: () => router.push('/(tabs)/training') },
+          secondary: isPast
+            ? undefined
+            : { label: 'Take a rest day', testID: 'mark-rest-day', onPress: () => markRestDayMutation.mutate() },
+          footer: isPast ? undefined : restPrompt,
+        };
+      case 'scheduled':
+      default:
+        return {
+          state: 'scheduled',
+          eyebrow: isToday ? 'TODAY’S TRAINING' : 'PLANNED',
+          chip: todayQuery.data?.estimatedDurationMinutes ? `~${todayQuery.data.estimatedDurationMinutes} min` : undefined,
+          title: head!,
+          titleAccent: tail,
+          primary: {
+            label: 'Start workout',
+            testID: 'start-workout',
+            loading: startWorkoutMutation.isPending,
+            onPress: () => startWorkoutMutation.mutate(),
+          },
+          secondary: isPast
+            ? undefined
+            : { label: 'Take a rest day', testID: 'mark-rest-day', onPress: () => markRestDayMutation.mutate() },
+          footer: isPast ? undefined : restPrompt,
+        };
+    }
+  }, [
+    todayWorkoutState,
+    todayQuery.data,
+    isToday,
+    isPast,
+    completedSession,
+    completedStats,
+    completedDuration,
+    startWorkoutMutation,
+    markRestDayMutation,
+    undoRestDayMutation,
+    router,
+    restPrompt,
+    theme,
+  ]);
 
   const workoutTitle =
     todayWorkoutState === 'no-program'
@@ -659,158 +822,18 @@ export default function TodayScreen() {
         <Text style={[styles.helperText, { color: theme.text.secondary }]}>Last updated {formatDateTime(new Date(todayQuery.dataUpdatedAt).toISOString())}</Text>
       ) : null}
 
-      <Card
-        testID={`workout-card-${todayWorkoutState}`}
-        style={[
-          styles.workoutCard,
-          todayWorkoutState === 'completed'
-            ? { borderColor: `${theme.status.success}66`, backgroundColor: `${theme.status.success}1F` }
-            : todayWorkoutState === 'rested'
-              ? { borderColor: `${theme.status.success}66`, backgroundColor: `${theme.status.success}14` }
-              : { borderColor: theme.action.primary, backgroundColor: theme.action.accentSubtle },
-        ]}
-      >
-        <View style={styles.cardHeaderRow}>
-          <View style={styles.titleWithIcon}>
-            {todayWorkoutState === 'completed' ? (
-              <View testID="workout-done-badge" style={[styles.completionBadge, { backgroundColor: theme.surface.raised }]}>
-                <CheckCircle2 size={24} strokeWidth={2.5} color={theme.status.success} />
-              </View>
-            ) : todayWorkoutState === 'rested' ? (
-              <View testID="workout-done-badge" style={[styles.completionBadge, { backgroundColor: theme.surface.raised }]}>
-                <Moon size={22} strokeWidth={2.5} color={theme.status.success} />
-              </View>
-            ) : (
-              <Dumbbell size={18} color={theme.text.primary} />
-            )}
-            <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>{workoutTitle}</Text>
-          </View>
-          {todayQuery.data?.estimatedDurationMinutes &&
-          todayWorkoutState !== 'completed' &&
-          todayWorkoutState !== 'rested' ? (
-            <View style={[styles.chip, { backgroundColor: theme.surface.sunken }]}>
-              <Text style={[styles.chipLabel, { color: theme.text.secondary }]}>~{todayQuery.data.estimatedDurationMinutes} min</Text>
-            </View>
-          ) : null}
+      {showSkeleton || programsQuery.isLoading ? (
+        <View style={[styles.heroSkeleton, { backgroundColor: theme.surface.sunken }]}>
+          <ActivityIndicator color={theme.action.primary} />
         </View>
-        {showSkeleton || programsQuery.isLoading ? <ActivityIndicator color={theme.action.primary} /> : null}
-        {todayQuery.isError ? (
-          <View style={[styles.statusBlock, { backgroundColor: theme.surface.sunken, borderColor: theme.border.default }]}>
-            <AlertTriangle size={18} color={theme.status.caution} />
-            <Text style={[styles.bodyText, { color: theme.text.secondary }]}>Couldn’t load Today. Pull to refresh and try again.</Text>
-          </View>
-        ) : (
-          <>
-            <Text testID="workout-body" style={[styles.bodyText, { color: theme.text.secondary }]}>{workoutBody}</Text>
-            {todayQuery.data?.override?.note &&
-            todayWorkoutState !== 'completed' &&
-            todayWorkoutState !== 'rested' ? (
-              <View style={[styles.chip, { backgroundColor: theme.surface.sunken }]}>
-                <Text style={[styles.chipLabel, { color: theme.text.secondary }]}>{todayQuery.data.override.note}</Text>
-              </View>
-            ) : null}
-            {todayWorkoutState === 'completed' && completedSummaryQuery.data ? (
-              <View style={styles.completedStatRow}>
-                {[
-                  { label: 'Exercises', value: String(visibleSessionExercises(completedSummaryQuery.data.exercises).length) },
-                  { label: 'Sets logged', value: String(completedSets) },
-                  { label: 'Total volume', value: completedVolume ? completedVolume.toLocaleString('en-US') : '—', unit: completedVolume ? 'lb' : undefined },
-                ].map((stat) => (
-                  <View
-                    key={stat.label}
-                    style={[
-                      styles.completedStatTile,
-                      { borderColor: `${theme.status.success}33`, backgroundColor: theme.surface.raised },
-                    ]}
-                  >
-                    <Text style={[styles.chipLabel, { color: theme.text.secondary }]}>{stat.label}</Text>
-                    <Text
-                      style={[styles.completedStatValue, { color: theme.status.success }]}
-                      numberOfLines={1}
-                      adjustsFontSizeToFit
-                      minimumFontScale={0.7}
-                    >
-                      {stat.value}
-                      {stat.unit ? <Text style={styles.completedStatUnit}>{stat.unit}</Text> : null}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            ) : null}
-            <View style={styles.ctaStack}>
-              {todayWorkoutState === 'no-program' ? (
-                hasNoProgram ? (
-                  <Button label="Start guided setup" onPress={() => router.push('/guided-setup')} />
-                ) : (
-                  <Button label="Choose a program" onPress={() => router.push('/(tabs)/training')} />
-                )
-              ) : null}
-              {todayWorkoutState === 'in-progress' ? <Button label="Resume workout" loading={startWorkoutMutation.isPending} onPress={() => startWorkoutMutation.mutate()} /> : null}
-              {todayWorkoutState === 'completed' && completedSession ? (
-                <Button
-                  label="Review workout"
-                  /* The completed state IS the logger screen with its banner
-                     (ADR 0011), same as web — not a separate summary page.
-                     This used to route to /session-summary, which is why the
-                     new design was invisible on mobile after finishing. */
-                  onPress={() =>
-                    router.push({
-                      pathname: '/workout/[sessionId]',
-                      params: { sessionId: completedSession.id },
-                    })
-                  }
-                />
-              ) : null}
-              {todayWorkoutState === 'rested' ? (
-                <Button
-                  label="Undo rest day"
-                  variant="secondary"
-                  testID="undo-rest-day"
-                  loading={undoRestDayMutation.isPending}
-                  onPress={() => undoRestDayMutation.mutate()}
-                />
-              ) : null}
-            </View>
-            {todayWorkoutState === 'scheduled' ? (
-              <View style={styles.ctaStack}>
-                <Button label="Start workout" loading={startWorkoutMutation.isPending} onPress={() => startWorkoutMutation.mutate()} />
-                <Button label="Preview program" variant="secondary" onPress={() => router.push('/(tabs)/training')} />
-                <View style={[styles.restSection, { borderTopColor: theme.border.subtle }]}>
-                  <Text style={[styles.restSectionTitle, { color: theme.text.primary }]}>Need a day off?</Text>
-                  <Text style={[styles.restSectionBody, { color: theme.text.secondary }]}>
-                    Skips today&apos;s scheduled workout without changing your program or breaking your consistency.
-                  </Text>
-                  <Button
-                    label="Take a rest day"
-                    variant="success"
-                    testID="mark-rest-day"
-                    loading={markRestDayMutation.isPending}
-                    onPress={() => markRestDayMutation.mutate()}
-                  />
-                </View>
-              </View>
-            ) : null}
-            {todayWorkoutState === 'unscheduled' ? (
-              <View style={styles.ctaStack}>
-                <Button label="Choose workout" testID="choose-workout" onPress={() => router.push('/(tabs)/training')} />
-                <View style={[styles.restSection, { borderTopColor: theme.border.subtle }]}>
-                  <Text style={[styles.restSectionTitle, { color: theme.text.primary }]}>Need a day off?</Text>
-                  <Text style={[styles.restSectionBody, { color: theme.text.secondary }]}>
-                    Marks today as a rest day without changing your program or breaking your consistency.
-                  </Text>
-                  <Button
-                    label="Take a rest day"
-                    variant="success"
-                    testID="mark-rest-day"
-                    loading={markRestDayMutation.isPending}
-                    onPress={() => markRestDayMutation.mutate()}
-                  />
-                </View>
-              </View>
-            ) : null}
-          </>
-        )}
-      </Card>
+      ) : todayQuery.isError ? (
+        <View style={[styles.statusBlock, { backgroundColor: theme.surface.sunken, borderColor: theme.border.default }]}>
+          <AlertTriangle size={18} color={theme.status.caution} />
+          <Text style={[styles.bodyText, { color: theme.text.secondary }]}>Couldn’t load this day. Pull to refresh and try again.</Text>
+        </View>
+      ) : (
+        <LogHero {...heroProps} />
+      )}
 
       {/* Story 41 — available on training, recovery, rest, and no-program
           days alike; deliberately outside every todayWorkoutState branch
@@ -1011,6 +1034,17 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: typeScale.sectionTitle.fontSize,
     fontWeight: '600',
+  },
+  doneBadge: { width: 28, height: 28, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  restPrompt: { gap: 4 },
+  restPromptTitle: { fontSize: 13, fontWeight: '600' },
+  restPromptBody: { fontSize: 12, lineHeight: 17 },
+  heroSkeleton: {
+    borderRadius: 16,
+    padding: 24,
+    minHeight: 200,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   workoutCard: {
     gap: spacing[12],

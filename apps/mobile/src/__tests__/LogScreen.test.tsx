@@ -107,13 +107,22 @@ function todayPayload(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function getFor(payload: Record<string, unknown>): (path: string) => Promise<unknown> {
+function getFor(
+  payload: Record<string, unknown>,
+  /* Story 78 split `unscheduled` in two, and the difference is whether the
+     plan has any workouts at all. `[]` is the empty-plan case; pass a day
+     type to get "nothing on this date" instead. */
+  dayTypes: unknown[] = [],
+): (path: string) => Promise<unknown> {
   return (path: string) => {
     if (path.startsWith('/dashboard/today')) return Promise.resolve(payload);
     if (path === '/programs') return Promise.resolve([{ id: 'program-1', isActive: true }]);
+    if (path === '/day-types') return Promise.resolve(dayTypes);
     return Promise.resolve([]);
   };
 }
+
+const SOME_WORKOUTS = [{ id: 'day-1', name: 'Push' }];
 
 async function flush() {
   for (let i = 0; i < 10; i += 1) {
@@ -202,11 +211,21 @@ describe('LogScreen loading state', () => {
 
 describe('LogScreen rest days', () => {
   it('offers a rest day alongside choosing a workout when nothing is scheduled', async () => {
-    mockGet = getFor(todayPayload());
+    mockGet = getFor(todayPayload(), SOME_WORKOUTS);
     const rendered = await renderScreen();
 
     expect(hostsByTestId(rendered, 'choose-workout')).toHaveLength(1);
     expect(hostsByTestId(rendered, 'mark-rest-day')).toHaveLength(1);
+  });
+
+  it('offers to build one, not to choose one, when the plan is empty', async () => {
+    // The distinction story 78 exists for: with no workouts at all, "Choose a
+    // workout" offers a choice among nothing.
+    mockGet = getFor(todayPayload(), []);
+    const rendered = await renderScreen();
+
+    expect(hostsByTestId(rendered, 'add-a-workout')).toHaveLength(1);
+    expect(hostsByTestId(rendered, 'choose-workout')).toHaveLength(0);
   });
 
   it('offers a rest day on a day that has a workout scheduled', async () => {
@@ -300,7 +319,7 @@ describe('LogScreen rest days', () => {
   });
 
   it('exposes the rest actions as 44pt accessible buttons', async () => {
-    mockGet = getFor(todayPayload());
+    mockGet = getFor(todayPayload(), SOME_WORKOUTS);
     const rendered = await renderScreen();
 
     const mark = hostsByTestId(rendered, 'mark-rest-day')[0] as ReactTestInstance;

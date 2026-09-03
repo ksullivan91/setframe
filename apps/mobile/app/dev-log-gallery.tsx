@@ -2,6 +2,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { buildLogWeek } from '@setframe/domain';
 import { LogHeader } from '../src/components/log/LogHeader';
 import { LogWeekStrip } from '../src/components/log/LogWeekStrip';
+import { LogHero } from '../src/components/log/LogHero';
 import { useTheme } from '../src/theme/ThemeProvider';
 import { spacing } from '../src/theme/getTheme';
 
@@ -17,6 +18,7 @@ import { spacing } from '../src/theme/getTheme';
  * header, 76 adds the week strip, 78 the hero states.
  */
 const PHONE = { width: 390, height: 500 };
+const HERO_PHONE = { width: 390, height: 620 };
 
 const TODAY = '2026-09-03';
 
@@ -29,7 +31,7 @@ export default function DevLogGallery() {
   if (!__DEV__) return null;
 
   return (
-    <ScrollView horizontal contentContainerStyle={styles.row}>
+    <ScrollView contentContainerStyle={styles.row}>
       <Frame label="75 · Header — today">
         <View style={{ paddingTop: FRAME_TOP, paddingHorizontal: spacing[24] }}>
           <LogHeader
@@ -107,6 +109,93 @@ export default function DevLogGallery() {
         </View>
       </Frame>
 
+
+      <HeroFrame label="78 · Hero — scheduled">
+        <LogHero
+          state="scheduled"
+          eyebrow="TODAY’S TRAINING"
+          chip="~52 min"
+          title="Upper Body"
+          titleAccent="Push"
+          chips={['Bench', 'Incline DB', 'Dips', '+2']}
+          primary={{ label: 'Start workout', onPress: () => {} }}
+          secondary={{ label: 'Take a rest day instead', onPress: () => {} }}
+        />
+      </HeroFrame>
+
+      <HeroFrame label="78 · Hero — in progress">
+        <LogHero
+          state="in-progress"
+          eyebrow="IN PROGRESS"
+          chip="Started 18 min ago"
+          title="Upper Body"
+          titleAccent="Push"
+          progress={{ done: 6, total: 14 }}
+          primary={{ label: 'Resume workout', onPress: () => {} }}
+        />
+      </HeroFrame>
+
+      <HeroFrame label="78 · Hero — completed">
+        <LogHero
+          state="completed"
+          eyebrow="DONE TODAY"
+          chip="61 min"
+          title="Upper Body"
+          titleAccent="Push"
+          stats={[
+            { value: '14', label: 'sets' },
+            { value: '8,240', label: 'volume lb' },
+            { value: '2', label: 'PRs', highlight: true },
+          ]}
+          primary={{ label: 'Review workout', onPress: () => {} }}
+        />
+      </HeroFrame>
+
+      <HeroFrame label="78 · Hero — rest day">
+        <LogHero
+          state="rested"
+          eyebrow="REST DAY"
+          chip="Planned"
+          title="Nothing scheduled"
+          body="Four days trained this week. Rest is part of the plan — the record counts it."
+          primary={{ label: 'Train anyway', onPress: () => {} }}
+        />
+      </HeroFrame>
+
+      <HeroFrame label="78 · Hero — no program">
+        <LogHero
+          state="no-program"
+          eyebrow="NO PLAN YET"
+          title="Nothing scheduled"
+          body="Set up a plan and Log will know what comes next. It takes about two minutes, and you can change all of it later."
+          primary={{ label: 'Set up my training', onPress: () => {} }}
+          secondary={{ label: 'Just start a workout', onPress: () => {} }}
+        />
+      </HeroFrame>
+
+      <HeroFrame label="78 · Hero — plan is empty">
+        <LogHero
+          state="program-empty"
+          eyebrow="UPPER / LOWER 4-DAY"
+          chip="No workouts"
+          title="Your plan is empty"
+          body="The plan exists but has no workouts in it yet. Add one and it can start landing on your week."
+          primary={{ label: 'Add a workout', onPress: () => {} }}
+          secondary={{ label: 'Just start a workout', onPress: () => {} }}
+        />
+      </HeroFrame>
+
+      <HeroFrame label="78 · Hero — nothing scheduled today">
+        <LogHero
+          state="unscheduled"
+          eyebrow="NOTHING ON THE SCHEDULE"
+          title="Your call today"
+          body="Wednesday is not a training day in Upper / Lower 4-day. Pick a workout anyway, or take the day."
+          primary={{ label: 'Choose a workout', onPress: () => {} }}
+          secondary={{ label: 'Take a rest day instead', onPress: () => {} }}
+        />
+      </HeroFrame>
+
       <Frame label="75 · Header — syncing">
         <View style={{ paddingTop: FRAME_TOP, paddingHorizontal: spacing[24] }}>
           <LogHeader
@@ -126,6 +215,18 @@ export default function DevLogGallery() {
   );
 }
 
+function HeroFrame({ label, children }: { label: string; children: React.ReactNode }) {
+  const theme = useTheme();
+  return (
+    <View style={styles.frame}>
+      <Text style={[styles.label, { color: theme.text.disabled }]}>{label.toUpperCase()}</Text>
+      <View style={[styles.heroPhone, { borderColor: theme.border.subtle, backgroundColor: theme.surface.canvas }]}>
+        <View style={{ paddingTop: spacing[24], paddingHorizontal: spacing[24] }}>{children}</View>
+      </View>
+    </View>
+  );
+}
+
 function Frame({ label, children }: { label: string; children: React.ReactNode }) {
   const theme = useTheme();
   return (
@@ -139,10 +240,17 @@ function Frame({ label, children }: { label: string; children: React.ReactNode }
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', gap: spacing[24], padding: spacing[24], alignItems: 'flex-start' },
+  row: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing[24],
+    padding: spacing[24],
+    alignItems: 'flex-start',
+  },
   frame: { gap: spacing[8] },
   label: { fontSize: 10, letterSpacing: 1, fontWeight: '500' },
   phone: { ...PHONE, borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
+  heroPhone: { ...HERO_PHONE, borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
   pill: { borderRadius: 999, paddingVertical: spacing[4], paddingHorizontal: spacing[8] },
   pillLabel: { fontSize: 11 },
 });

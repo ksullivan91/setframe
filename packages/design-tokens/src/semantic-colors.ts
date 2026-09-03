@@ -43,6 +43,18 @@ export const lightTheme = {
     caution: colorRamps.status.caution,
     info: colorRamps.status.info,
   },
+  inverse: {
+    surface: colorRamps.neutral[900],
+    raised: colorRamps.neutral[850],
+    text: colorRamps.neutral[0],
+    /* neutral 300 on neutral 900 is 9.4:1. neutral 400 was tried first and
+       is 6.2 — fine, but it reads as switched-off rather than quiet. */
+    textMuted: colorRamps.neutral[300],
+    /* Accent 600 on near-black is 2.6:1. 500 is 4.8 and still unmistakably
+       the brand blue. */
+    accent: colorRamps.accent[500],
+    success: colorRamps.status.success,
+  },
   /**
    * Data-visualisation palette. Raw observations use the accent purple and
    * the smoothed trend uses the success green, so the two brand colours
@@ -97,6 +109,17 @@ export const darkTheme = {
     error: colorRamps.status.error,
     caution: colorRamps.status.caution,
     info: colorRamps.status.info,
+  },
+  inverse: {
+    /* In dark mode the hero cannot be "the dark one" — the canvas already
+       is. It sits one step deeper than the canvas instead, so it still
+       separates from the cards around it. */
+    surface: colorRamps.neutral[950],
+    raised: colorRamps.neutral[850],
+    text: colorRamps.neutral[0],
+    textMuted: colorRamps.neutral[300],
+    accent: colorRamps.accent[400],
+    success: colorRamps.status.success,
   },
   chart: {
     raw: colorRamps.accent[300],
@@ -164,6 +187,25 @@ export interface SemanticTheme {
     destructive: string;
   };
   status: { success: string; successSubtle: string; error: string; caution: string; info: string };
+  /**
+   * A deliberately dark surface inside whichever theme is active.
+   *
+   * Log's hero is near-black on a light canvas so the day's one decision has
+   * a centre of gravity. Text and accents sitting on it need their own
+   * steps: `action.primary` (accent 600) is too dark to read against
+   * near-black, and `text.secondary` is far too dark. These are not "dark
+   * mode" — dark mode swaps the whole theme, while this stays dark in both.
+   */
+  inverse: {
+    surface: string;
+    /** Chips and secondary fills drawn on `inverse.surface`. */
+    raised: string;
+    text: string;
+    /** Muted copy on the dark surface. Meets AA against `inverse.surface`. */
+    textMuted: string;
+    accent: string;
+    success: string;
+  };
   chart: ChartTokens;
 }
 
