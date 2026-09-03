@@ -4,6 +4,7 @@ import { LogHeader } from '../src/components/log/LogHeader';
 import { LogWeekStrip } from '../src/components/log/LogWeekStrip';
 import { LogHero } from '../src/components/log/LogHero';
 import { LogEntryRow } from '../src/components/log/LogEntryRow';
+import { TrendMetricCard } from '../src/components/log/TrendMetricCard';
 import { useTheme } from '../src/theme/ThemeProvider';
 import { spacing } from '../src/theme/getTheme';
 
@@ -274,6 +275,45 @@ export default function DevLogGallery() {
           <LogEntryRow label="Morning weight" value="169.1 lb" emptyLabel="Not recorded" />
           <LogEntryRow label="Activity" value="Walk · 32 min" emptyLabel="Nothing added" />
           <LogEntryRow label="Journal" value="Easy day. Legs felt heavy from Monday." emptyLabel="Nothing written" />
+        </View>
+      </Frame>
+
+      <Frame label="77 · Trends — metric cards">
+        <View style={{ paddingTop: spacing[24], paddingHorizontal: spacing[24], gap: spacing[8] }}>
+          <TrendMetricCard
+            label="Weight"
+            unit="lb"
+            lowerIsBetter
+            series={{
+              key: 'weight',
+              points: [
+                { localDate: '2026-08-05', value: 169.8 },
+                { localDate: '2026-08-20', value: 169.1 },
+                { localDate: '2026-09-03', value: 168.6 },
+              ],
+              latest: 168.6,
+              change: -1.2,
+            }}
+          />
+          <TrendMetricCard
+            label="Resting heart rate"
+            unit="bpm"
+            lowerIsBetter
+            series={{
+              key: 'restingHeartRate',
+              points: [
+                { localDate: '2026-08-05', value: 56 },
+                { localDate: '2026-09-03', value: 54 },
+              ],
+              latest: 54,
+              change: -2,
+            }}
+          />
+          <TrendMetricCard
+            label="VO₂ max"
+            unit="ml/kg·min"
+            series={{ key: 'vo2Max', points: [], latest: null, change: null }}
+          />
         </View>
       </Frame>
 

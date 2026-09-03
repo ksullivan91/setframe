@@ -19,6 +19,7 @@ import { dailyRoutes } from './routes/daily.js';
 import { dashboardRoutes } from './routes/dashboard.js';
 import { progressRoutes } from './routes/progress.js';
 import { restDayRoutes } from './routes/rest-days.js';
+import { trendRoutes } from './routes/trends.js';
 import { notificationPreferenceRoutes } from './routes/notification-preferences.js';
 import { appleHealthRoutes } from './routes/apple-health.js';
 import { additionalActivityRoutes } from './routes/additional-activities.js';
@@ -123,6 +124,7 @@ export function buildApp() {
   app.register(dashboardRoutes);
   app.register(progressRoutes);
   app.register(restDayRoutes);
+  app.register(trendRoutes);
   app.register(notificationPreferenceRoutes);
   app.register(appleHealthRoutes);
   app.register(additionalActivityRoutes);

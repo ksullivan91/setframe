@@ -877,13 +877,13 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
         body: z
           .object({ completedAt: z.string().datetime().optional() })
           .optional(),
-        response: {
-          200: workoutSessionSchema,
-          400: z.object({ message: z.string() }),
-        },
+        /* Only the success shape. A 400 goes through the global handler's
+           uniform ApiError envelope; declaring a different one here makes
+           serialization fail and turns a validation error into a 500. */
+        response: { 200: workoutSessionSchema },
       },
     },
-    async (request, reply) => {
+    async (request) => {
       const db = getDb();
       const session = await getOwnedSession(db, request.params.sessionId, request.userId!);
       const requested = request.body?.completedAt ? new Date(request.body.completedAt) : null;
@@ -893,12 +893,10 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
            correction — it is a bad clock or a bad caller, and either way it
            would write a session that finished before it started. */
         if (requested.getTime() > Date.now()) {
-          return reply.code(400).send({ message: 'completedAt cannot be in the future.' });
+          throw badRequest('completedAt cannot be in the future.');
         }
         if (session.startedAt && requested.getTime() < session.startedAt.getTime()) {
-          return reply
-            .code(400)
-            .send({ message: 'completedAt cannot be before the session started.' });
+          throw badRequest('completedAt cannot be before the session started.');
         }
       }
 
