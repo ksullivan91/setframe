@@ -29,6 +29,24 @@ because the date already holds one.
   workout… Everything you logged is saved — 9 sets across 3 exercises."*
   with **Review and fix it** into the logger for that session.
 
+## Backend gap — the endpoint cannot do what ADR 0014 requires
+
+`POST /v1/workout-sessions/:sessionId/complete` exists, but it hardcodes
+
+```ts
+.set({ status: 'completed', completedAt: new Date(), ... })
+```
+
+— the moment of the call. ADR 0014 requires `completedAt` to be the
+timestamp of the **last logged set**, because recording 09:00 the next
+morning as the finish time is a fabrication.
+
+Either give the endpoint an optional `completedAt` in its body, or add a
+distinct close-abandoned path. Prefer the former; it is one optional
+field and keeps a single completion route. Whichever is chosen, the
+server must still refuse a `completedAt` in the future or before the
+session started.
+
 ## Acceptance
 
 - Two foreground events in the same second do not double-apply

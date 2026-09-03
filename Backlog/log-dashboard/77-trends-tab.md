@@ -20,6 +20,26 @@ places, so that a page about my training is not half full of sleep data.
 - Charts use `packages/domain`'s existing `chart-geometry`; do not draw
   new geometry in the component.
 
+## Backend gap — read before estimating
+
+**There is no endpoint that serves health metrics over a range.** Verified
+2026-09-03:
+
+- `GET /v1/daily/:localDate` is single-date (`paramsSchema` is one
+  `localDate`), as is `GET /v1/dashboard/today`.
+- `GET /v1/progress/overview` **does** already return a `bodyWeight`
+  series — that is what the current Progress chart renders — so weight
+  moves for free.
+- Nothing serves resting HR, sleep, HRV, steps, active energy or VO₂ max
+  as a series.
+
+So three of the four groups need a new endpoint, roughly
+`GET /v1/trends?from=&to=` reading `daily_activity_summary` and
+`daily_manual_entry` and returning one series per metric. That is the
+bulk of this story and was not in the original estimate. Design it
+alongside `packages/domain`'s existing `chart-geometry` contract so the
+client does no maths.
+
 ## Acceptance
 
 - Progress contains nothing sourced from HealthKit.
