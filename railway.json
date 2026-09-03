@@ -2,8 +2,11 @@
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "npm install",
-    "watchPatterns": ["apps/api/**", "packages/**"]
+    "buildCommand": "npm install --include-workspace-root --workspace=@setframe/api --workspace=@setframe/config --workspace=@setframe/database --workspace=@setframe/domain --workspace=@setframe/schemas",
+    "watchPatterns": [
+      "apps/api/**",
+      "packages/**"
+    ]
   },
   "deploy": {
     "startCommand": "npm run start --workspace=@setframe/api",
