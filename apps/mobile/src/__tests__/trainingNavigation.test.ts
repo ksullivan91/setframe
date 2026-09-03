@@ -38,7 +38,7 @@ describe('Training v2 no longer falls back to the retired editor', () => {
     const screen = read('screens', 'TrainingScreenV2.tsx');
     const strip = screen.slice(screen.indexOf('<WeekStrip'));
     expect(strip.slice(0, 600)).toContain("router.push('/schedule')");
-    expect(strip.slice(0, 600)).not.toContain("'/(tabs)/today'");
+    expect(strip.slice(0, 600)).not.toContain("'/(tabs)/log'");
   });
 });
 

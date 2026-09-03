@@ -2,7 +2,7 @@ import React from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '../theme/ThemeProvider';
-import TodayScreen from '../../app/(tabs)/today';
+import LogScreen from '../../app/(tabs)/log';
 
 const mockPush = jest.fn();
 let mockGet: (path: string) => Promise<unknown> = () => Promise.resolve([]);
@@ -131,7 +131,7 @@ async function renderScreen(): Promise<ReactTestRenderer> {
     tree = create(
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
-          <TodayScreen />
+          <LogScreen />
         </ThemeProvider>
       </QueryClientProvider>,
     );
@@ -157,7 +157,7 @@ afterEach(() => {
  * paint its finished card above a check-in card still full of blanks — which
  * reads as "you have logged nothing today" rather than "still loading".
  */
-describe('TodayScreen loading state', () => {
+describe('LogScreen loading state', () => {
   function textsIn(rendered: ReactTestRenderer): string[] {
     return rendered.root
       .findAll((node) => typeof node.type === 'string')
@@ -200,7 +200,7 @@ describe('TodayScreen loading state', () => {
   });
 });
 
-describe('TodayScreen rest days', () => {
+describe('LogScreen rest days', () => {
   it('offers a rest day alongside choosing a workout when nothing is scheduled', async () => {
     mockGet = getFor(todayPayload());
     const rendered = await renderScreen();
@@ -339,7 +339,7 @@ describe('TodayScreen rest days', () => {
  * POST /v1/workout-sessions clears that date's rest_day, destroying a
  * logged rest day.
  */
-describe('TodayScreen starting a workout', () => {
+describe('LogScreen starting a workout', () => {
   it('navigates to the session route carrying its id', async () => {
     mockGet = getFor(todayPayload({ dayTypeId: 'day-1', dayLabel: 'Push' }));
     mockPost.mockResolvedValueOnce({ id: 'session-99' });

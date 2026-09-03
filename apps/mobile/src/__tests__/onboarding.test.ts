@@ -168,12 +168,12 @@ describe('the launch path cannot flash, stick, or loop', () => {
 
 describe('no authenticated entry bypasses the decision', () => {
   /* This is the one that actually bit: index.tsx decided correctly, but
-     sign-in and sign-up both replaced straight to /(tabs)/today, so a new
+     sign-in and sign-up both replaced straight to /(tabs)/log, so a new
      account mounted Today and watched it be replaced. The destination
      must not be what decides whether you belong at the destination. */
   it.each(['sign-in.tsx', 'sign-up.tsx'])('%s routes through / , not the tabs', (file) => {
     const source = app(file);
-    expect(source).not.toContain('(tabs)/today');
+    expect(source).not.toContain('(tabs)/log');
     expect(source).toMatch(/replace\('\/'\)|href="\/"/);
   });
 

@@ -7,5 +7,5 @@ import { OnboardingFlow } from '../src/screens/onboarding/OnboardingFlow';
  */
 export default function OnboardingRoute() {
   const router = useRouter();
-  return <OnboardingFlow onFinished={() => router.replace('/(tabs)/today')} />;
+  return <OnboardingFlow onFinished={() => router.replace('/(tabs)/log')} />;
 }

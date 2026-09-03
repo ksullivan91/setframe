@@ -10,7 +10,7 @@ import { AppLoading } from '../src/components/AppLoading';
  *
  * The onboarding decision is made HERE rather than inside the tab shell's
  * layout, and every authenticated entry routes through it — the auth
- * screens used to `replace('/(tabs)/today')` directly, so a brand-new
+ * screens used to `replace('/(tabs)/log')` directly, so a brand-new
  * account mounted Today and watched it be replaced a moment later. The
  * destination must not be the thing that decides whether you belong at
  * the destination. Nothing renders until we know.
@@ -35,5 +35,5 @@ export default function Index() {
      a first-run flow is worth less than a reachable app, and the tab
      layout re-checks anyway once the query recovers. */
   if (me.data?.onboardedAt == null && me.data) return <Redirect href="/onboarding" />;
-  return <Redirect href="/(tabs)/today" />;
+  return <Redirect href="/(tabs)/log" />;
 }

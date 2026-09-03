@@ -18,6 +18,7 @@ import {
   Moon,
   NotebookText,
   Scale,
+  UserRound,
   Utensils,
 } from 'lucide-react-native';
 import { Card } from '../../src/components/Card';
@@ -579,11 +580,28 @@ export default function TodayScreen() {
     >
       <View style={styles.headerRow}>
         <View style={styles.headerTextWrap}>
-          <Text style={[styles.eyebrow, { color: theme.text.secondary }]}>{dateLabel}</Text>
+          {/* The date is a control, not the screen's name (ADR 0013). "Today"
+              as a title means nothing to someone with no context for the app;
+              the same word labelling the day you are standing on explains
+              itself. Story 76 makes the chevron open a picker. */}
           <Text style={[styles.title, { color: theme.text.primary }]}>Today</Text>
-          <Text style={[styles.subtitle, { color: theme.text.secondary }]}>Keep the morning quick, then move straight into today’s training.</Text>
+          <Text style={[styles.eyebrow, { color: theme.text.secondary }]}>{dateLabel}</Text>
         </View>
-        {headerPillStatus ? <SyncStatusPill status={headerPillStatus} /> : null}
+        <View style={styles.headerActions}>
+          {headerPillStatus ? <SyncStatusPill status={headerPillStatus} /> : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Account and settings"
+            testID="account-avatar"
+            onPress={() => router.push('/settings')}
+            style={({ pressed }) => [
+              styles.avatar,
+              { backgroundColor: theme.surface.sunken, opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <UserRound size={20} color={theme.text.secondary} />
+          </Pressable>
+        </View>
       </View>
       {todayQuery.dataUpdatedAt ? (
         <Text style={[styles.helperText, { color: theme.text.secondary }]}>Last updated {formatDateTime(new Date(todayQuery.dataUpdatedAt).toISOString())}</Text>
@@ -922,6 +940,10 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: spacing[12],
   },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing[8] },
+  /* 44 is the iOS minimum touch target; this is the only way to reach
+     Settings now that it has left the tab bar. */
+  avatar: { width: 44, height: 44, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   headerTextWrap: {
     flex: 1,
     gap: spacing[4],

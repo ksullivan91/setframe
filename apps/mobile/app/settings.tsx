@@ -1,18 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, View, Text, Switch, StyleSheet, ActivityIndicator } from 'react-native';
 import { useClerk, useAuth, useUser } from '@clerk/clerk-expo';
-import { DeleteAccountSheet } from '../../src/components/DeleteAccountSheet';
+import { DeleteAccountSheet } from '../src/components/DeleteAccountSheet';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { NotificationPreference, User } from '@setframe/schemas';
-import { Card } from '../../src/components/Card';
-import { Button } from '../../src/components/Button';
-import { Select } from '../../src/components/Select';
-import { useTheme } from '../../src/theme/ThemeProvider';
-import { spacing, typeScale } from '../../src/theme/getTheme';
-import { useApiClient } from '../../src/lib/api-client';
-import { useHealthConnection, type HealthCardState } from '../../src/healthkit/useHealthConnection';
-import { useScreenTopPadding } from '../../src/lib/useScreenInsets';
-import { useActionFeedback } from '../../src/lib/useActionFeedback';
+import { Card } from '../src/components/Card';
+import { Button } from '../src/components/Button';
+import { Select } from '../src/components/Select';
+import { useTheme } from '../src/theme/ThemeProvider';
+import { spacing, typeScale } from '../src/theme/getTheme';
+import { useApiClient } from '../src/lib/api-client';
+import { useHealthConnection, type HealthCardState } from '../src/healthkit/useHealthConnection';
+import { useScreenTopPadding } from '../src/lib/useScreenInsets';
+import { useActionFeedback } from '../src/lib/useActionFeedback';
 
 type PreferredUnits = User['preferredUnits'];
 

@@ -15,7 +15,9 @@ const app = (...p: string[]) => fs.readFileSync(path.join(__dirname, '..', '..',
  * doing nothing. These hold the parts that would fail quietly.
  */
 describe('the delete control actually deletes', () => {
-  const settings = () => app('(tabs)', 'settings.tsx');
+  /* Settings left the tab bar for the account avatar on Log (ADR 0013), so
+     it is a stack route now rather than a tab. */
+  const settings = () => app('settings.tsx');
 
   it('is wired to something', () => {
     const source = settings();

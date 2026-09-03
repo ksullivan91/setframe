@@ -218,7 +218,7 @@ export default function SessionSummaryScreen() {
           <Button label="Share" variant="secondary" onPress={() => {}} />
         </View>
         <View style={{ flex: 1 }}>
-          <Button label="Done" onPress={() => router.replace('/(tabs)/today')} />
+          <Button label="Done" onPress={() => router.replace('/(tabs)/log')} />
         </View>
       </View>
 

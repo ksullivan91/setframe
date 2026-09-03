@@ -2,7 +2,7 @@ import { Redirect, Tabs } from 'expo-router';
 import { useAuth } from '@clerk/clerk-expo';
 import { useQuery } from '@tanstack/react-query';
 import type { User } from '@setframe/schemas';
-import { Home, Dumbbell, TrendingUp, Settings as SettingsIcon } from 'lucide-react-native';
+import { Home, Dumbbell, TrendingUp, HeartPulse } from 'lucide-react-native';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { AppLoading } from '../../src/components/AppLoading';
 import { useApiClient } from '../../src/lib/api-client';
@@ -46,8 +46,8 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen
-        name="today"
-        options={{ title: 'Today', tabBarIcon: ({ color, size }) => <Home color={color} size={size} /> }}
+        name="log"
+        options={{ title: 'Log', tabBarIcon: ({ color, size }) => <Home color={color} size={size} /> }}
       />
       <Tabs.Screen
         name="training"
@@ -58,8 +58,8 @@ export default function TabsLayout() {
         options={{ title: 'Progress', tabBarIcon: ({ color, size }) => <TrendingUp color={color} size={size} /> }}
       />
       <Tabs.Screen
-        name="settings"
-        options={{ title: 'Settings', tabBarIcon: ({ color, size }) => <SettingsIcon color={color} size={size} /> }}
+        name="trends"
+        options={{ title: 'Trends', tabBarIcon: ({ color, size }) => <HeartPulse color={color} size={size} /> }}
       />
     </Tabs>
   );
