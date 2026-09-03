@@ -500,7 +500,7 @@ function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null>
               <Pressable
                 onPress={() => router.back()}
                 accessibilityRole="button"
-                accessibilityLabel="Back to Today"
+                accessibilityLabel="Back to Log"
                 style={styles.back}
               >
                 <Text style={[styles.backGlyph, { color: theme.text.secondary }]}>‹</Text>
@@ -666,7 +666,7 @@ function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null>
               <Pressable
                 onPress={() => router.back()}
                 accessibilityRole="button"
-                accessibilityLabel="Back to Today"
+                accessibilityLabel="Back to Log"
                 style={styles.back}
               >
                 <Text style={[styles.backGlyph, { color: theme.text.secondary }]}>‹</Text>

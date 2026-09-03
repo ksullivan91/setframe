@@ -800,7 +800,7 @@ export default function WorkoutSessionScreen() {
     return (
       <View style={[styles.centered, { backgroundColor: theme.surface.canvas, padding: spacing[16], gap: spacing[16] }]}>
         <Text style={{ color: theme.text.primary, textAlign: 'center' }}>No workout session was specified.</Text>
-        <Button label="Go to Today" variant="secondary" fullWidth={false} onPress={() => router.replace('/(tabs)/log')} />
+        <Button label="Go to Log" variant="secondary" fullWidth={false} onPress={() => router.replace('/(tabs)/log')} />
       </View>
     );
   }

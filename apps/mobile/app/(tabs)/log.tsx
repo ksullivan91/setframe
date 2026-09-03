@@ -26,6 +26,7 @@ import { LogHeader } from '../../src/components/log/LogHeader';
 import { LogWeekStrip } from '../../src/components/log/LogWeekStrip';
 import { LogHero, type LogHeroState, type LogHeroProps } from '../../src/components/log/LogHero';
 import { LogEntryRow } from '../../src/components/log/LogEntryRow';
+import { DaySignals } from '../../src/components/log/DaySignals';
 import { useCloseAbandonedSessions } from '../../src/lib/useCloseAbandonedSessions';
 import { JournalSheet, NutritionSheet, WeightSheet } from '../../src/components/log/LogEditSheets';
 import { releaseSplash, SPLASH_MAX_MS } from '../../src/lib/appReady';
@@ -51,7 +52,6 @@ import { ApiError, useApiClient } from '../../src/lib/api-client';
 import { useLocalDate } from '../../src/lib/useLocalDate';
 import { useScreenTopPadding } from '../../src/lib/useScreenInsets';
 import { useHealthConnection } from '../../src/healthkit/useHealthConnection';
-import { AppleHealthCard } from '../../src/components/AppleHealthCard';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { radius, spacing, typeScale } from '../../src/theme/getTheme';
 import type { WorkoutSessionDetail } from '@setframe/schemas';
@@ -463,7 +463,7 @@ export default function TodayScreen() {
         variant: 'error',
         message:
           error instanceof ApiError && error.status === 409
-            ? "Today already has a workout, so it can't be a rest day."
+            ? "This day already has a workout, so it can’t be a rest day."
             : "Couldn't log today as a rest day.",
       });
     },
@@ -774,13 +774,13 @@ export default function TodayScreen() {
           ? 'Workout complete!'
           : todayWorkoutState === 'rested'
             ? 'Rest day'
-            : "Today's workout";
+            : "Today’s workout";
 
   const workoutBody =
     todayWorkoutState === 'no-program'
       ? hasNoProgram
         ? 'Create your first training program to automatically schedule workouts here.'
-        : "You have programs, but none is set active. Choose one to drive Today's schedule."
+        : "You have programs, but none is set active. Choose one to drive your schedule."
       : todayWorkoutState === 'in-progress'
         ? `You already started this session${formatTime(activeSession?.startedAt) ? ` at ${formatTime(activeSession?.startedAt)}` : ''}. Pick up where you left off.`
         : todayWorkoutState === 'completed'
@@ -972,13 +972,6 @@ export default function TodayScreen() {
           used to paint its finished card above content that had not arrived.
           Not gated on the dashboard's error state: its data is independent,
           so a failed Today should not take a working feature down with it. */}
-      {!showSkeleton ? (
-        <TodayAdditionalActivitySection
-          localDate={localDate}
-          sessions={loggedSessions}
-          attachedWatchExternalIds={todayQuery.data?.attachedWatchExternalIds ?? []}
-        />
-      ) : null}
 
       {toast ? (
         <Toast variant={toast.variant} message={toast.message} onDismiss={() => setToast(null)} />
@@ -1004,22 +997,11 @@ export default function TodayScreen() {
         </Card>
       ) : (
       <>
-      <View style={styles.section}>
-        <View style={styles.sectionHead}>
-          <Text style={[styles.sectionLabel, { color: theme.text.secondary }]}>ALSO TODAY</Text>
-          <Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/trends')} hitSlop={8}>
-            <Text style={[styles.sectionLink, { color: theme.action.primary }]}>Trends ›</Text>
-          </Pressable>
-        </View>
-        <View style={[styles.signals, { backgroundColor: theme.surface.raised }]}>
-          {daySignals.map((signal) => (
-            <View key={signal.label} style={styles.signal}>
-              <Text style={[styles.signalValue, { color: theme.text.primary }]}>{signal.value}</Text>
-              <Text style={[styles.signalLabel, { color: theme.text.secondary }]}>{signal.label}</Text>
-            </View>
-          ))}
-        </View>
-      </View>
+      <DaySignals
+        signals={daySignals}
+        health={health}
+        onOpenTrends={() => router.push('/(tabs)/trends')}
+      />
 
       <View style={styles.section}>
         <View style={styles.sectionHead}>
@@ -1034,6 +1016,13 @@ export default function TodayScreen() {
           onPress={isPast ? undefined : () => setWeightSheet(true)}
           onRetry={() => saveWeight()}
         />
+      {!showSkeleton ? (
+        <TodayAdditionalActivitySection
+          localDate={localDate}
+          sessions={loggedSessions}
+          attachedWatchExternalIds={todayQuery.data?.attachedWatchExternalIds ?? []}
+        />
+      ) : null}
         <LogEntryRow
           testID="row-journal"
           label="Journal"
@@ -1096,7 +1085,11 @@ export default function TodayScreen() {
           connection the user had no way to make: nothing in the app had
           ever called requestAuthorization(). See
           docs/design/health-connection-flow.md. */}
-      <AppleHealthCard connection={health} fallback={syncedMetrics} />
+      {/* The Health metrics card is gone from Log. Nine tiles and a macro
+          breakdown competed with the day's one decision while saying nothing
+          the user had to act on — that pile is what "a bunch of random stuff
+          thrown onto a screen" described. Its depth is the Trends tab and its
+          connection states are on DaySignals above. */}
       </>
       )}
       {feedback.node}

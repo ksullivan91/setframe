@@ -5,6 +5,7 @@ import { LogWeekStrip } from '../src/components/log/LogWeekStrip';
 import { LogHero } from '../src/components/log/LogHero';
 import { LogEntryRow } from '../src/components/log/LogEntryRow';
 import { TrendMetricCard } from '../src/components/log/TrendMetricCard';
+import { DaySignals } from '../src/components/log/DaySignals';
 import { useTheme } from '../src/theme/ThemeProvider';
 import { spacing } from '../src/theme/getTheme';
 
@@ -23,6 +24,49 @@ const PHONE = { width: 390, height: 500 };
 const HERO_PHONE = { width: 390, height: 620 };
 
 const TODAY = '2026-09-03';
+
+const HEALTH_CONNECTED = {
+              state: 'connected',
+              metrics: { steps: 8412, activeEnergyKcal: 540, exerciseMinutes: 32, caloriesConsumedKcal: null, proteinG: null, carbsG: null, fatG: null },
+              recovery: { sleepMinutes: 430, hrvMs: 68, restingHeartRateBpm: 54, vo2Max: 48.2 },
+              body: { weightKg: 76.5, heightCm: null, bodyFatPercent: null, biologicalSex: null, dateOfBirth: null, ageYears: null },
+              nutritionSource: null,
+              lastSyncedAt: null,
+              hasMoreToGrant: false,
+              unaskedGroups: [],
+              connecting: false,
+              connect: async () => {},
+              refresh: async () => {},
+              openHealthApp: async () => {},
+            } as never;
+const HEALTH_NOT_CONNECTED = {
+              state: 'not_connected',
+              metrics: { steps: 8412, activeEnergyKcal: 540, exerciseMinutes: 32, caloriesConsumedKcal: null, proteinG: null, carbsG: null, fatG: null },
+              recovery: { sleepMinutes: 430, hrvMs: 68, restingHeartRateBpm: 54, vo2Max: 48.2 },
+              body: { weightKg: 76.5, heightCm: null, bodyFatPercent: null, biologicalSex: null, dateOfBirth: null, ageYears: null },
+              nutritionSource: null,
+              lastSyncedAt: null,
+              hasMoreToGrant: false,
+              unaskedGroups: [],
+              connecting: false,
+              connect: async () => {},
+              refresh: async () => {},
+              openHealthApp: async () => {},
+            } as never;
+const HEALTH_NO_DATA = {
+              state: 'no_data',
+              metrics: { steps: 8412, activeEnergyKcal: 540, exerciseMinutes: 32, caloriesConsumedKcal: null, proteinG: null, carbsG: null, fatG: null },
+              recovery: { sleepMinutes: 430, hrvMs: 68, restingHeartRateBpm: 54, vo2Max: 48.2 },
+              body: { weightKg: 76.5, heightCm: null, bodyFatPercent: null, biologicalSex: null, dateOfBirth: null, ageYears: null },
+              nutritionSource: null,
+              lastSyncedAt: null,
+              hasMoreToGrant: false,
+              unaskedGroups: [],
+              connecting: false,
+              connect: async () => {},
+              refresh: async () => {},
+              openHealthApp: async () => {},
+            } as never;
 
 /** The frames' own top padding: safe-area on a 390×844 device, plus the
  *  screen gutter the real screen applies through useScreenTopPadding. */
@@ -240,6 +284,34 @@ export default function DevLogGallery() {
           secondary={{ label: 'Take a rest day instead', onPress: () => {} }}
         />
       </HeroFrame>
+
+
+      <Frame label="82 · Day signals — connected">
+        <View style={{ paddingTop: spacing[24], paddingHorizontal: spacing[24] }}>
+          <DaySignals
+            signals={[
+              { label: 'steps', value: '8,412' },
+              { label: 'sleep', value: '7h 10m' },
+              { label: 'cal', value: '540' },
+              { label: 'rest HR', value: '54' },
+            ]}
+            health={HEALTH_CONNECTED}
+            onOpenTrends={() => {}}
+          />
+        </View>
+      </Frame>
+
+      <Frame label="82 · Day signals — never connected">
+        <View style={{ paddingTop: spacing[24], paddingHorizontal: spacing[24] }}>
+          <DaySignals signals={[]} health={HEALTH_NOT_CONNECTED} onOpenTrends={() => {}} />
+        </View>
+      </Frame>
+
+      <Frame label="82 · Day signals — asked, nothing arrived">
+        <View style={{ paddingTop: spacing[24], paddingHorizontal: spacing[24] }}>
+          <DaySignals signals={[]} health={HEALTH_NO_DATA} onOpenTrends={() => {}} />
+        </View>
+      </Frame>
 
       <Frame label="80 · Log rows — the three save states">
         <View style={{ paddingTop: spacing[24], paddingHorizontal: spacing[24], gap: spacing[8] }}>

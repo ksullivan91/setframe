@@ -289,11 +289,30 @@ export function TodayAdditionalActivitySection({
   const items = query.data?.items ?? [];
 
   return (
-    <Card style={[styles.card, { backgroundColor: theme.surface.sunken, borderColor: theme.border.subtle, borderStyle: 'dashed' }]}>
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.text.primary }]}>Additional activity</Text>
-        <IconButton icon={Plus} size={28} variant="raised" accessibilityLabel="Add activity" onPress={openAdd} />
-      </View>
+    /* Part of YOUR LOG now, not a card of its own. The dashed panel with its
+       own title read as a separate thing stacked on the screen, which is the
+       pile the Log redesign exists to undo. */
+    <View style={styles.section}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Activity. Add an activity"
+        testID="row-activity"
+        onPress={openAdd}
+        style={({ pressed }) => [
+          styles.entryRow,
+          { backgroundColor: theme.surface.raised, opacity: pressed ? 0.8 : 1 },
+        ]}
+      >
+        <View style={styles.entryMeta}>
+          <Text style={[styles.entryLabel, { color: theme.text.primary }]}>Activity</Text>
+          <Text style={[styles.entryValue, { color: items.length ? theme.text.secondary : theme.text.disabled }]}>
+            {items.length
+              ? items.map((item) => item.title ?? item.activityType).join(' · ')
+              : 'Nothing added'}
+          </Text>
+        </View>
+        <Plus size={18} color={theme.action.primary} />
+      </Pressable>
 
       {query.isLoading ? <Skeleton height={40} /> : null}
 
@@ -478,7 +497,7 @@ export function TodayAdditionalActivitySection({
       />
 
       {toast ? <Toast variant={toast.variant} message={toast.message} onDismiss={() => setToast(null)} /> : null}
-    </Card>
+    </View>
   );
 }
 
@@ -515,6 +534,19 @@ function describeWorkout(workout: DiscoveredWorkout): string {
 }
 
 const styles = StyleSheet.create({
+  section: { gap: spacing[8] },
+  entryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing[12],
+    borderRadius: radius.small,
+    padding: spacing[16],
+    minHeight: 44,
+  },
+  entryMeta: { flex: 1, gap: spacing[4] },
+  entryLabel: { fontSize: typeScale.compactBody.fontSize, fontWeight: '500' },
+  entryValue: { fontSize: typeScale.label.fontSize },
   card: { gap: spacing[12] },
   suggestion: { borderRadius: radius.small, padding: spacing[12], gap: spacing[4] },
   suggestionEyebrow: { fontSize: typeScale.caption.fontSize, letterSpacing: 0.8, fontWeight: '500' },

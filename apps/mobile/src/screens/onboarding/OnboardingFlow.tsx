@@ -145,7 +145,7 @@ export function OnboardingFlow({ onFinished }: { onFinished: () => void }) {
           <Text style={[T.title, { color: theme.text.primary }]}>Connect Apple Health</Text>
           <Text style={[T.body, { color: theme.text.secondary }]}>
             One tap, and most of what follows fills itself in. Setframe reads your activity, heart
-            and body data so Today reflects everything you did — not only what you logged here.
+            and body data so your day reflects everything you did — not only what you logged here.
           </Text>
           <View style={[styles.listCard, { backgroundColor: theme.surface.raised }]}>
             <Text style={[T.eyebrow, { color: theme.text.secondary }]}>WHAT IT READS</Text>
@@ -171,7 +171,7 @@ export function OnboardingFlow({ onFinished }: { onFinished: () => void }) {
           testID="onboarding-done"
           stepIndex={STEP_INDEX.done}
           actions={
-            <Button label="Go to Today" loading={finish.isPending} onPress={() => finish.mutate()} />
+            <Button label="Go to Log" loading={finish.isPending} onPress={() => finish.mutate()} />
           }
         >
           <Text style={[T.title, { color: theme.text.primary }]}>You&apos;re set</Text>
@@ -181,7 +181,7 @@ export function OnboardingFlow({ onFinished }: { onFinished: () => void }) {
           <View style={[styles.card, { backgroundColor: theme.surface.raised }]}>
             <Text style={[T.eyebrow, { color: theme.text.secondary }]}>STILL AVAILABLE</Text>
             <Text style={[styles.bullet, { color: theme.text.primary }]}>
-              Set up your training — on Today, any time
+              Set up your training — on Log, any time
             </Text>
             <Text style={[T.note, { color: theme.text.secondary }]}>
               Nothing here was a one-time offer. Anything skipped is offered again where it
@@ -345,7 +345,7 @@ function OnboardingSteps({
         </Text>
         <Text style={[T.eyebrow, { color: theme.text.secondary }]}>WITH ONE</Text>
         <Text style={[styles.bullet, { color: theme.text.primary }]}>
-          Today knows what is next. Weeks can be compared to each other. Streaks and adherence mean
+          Log knows what is next. Weeks can be compared to each other. Streaks and adherence mean
           something. And the record becomes dense enough that coaching has something real to read.
         </Text>
       </View>

@@ -59,7 +59,7 @@ export function HealthAccessScreen() {
       await healthKit.requestAuthorization();
     } finally {
       setAsking(false);
-      // Back to Today either way: the sheet never tells us what was
+      // Back to Log either way: the sheet never tells us what was
       // chosen, so the card re-reads and shows whatever actually arrives.
       router.back();
     }
@@ -68,7 +68,7 @@ export function HealthAccessScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: theme.surface.canvas }} testID="health-access">
       <View style={[styles.header, { paddingTop: topPadding }]}>
-        <Pressable onPress={() => router.back()} accessibilityLabel="Back to Today" hitSlop={8}>
+        <Pressable onPress={() => router.back()} accessibilityLabel="Back to Log" hitSlop={8}>
           <Text style={[styles.back, { color: theme.text.secondary }]}>‹</Text>
         </Pressable>
         <Text style={[styles.headerTitle, { color: theme.text.secondary }]}>Apple Health</Text>

@@ -343,7 +343,7 @@ describe('LogScreen rest days', () => {
     });
     await flush();
 
-    expect(textNodesContaining(rendered, "can't be a rest day").length).toBeGreaterThan(0);
+    expect(textNodesContaining(rendered, 'be a rest day').length).toBeGreaterThan(0);
   });
 });
 
