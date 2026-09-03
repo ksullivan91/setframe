@@ -615,7 +615,7 @@ function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null>
                   { backgroundColor: theme.surface.raised, borderColor: theme.status.success },
                 ]}
               >
-                <Text style={[styles.bannerCheck, { color: theme.status.success }]}>✓</Text>
+                <Text style={[styles.bannerCheck, { color: theme.status.successText }]}>✓</Text>
               </View>
               <Text style={[styles.bannerTitle, { color: theme.text.primary }]}>
                 Workout complete

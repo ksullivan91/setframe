@@ -109,7 +109,7 @@ export function Input({
         ) : null}
       </View>
       {errorMessage ? (
-        <Text style={[styles.helper, { color: theme.status.error }]}>{errorMessage}</Text>
+        <Text style={[styles.helper, { color: theme.status.errorText }]}>{errorMessage}</Text>
       ) : null}
     </View>
   );

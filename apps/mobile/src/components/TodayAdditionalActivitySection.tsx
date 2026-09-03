@@ -420,7 +420,7 @@ export function TodayAdditionalActivitySection({
       {discovery.suggestions.length > 0 ? (
         <Text
           testID="suggestion-hint"
-          style={{ color: theme.text.disabled, fontSize: typeScale.caption.fontSize }}
+          style={{ color: theme.text.secondary, fontSize: typeScale.caption.fontSize }}
         >
           {suggestionHint(discovery.suggestions.length)}
         </Text>
@@ -434,7 +434,7 @@ export function TodayAdditionalActivitySection({
           testID={`workout-suppressed-${workout.externalId}`}
           style={[styles.suppressed, { backgroundColor: theme.surface.raised }]}
         >
-          <Text style={{ color: theme.text.disabled, fontSize: typeScale.helper.fontSize }}>
+          <Text style={{ color: theme.text.secondary, fontSize: typeScale.helper.fontSize }}>
             {workout.title} · {formatActivityDuration(workout.durationSeconds)}
           </Text>
           <Text style={{ color: theme.text.secondary, fontSize: typeScale.caption.fontSize }}>

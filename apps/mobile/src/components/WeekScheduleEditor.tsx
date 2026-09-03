@@ -149,7 +149,7 @@ export function WeekScheduleEditor({
 
       {errorMessage ? (
         <View style={styles.errorRow} accessibilityRole="alert" testID="week-schedule-error">
-          <Text style={{ color: theme.status.error, flex: 1 }}>{errorMessage}</Text>
+          <Text style={{ color: theme.status.errorText, flex: 1 }}>{errorMessage}</Text>
           {onRetry ? (
             <Button label="Retry" variant="secondary" fullWidth={false} onPress={onRetry} testID="week-schedule-retry" />
           ) : null}

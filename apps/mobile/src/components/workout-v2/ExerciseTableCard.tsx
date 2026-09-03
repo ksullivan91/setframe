@@ -98,7 +98,7 @@ export function ExerciseTableCard({
           accessibilityRole="button"
           accessibilityLabel={'Actions for ' + exerciseName}
         >
-          <Text style={[styles.moreGlyph, { color: theme.text.disabled }]}>⋯</Text>
+          <Text style={[styles.moreGlyph, { color: theme.text.secondary }]}>⋯</Text>
         </Pressable>
       </View>
 
@@ -106,7 +106,7 @@ export function ExerciseTableCard({
         {columns.map((column) => (
           <Text
             key={column.key}
-            style={[styles.columnLabel, { width: column.width, color: theme.text.disabled }]}
+            style={[styles.columnLabel, { width: column.width, color: theme.text.secondary }]}
           >
             {column.label}
           </Text>

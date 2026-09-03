@@ -243,7 +243,7 @@ export function GuidedSetupFlow({
               testID="plan-name"
             />
             <View style={[styles.hint, { backgroundColor: theme.surface.raised }]}>
-              <Text style={[styles.hintLabel, { color: theme.text.disabled }]}>COMMON ONES</Text>
+              <Text style={[styles.hintLabel, { color: theme.text.secondary }]}>COMMON ONES</Text>
               <Text style={[styles.hintBody, { color: theme.text.primary }]}>
                 Upper / Lower  ·  Push Pull Legs  ·  Full Body 3-day
               </Text>

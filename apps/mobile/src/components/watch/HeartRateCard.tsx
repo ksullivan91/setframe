@@ -138,8 +138,8 @@ export function HeartRateCard({
       </View>
 
       <View style={styles.axis}>
-        <Text style={[styles.axisLabel, { color: theme.text.disabled }]}>{formatTime(startedAt)}</Text>
-        <Text style={[styles.axisLabel, { color: theme.text.disabled }]}>{formatTime(endedAt)}</Text>
+        <Text style={[styles.axisLabel, { color: theme.text.secondary }]}>{formatTime(startedAt)}</Text>
+        <Text style={[styles.axisLabel, { color: theme.text.secondary }]}>{formatTime(endedAt)}</Text>
       </View>
 
       <Text style={[styles.eyebrow, { color: theme.text.secondary }]}>TIME IN ZONE</Text>
@@ -148,7 +148,7 @@ export function HeartRateCard({
           <View style={[styles.swatch, { backgroundColor: heartRateZoneColors[zone.zone] }]} />
           <Text style={[styles.zoneName, { color: theme.text.primary }]}>Zone {zone.zone}</Text>
           <Text style={[styles.zoneLabel, { color: theme.text.secondary }]}>{zone.label}</Text>
-          <Text style={[styles.zoneRange, { color: theme.text.disabled }]}>
+          <Text style={[styles.zoneRange, { color: theme.text.secondary }]}>
             {zone.toBpm == null
               ? `${zone.fromBpm}+ bpm`
               : zone.zone === 1

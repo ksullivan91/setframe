@@ -81,7 +81,7 @@ export function ExerciseActionsSheet({
           <View style={[styles.divider, { backgroundColor: theme.surface.sunken }]} />
           <Pressable onPress={onRemove} testID="exercise-action-remove" style={styles.action}>
             <View style={styles.actionText}>
-              <Text style={[styles.label, { color: theme.status.error }]}>Remove exercise</Text>
+              <Text style={[styles.label, { color: theme.status.errorText }]}>Remove exercise</Text>
               <Text style={[styles.sub, { color: theme.text.secondary }]}>
                 Takes it out of today&apos;s session. Your plan is unchanged.
               </Text>

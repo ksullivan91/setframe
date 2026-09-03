@@ -90,7 +90,7 @@ export function SetTypeSheet({
 
           <View style={[styles.divider, { backgroundColor: theme.surface.sunken }]} />
           <Pressable onPress={onDelete} testID="set-type-delete" style={styles.delete}>
-            <Text style={[styles.deleteLabel, { color: theme.status.error }]}>
+            <Text style={[styles.deleteLabel, { color: theme.status.errorText }]}>
               Delete set {setLabel}
             </Text>
           </Pressable>

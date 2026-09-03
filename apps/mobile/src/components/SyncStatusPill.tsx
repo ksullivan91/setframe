@@ -16,7 +16,7 @@ export type SyncStatus = 'synced' | 'syncing' | 'needs_attention';
 export function SyncStatusPill({ status }: { status: SyncStatus }) {
   const theme = useTheme();
   const config = {
-    synced: { label: 'Synced', color: theme.status.success, Icon: CheckCircle2 },
+    synced: { label: 'Synced', color: theme.status.successText, Icon: CheckCircle2 },
     syncing: { label: 'Updating health data…', color: theme.text.secondary, Icon: RefreshCw },
     needs_attention: { label: 'Health access needed', color: theme.status.caution, Icon: AlertTriangle },
   }[status];

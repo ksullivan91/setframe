@@ -42,7 +42,7 @@ export function NoPlanRoutes({ onJustStart, onBuildYourOwn, busy }: NoPlanRoutes
         >
           <Text style={[styles.ctaLabel, { color: theme.action.primaryText }]}>Start a workout</Text>
         </Pressable>
-        <Text style={[styles.note, { color: theme.text.disabled }]}>
+        <Text style={[styles.note, { color: theme.text.secondary }]}>
           Afterwards you can save it as a reusable workout in one tap — it is a real session either
           way.
         </Text>
@@ -78,7 +78,7 @@ export function NoPlanRoutes({ onJustStart, onBuildYourOwn, busy }: NoPlanRoutes
         </Text>
         {/* Inert: the starter templates do not exist yet. */}
         <View style={[styles.cta, { backgroundColor: theme.surface.sunken }]} testID="browse-templates">
-          <Text style={[styles.ctaLabel, { color: theme.text.disabled }]}>Browse templates</Text>
+          <Text style={[styles.ctaLabel, { color: theme.text.secondary }]}>Browse templates</Text>
         </View>
       </View>
     </View>

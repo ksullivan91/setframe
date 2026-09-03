@@ -73,7 +73,7 @@ export function LogEntryRow({
             {state === 'pending' ? (
               <>
                 <View style={[styles.dot, styles.pendingDot, { backgroundColor: theme.text.disabled }]} />
-                <Text style={[styles.pending, { color: theme.text.disabled }]}>Saving</Text>
+                <Text style={[styles.pending, { color: theme.text.secondary }]}>Saving</Text>
               </>
             ) : null}
           </View>

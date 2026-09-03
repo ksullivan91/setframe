@@ -132,7 +132,7 @@ export function SetRowEditable({
         testID={`set-field-${field}`}
       />
       {previous?.[field] ? (
-        <Text style={[styles.ghost, { color: theme.text.disabled }]}>prev {previous[field]}</Text>
+        <Text style={[styles.ghost, { color: theme.text.secondary }]}>prev {previous[field]}</Text>
       ) : null}
     </View>
   );

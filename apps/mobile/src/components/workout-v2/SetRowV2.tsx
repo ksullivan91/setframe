@@ -196,7 +196,7 @@ export function SetRowV2({
           ]}
         >
           {status === 'saved' || status === 'pr' ? (
-            <Text style={[styles.markGlyph, { color: theme.status.success }]}>✓</Text>
+            <Text style={[styles.markGlyph, { color: theme.status.successText }]}>✓</Text>
           ) : null}
         </View>
       )}

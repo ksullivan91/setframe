@@ -71,7 +71,7 @@ export function SaveAsWorkoutCard({
             <Text style={[styles.secondaryLabel, { color: theme.text.secondary }]}>Not now</Text>
           </Pressable>
         </View>
-        <Text style={[styles.note, { color: theme.text.disabled }]}>
+        <Text style={[styles.note, { color: theme.text.secondary }]}>
           Either way, this workout is already saved to your history.
         </Text>
       </View>
@@ -89,7 +89,7 @@ export function SaveAsWorkoutCard({
           A plan is where your workouts live. It is what puts them on days of the week, so Today
           knows what is next and your history stays grouped with the training it came from.
         </Text>
-        <Text style={[styles.label, { color: theme.text.disabled }]}>PLAN NAME</Text>
+        <Text style={[styles.label, { color: theme.text.secondary }]}>PLAN NAME</Text>
         <TextInput
           value={programName}
           onChangeText={setProgramName}
@@ -99,7 +99,7 @@ export function SaveAsWorkoutCard({
           testID="save-as-program-name"
           style={[styles.input, { borderColor: theme.action.primary, color: theme.text.primary }]}
         />
-        <Text style={[styles.note, { color: theme.text.disabled }]}>
+        <Text style={[styles.note, { color: theme.text.secondary }]}>
           You only do this once. You can rename it, or add more plans, whenever you like.
         </Text>
         <Pressable
@@ -129,7 +129,7 @@ export function SaveAsWorkoutCard({
   return (
     <View style={card} testID="save-as-workout-form">
       <Text style={[styles.title, { color: theme.text.primary }]}>What is this workout?</Text>
-      <Text style={[styles.label, { color: theme.text.disabled }]}>WORKOUT NAME</Text>
+      <Text style={[styles.label, { color: theme.text.secondary }]}>WORKOUT NAME</Text>
       <TextInput
         value={name}
         onChangeText={setName}
@@ -142,7 +142,7 @@ export function SaveAsWorkoutCard({
 
       {/* Shows exactly what is copied — "save as a workout" is otherwise an
           opaque promise. */}
-      <Text style={[styles.label, { color: theme.text.disabled }]}>WHAT GETS SAVED</Text>
+      <Text style={[styles.label, { color: theme.text.secondary }]}>WHAT GETS SAVED</Text>
       {derived.map((item) => (
         <View key={item.exerciseId} style={styles.previewRow}>
           <Text style={[styles.previewName, { color: theme.text.primary }]}>{item.name}</Text>
@@ -151,7 +151,7 @@ export function SaveAsWorkoutCard({
           </Text>
         </View>
       ))}
-      <Text style={[styles.note, { color: theme.text.disabled }]}>
+      <Text style={[styles.note, { color: theme.text.secondary }]}>
         Weights are not saved as targets — you will log those fresh each time.
       </Text>
 

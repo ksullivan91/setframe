@@ -67,7 +67,7 @@ export function DurationInput({
         </View>
       </View>
       {error ? (
-        <Text style={[styles.error, { color: theme.status.error }]} testID="duration-error">
+        <Text style={[styles.error, { color: theme.status.errorText }]} testID="duration-error">
           {error}
         </Text>
       ) : null}

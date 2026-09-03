@@ -108,7 +108,7 @@ export function WatchAttachCard({
                 Watch recorded no heart rate for. */}
             <View style={styles.metrics}>
               {metrics(workout).map((metric) => (
-                <Text key={metric} style={[styles.metric, { color: theme.text.disabled }]}>
+                <Text key={metric} style={[styles.metric, { color: theme.text.secondary }]}>
                   {metric}
                 </Text>
               ))}

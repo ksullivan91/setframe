@@ -285,7 +285,7 @@ export function AddExercisePicker({
             />
             <View style={styles.prescriptionGrid}>{prescriptionFields()}</View>
             {!prescriptionValid ? (
-              <Text style={[styles.error, { color: theme.status.error }]}>
+              <Text style={[styles.error, { color: theme.status.errorText }]}>
                 Values must be greater than zero when provided.
               </Text>
             ) : null}

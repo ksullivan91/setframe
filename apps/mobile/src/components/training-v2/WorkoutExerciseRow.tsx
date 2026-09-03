@@ -37,7 +37,7 @@ export function WorkoutExerciseRow({
         divided && { borderTopWidth: 1, borderTopColor: theme.border.subtle },
       ]}
     >
-      <Text style={[styles.grip, { color: theme.text.disabled }]}>⠿</Text>
+      <Text style={[styles.grip, { color: theme.text.secondary }]}>⠿</Text>
       <View style={[styles.tile, { backgroundColor: theme.surface.sunken }]}>
         <Text style={[styles.tileLabel, { color: theme.text.secondary }]}>{initials(name)}</Text>
       </View>

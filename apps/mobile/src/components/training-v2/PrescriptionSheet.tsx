@@ -118,7 +118,7 @@ export function PrescriptionSheet({
           <View style={styles.fields}>
             {fields.map((field) => (
               <View key={field.key} style={styles.field}>
-                <Text style={[styles.fieldLabel, { color: theme.text.disabled }]}>
+                <Text style={[styles.fieldLabel, { color: theme.text.secondary }]}>
                   {field.label.toUpperCase()}
                 </Text>
                 <TextInput
@@ -148,7 +148,7 @@ export function PrescriptionSheet({
               never wired, and a row that does nothing is the defect being
               removed everywhere else. It returns when it works. */}
           <Pressable onPress={onRemove} testID="prescription-remove" style={styles.action}>
-            <Text style={[styles.actionLabel, { color: theme.status.error }]}>
+            <Text style={[styles.actionLabel, { color: theme.status.errorText }]}>
               Remove from this workout
             </Text>
           </Pressable>

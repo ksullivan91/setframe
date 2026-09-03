@@ -148,7 +148,7 @@ export function OnboardingFlow({ onFinished }: { onFinished: () => void }) {
             and body data so Today reflects everything you did — not only what you logged here.
           </Text>
           <View style={[styles.listCard, { backgroundColor: theme.surface.raised }]}>
-            <Text style={[T.eyebrow, { color: theme.text.disabled }]}>WHAT IT READS</Text>
+            <Text style={[T.eyebrow, { color: theme.text.secondary }]}>WHAT IT READS</Text>
             {[
               'Steps, active energy and exercise minutes',
               'Heart rate, resting heart rate and HRV',
@@ -179,7 +179,7 @@ export function OnboardingFlow({ onFinished }: { onFinished: () => void }) {
             Start a workout whenever you like — Setframe will keep the record either way.
           </Text>
           <View style={[styles.card, { backgroundColor: theme.surface.raised }]}>
-            <Text style={[T.eyebrow, { color: theme.text.disabled }]}>STILL AVAILABLE</Text>
+            <Text style={[T.eyebrow, { color: theme.text.secondary }]}>STILL AVAILABLE</Text>
             <Text style={[styles.bullet, { color: theme.text.primary }]}>
               Set up your training — on Today, any time
             </Text>
@@ -306,7 +306,7 @@ function OnboardingSteps({
         </View>
         {maxHr != null && recovery.restingHeartRateBpm != null ? (
           <View style={[styles.card, { backgroundColor: theme.surface.raised }]}>
-            <Text style={[T.eyebrow, { color: theme.text.disabled }]}>AND YOUR TRAINING ZONES</Text>
+            <Text style={[T.eyebrow, { color: theme.text.secondary }]}>AND YOUR TRAINING ZONES</Text>
             <Text style={[styles.bullet, { color: theme.text.primary }]}>
               Your age gives an estimated maximum of {maxHr} bpm. With a resting rate of{' '}
               {recovery.restingHeartRateBpm}, every workout can now be scored against your own five
@@ -338,12 +338,12 @@ function OnboardingSteps({
         You can train without this. Here is what changes if you set it up.
       </Text>
       <View style={[styles.card, { backgroundColor: theme.surface.raised }]}>
-        <Text style={[T.eyebrow, { color: theme.text.disabled }]}>WITHOUT A PROGRAM</Text>
+        <Text style={[T.eyebrow, { color: theme.text.secondary }]}>WITHOUT A PROGRAM</Text>
         <Text style={[styles.bullet, { color: theme.text.primary }]}>
           Every set is saved, and you can see one exercise&apos;s history at a time. That is all —
           there is nothing to compare a week against.
         </Text>
-        <Text style={[T.eyebrow, { color: theme.text.disabled }]}>WITH ONE</Text>
+        <Text style={[T.eyebrow, { color: theme.text.secondary }]}>WITH ONE</Text>
         <Text style={[styles.bullet, { color: theme.text.primary }]}>
           Today knows what is next. Weeks can be compared to each other. Streaks and adherence mean
           something. And the record becomes dense enough that coaching has something real to read.

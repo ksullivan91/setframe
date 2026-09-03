@@ -22,7 +22,7 @@ export function Card({ children, testID }: { children: ReactNode; testID?: strin
 
 export function CardLabel({ children }: { children: ReactNode }) {
   const theme = useTheme();
-  return <Text style={[styles.label, { color: theme.text.disabled }]}>{children}</Text>;
+  return <Text style={[styles.label, { color: theme.text.secondary }]}>{children}</Text>;
 }
 
 export function CardHeadRow({ children }: { children: ReactNode }) {

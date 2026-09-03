@@ -169,13 +169,13 @@ export function AppleHealthCard({
                 only syncs calories. */}
             {showMacros ? (
               <>
-                <Text style={[styles.eyebrow, { color: theme.text.disabled }]}>MACROS</Text>
+                <Text style={[styles.eyebrow, { color: theme.text.secondary }]}>MACROS</Text>
                 <MetricGrid tiles={macros} />
               </>
             ) : null}
             {showRecovery ? (
               <>
-                <Text style={[styles.eyebrow, { color: theme.text.disabled }]}>RECOVERY</Text>
+                <Text style={[styles.eyebrow, { color: theme.text.secondary }]}>RECOVERY</Text>
                 <MetricGrid tiles={recoveryTiles} />
               </>
             ) : null}
@@ -255,7 +255,7 @@ export function AppleHealthCard({
           rather than describing it. Only while there is nothing to show. */}
       {state_ === 'not_connected' ? (
         <Card testID="health-preview">
-          <Text style={[styles.eyebrow, { color: theme.text.disabled }]}>WHAT YOU WOULD SEE</Text>
+          <Text style={[styles.eyebrow, { color: theme.text.secondary }]}>WHAT YOU WOULD SEE</Text>
           <MetricGrid tiles={tiles} />
         </Card>
       ) : null}
@@ -268,7 +268,7 @@ function StatePill({ state }: { state: HealthConnection['state'] }) {
   if (state === 'loading') return null;
   const config = {
     not_connected: { label: 'Not connected', color: theme.status.caution, Icon: AlertTriangle },
-    connected: { label: 'Synced', color: theme.status.success, Icon: CheckCircle2 },
+    connected: { label: 'Synced', color: theme.status.successText, Icon: CheckCircle2 },
     no_data: { label: 'No data yet', color: theme.status.caution, Icon: AlertTriangle },
     unavailable: null,
   }[state];
