@@ -105,10 +105,21 @@ export function additionalActivitiesQuery(api: ReturnType<typeof useApiClient>, 
 
 export function TodayAdditionalActivitySection({
   localDate,
+  isToday,
   sessions = [],
   attachedWatchExternalIds = [],
 }: {
   localDate: string;
+  /**
+   * Whether `localDate` is the device's today.
+   *
+   * HealthKit discovery reads `getTodayWorkouts()` — always the current
+   * day, with no date parameter. Before Log could travel to another date
+   * that was harmless; afterwards it offered this morning's Watch walk on
+   * every past day of the week, and adding it would have filed today's
+   * workout against a day it did not happen on.
+   */
+  isToday: boolean;
   /** Today's logged sessions, so a Watch recording of one is not offered
    *  back as "additional" activity. See workout-discovery.ts. */
   sessions?: LoggedSession[];
@@ -171,7 +182,7 @@ export function TodayAdditionalActivitySection({
     ],
     [query.data?.items, attachedWatchExternalIds],
   );
-  const discovery = useWorkoutDiscovery({ localDate, sessions, importedExternalIds });
+  const discovery = useWorkoutDiscovery({ localDate, sessions, importedExternalIds, enabled: isToday });
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['additional-activities', localDate] });
   const refreshPresets = () => queryClient.invalidateQueries({ queryKey: ['additional-activity-presets'] });
@@ -294,10 +305,11 @@ export function TodayAdditionalActivitySection({
        pile the Log redesign exists to undo. */
     <View style={styles.section}>
       <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Activity. Add an activity"
+        accessibilityRole={isToday ? 'button' : undefined}
+        accessibilityLabel={isToday ? 'Activity. Add an activity' : 'Activity'}
         testID="row-activity"
-        onPress={openAdd}
+        disabled={!isToday}
+        onPress={isToday ? openAdd : undefined}
         style={({ pressed }) => [
           styles.entryRow,
           { backgroundColor: theme.surface.raised, opacity: pressed ? 0.8 : 1 },
@@ -311,7 +323,7 @@ export function TodayAdditionalActivitySection({
               : 'Nothing added'}
           </Text>
         </View>
-        <Plus size={18} color={theme.action.primary} />
+        {isToday ? <Plus size={18} color={theme.action.primary} /> : null}
       </Pressable>
 
       {query.isLoading ? <Skeleton height={40} /> : null}

@@ -1010,6 +1010,7 @@ export default function TodayScreen() {
       {!showSkeleton ? (
         <TodayAdditionalActivitySection
           localDate={localDate}
+          isToday={isToday}
           sessions={loggedSessions}
           attachedWatchExternalIds={todayQuery.data?.attachedWatchExternalIds ?? []}
         />

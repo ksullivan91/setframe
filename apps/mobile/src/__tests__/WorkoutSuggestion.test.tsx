@@ -75,7 +75,7 @@ async function render() {
     tree = create(
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
-          <TodayAdditionalActivitySection localDate="2026-08-31" sessions={[]} />
+          <TodayAdditionalActivitySection localDate="2026-08-31" sessions={[]} isToday />
         </ThemeProvider>
       </QueryClientProvider>,
     );

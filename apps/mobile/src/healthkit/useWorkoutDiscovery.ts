@@ -33,10 +33,19 @@ export function useWorkoutDiscovery({
   localDate,
   sessions,
   importedExternalIds,
+  enabled = true,
 }: {
   localDate: string;
   sessions: LoggedSession[];
   importedExternalIds: readonly string[];
+  /**
+   * False when the screen is showing a day other than the device's today.
+   *
+   * `healthKit.getTodayWorkouts()` takes no date — it is always the current
+   * day. Reading it while a past date is on screen offers workouts that
+   * happened today as though they belonged to that day.
+   */
+  enabled?: boolean;
 }): WorkoutDiscovery {
   const [canRead, setCanRead] = useState<boolean | null>(null);
   const [workouts, setWorkouts] = useState<DiscoveredWorkout[]>([]);
@@ -52,6 +61,11 @@ export function useWorkoutDiscovery({
   }, []);
 
   const read = useCallback(async () => {
+    if (!enabled) {
+      setCanRead(false);
+      setWorkouts([]);
+      return;
+    }
     const allowed = await healthKit.canReadWorkouts();
     if (!mounted.current) return;
     setCanRead(allowed);

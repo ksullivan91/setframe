@@ -125,7 +125,7 @@ async function renderSection(): Promise<ReactTestRenderer> {
     tree = create(
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
-          <TodayAdditionalActivitySection localDate="2026-08-24" />
+          <TodayAdditionalActivitySection localDate="2026-08-24" isToday />
         </ThemeProvider>
       </QueryClientProvider>,
     );
