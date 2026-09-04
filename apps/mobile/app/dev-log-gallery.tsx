@@ -6,7 +6,9 @@ import { LogHero } from '../src/components/log/LogHero';
 import { LogEntryRow } from '../src/components/log/LogEntryRow';
 import { TrendMetricCard } from '../src/components/log/TrendMetricCard';
 import { DaySignals } from '../src/components/log/DaySignals';
+import type { DayType } from '@setframe/schemas';
 import { AddActivitySheet } from '../src/components/log/AddActivitySheet';
+import { ChooseWorkoutSheet } from '../src/components/log/ChooseWorkoutSheet';
 import { useTheme } from '../src/theme/ThemeProvider';
 import { spacing } from '../src/theme/getTheme';
 
@@ -25,6 +27,12 @@ const PHONE = { width: 390, height: 500 };
 const HERO_PHONE = { width: 390, height: 620 };
 
 const TODAY = '2026-09-03';
+
+const PICKER_WORKOUTS = [
+  { id: 'day-1', name: 'Upper A', exerciseCount: 5, plannedSetCount: 14, estimatedDurationMinutes: 52 },
+  { id: 'day-2', name: 'Lower B', exerciseCount: 6, plannedSetCount: 18, estimatedDurationMinutes: 61 },
+  { id: 'day-3', name: 'Full Body', exerciseCount: 7, plannedSetCount: 21, estimatedDurationMinutes: 70 },
+] as unknown as DayType[];
 
 const HEALTH_CONNECTED = {
               state: 'connected',
@@ -324,11 +332,37 @@ export default function DevLogGallery() {
         </View>
       </Frame>
 
+      {/* Sheets render `inline` here. RN's Modal is a window-level overlay
+          with no way to scope it to a parent, so a `visible` sheet in the
+          gallery painted over every other frame and the gallery could not be
+          scrolled past it. */}
       <Frame label="Sheet · Add activity">
         <AddActivitySheet
           visible
+          inline
           preferredDistanceUnit="mi"
           onSave={() => {}}
+          onCancel={() => {}}
+        />
+      </Frame>
+
+      <Frame label="Sheet · Choose a workout — pick one">
+        <ChooseWorkoutSheet
+          visible
+          inline
+          workouts={PICKER_WORKOUTS}
+          onStart={() => {}}
+          onCancel={() => {}}
+        />
+      </Frame>
+
+      <Frame label="Sheet · Choose a workout — start it?">
+        <ChooseWorkoutSheet
+          visible
+          inline
+          initialSelectedId={PICKER_WORKOUTS[0]!.id}
+          workouts={PICKER_WORKOUTS}
+          onStart={() => {}}
           onCancel={() => {}}
         />
       </Frame>

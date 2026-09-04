@@ -23,6 +23,7 @@ import {
   scheduleOverrideSchema,
 } from '@setframe/schemas';
 import { getDb } from '../lib/db.js';
+import { expandPrescriptionToSetDrafts } from './workout-sessions.js';
 import { forbidden, notFound } from '../lib/errors.js';
 import { requireAuth } from '../plugins/auth.js';
 
@@ -44,6 +45,31 @@ async function countExercisesByDayType(
     .where(inArray(dayTypeExercise.dayTypeId, dayTypeIds))
     .groupBy(dayTypeExercise.dayTypeId);
   return new Map(rows.map((row) => [row.dayTypeId, Number(row.value)]));
+}
+
+/**
+ * How many sets each workout prescribes, keyed by day type.
+ *
+ * Counted by expanding each prescription the same way session-start does, so
+ * "14 sets" on the picker is the number of set rows you will actually get —
+ * not a guess from the exercise count, which is wrong for anything but a flat
+ * 3x10. One query for every workout on screen rather than one per row.
+ */
+async function countSetsByDayType(
+  db: ReturnType<typeof getDb>,
+  dayTypeIds: string[],
+): Promise<Map<string, number>> {
+  if (dayTypeIds.length === 0) return new Map();
+  const rows = await db
+    .select({ dayTypeId: dayTypeExercise.dayTypeId, prescription: dayTypeExercise.prescription })
+    .from(dayTypeExercise)
+    .where(inArray(dayTypeExercise.dayTypeId, dayTypeIds));
+  const totals = new Map<string, number>();
+  for (const row of rows) {
+    const sets = expandPrescriptionToSetDrafts(row.prescription).length;
+    totals.set(row.dayTypeId, (totals.get(row.dayTypeId) ?? 0) + sets);
+  }
+  return totals;
 }
 
 function toDayTypeResponse(row: typeof dayType.$inferSelect) {
@@ -382,10 +408,15 @@ export const dayTypeRoutes: FastifyPluginAsyncZod = async (fastify) => {
       /* Same grouped count as the per-program list. This endpoint backs the
          "workouts with no plan" state, where the count is the only thing
          distinguishing one saved workout from another. */
-      const counts = await countExercisesByDayType(db, rows.map((row) => row.id));
+      const ids = rows.map((row) => row.id);
+      const [counts, setCounts] = await Promise.all([
+        countExercisesByDayType(db, ids),
+        countSetsByDayType(db, ids),
+      ]);
       return rows.map((row) => ({
         ...toDayTypeResponse(row),
         exerciseCount: counts.get(row.id) ?? 0,
+        plannedSetCount: setCounts.get(row.id) ?? 0,
       }));
     },
   );

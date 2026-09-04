@@ -111,6 +111,14 @@ export const dayTypeSchema = z.object({
    * render "6 exercises" without an N+1 fetch per row.
    */
   exerciseCount: z.number().int().nonnegative().optional(),
+  /**
+   * How many sets the workout prescribes in total.
+   *
+   * Same list-endpoint-only rule as `exerciseCount` above. The workout picker
+   * shows it because "5 exercises" alone does not tell you whether a session
+   * is twelve sets or twenty-five.
+   */
+  plannedSetCount: z.number().int().nonnegative().optional(),
 });
 export type DayType = z.infer<typeof dayTypeSchema>;
 

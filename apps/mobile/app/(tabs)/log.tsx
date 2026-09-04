@@ -29,6 +29,7 @@ import { LogEntryRow } from '../../src/components/log/LogEntryRow';
 import { DaySignals } from '../../src/components/log/DaySignals';
 import { useCloseAbandonedSessions } from '../../src/lib/useCloseAbandonedSessions';
 import { JournalSheet, NutritionSheet, WeightSheet } from '../../src/components/log/LogEditSheets';
+import { ChooseWorkoutSheet } from '../../src/components/log/ChooseWorkoutSheet';
 import { releaseSplash, SPLASH_MAX_MS } from '../../src/lib/appReady';
 import { Button } from '../../src/components/Button';
 import { Input } from '../../src/components/Input';
@@ -54,7 +55,7 @@ import { useScreenTopPadding } from '../../src/lib/useScreenInsets';
 import { useHealthConnection } from '../../src/healthkit/useHealthConnection';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { radius, spacing, typeScale } from '../../src/theme/getTheme';
-import type { WorkoutSessionDetail } from '@setframe/schemas';
+import type { DayType, WorkoutSessionDetail } from '@setframe/schemas';
 import { useActionFeedback } from '../../src/lib/useActionFeedback';
 
 interface DashboardSessionSummary {
@@ -275,7 +276,8 @@ export default function TodayScreen() {
   const [weight, setWeight] = useState('');
   const [journal, setJournal] = useState('');
   const [selectedMood, setSelectedMood] = useState<number | null>(null);
-  const health = useHealthConnection();
+  /* Read for the day on screen, not for today. */
+  const health = useHealthConnection(localDate);
   const [weightStatus, setWeightStatus] = useState<SaveState>('idle');
   const [journalStatus, setJournalStatus] = useState<SaveState>('idle');
   const [mealStatus, setMealStatus] = useState<SaveState>('idle');
@@ -284,6 +286,15 @@ export default function TodayScreen() {
   const [weightSheet, setWeightSheet] = useState(false);
   const [journalSheet, setJournalSheet] = useState(false);
   const [nutritionSheet, setNutritionSheet] = useState(false);
+  const [choosingWorkout, setChoosingWorkout] = useState(false);
+
+  /* Only fetched once the picker is open. Log's own load is the screen the
+     whole app opens on; a list of every saved workout is not part of it. */
+  const chooseWorkoutQuery = useQuery({
+    queryKey: ['day-types'],
+    queryFn: () => api.get<DayType[]>('/day-types'),
+    enabled: choosingWorkout,
+  });
   /* A session left open past its day is closed on the next foreground and
      announced here, rather than making today offer to resume a workout that
      ended yesterday (ADR 0014). */
@@ -457,11 +468,20 @@ export default function TodayScreen() {
   });
 
   const startWorkoutMutation = useMutation({
-    mutationFn: async () => {
+    /**
+     * `templateId` is the workout to start.
+     *
+     * Omitted, it falls back to whatever the program schedules for this date,
+     * which is what every existing caller wants. The picker passes one
+     * explicitly — including `null` for a deliberately empty session, which
+     * must not silently fall back to the scheduled day type.
+     */
+    mutationFn: async (templateId?: string | null) => {
       const activeSession = todayQuery.data?.sessions.find((session) => session.status === 'in_progress');
       if (activeSession?.id) return { id: activeSession.id };
+      const resolved = templateId === undefined ? todayQuery.data?.dayTypeId ?? null : templateId;
       return api.post<{ id: string }>('/workout-sessions', {
-        templateId: todayQuery.data?.dayTypeId ?? undefined,
+        templateId: resolved ?? undefined,
         localDate,
         timezone: localTimezone(),
       });
@@ -736,7 +756,7 @@ export default function TodayScreen() {
             label: 'Resume workout',
             testID: 'resume-workout',
             loading: startWorkoutMutation.isPending,
-            onPress: () => startWorkoutMutation.mutate(),
+            onPress: () => startWorkoutMutation.mutate(undefined),
           },
         };
       case 'completed':
@@ -782,7 +802,7 @@ export default function TodayScreen() {
           body: 'Recovery is training. A rest day will not count against your training — it keeps the record honest without breaking your consistency.',
           primary: isPast
             ? undefined
-            : { label: 'Train anyway', onPress: () => startWorkoutMutation.mutate() },
+            : { label: 'Train anyway', onPress: () => startWorkoutMutation.mutate(undefined) },
           secondary: { label: 'Undo rest day', testID: 'undo-rest-day', onPress: () => undoRestDayMutation.mutate() },
         };
       case 'no-program':
@@ -792,7 +812,7 @@ export default function TodayScreen() {
           title: 'Nothing scheduled',
           body: 'Set up a plan and Log will know what comes next. It takes about two minutes, and you can change all of it later.',
           primary: { label: 'Set up my training', testID: 'start-guided-setup', onPress: () => router.push('/guided-setup') },
-          secondary: { label: 'Just start a workout', onPress: () => startWorkoutMutation.mutate() },
+          secondary: { label: 'Just start a workout', onPress: () => startWorkoutMutation.mutate(undefined) },
         };
       case 'program-empty':
         return {
@@ -802,7 +822,7 @@ export default function TodayScreen() {
           title: 'Your plan is empty',
           body: 'The plan exists but has no workouts in it yet. Add one and it can start landing on your week.',
           primary: { label: 'Add a workout', testID: 'add-a-workout', onPress: () => router.push('/(tabs)/training') },
-          secondary: { label: 'Just start a workout', onPress: () => startWorkoutMutation.mutate() },
+          secondary: { label: 'Just start a workout', onPress: () => startWorkoutMutation.mutate(undefined) },
         };
       case 'unscheduled':
         return {
@@ -810,7 +830,11 @@ export default function TodayScreen() {
           eyebrow: 'NOTHING ON THE SCHEDULE',
           title: 'Your call today',
           body: 'This is not a training day in your plan. Pick a workout anyway, or take the day.',
-          primary: { label: 'Choose a workout', testID: 'choose-workout', onPress: () => router.push('/(tabs)/training') },
+          primary: {
+            label: 'Choose a workout',
+            testID: 'choose-workout',
+            onPress: () => setChoosingWorkout(true),
+          },
           /* The one thing a past day can still change (ADR 0013). Marking a
              day you forgot is the whole reason to travel back to it. */
           secondary: {
@@ -833,7 +857,7 @@ export default function TodayScreen() {
             label: 'Start workout',
             testID: 'start-workout',
             loading: startWorkoutMutation.isPending,
-            onPress: () => startWorkoutMutation.mutate(),
+            onPress: () => startWorkoutMutation.mutate(undefined),
           },
           /* The one thing a past day can still change (ADR 0013). Marking a
              day you forgot is the whole reason to travel back to it. */
@@ -986,8 +1010,12 @@ export default function TodayScreen() {
     const n = typeof value === 'number' ? value : Number(value);
     return Number.isFinite(n) ? n : null;
   };
+  /* The device answers for whichever day is on screen now, so it is
+     preferred on every date rather than only today — architecture §4 makes
+     HealthKit authoritative, and the server snapshot is what a previous
+     sync stored. */
   const signal = (device: number | null, stored: unknown): number | null =>
-    (isToday ? device ?? num(stored) : num(stored));
+    device ?? num(stored);
 
   const daySignals = [
     {
@@ -1173,6 +1201,24 @@ export default function TodayScreen() {
           setJournalSheet(false);
           void saveSection({ notes: text || null, mood }, setJournalStatus, 'journal');
         }}
+      />
+      <ChooseWorkoutSheet
+        visible={choosingWorkout}
+        workouts={chooseWorkoutQuery.data ?? []}
+        loading={chooseWorkoutQuery.isLoading}
+        starting={startWorkoutMutation.isPending}
+        errorMessage={
+          chooseWorkoutQuery.isError
+            ? 'Could not load your workouts.'
+            : startWorkoutMutation.isError
+              ? 'Could not start that workout.'
+              : null
+        }
+        onStart={(dayTypeId) => {
+          setChoosingWorkout(false);
+          startWorkoutMutation.mutate(dayTypeId);
+        }}
+        onCancel={() => setChoosingWorkout(false)}
       />
       <NutritionSheet
         visible={nutritionSheet}

@@ -468,3 +468,106 @@ describe('completed workout card', () => {
     expect(readout.totalVolume > 0).toBe(true);
   });
 });
+
+describe('LogScreen choosing a workout for an unscheduled day', () => {
+  /* `Start {name}?` renders as three children — 'Start ', the name, '?' — so
+     a substring search over single children never matches it, and an
+     assertion that it is *absent* passes whether or not it is on screen.
+     Join the node's children instead. */
+  function joinedText(rendered: ReactTestRenderer, testID: string): string[] {
+    return rendered.root
+      .findAll((node) => node.props?.testID === testID && typeof node.type === 'string')
+      .map((node) => ([] as unknown[]).concat(node.props?.children).join(''));
+  }
+
+  const WORKOUTS = [
+    { id: 'day-1', name: 'Push', exerciseCount: 5, plannedSetCount: 14, estimatedDurationMinutes: 52 },
+    { id: 'day-2', name: 'Pull', exerciseCount: 6, plannedSetCount: 18, estimatedDurationMinutes: null },
+  ];
+
+  async function openPicker() {
+    mockGet = getFor(todayPayload(), WORKOUTS);
+    const rendered = await renderScreen();
+    await act(async () => {
+      pressablesByTestId(rendered, 'choose-workout')[0]!.props.onPress();
+    });
+    await flush();
+    return rendered;
+  }
+
+  it('opens a picker rather than navigating to the Training tab', async () => {
+    // The bug this replaces: "Choose a workout" pushed to Training, which is
+    // the program editor and cannot start a session, so the journey ended
+    // there with the exercises merely listed.
+    const rendered = await openPicker();
+
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(pressablesByTestId(rendered, 'choose-workout-option-day-1')).not.toHaveLength(0);
+    expect(pressablesByTestId(rendered, 'choose-workout-option-day-2')).not.toHaveLength(0);
+  });
+
+  it('summarises each workout with the sets it will actually create', async () => {
+    const rendered = await openPicker();
+
+    expect(textNodesContaining(rendered, '5 exercises · 14 sets · ~52 min')).not.toHaveLength(0);
+    // No estimate recorded on Pull, so no "~null min" segment.
+    expect(textNodesContaining(rendered, '6 exercises · 18 sets')).not.toHaveLength(0);
+    expect(textNodesContaining(rendered, '~null')).toHaveLength(0);
+  });
+
+  it('confirms before starting, and does not create a session on selection alone', async () => {
+    const rendered = await openPicker();
+
+    await act(async () => {
+      pressablesByTestId(rendered, 'choose-workout-option-day-2')[0]!.props.onPress();
+    });
+    await flush();
+
+    expect(joinedText(rendered, 'choose-workout-confirm-title')).toEqual(['Start Pull?']);
+    expect(mockPost).not.toHaveBeenCalled();
+  });
+
+  it('starts the workout that was picked', async () => {
+    // The failure mode this guards: `mutate()` dropping its argument and
+    // falling back to the day's own `dayTypeId` would still start *a*
+    // session, and every rendered assertion would still pass.
+    const rendered = await openPicker();
+    await act(async () => {
+      pressablesByTestId(rendered, 'choose-workout-option-day-2')[0]!.props.onPress();
+    });
+    await act(async () => {
+      pressablesByTestId(rendered, 'choose-workout-confirm')[0]!.props.onPress();
+    });
+    await flush();
+
+    const [path, body] = mockPost.mock.calls.at(-1)!;
+    expect(path).toBe('/workout-sessions');
+    expect((body as { templateId?: string }).templateId).toBe('day-2');
+  });
+
+  it('starts an empty session with no template at all', async () => {
+    const rendered = await openPicker();
+    await act(async () => {
+      pressablesByTestId(rendered, 'choose-workout-empty-session')[0]!.props.onPress();
+    });
+    await flush();
+
+    const [, body] = mockPost.mock.calls.at(-1)!;
+    expect((body as { templateId?: string }).templateId).toBeUndefined();
+  });
+
+  it('goes back to the list instead of closing when the confirm step is cancelled', async () => {
+    const rendered = await openPicker();
+
+    await act(async () => {
+      pressablesByTestId(rendered, 'choose-workout-option-day-1')[0]!.props.onPress();
+    });
+    await act(async () => {
+      pressablesByTestId(rendered, 'choose-workout-back')[0]!.props.onPress();
+    });
+    await flush();
+
+    expect(pressablesByTestId(rendered, 'choose-workout-option-day-2')).not.toHaveLength(0);
+    expect(joinedText(rendered, 'choose-workout-confirm-title')).toEqual([]);
+  });
+});
