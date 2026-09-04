@@ -42,6 +42,31 @@ const ZONE_WEEKS_30 = [
   { label: 'Aug 31', minutes: [21, 24, 18, 23, 5] as const },
 ];
 
+/* A training week: two hard days, two easy, two rest, one long. The rest
+   days are the point — at daily resolution an empty column is a real
+   reading, not a gap. */
+const ZONE_DAYS_7 = [
+  { label: 'M', minutes: [12, 18, 9, 4, 0] as const },
+  { label: 'T', minutes: [8, 11, 16, 14, 5] as const },
+  { label: 'W', minutes: [0, 0, 0, 0, 0] as const },
+  { label: 'T', minutes: [14, 22, 7, 2, 0] as const },
+  { label: 'F', minutes: [6, 9, 15, 17, 7] as const },
+  { label: 'S', minutes: [0, 0, 0, 0, 0] as const },
+  { label: 'S', minutes: [31, 44, 12, 3, 0] as const },
+];
+
+/** Twelve months, labelled every third so the axis stays readable. */
+const ZONE_MONTHS_12 = Array.from({ length: 12 }, (_, i) => {
+  const season = 0.7 + 0.45 * Math.sin(((i + 2) / 12) * Math.PI * 2);
+  return {
+    label: i % 3 === 0 ? ['Jan', 'Apr', 'Jul', 'Oct'][i / 3]! : '',
+    minutes: [
+      Math.round(150 * season), Math.round(190 * season), Math.round(120 * season),
+      Math.round(70 * season), Math.round(18 * season),
+    ] as unknown as readonly [number, number, number, number, number],
+  };
+});
+
 /** Thirteen weeks, labelled every fourth so the axis stays readable. */
 const ZONE_WEEKS_90 = Array.from({ length: 13 }, (_, i) => {
   const d = i / 12;
@@ -367,27 +392,49 @@ export default function DevLogGallery() {
       {/* Trends' only distribution card. Every other card is one number with
           a change; this is five numbers a week, so it is a stacked column per
           week rather than a line. */}
+      <Frame label="Trends · time in zones, week">
+        <View style={{ paddingTop: spacing[24], paddingHorizontal: spacing[16] }}>
+          <HeartRateZoneCard
+            bands={ZONE_BANDS}
+            bucketUnit="day"
+            changeMinutes={-12}
+            buckets={ZONE_DAYS_7}
+          />
+        </View>
+      </Frame>
+
       <Frame label="Trends · time in zones, 30 days">
         <View style={{ paddingTop: spacing[24], paddingHorizontal: spacing[16] }}>
-          <HeartRateZoneCard bands={ZONE_BANDS} changeMinutes={38} weeks={ZONE_WEEKS_30} />
+          <HeartRateZoneCard bands={ZONE_BANDS} changeMinutes={38} buckets={ZONE_WEEKS_30} />
         </View>
       </Frame>
 
       <Frame label="Trends · time in zones, 90 days">
         <View style={{ paddingTop: spacing[24], paddingHorizontal: spacing[16] }}>
-          <HeartRateZoneCard bands={ZONE_BANDS} changeMinutes={84} weeks={ZONE_WEEKS_90} />
+          <HeartRateZoneCard bands={ZONE_BANDS} changeMinutes={84} buckets={ZONE_WEEKS_90} />
+        </View>
+      </Frame>
+
+      <Frame label="Trends · time in zones, 1 year">
+        <View style={{ paddingTop: spacing[24], paddingHorizontal: spacing[16] }}>
+          <HeartRateZoneCard
+            bands={ZONE_BANDS}
+            bucketUnit="month"
+            changeMinutes={214}
+            buckets={ZONE_MONTHS_12}
+          />
         </View>
       </Frame>
 
       <Frame label="Trends · zones, nothing recorded">
         <View style={{ paddingTop: spacing[24], paddingHorizontal: spacing[16] }}>
-          <HeartRateZoneCard bands={ZONE_BANDS} weeks={[]} unavailable="no-data" />
+          <HeartRateZoneCard bands={ZONE_BANDS} buckets={[]} unavailable="no-data" />
         </View>
       </Frame>
 
       <Frame label="Trends · zones, no model">
         <View style={{ paddingTop: spacing[24], paddingHorizontal: spacing[16] }}>
-          <HeartRateZoneCard bands={[]} weeks={[]} unavailable="no-model" />
+          <HeartRateZoneCard bands={[]} buckets={[]} unavailable="no-model" />
         </View>
       </Frame>
 

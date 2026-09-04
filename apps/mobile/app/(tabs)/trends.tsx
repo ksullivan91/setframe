@@ -18,6 +18,10 @@ import { TrendMetricCard } from '../../src/components/log/TrendMetricCard';
  * ever open the app. Grouped so a dozen metrics are not twelve peers.
  */
 const RANGES = [
+  /* A week is the range you check mid-training-block — "am I doing what I
+     said I would this week". The longer ranges answer a different question,
+     and it is not the one you ask on a Wednesday. */
+  { label: 'Week', days: 7 },
   { label: '30 days', days: 30 },
   { label: '90 days', days: 90 },
   { label: '1 year', days: 365 },

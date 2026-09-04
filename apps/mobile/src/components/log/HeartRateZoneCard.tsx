@@ -4,15 +4,24 @@ import { heartRateZoneColors } from '@setframe/design-tokens';
 import { useTheme } from '../../theme/ThemeProvider';
 import { spacing, radius, typeScale } from '../../theme/getTheme';
 
-/** One bucket of the window: a week's minutes in each zone, 1→5. */
-export interface ZoneWeek {
-  /** Axis label. Empty for the weeks between labelled ones on a long range. */
+/** One column of the chart: its minutes in each zone, 1→5. */
+export interface ZoneBucket {
+  /** Axis label. Empty for the columns between labelled ones on a long range. */
   label: string;
   minutes: readonly [number, number, number, number, number];
 }
 
 export interface HeartRateZoneCardProps {
-  weeks: readonly ZoneWeek[];
+  /**
+   * The columns, oldest first.
+   *
+   * What one column *is* depends on the range: a day over a week, a week
+   * over 30 or 90 days, a month over a year. The card does not divide the
+   * window itself — the caller knows the range.
+   */
+  buckets: readonly ZoneBucket[];
+  /** What one column covers, for the caption. Defaults to a week. */
+  bucketUnit?: 'day' | 'week' | 'month';
   /** From `zoneBands(model)` — supplies each zone's name and bpm range. */
   bands: readonly ZoneBand[];
   /** Change in active minutes across the window; null with too little data. */
@@ -29,6 +38,8 @@ export interface HeartRateZoneCardProps {
 }
 
 const PLOT_HEIGHT = 110;
+/** A bucket with no active minutes still draws a floor tile. */
+const ZERO_HEIGHT = 3;
 const ZONES = [1, 2, 3, 4, 5] as const;
 
 /**
@@ -50,18 +61,19 @@ const ZONES = [1, 2, 3, 4, 5] as const;
  * the ramp was validated against.
  */
 export function HeartRateZoneCard({
-  weeks,
+  buckets,
   bands,
+  bucketUnit = 'week',
   changeMinutes = null,
   unavailable,
 }: HeartRateZoneCardProps) {
   const theme = useTheme();
 
   const totals = ZONES.map((zone) =>
-    weeks.reduce((sum, week) => sum + (week.minutes[zone - 1] ?? 0), 0),
+    buckets.reduce((sum, bucket) => sum + (bucket.minutes[zone - 1] ?? 0), 0),
   );
   const grandTotal = totals.reduce((a, b) => a + b, 0);
-  const peak = Math.max(1, ...weeks.map((w) => w.minutes.reduce((a, b) => a + b, 0)));
+  const peak = Math.max(1, ...buckets.map((b) => b.minutes.reduce((a, n) => a + n, 0)));
 
   const delta =
     changeMinutes == null || changeMinutes === 0
@@ -94,8 +106,8 @@ export function HeartRateZoneCard({
       {unavailable ? null : (
         <>
           <View style={styles.plot} testID="zone-plot">
-            {weeks.map((week, index) => (
-              <ZoneColumn key={`${week.label}-${index}`} week={week} peak={peak} />
+            {buckets.map((bucket, index) => (
+              <ZoneColumn key={`${bucket.label}-${index}`} bucket={bucket} peak={peak} />
             ))}
           </View>
 
@@ -134,37 +146,49 @@ export function HeartRateZoneCard({
           ? 'Your Watch records one after a few days of wear. Until then, splitting your minutes would be a guess.'
           : unavailable === 'no-data'
             ? 'Needs heart rate during activity. An Apple Watch records it; a phone on its own does not.'
-            : 'Active minutes only. Column height is that week’s volume; the bands are how it was spent.'}
+            : `Active minutes only. Column height is that ${bucketUnit}’s volume; the bands are how it was spent.`}
       </Text>
     </View>
   );
 }
 
-function ZoneColumn({ week, peak }: { week: ZoneWeek; peak: number }) {
+function ZoneColumn({ bucket, peak }: { bucket: ZoneBucket; peak: number }) {
   const theme = useTheme();
-  const total = week.minutes.reduce((a, b) => a + b, 0);
-  const height = Math.max(4, Math.round((total / peak) * PLOT_HEIGHT));
+  const total = bucket.minutes.reduce((a, b) => a + b, 0);
+  const height = total > 0 ? Math.max(4, Math.round((total / peak) * PLOT_HEIGHT)) : ZERO_HEIGHT;
 
   return (
     <View style={styles.column}>
-      <View style={{ height: Math.max(0, PLOT_HEIGHT - height) }} />
-      <View style={[styles.stack, { height }]}>
-        {[...ZONES].reverse().map((zone) => {
-          const minutes = week.minutes[zone - 1] ?? 0;
-          if (minutes <= 0) return null;
-          return (
-            <View
-              key={zone}
-              style={{
-                height: Math.max(2, Math.round((minutes / Math.max(total, 1)) * height)),
-                backgroundColor: heartRateZoneColors[zone],
-              }}
-            />
-          );
-        })}
+      {/* The plot area is a fixed box with the stack sitting on its floor.
+          Letting the column hug its content left every bucket a different
+          height, so a rest day's label dropped below its neighbours'. */}
+      <View style={styles.plotSlot}>
+        <View style={[styles.stack, { height }]}>
+          {total === 0 ? (
+            /* A day with no active minutes is a reading, not a gap. Drawn as
+               a floor tile so a rest day is visibly zero rather than
+               missing — the two mean different things and a blank column
+               says neither. */
+            <View style={{ flex: 1, backgroundColor: theme.border.default }} />
+          ) : (
+            [...ZONES].reverse().map((zone) => {
+              const minutes = bucket.minutes[zone - 1] ?? 0;
+              if (minutes <= 0) return null;
+              return (
+                <View
+                  key={zone}
+                  style={{
+                    height: Math.max(2, Math.round((minutes / Math.max(total, 1)) * height)),
+                    backgroundColor: heartRateZoneColors[zone],
+                  }}
+                />
+              );
+            })
+          )}
+        </View>
       </View>
       <Text style={[styles.columnLabel, { color: theme.text.secondary }]} numberOfLines={1}>
-        {week.label}
+        {bucket.label}
       </Text>
     </View>
   );
@@ -182,6 +206,8 @@ const styles = StyleSheet.create({
   delta: { fontSize: typeScale.label.fontSize, fontWeight: '500' },
   plot: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing[4] },
   column: { flex: 1, gap: 3 },
+  /* Fixed height, contents on the floor: every column's label lines up. */
+  plotSlot: { height: PLOT_HEIGHT, justifyContent: 'flex-end' },
   /* Clipped so the rounded corners cut the stack, not each segment — five
      rounded blocks read as five bars rather than one column. */
   stack: { borderRadius: 3, overflow: 'hidden' },
