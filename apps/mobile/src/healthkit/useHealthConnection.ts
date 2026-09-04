@@ -75,7 +75,17 @@ export interface HealthConnection {
  * optimization, never the correctness mechanism, so a foreground event
  * always re-queries rather than trusting what we last saw.
  */
-export function useHealthConnection(): HealthConnection {
+export function useHealthConnection(
+  /**
+   * The day to read, as `YYYY-MM-DD`. Defaults to today.
+   *
+   * Log can show any date, and the adapter's window was hardcoded to today
+   * — so browsing back showed today's steps against yesterday's date, and
+   * then dashes once that was corrected to read the server instead. The
+   * device can answer for any day; it simply was never asked.
+   */
+  localDate?: string,
+): HealthConnection {
   const [connection, setConnection] = useState<HealthConnectionState | null>(null);
   const [snapshot, setSnapshot] = useState<HealthSnapshot>(EMPTY_SNAPSHOT);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
@@ -102,7 +112,7 @@ export function useHealthConnection(): HealthConnection {
       return;
     }
     const [result, unasked, groups] = await Promise.all([
-      healthKit.getSnapshot(),
+      healthKit.getSnapshot(localDate),
       healthKit.hasUnaskedTypes(),
       healthKit.unaskedGroups(),
     ]);
@@ -164,7 +174,7 @@ export function useHealthConnection(): HealthConnection {
         /* Nothing further we can offer; the copy still names the path. */
       }
     }
-  }, []);
+  }, [localDate]);
 
   return {
     state: connection == null ? 'loading' : toCardState(connection, snapshot.daily),

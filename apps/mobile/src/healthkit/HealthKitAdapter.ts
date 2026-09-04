@@ -465,11 +465,31 @@ class HealthKitAdapter {
     }
   }
 
-  /** Local midnight to now — the day boundary every daily record uses. */
-  private todayWindow() {
-    const startDate = new Date();
-    startDate.setHours(0, 0, 0, 0);
-    return { startDate, endDate: new Date() };
+  /**
+   * The window for one local day.
+   *
+   * Defaults to today, midnight to now. Given a `YYYY-MM-DD` it is that
+   * day's local midnight to its local end — which is what makes browsing
+   * back on Log show that day's steps rather than today's. Before this the
+   * window was always today, so a past date could only ever show whatever
+   * the server had already reconciled, and showed dashes when it had not.
+   *
+   * Parsed field by field rather than `new Date(localDate)`, because the
+   * latter is UTC midnight and lands on the previous day west of Greenwich.
+   */
+  private dayWindow(localDate?: string) {
+    if (!localDate) {
+      const startDate = new Date();
+      startDate.setHours(0, 0, 0, 0);
+      return { startDate, endDate: new Date() };
+    }
+    const [y, m, d] = localDate.split('-').map(Number) as [number, number, number];
+    const startDate = new Date(y, m - 1, d, 0, 0, 0, 0);
+    const endOfDay = new Date(y, m - 1, d, 23, 59, 59, 999);
+    const now = new Date();
+    /* Today is bounded by now, not by midnight tonight: a partial day's
+       steps are the truth so far, and reading to the future adds nothing. */
+    return { startDate, endDate: endOfDay < now ? endOfDay : now };
   }
 
   /**
@@ -582,11 +602,11 @@ class HealthKitAdapter {
    * nutrition integration and never had one — any tracker that syncs to
    * Apple Health works identically, which is the entire point.
    */
-  async getSnapshot(): Promise<HealthSnapshot> {
+  async getSnapshot(localDate?: string): Promise<HealthSnapshot> {
     const mod = await this.load();
     if (!mod) return EMPTY_SNAPSHOT;
 
-    const window = this.todayWindow();
+    const window = this.dayWindow(localDate);
     const round = (value: number | null) => (value == null ? null : Math.round(value));
 
     try {
@@ -743,7 +763,7 @@ class HealthKitAdapter {
   async getTodayWorkouts(): Promise<DiscoveredWorkout[]> {
     const mod = await this.load();
     if (!mod) return [];
-    const { startDate, endDate } = this.todayWindow();
+    const { startDate, endDate } = this.dayWindow();
     try {
       const proxies = await mod.queryWorkoutSamples({
         limit: 0,
