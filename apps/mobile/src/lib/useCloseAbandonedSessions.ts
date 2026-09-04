@@ -10,8 +10,23 @@ export interface AbandonedSessionCandidate {
   localDate: string;
   status: string;
   startedAt?: string | null;
-  /** ISO timestamp of the last set logged, or null when nothing was. */
+  /**
+   * ISO timestamp of the last set logged, or null when nothing was.
+   *
+   * Not on the list response — it comes from reading the session's own
+   * detail. See `describeSession`.
+   */
   lastSetAt?: string | null;
+  /**
+   * How many sets were actually logged.
+   *
+   * `undefined` is not "none": it means we have not looked yet, and the
+   * difference decides whether a session is completed or deleted. It is
+   * therefore required, not optional — an earlier version read it straight
+   * off the list response, where it does not exist, so every candidate
+   * arrived as `undefined`, compared false against `> 0`, and would have
+   * been deleted along with every set in it.
+   */
   loggedSetCount: number;
 }
 
@@ -20,6 +35,29 @@ export interface ClosedSessionSummary {
   localDate: string;
   loggedSetCount: number;
   exerciseCount: number;
+}
+
+export interface SessionDetail {
+  exercises?: { sets?: { performedAt?: string | null; createdAt?: string | null }[] }[];
+}
+
+/**
+ * What a session actually contains, from its detail response.
+ *
+ * Separate and pure because the list endpoint carries neither figure, and
+ * getting that wrong is not a cosmetic bug: `loggedSetCount` decides
+ * between completing a session and deleting it.
+ */
+export function summariseSessionDetail(detail: SessionDetail): {
+  loggedSetCount: number;
+  lastSetAt: string | null;
+} {
+  const sets = (detail.exercises ?? []).flatMap((e) => e.sets ?? []);
+  const stamps = sets
+    .map((set) => set.performedAt ?? set.createdAt ?? null)
+    .filter((v): v is string => typeof v === 'string')
+    .sort();
+  return { loggedSetCount: sets.length, lastSetAt: stamps.length ? stamps[stamps.length - 1]! : null };
 }
 
 /**
@@ -94,17 +132,48 @@ export function useCloseAbandonedSessions(
   });
 
   useEffect(() => {
-    async function sweep() {
-      let open: AbandonedSessionCandidate[];
+    /**
+     * The list endpoint answers `{ items, nextCursor }` and carries no set
+     * data, so each candidate is read individually to find out what is in
+     * it. There is at most one open session per date and this runs on
+     * foreground, so the cost is a request for a session that is about to
+     * be closed anyway.
+     */
+    async function describeSession(row: {
+      id: string;
+      localDate: string;
+      status: string;
+      startedAt?: string | null;
+    }): Promise<AbandonedSessionCandidate | null> {
       try {
-        open = await api.get<AbandonedSessionCandidate[]>('/workout-sessions?status=in_progress');
+        const detail = await api.get<SessionDetail>(`/workout-sessions/${row.id}`);
+        return { ...row, ...summariseSessionDetail(detail) };
+      } catch {
+        return null;
+      }
+    }
+
+    async function sweep() {
+      let rows: { id: string; localDate: string; status: string; startedAt?: string | null }[];
+      try {
+        const response = await api.get<{
+          items: { id: string; localDate: string; status: string; startedAt?: string | null }[];
+        }>('/workout-sessions?status=in_progress');
+        rows = response.items ?? [];
       } catch {
         /* A failed sweep is not worth surfacing — the session is still there
            and the next foreground tries again. */
         return;
       }
-      for (const session of open) {
-        if (inFlight.current.has(session.id)) continue;
+      for (const row of rows) {
+        if (inFlight.current.has(row.id)) continue;
+        /* Cheap check before the detail read: most foregrounds have nothing
+           to do, and today's own open session is the common case. */
+        if (row.status !== 'in_progress' || row.localDate >= today) continue;
+        const session = await describeSession(row);
+        /* Could not read it — do nothing rather than guess. Deleting on an
+           unknown set count is how a logged workout disappears. */
+        if (!session) continue;
         const action = resolveAbandonedSession(session, today);
         if (action === 'ignore') continue;
         inFlight.current.add(session.id);
