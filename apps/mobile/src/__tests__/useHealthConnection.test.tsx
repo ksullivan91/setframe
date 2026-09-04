@@ -34,7 +34,8 @@ jest.mock('../healthkit/HealthKitAdapter', () =>
   require('../test-support/healthkit-mock').healthKitModuleMock({
     healthKit: {
       getConnectionState: () => mockGetConnectionState(),
-      getSnapshot: () => mockGetSnapshot(),
+      // Forwards the date. Dropping it here would hide the very bug below.
+      getSnapshot: (localDate?: string) => mockGetSnapshot(localDate),
       hasUnaskedTypes: () => mockHasUnaskedTypes(),
       unaskedGroups: () => Promise.resolve([]),
       requestAuthorization: () => Promise.resolve('authorized'),
@@ -133,4 +134,60 @@ it('registers a focus handler at all', () => {
     tree = create(<Probe />);
   });
   expect(typeof focusCallback).toBe('function');
+});
+
+describe('reading a past day', () => {
+  /**
+   * Log shows one date at a time and asks this hook for it. The read used to
+   * be a `useCallback(..., [])`, so it closed over whichever date it was
+   * created with — always today, because Log opens on today — and every past
+   * day rendered today's numbers. Twice shipped, hence the test.
+   */
+  function DatedProbe({ localDate }: { localDate: string }) {
+    latest = useHealthConnection(localDate);
+    return <Text>{latest.state}</Text>;
+  }
+
+  beforeEach(() => {
+    mockGetConnectionState.mockResolvedValue('asked');
+    mockGetSnapshot.mockImplementation((localDate?: string) =>
+      Promise.resolve({
+        ...grantedSnapshot(),
+        daily: { ...grantedSnapshot().daily, steps: localDate === '2026-09-01' ? 111 : 999 },
+      }),
+    );
+  });
+
+  it('asks the adapter for the date it was given', async () => {
+    await act(async () => {
+      tree = create(<DatedProbe localDate="2026-09-01" />);
+    });
+    // expo-router is mocked to capture the focus callback, not run it.
+    await act(async () => { focusCallback?.(); });
+    await flush();
+
+    expect(mockGetSnapshot).toHaveBeenCalledWith('2026-09-01');
+    expect(latest?.metrics.steps).toBe(111);
+  });
+
+  it('re-reads when the date changes, rather than keeping the first one', async () => {
+    await act(async () => {
+      tree = create(<DatedProbe localDate="2026-09-01" />);
+    });
+    await act(async () => { focusCallback?.(); });
+    await flush();
+    expect(latest?.metrics.steps).toBe(111);
+
+    await act(async () => {
+      tree!.update(<DatedProbe localDate="2026-09-03" />);
+    });
+    /* The re-render hands `useFocusEffect` a new callback, because `read`
+       now depends on the date. Running the latest one is what the real
+       hook does when the effect re-subscribes while focused. */
+    await act(async () => { focusCallback?.(); });
+    await flush();
+
+    expect(mockGetSnapshot).toHaveBeenCalledWith('2026-09-03');
+    expect(latest?.metrics.steps).toBe(999);
+  });
 });

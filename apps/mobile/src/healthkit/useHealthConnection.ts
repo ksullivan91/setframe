@@ -121,7 +121,11 @@ export function useHealthConnection(
     setHasMoreToGrant(unasked);
     setUnaskedGroups(groups);
     if (hasAnyMetric(result.daily)) setLastSyncedAt(new Date());
-  }, []);
+    /* `localDate` belongs here. With `[]` this closure kept whichever date
+       it was created with — always today, since Log opens on today — so
+       browsing back re-read today and every past day showed the same
+       numbers. */
+  }, [localDate]);
 
   /**
    * Re-read whenever this screen regains focus.
@@ -142,6 +146,20 @@ export function useHealthConnection(
       void read();
     }, [read]),
   );
+
+  /**
+   * Clear the moment the date changes, before the new day's read lands.
+   *
+   * Otherwise the previous day's metrics stay on screen under the new
+   * day's heading for the length of a HealthKit query — the same class of
+   * wrong as the bug above, just shorter-lived.
+   */
+  const shownDate = useRef(localDate);
+  useEffect(() => {
+    if (shownDate.current === localDate) return;
+    shownDate.current = localDate;
+    setSnapshot(EMPTY_SNAPSHOT);
+  }, [localDate]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (status) => {
@@ -174,7 +192,7 @@ export function useHealthConnection(
         /* Nothing further we can offer; the copy still names the path. */
       }
     }
-  }, [localDate]);
+  }, []);
 
   return {
     state: connection == null ? 'loading' : toCardState(connection, snapshot.daily),
