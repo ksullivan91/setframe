@@ -6,6 +6,7 @@ import { Home, Dumbbell, TrendingUp, HeartPulse } from 'lucide-react-native';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { AppLoading } from '../../src/components/AppLoading';
 import { useApiClient } from '../../src/lib/api-client';
+import { useHealthReconciler } from '../../src/healthkit/useHealthReconciler';
 
 /**
  * `Shell/Mobile/TabBar` per style guide §13/§14/§19 — the 4 fixed mobile
@@ -29,6 +30,12 @@ export default function TabsLayout() {
     enabled: isLoaded && isSignedIn,
     staleTime: 5 * 60 * 1000,
   });
+
+  /* Mounted on the shell, not on Trends: architecture §5 says every
+     foreground event reconciles, and a user who never opens Trends is
+     exactly the one whose history would otherwise never be written. Runs
+     below the hooks so the rules of hooks hold on the gated returns. */
+  useHealthReconciler();
 
   if (!isLoaded) return <AppLoading />;
   if (!isSignedIn) return <Redirect href="/sign-in" />;

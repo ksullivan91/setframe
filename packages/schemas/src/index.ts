@@ -6,3 +6,4 @@ export * from './daily';
 export * from './additional-activity';
 export * from './session-watch-workout';
 export * from './trends';
+export * from './apple-health';

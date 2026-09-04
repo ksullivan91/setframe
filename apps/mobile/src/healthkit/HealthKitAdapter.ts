@@ -328,6 +328,23 @@ export function hasAnyBody(body: BodyProfile): boolean {
  * and "nothing recorded today", and must never tell the user their
  * access is off as though we knew it.
  */
+/**
+ * Local-day boundaries, parsed field by field.
+ *
+ * `new Date('2026-09-01')` is UTC midnight, which lands on the previous day
+ * anywhere west of Greenwich — the same trap the read window hit. These use
+ * the device's own zone, which is the zone the day was lived in.
+ */
+function startOfLocalDayLocal(localDate: string): Date {
+  const [y, m, d] = localDate.split('-').map(Number) as [number, number, number];
+  return new Date(y, m - 1, d, 0, 0, 0, 0);
+}
+
+function endOfLocalDayLocal(localDate: string): Date {
+  const [y, m, d] = localDate.split('-').map(Number) as [number, number, number];
+  return new Date(y, m - 1, d, 23, 59, 59, 999);
+}
+
 class HealthKitAdapter {
   private module: typeof import('@kingstinct/react-native-healthkit') | null = null;
   private loadAttempted = false;
@@ -542,6 +559,36 @@ class HealthKitAdapter {
     }
   }
 
+  /**
+   * The last value recorded *within* a window.
+   *
+   * `mostRecent` answers "of all time", which is right for a live screen and
+   * wrong for a day in the past: backfilling with it stamps today's weight
+   * onto every historical day, which is indistinguishable from the data
+   * being broken. `discreteMostRecent` keeps the read inside the day, and a
+   * day with no weigh-in correctly returns null rather than borrowing one.
+   */
+  private async latestInWindow(
+    mod: NonNullable<HealthKitAdapter['module']>,
+    identifier: string,
+    unit: string,
+    window: { startDate: Date; endDate: Date },
+  ): Promise<number | null> {
+    try {
+      const result = await mod.queryStatisticsForQuantity(
+        identifier as never,
+        ['mostRecent'],
+        { unit, filter: { date: window } } as never,
+      );
+      const quantity =
+        (result as { mostRecentQuantity?: { quantity?: number } } | null)?.mostRecentQuantity
+          ?.quantity;
+      return typeof quantity === 'number' && Number.isFinite(quantity) ? quantity : null;
+    } catch {
+      return null;
+    }
+  }
+
   /** Most recent sample of all time — for values that change rarely. */
   private async mostRecent(
     mod: NonNullable<HealthKitAdapter['module']>,
@@ -628,8 +675,8 @@ class HealthKitAdapter {
         this.sumQuantity(mod, 'HKQuantityTypeIdentifierDietaryProtein', 'g', window),
         this.sumQuantity(mod, 'HKQuantityTypeIdentifierDietaryCarbohydrates', 'g', window),
         this.sumQuantity(mod, 'HKQuantityTypeIdentifierDietaryFatTotal', 'g', window),
-        this.getRecoveryMetrics(mod),
-        this.getBodyProfile(mod),
+        this.getRecoveryMetrics(mod, localDate),
+        this.getBodyProfile(mod, localDate),
       ]);
 
       /* Whichever app wrote the food. Calories first because every tracker
@@ -665,19 +712,30 @@ class HealthKitAdapter {
    */
   private async getRecoveryMetrics(
     mod: NonNullable<HealthKitAdapter['module']>,
+    localDate?: string,
   ): Promise<RecoveryMetrics> {
-    const endDate = new Date();
-    const startDate = new Date();
+    /* The night that belongs to this day: the evening before, through the
+       day's own end. Hardcoding "yesterday 18:00 → now" is right for today
+       and wrong for every other day — a backfill would have written last
+       night's sleep against all of them. */
+    const dayEnd = localDate ? endOfLocalDayLocal(localDate) : new Date();
+    const startDate = new Date(dayEnd);
     startDate.setDate(startDate.getDate() - 1);
     startDate.setHours(18, 0, 0, 0);
+    const endDate = localDate ? dayEnd : new Date();
     const window = { startDate, endDate };
 
     const [sleepMinutes, hrvMs, restingHeartRateBpm, vo2] = await Promise.all([
       this.getSleepMinutes(mod, window),
       this.averageQuantity(mod, 'HKQuantityTypeIdentifierHeartRateVariabilitySDNN', 'ms', window),
       this.averageQuantity(mod, 'HKQuantityTypeIdentifierRestingHeartRate', 'count/min', window),
-      // Deliberately unwindowed — see RecoveryMetrics.vo2Max.
-      this.mostRecentDatedQuantity(mod, 'HKQuantityTypeIdentifierVO2Max', 'ml/(kg*min)'),
+      /* Unwindowed for a live read — see RecoveryMetrics.vo2Max — but a
+         past day must not inherit a reading taken after it. */
+      localDate
+        ? this.latestInWindow(mod, 'HKQuantityTypeIdentifierVO2Max', 'ml/(kg*min)', window).then(
+            (value) => ({ value, at: null as string | null }),
+          )
+        : this.mostRecentDatedQuantity(mod, 'HKQuantityTypeIdentifierVO2Max', 'ml/(kg*min)'),
     ]);
 
     return {
@@ -862,11 +920,20 @@ class HealthKitAdapter {
   /** Body measurements and characteristics — context, not daily data. */
   private async getBodyProfile(
     mod: NonNullable<HealthKitAdapter['module']>,
+    localDate?: string,
   ): Promise<BodyProfile> {
+    const window = localDate
+      ? { startDate: startOfLocalDayLocal(localDate), endDate: endOfLocalDayLocal(localDate) }
+      : null;
     const [weightKg, heightM, bodyFatFraction] = await Promise.all([
-      this.mostRecent(mod, 'HKQuantityTypeIdentifierBodyMass', 'kg'),
+      window
+        ? this.latestInWindow(mod, 'HKQuantityTypeIdentifierBodyMass', 'kg', window)
+        : this.mostRecent(mod, 'HKQuantityTypeIdentifierBodyMass', 'kg'),
+      /* Height is genuinely a standing fact, not a daily measurement. */
       this.mostRecent(mod, 'HKQuantityTypeIdentifierHeight', 'm'),
-      this.mostRecent(mod, 'HKQuantityTypeIdentifierBodyFatPercentage', '%'),
+      window
+        ? this.latestInWindow(mod, 'HKQuantityTypeIdentifierBodyFatPercentage', '%', window)
+        : this.mostRecent(mod, 'HKQuantityTypeIdentifierBodyFatPercentage', '%'),
     ]);
 
     let biologicalSex: BodyProfile['biologicalSex'] = null;
