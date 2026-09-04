@@ -109,6 +109,9 @@ interface DashboardTodayResponse {
   } | null;
   weekLabel: string | null;
   dayLabel: string | null;
+  /** The day's exercises, in order, and the sets they plan. */
+  plannedExercises?: string[];
+  plannedSetCount?: number;
   dayTypeId: string | null;
   estimatedDurationMinutes: number | null;
   scheduleSource?: 'override' | 'program' | 'none';
@@ -692,16 +695,21 @@ export default function TodayScreen() {
     return `Started ${hours}h ${String(minutes % 60).padStart(2, '0')}m ago`;
   })();
 
+  const plannedSetCount = todayQuery.data?.plannedSetCount ?? 0;
+  /* Three named, then a count. The design shows four chips and the fourth
+     is "+2" — naming everything turns the hero into a list. */
+  const exerciseChips = (() => {
+    const names = todayQuery.data?.plannedExercises ?? [];
+    if (names.length <= 4) return names;
+    return [...names.slice(0, 3), `+${names.length - 3}`];
+  })();
+
   const heroProps: LogHeroProps = useMemo(() => {
     const dayName = todayQuery.data?.dayLabel ?? 'Training';
     /* The design splits the title across two lines, the second in the accent.
        "Upper Body — Push" is the shape day types take, so the em dash is the
        natural break; anything without one keeps a single line. */
     const [head, tail] = dayName.includes(' — ') ? dayName.split(' — ') : [dayName, undefined];
-    /* The design shows the day's exercises as chips, but /dashboard/today
-       returns only the day type's id, name and duration — the exercise list
-       would need a join it does not do. Left out rather than faked; the hero
-       renders without chips. */
 
     switch (todayWorkoutState) {
       case 'in-progress':
@@ -711,10 +719,19 @@ export default function TodayScreen() {
           chip: startedAgo ?? undefined,
           title: head!,
           titleAccent: tail,
+          /* A total only when the day actually plans one. Against an
+             unplanned session the bar would measure progress toward a
+             number nobody chose. */
+          progress:
+            plannedSetCount > 0
+              ? { done: runningSets, total: plannedSetCount }
+              : undefined,
           body:
-            runningSets > 0
-              ? `${runningSets} ${runningSets === 1 ? 'set' : 'sets'} logged so far.`
-              : 'Nothing logged yet — pick up where you left off.',
+            plannedSetCount > 0
+              ? undefined
+              : runningSets > 0
+                ? `${runningSets} ${runningSets === 1 ? 'set' : 'sets'} logged so far.`
+                : 'Nothing logged yet — pick up where you left off.',
           primary: {
             label: 'Resume workout',
             testID: 'resume-workout',
@@ -811,6 +828,7 @@ export default function TodayScreen() {
           chip: todayQuery.data?.estimatedDurationMinutes ? `~${todayQuery.data.estimatedDurationMinutes} min` : undefined,
           title: head!,
           titleAccent: tail,
+          chips: exerciseChips,
           primary: {
             label: 'Start workout',
             testID: 'start-workout',
@@ -837,6 +855,8 @@ export default function TodayScreen() {
     completedDuration,
     startWorkoutMutation,
     startedAgo,
+    plannedSetCount,
+    exerciseChips,
     runningSets,
     markRestDayMutation,
     undoRestDayMutation,

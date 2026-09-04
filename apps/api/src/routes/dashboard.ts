@@ -1,11 +1,13 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   dailyActivitySummary,
   dailyManualEntry,
   dailyNutritionSnapshot,
   dayType,
+  dayTypeExercise,
+  exercise,
   integrationSyncState,
   programScheduleSlot,
   programVersion,
@@ -15,6 +17,7 @@ import {
   trainingProgram,
   workoutSession,
 } from '@setframe/database';
+import { expandPrescriptionToSetDrafts } from './workout-sessions.js';
 import { getDb } from '../lib/db.js';
 import { requireAuth } from '../plugins/auth.js';
 
@@ -170,6 +173,22 @@ export const dashboardRoutes: FastifyPluginAsyncZod = async (fastify) => {
           ),
       ]);
 
+      /* Only when a day type actually resolved — an unscheduled day has
+         nothing planned, and a query per request for a null id is waste. */
+      const planned = nextDayType
+        ? await db
+            .select({ name: exercise.name, prescription: dayTypeExercise.prescription })
+            .from(dayTypeExercise)
+            .innerJoin(exercise, eq(exercise.id, dayTypeExercise.exerciseId))
+            .where(eq(dayTypeExercise.dayTypeId, nextDayType.id))
+            .orderBy(asc(dayTypeExercise.sortOrder))
+        : [];
+      const plannedExercises = planned;
+      const plannedSetCount = planned.reduce(
+        (total, row) => total + expandPrescriptionToSetDrafts(row.prescription).length,
+        0,
+      );
+
       return {
         localDate,
         sessions: sessions.map(toSessionResponse),
@@ -182,6 +201,20 @@ export const dashboardRoutes: FastifyPluginAsyncZod = async (fastify) => {
         dayLabel: nextDayType?.name ?? null,
         dayTypeId: nextDayType?.id ?? null,
         estimatedDurationMinutes: nextDayType?.estimatedDurationMinutes ?? null,
+        /**
+         * What the day plans, so Log can describe it without guessing.
+         *
+         * The card showed a bare title because this endpoint returned the
+         * day type's id, name and duration and nothing else — no exercises
+         * to name, and no planned total to measure progress against. A bar
+         * drawn against a guessed total is worse than no bar.
+         *
+         * The count comes from `expandPrescriptionToSetDrafts`, which is
+         * what session-start already uses to create those sets. Any other
+         * arithmetic here would be a second answer to the same question.
+         */
+        plannedExercises: plannedExercises.map((row) => row.name),
+        plannedSetCount: plannedSetCount,
         scheduleSource: override[0] ? 'override' : nextDayType ? 'program' : 'none',
         restDay: rest[0]
           ? {

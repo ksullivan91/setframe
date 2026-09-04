@@ -82,3 +82,60 @@ describe('GET /v1/dashboard/today', () => {
     expect(join).toContain('eq(workoutSession.userId, userId)');
   });
 });
+
+describe('what the day plans', () => {
+  /* The Log card showed a bare title because this endpoint returned the day
+     type's id, name and duration and nothing else — no exercises to name,
+     and no planned total to measure progress against. */
+  it('names the day’s exercises and totals its planned sets', async () => {
+    const dayTypeRow = { id: 'day-1', name: 'Upper Body — Push', estimatedDurationMinutes: 52 };
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow])) // auth
+      .mockReturnValueOnce(selectChain([])) // sessions
+      .mockReturnValueOnce(selectChain([])) // manual entry
+      .mockReturnValueOnce(selectChain([])) // activity summary
+      .mockReturnValueOnce(selectChain([])) // nutrition
+      .mockReturnValueOnce(selectChain([])) // sync state
+      // resolveScheduledDayType: an override supplies the day type directly
+      .mockReturnValueOnce(selectChain([{ override: { dayTypeId: 'day-1' }, dayType: dayTypeRow }]))
+      .mockReturnValueOnce(selectChain([])) // schedule override read
+      .mockReturnValueOnce(selectChain([])) // rest day
+      .mockReturnValueOnce(selectChain([])) // attached watch workouts
+      // the planned read, ordered by sortOrder
+      .mockReturnValue(
+        selectChain([
+          { name: 'Barbell Bench Press', prescription: { kind: 'sets_reps', sets: 4, reps: 8 } },
+          { name: 'Incline DB Press', prescription: { kind: 'sets_reps', sets: 3, reps: 10 } },
+        ]),
+      );
+
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/dashboard/today?localDate=2026-09-02',
+      headers: authHeader,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.plannedExercises).toEqual(['Barbell Bench Press', 'Incline DB Press']);
+    /* 4 + 3, counted by the same expansion session-start uses to create
+       them — not by re-reading `sets` off the prescription here. */
+    expect(body.plannedSetCount).toBe(7);
+  });
+
+  it('plans nothing on a day with no day type', async () => {
+    mockSelect.mockReturnValue(selectChain([]));
+    mockSelect.mockReturnValueOnce(selectChain([userRow]));
+
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/dashboard/today?localDate=2026-09-02',
+      headers: authHeader,
+    });
+
+    expect(res.json().plannedExercises).toEqual([]);
+    expect(res.json().plannedSetCount).toBe(0);
+  });
+});

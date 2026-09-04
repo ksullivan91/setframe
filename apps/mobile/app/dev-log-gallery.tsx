@@ -175,7 +175,7 @@ export default function DevLogGallery() {
           chip="Started 18 min ago"
           title="Upper Body"
           titleAccent="Push"
-          body="6 sets logged so far."
+          progress={{ done: 6, total: 14 }}
           primary={{ label: 'Resume workout', onPress: () => {} }}
         />
       </HeroFrame>
