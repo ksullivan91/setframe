@@ -25,6 +25,17 @@ export interface SheetProps {
    * only ever add to bottom/left/right, never shrink below this). Defaults
    * to `spacing[16]` on every side. */
   padding?: { top?: number; bottom?: number; left?: number; right?: number };
+  /**
+   * Render the sheet in the normal view tree instead of in a `Modal`.
+   *
+   * For the dev-log gallery only, which lays several screens out side by
+   * side. RN's `Modal` is a window-level overlay with no way to scope it to
+   * a parent, so one `visible` sheet in the gallery covered every other
+   * frame and could not be scrolled past. Inline mode drops the `Modal` and
+   * the backdrop; everything about the sheet body itself is unchanged, so
+   * what the gallery shows is still the real component.
+   */
+  inline?: boolean;
 }
 
 /**
@@ -46,6 +57,7 @@ export function Sheet({
   bordered = true,
   gap = spacing[12],
   padding = {},
+  inline = false,
 }: SheetProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -71,6 +83,8 @@ export function Sheet({
       {children}
     </View>
   );
+
+  if (inline) return visible ? sheet : null;
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onRequestClose}>

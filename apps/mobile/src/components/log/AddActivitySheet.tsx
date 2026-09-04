@@ -36,6 +36,8 @@ export interface AddActivitySheetProps {
   errorMessage?: string | null;
   onSave: (value: AddActivityValue) => void;
   onCancel: () => void;
+  /** Renders in the view tree rather than a Modal. Dev-log gallery only. */
+  inline?: boolean;
 }
 
 /**
@@ -59,6 +61,7 @@ export function AddActivitySheet({
   errorMessage,
   onSave,
   onCancel,
+  inline,
 }: AddActivitySheetProps) {
   const theme = useTheme();
   const [activityType, setActivityType] = useState<AdditionalActivityType>('walk');
@@ -90,7 +93,7 @@ export function AddActivitySheet({
   const canSave = minutes.trim().length > 0 && (!showsTitle || title.trim().length > 0) && !saving;
 
   return (
-    <Sheet visible={visible} onRequestClose={onCancel} backdropTestID="add-activity-backdrop">
+    <Sheet visible={visible} onRequestClose={onCancel} backdropTestID="add-activity-backdrop" inline={inline}>
       <Text style={[styles.title, { color: theme.text.primary }]}>
         {initial ? 'Edit activity' : 'Add activity'}
       </Text>
