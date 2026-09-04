@@ -109,11 +109,14 @@ export function SetRowV2({
     }, 0);
   };
 
+  /* The card is dark now, so a state reads as a wash over that ground
+     rather than a tint on white. Error keeps the strongest one: it is the
+     only state that asks the user to do something. */
   const tinted =
-    status === 'saved' || status === 'pr'
-      ? theme.status.success + '1F'
-      : status === 'error'
-        ? theme.action.destructive + '1A'
+    status === 'error'
+      ? theme.inverse.danger + '33'
+      : status === 'pr'
+        ? theme.inverse.accent + '1F'
         : 'transparent';
 
   return (
@@ -127,11 +130,16 @@ export function SetRowV2({
     >
       <Pressable
         onPress={onOpenSetType}
-        style={[styles.setChip, { backgroundColor: theme.surface.sunken }]}
+        /* The chip is the row's only always-present colour, so a PR claims
+           it — the badge alone is easy to miss at arm's length on a bench. */
+        style={[
+          styles.setChip,
+          { backgroundColor: status === 'pr' ? theme.inverse.accent : theme.inverse.raised },
+        ]}
         accessibilityRole="button"
         accessibilityLabel={'Set type for set ' + label}
       >
-        <Text style={[styles.setChipText, { color: theme.text.primary }]}>{label}</Text>
+        <Text style={[styles.setChipText, { color: theme.inverse.text }]}>{label}</Text>
       </Pressable>
 
       <Pressable
@@ -142,7 +150,10 @@ export function SetRowV2({
         accessibilityLabel={previous ? 'Use last session, ' + previous : 'No previous session'}
       >
         <Text
-          style={[styles.previousText, { color: previous ? theme.text.primary : theme.text.disabled }]}
+          style={[
+            styles.previousText,
+            { color: previous ? theme.inverse.textMuted : theme.inverse.textMuted + '80' },
+          ]}
           numberOfLines={1}
         >
           {previous ?? '—'}
@@ -153,8 +164,8 @@ export function SetRowV2({
           would shove PREVIOUS, LB and REPS out of line with its neighbours. */}
       <View style={styles.prSlot}>
         {status === 'pr' ? (
-          <View style={[styles.prBadge, { backgroundColor: theme.action.primary }]}>
-            <Text style={[styles.prText, { color: theme.action.primaryText }]}>PR</Text>
+          <View style={[styles.prBadge, { backgroundColor: theme.inverse.accent }]}>
+            <Text style={[styles.prText, { color: theme.inverse.text }]}>PR</Text>
           </View>
         ) : null}
       </View>
@@ -177,11 +188,11 @@ export function SetRowV2({
       {status === 'error' ? (
         <Pressable
           onPress={onRetry}
-          style={[styles.mark, { borderColor: theme.action.destructive }]}
+          style={[styles.mark, { borderColor: theme.inverse.danger }]}
           accessibilityRole="button"
           accessibilityLabel={'Retry saving set ' + label}
         >
-          <Text style={[styles.markGlyph, { color: theme.action.destructive, fontSize: 12 }]}>↻</Text>
+          <Text style={[styles.markGlyph, { color: theme.inverse.danger, fontSize: 12 }]}>↻</Text>
         </Pressable>
       ) : (
         <View
@@ -189,14 +200,25 @@ export function SetRowV2({
             styles.mark,
             {
               borderColor:
-                status === 'saved' || status === 'pr' ? theme.status.success : theme.border.default,
-              backgroundColor:
-                status === 'saved' || status === 'pr' ? theme.surface.raised : 'transparent',
+                status === 'saved' || status === 'pr'
+                  ? theme.inverse.success
+                  : theme.inverse.textMuted + '40',
+              backgroundColor: 'transparent',
             },
           ]}
         >
           {status === 'saved' || status === 'pr' ? (
-            <Text style={[styles.markGlyph, { color: theme.status.successText }]}>✓</Text>
+            <Text style={[styles.markGlyph, { color: theme.inverse.success }]}>✓</Text>
+          ) : status === 'pending' ? (
+            /* An in-flight save used to render the same bare ring as an
+               untouched row, so the one moment the user might wonder whether
+               their number landed looked identical to not having typed it.
+               A dot rather than a spinner: the save is usually gone within a
+               frame or two, and a spinner that flashes reads as an error. */
+            <View
+              testID={'set-row-pending-' + setId}
+              style={[styles.pendingDot, { backgroundColor: theme.inverse.textMuted }]}
+            />
           ) : null}
         </View>
       )}
@@ -241,7 +263,7 @@ function SetField({
       ref={ref}
       value={draft[field]}
       placeholder={targets[field] ?? ''}
-      placeholderTextColor={theme.text.disabled}
+      placeholderTextColor={theme.inverse.textMuted + '80'}
       keyboardType="decimal-pad"
       selectTextOnFocus
       onFocus={() => {
@@ -254,9 +276,12 @@ function SetField({
       style={[
         styles.input,
         {
-          backgroundColor: theme.surface.canvas,
-          borderColor: theme.border.default,
-          color: filled ? theme.text.primary : theme.text.disabled,
+          /* A well sunk into the card, not a box drawn on it — at a glance
+             the row should read as values, and the field edges should not
+             compete with the numbers in them. */
+          backgroundColor: theme.inverse.surface,
+          borderColor: theme.inverse.textMuted + '26',
+          color: filled ? theme.inverse.text : theme.inverse.textMuted,
           fontWeight: filled ? '600' : '400',
         },
       ]}
@@ -340,5 +365,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  pendingDot: { width: 8, height: 8, borderRadius: 4 },
   markGlyph: { fontSize: 13, fontWeight: '600' },
 });

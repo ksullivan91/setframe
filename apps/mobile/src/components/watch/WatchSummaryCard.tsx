@@ -69,11 +69,11 @@ export function WatchSummaryCard({
   ];
 
   return (
-    <Card style={styles.card} testID="watch-summary">
+    <Card tone="inverse" style={styles.card} testID="watch-summary">
       <View style={styles.head}>
-        <Text style={[styles.title, { color: theme.text.primary }]}>Activity</Text>
+        <Text style={[styles.title, { color: theme.inverse.text }]}>Activity</Text>
         {device ? (
-          <Text style={[styles.device, { color: theme.text.secondary }]}>{device}</Text>
+          <Text style={[styles.device, { color: theme.inverse.textMuted }]}>{device}</Text>
         ) : null}
       </View>
       <View style={styles.tiles}>
@@ -81,11 +81,11 @@ export function WatchSummaryCard({
           <View
             key={label}
             testID={`watch-tile-${label}`}
-            style={[styles.tile, { backgroundColor: theme.surface.sunken }]}
+            style={[styles.tile, { backgroundColor: theme.inverse.surface }]}
           >
             <Text
               numberOfLines={1}
-              style={[styles.tileValue, { color: theme.text.primary }]}
+              style={[styles.tileValue, { color: theme.inverse.text }]}
             >
               {value}
             </Text>
@@ -96,7 +96,7 @@ export function WatchSummaryCard({
               numberOfLines={1}
               adjustsFontSizeToFit
               minimumFontScale={0.85}
-              style={[styles.tileLabel, { color: theme.text.secondary }]}
+              style={[styles.tileLabel, { color: theme.inverse.textMuted }]}
             >
               {label}
             </Text>
@@ -112,16 +112,16 @@ export function WatchSummaryCard({
             <View
               key={w.id}
               testID={`watch-attached-${w.id}`}
-              style={[styles.row, { backgroundColor: theme.surface.sunken }]}
+              style={[styles.row, { backgroundColor: theme.inverse.surface }]}
             >
               <View style={styles.rowMeta}>
                 <Text
                   numberOfLines={1}
-                  style={[styles.rowTitle, { color: theme.text.primary }]}
+                  style={[styles.rowTitle, { color: theme.inverse.text }]}
                 >
                   {w.title}
                 </Text>
-                <Text style={[styles.rowDetail, { color: theme.text.secondary }]}>
+                <Text style={[styles.rowDetail, { color: theme.inverse.textMuted }]}>
                   {rowDetail(w)}
                 </Text>
               </View>
@@ -144,7 +144,7 @@ export function WatchSummaryCard({
           ))}
         </View>
       ) : null}
-      <Text style={[styles.note, { color: theme.text.secondary }]}>{describe(workouts)}</Text>
+      <Text style={[styles.note, { color: theme.inverse.textMuted }]}>{describe(workouts)}</Text>
     </Card>
   );
 }

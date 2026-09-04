@@ -40,14 +40,14 @@ export function SaveAsWorkoutCard({
 
   const card = [
     styles.card,
-    { backgroundColor: theme.surface.raised, borderColor: theme.action.primary },
+    { backgroundColor: theme.inverse.raised, borderColor: theme.inverse.accent },
   ];
 
   if (step === 'offer') {
     return (
       <View style={card} testID="save-as-workout">
-        <Text style={[styles.title, { color: theme.text.primary }]}>Do this one again?</Text>
-        <Text style={[styles.body, { color: theme.text.secondary }]}>
+        <Text style={[styles.title, { color: theme.inverse.text }]}>Do this one again?</Text>
+        <Text style={[styles.body, { color: theme.inverse.textMuted }]}>
           Save it as a workout and it becomes something you can start with one tap, or put on a day
           of the week.
         </Text>
@@ -56,9 +56,9 @@ export function SaveAsWorkoutCard({
             onPress={() => setStep(needsProgram ? 'program' : 'workout')}
             testID="save-as-workout-open"
             accessibilityRole="button"
-            style={[styles.primary, { backgroundColor: theme.action.primary }]}
+            style={[styles.primary, { backgroundColor: theme.inverse.accent }]}
           >
-            <Text style={[styles.primaryLabel, { color: theme.action.primaryText }]}>
+            <Text style={[styles.primaryLabel, { color: theme.inverse.text }]}>
               Save as a workout
             </Text>
           </Pressable>
@@ -66,12 +66,12 @@ export function SaveAsWorkoutCard({
             onPress={onDismiss}
             testID="save-as-workout-dismiss"
             accessibilityRole="button"
-            style={[styles.secondary, { backgroundColor: theme.surface.sunken }]}
+            style={[styles.secondary, { backgroundColor: theme.inverse.surface }]}
           >
-            <Text style={[styles.secondaryLabel, { color: theme.text.secondary }]}>Not now</Text>
+            <Text style={[styles.secondaryLabel, { color: theme.inverse.textMuted }]}>Not now</Text>
           </Pressable>
         </View>
-        <Text style={[styles.note, { color: theme.text.secondary }]}>
+        <Text style={[styles.note, { color: theme.inverse.textMuted }]}>
           Either way, this workout is already saved to your history.
         </Text>
       </View>
@@ -81,25 +81,25 @@ export function SaveAsWorkoutCard({
   if (step === 'program') {
     return (
       <View style={card} testID="save-as-program-form">
-        <Text style={[styles.title, { color: theme.text.primary }]}>First, name your plan</Text>
+        <Text style={[styles.title, { color: theme.inverse.text }]}>First, name your plan</Text>
         {/* Says what a plan IS and why the step exists. Asking someone to name
             something they have never heard of, with no explanation, is the
             kind of wall this flow was designed to avoid. */}
-        <Text style={[styles.body, { color: theme.text.secondary }]}>
+        <Text style={[styles.body, { color: theme.inverse.textMuted }]}>
           A plan is where your workouts live. It is what puts them on days of the week, so Today
           knows what is next and your history stays grouped with the training it came from.
         </Text>
-        <Text style={[styles.label, { color: theme.text.secondary }]}>PLAN NAME</Text>
+        <Text style={[styles.label, { color: theme.inverse.textMuted }]}>PLAN NAME</Text>
         <TextInput
           value={programName}
           onChangeText={setProgramName}
           placeholder="My training"
-          placeholderTextColor={theme.text.disabled}
+          placeholderTextColor={theme.inverse.textMuted + '80'}
           accessibilityLabel="Plan name"
           testID="save-as-program-name"
-          style={[styles.input, { borderColor: theme.action.primary, color: theme.text.primary }]}
+          style={[styles.input, { borderColor: theme.inverse.accent, color: theme.inverse.text }]}
         />
-        <Text style={[styles.note, { color: theme.text.secondary }]}>
+        <Text style={[styles.note, { color: theme.inverse.textMuted }]}>
           You only do this once. You can rename it, or add more plans, whenever you like.
         </Text>
         <Pressable
@@ -110,13 +110,13 @@ export function SaveAsWorkoutCard({
           style={[
             styles.primary,
             styles.fullWidth,
-            { backgroundColor: programName.trim() ? theme.action.primary : theme.surface.sunken },
+            { backgroundColor: programName.trim() ? theme.inverse.accent : theme.inverse.surface },
           ]}
         >
           <Text
             style={[
               styles.primaryLabel,
-              { color: programName.trim() ? theme.action.primaryText : theme.text.disabled },
+              { color: programName.trim() ? theme.inverse.text : theme.inverse.textMuted + '80' },
             ]}
           >
             Continue
@@ -128,30 +128,30 @@ export function SaveAsWorkoutCard({
 
   return (
     <View style={card} testID="save-as-workout-form">
-      <Text style={[styles.title, { color: theme.text.primary }]}>What is this workout?</Text>
-      <Text style={[styles.label, { color: theme.text.secondary }]}>WORKOUT NAME</Text>
+      <Text style={[styles.title, { color: theme.inverse.text }]}>What is this workout?</Text>
+      <Text style={[styles.label, { color: theme.inverse.textMuted }]}>WORKOUT NAME</Text>
       <TextInput
         value={name}
         onChangeText={setName}
         placeholder="Leg Day"
-        placeholderTextColor={theme.text.disabled}
+        placeholderTextColor={theme.inverse.textMuted + '80'}
         accessibilityLabel="Workout name"
         testID="save-as-workout-name"
-        style={[styles.input, { borderColor: theme.action.primary, color: theme.text.primary }]}
+        style={[styles.input, { borderColor: theme.inverse.accent, color: theme.inverse.text }]}
       />
 
       {/* Shows exactly what is copied — "save as a workout" is otherwise an
           opaque promise. */}
-      <Text style={[styles.label, { color: theme.text.secondary }]}>WHAT GETS SAVED</Text>
+      <Text style={[styles.label, { color: theme.inverse.textMuted }]}>WHAT GETS SAVED</Text>
       {derived.map((item) => (
         <View key={item.exerciseId} style={styles.previewRow}>
-          <Text style={[styles.previewName, { color: theme.text.primary }]}>{item.name}</Text>
-          <Text style={[styles.previewMeta, { color: theme.text.secondary }]}>
+          <Text style={[styles.previewName, { color: theme.inverse.text }]}>{item.name}</Text>
+          <Text style={[styles.previewMeta, { color: theme.inverse.textMuted }]}>
             {describeDerivedExercise(item)}
           </Text>
         </View>
       ))}
-      <Text style={[styles.note, { color: theme.text.secondary }]}>
+      <Text style={[styles.note, { color: theme.inverse.textMuted }]}>
         Weights are not saved as targets — you will log those fresh each time.
       </Text>
 
@@ -168,13 +168,13 @@ export function SaveAsWorkoutCard({
         style={[
           styles.primary,
           styles.fullWidth,
-          { backgroundColor: name.trim() && !busy ? theme.action.primary : theme.surface.sunken },
+          { backgroundColor: name.trim() && !busy ? theme.inverse.accent : theme.inverse.surface },
         ]}
       >
         <Text
           style={[
             styles.primaryLabel,
-            { color: name.trim() && !busy ? theme.action.primaryText : theme.text.disabled },
+            { color: name.trim() && !busy ? theme.inverse.text : theme.inverse.textMuted + '80' },
           ]}
         >
           Save workout

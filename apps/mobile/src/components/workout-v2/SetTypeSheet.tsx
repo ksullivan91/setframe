@@ -1,4 +1,5 @@
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Sheet } from '../Sheet';
 import { useTheme } from '../../theme/ThemeProvider';
 
 /**
@@ -28,6 +29,8 @@ export interface SetTypeSheetProps {
   onClose: () => void;
   onSelect: (setType: string) => void;
   onDelete: () => void;
+  /** Renders in the view tree rather than a Modal. Dev-log gallery only. */
+  inline?: boolean;
 }
 
 export function SetTypeSheet({
@@ -37,22 +40,31 @@ export function SetTypeSheet({
   onClose,
   onSelect,
   onDelete,
+  inline,
 }: SetTypeSheetProps) {
   const theme = useTheme();
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.scrim} onPress={onClose} testID="set-type-scrim">
-        <Pressable
-          style={[styles.sheet, { backgroundColor: theme.surface.raised }]}
-          onPress={(e) => e.stopPropagation()}
-          testID="set-type-sheet"
-        >
+    /* Same migration as ExerciseActionsSheet: the hand-rolled Modal had no
+       keyboard avoidance, no safe-area padding, and could not be shown in
+       the dev gallery. Content unchanged. */
+    <Sheet
+      visible
+      inline={inline}
+      onRequestClose={onClose}
+      dismissOnBackdropPress
+      backdropTestID="set-type-scrim"
+      bordered={false}
+      tone="inverse"
+      gap={0}
+      padding={{ top: 10, bottom: 24, left: 0, right: 0 }}
+    >
+        <View testID="set-type-sheet">
           <View style={styles.grabberRow}>
-            <View style={[styles.grabber, { backgroundColor: theme.border.default }]} />
+            <View style={[styles.grabber, { backgroundColor: theme.inverse.textMuted + '4D' }]} />
           </View>
           <View style={styles.header}>
-            <Text style={[styles.title, { color: theme.text.primary }]}>Set type</Text>
-            <Text style={[styles.context, { color: theme.text.secondary }]}>
+            <Text style={[styles.title, { color: theme.inverse.text }]}>Set type</Text>
+            <Text style={[styles.context, { color: theme.inverse.textMuted }]}>
               Set {setLabel} · {exerciseName}
             </Text>
           </View>
@@ -68,41 +80,38 @@ export function SetTypeSheet({
                 style={[
                   styles.option,
                   option.value === currentType && {
-                    backgroundColor: theme.action.primary + '0F',
+                    backgroundColor: theme.inverse.accent + '0F',
                   },
                 ]}
               >
-                <View style={[styles.chip, { backgroundColor: theme.surface.sunken }]}>
-                  <Text style={[styles.chipLabel, { color: theme.text.primary }]}>
+                <View style={[styles.chip, { backgroundColor: theme.inverse.textMuted + '26' }]}>
+                  <Text style={[styles.chipLabel, { color: theme.inverse.text }]}>
                     {option.chip || setLabel}
                   </Text>
                 </View>
                 <View style={styles.optionText}>
-                  <Text style={[styles.name, { color: theme.text.primary }]}>{option.label}</Text>
-                  <Text style={[styles.desc, { color: theme.text.secondary }]}>{option.desc}</Text>
+                  <Text style={[styles.name, { color: theme.inverse.text }]}>{option.label}</Text>
+                  <Text style={[styles.desc, { color: theme.inverse.textMuted }]}>{option.desc}</Text>
                 </View>
-                <Text style={[styles.check, { color: theme.action.primary }]}>
+                <Text style={[styles.check, { color: theme.inverse.accent }]}>
                   {option.value === currentType ? '✓' : ''}
                 </Text>
               </Pressable>
             ))}
           </ScrollView>
 
-          <View style={[styles.divider, { backgroundColor: theme.surface.sunken }]} />
+          <View style={[styles.divider, { backgroundColor: theme.inverse.textMuted + '26' }]} />
           <Pressable onPress={onDelete} testID="set-type-delete" style={styles.delete}>
-            <Text style={[styles.deleteLabel, { color: theme.status.errorText }]}>
+            <Text style={[styles.deleteLabel, { color: theme.inverse.danger }]}>
               Delete set {setLabel}
             </Text>
           </Pressable>
-        </Pressable>
-      </Pressable>
-    </Modal>
+        </View>
+    </Sheet>
   );
 }
 
 const styles = StyleSheet.create({
-  scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
-  sheet: { maxHeight: '90%', paddingTop: 10, paddingBottom: 24, borderTopLeftRadius: 16, borderTopRightRadius: 16 },
   grabberRow: { alignItems: 'center', paddingBottom: 8 },
   grabber: { width: 36, height: 4, borderRadius: 999 },
   header: { paddingTop: 8, paddingHorizontal: 16, paddingBottom: 12, gap: 2 },

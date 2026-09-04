@@ -39,6 +39,8 @@ export interface ExercisePickerV2Props {
   busy?: boolean;
   /** True while the catalogue is still being fetched. */
   loading?: boolean;
+  /** `inverse` for the dark grounds — the workout logger and guided setup. */
+  tone?: 'default' | 'inverse';
 }
 
 export function ExercisePickerV2({
@@ -50,8 +52,33 @@ export function ExercisePickerV2({
   onAdd,
   busy = false,
   loading = false,
+  tone = 'default',
 }: ExercisePickerV2Props) {
-  const theme = useTheme();
+  const base = useTheme();
+  /* The picker opens from three places with two different grounds: the
+     workout logger and guided setup are dark, the workout editor is light.
+     Resolving a palette by tone keeps one component rather than a dark copy,
+     and every colour below reads from it. */
+  const theme =
+    tone === 'inverse'
+      ? {
+          ...base,
+          text: {
+            ...base.text,
+            primary: base.inverse.text,
+            secondary: base.inverse.textMuted,
+            disabled: base.inverse.textMuted + '80',
+          },
+          surface: {
+            ...base.surface,
+            canvas: base.inverse.surface,
+            raised: base.inverse.raised,
+            sunken: base.inverse.surface,
+          },
+          border: { ...base.border, default: base.inverse.textMuted + '33' },
+          action: { ...base.action, primary: base.inverse.accent, primaryText: base.inverse.text },
+        }
+      : base;
   /* This renders inside a full-screen <Modal>, which covers the status bar
      and the Dynamic Island. With only the fixed token padding, Cancel and
      the search field sat underneath both and could not be tapped — the

@@ -21,6 +21,16 @@ import { typeScale } from '../../theme/getTheme';
 /**
  * The heart-rate chart and time in zone. Figma `265:2 › HeartRateCard`.
  *
+ * **Stays light while the rest of the logger went dark (build 23).** The zone
+ * ramp is accent 300 → 900, chosen because its lightness falls monotonically
+ * so the ordering survives any colour vision — 192 candidate ramps were
+ * tested to arrive at it. On a dark ground that ramp inverts: zone 5 is the
+ * darkest step and all but disappears, in the bars and in the legend
+ * swatches alike. Re-deriving and re-validating a dark-ground ramp is real
+ * work with real accessibility stakes, so this card keeps the ground its
+ * colours were validated against rather than having the ramp flipped by
+ * hand. See docs/design/workout-logger-v2-audit.md §2.8.
+ *
  * Bars are coloured by zone from a sequential single-hue ramp — see
  * `heartRateZoneColors` for why not a rainbow. Colour is redundant with
  * height here by design: the zone IS the bar's height, so a reader who

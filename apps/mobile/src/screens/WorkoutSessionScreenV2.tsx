@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   KeyboardAwareScrollProvider,
   useKeyboardAwareScrollProps,
@@ -19,7 +19,6 @@ import {
   deriveWorkoutFromSession,
   formatPreviousSetCompact,
   formatSessionDuration,
-  formatSessionMeta,
   formatSessionTotalSuffix,
   getPrescriptionDefinition,
   isExerciseComplete,
@@ -42,6 +41,10 @@ import { ExercisePickerV2 } from '../components/exercise-picker/ExercisePickerV2
 import { ExerciseCardsSkeleton } from '../components/training-v2/TrainingSkeletons';
 import { SetTypeSheet } from '../components/workout-v2/SetTypeSheet';
 import { ExerciseActionsSheet } from '../components/workout-v2/ExerciseActionsSheet';
+import { LoggerHeader } from '../components/workout-v2/LoggerHeader';
+import { EmptySessionCard } from '../components/workout-v2/EmptySessionCard';
+import { FinishConfirmSheet } from '../components/workout-v2/FinishConfirmSheet';
+import { LoggerCompleteBanner } from '../components/workout-v2/LoggerCompleteBanner';
 import { SaveAsWorkoutCard } from '../components/training-v2/SaveAsWorkoutCard';
 import { useActionFeedback } from '../lib/useActionFeedback';
 import { WatchSummaryCard } from '../components/watch/WatchSummaryCard';
@@ -152,8 +155,8 @@ function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null>
   const [pickerOpen, setPickerOpen] = useState(false);
   const [setSheetFor, setSetSheetFor] = useState<string | null>(null);
   const [actionsFor, setActionsFor] = useState<string | null>(null);
-  const [rpeShownFor, setRpeShownFor] = useState<Record<string, boolean>>({});
   const [saveOfferDismissed, setSaveOfferDismissed] = useState(false);
+  const [confirmingFinish, setConfirmingFinish] = useState(false);
   const [savedWorkoutName, setSavedWorkoutName] = useState<string | null>(null);
 
   /* Both keys, always.
@@ -247,6 +250,9 @@ function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null>
     },
     onError: (_e, _v, context) => {
       if (context?.previous) queryClient.setQueryData(sessionKey, context.previous);
+      /* The rollback alone is indistinguishable from the app undoing the
+         action on purpose — the row reappears and nothing says why. */
+      feedback.report('Could not add that set. Try again.')();
     },
     onSuccess: invalidate,
   });
@@ -300,6 +306,9 @@ function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null>
     },
     onError: (_e, _v, context) => {
       if (context?.previous) queryClient.setQueryData(sessionKey, context.previous);
+      /* The rollback alone is indistinguishable from the app undoing the
+         action on purpose — the row reappears and nothing says why. */
+      feedback.report('Could not change that set type. Try again.')();
     },
     onSuccess: invalidate,
   });
@@ -319,6 +328,9 @@ function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null>
     },
     onError: (_e, _v, context) => {
       if (context?.previous) queryClient.setQueryData(sessionKey, context.previous);
+      /* The rollback alone is indistinguishable from the app undoing the
+         action on purpose — the row reappears and nothing says why. */
+      feedback.report('Could not delete that set. Try again.')();
     },
     onSuccess: invalidate,
   });
@@ -338,6 +350,9 @@ function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null>
     },
     onError: (_e, _v, context) => {
       if (context?.previous) queryClient.setQueryData(sessionKey, context.previous);
+      /* The rollback alone is indistinguishable from the app undoing the
+         action on purpose — the row reappears and nothing says why. */
+      feedback.report('Could not remove that exercise. Try again.')();
     },
     onSuccess: invalidate,
   });
@@ -485,33 +500,14 @@ function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null>
        back affordance during a slow load rather than a bare word. */
     return (
       <View style={[styles.screen, { backgroundColor: theme.surface.canvas }]} testID="workout-v2-loading">
-        <View
-          style={[
-            styles.header,
-            {
-              paddingTop: insets.top + 16,
-              backgroundColor: theme.surface.raised,
-              borderBottomColor: theme.border.subtle,
-            },
-          ]}
-        >
-          <View style={styles.headerRow}>
-            <View style={styles.titleGroup}>
-              <Pressable
-                onPress={() => router.back()}
-                accessibilityRole="button"
-                accessibilityLabel="Back to Log"
-                style={styles.back}
-              >
-                <Text style={[styles.backGlyph, { color: theme.text.secondary }]}>‹</Text>
-              </Pressable>
-              <Text style={[styles.title, { color: theme.text.primary }]}>Workout session</Text>
-            </View>
-          </View>
-          <Text style={[styles.meta, { color: theme.text.secondary }]}>
-            {query.isError ? "Couldn't load this workout." : 'Loading…'}
-          </Text>
-        </View>
+        <LoggerHeader
+          totalVolume={0}
+          loggedSets={0}
+          plannedSets={0}
+          statusLine={query.isError ? "Couldn't load this workout." : 'Loading…'}
+          onBack={() => router.back()}
+          onFinish={() => {}}
+        />
         {/* Content-shaped, so the body is not simply blank while the session
             loads — and sized so the real cards land where the placeholders
             were. */}
@@ -565,6 +561,9 @@ function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null>
   const totalVolume = sessionReadout.totalVolume;
   const loggedSets = sessionReadout.loggedSetCount;
   const plannedSets = exercises.reduce((n, log) => n + log.sets.length, 0);
+  /* Rows that exist but hold nothing. A session with no exercises at all has
+     none of these, so it is called out separately below. */
+  const unloggedSets = Math.max(plannedSets - loggedSets, 0);
   const duration = formatSessionDuration(session.startedAt, session.completedAt);
   const sessionDate = new Date(session.localDate + 'T12:00:00').toLocaleDateString(undefined, {
     weekday: 'long',
@@ -593,115 +592,25 @@ function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null>
   return (
     <View style={[styles.screen, { backgroundColor: theme.surface.canvas }]} testID="workout-v2">
       {sessionComplete ? (
-        /* The session's strongest reward, and the only place a green wash
-           appears — the completed exercise cards deliberately stay white with
-           a tinted border so this stays distinct from them. */
-        <View
-          style={[
-            styles.banner,
-            {
-              paddingTop: insets.top + 16,
-              backgroundColor: theme.status.success + '1F',
-              borderBottomColor: theme.status.success + '40',
-            },
-          ]}
-          testID="completion-banner"
-        >
-          <View style={styles.headerRow}>
-            <View style={styles.bannerMark}>
-              <View
-                style={[
-                  styles.bannerRing,
-                  { backgroundColor: theme.surface.raised, borderColor: theme.status.success },
-                ]}
-              >
-                <Text style={[styles.bannerCheck, { color: theme.status.successText }]}>✓</Text>
-              </View>
-              <Text style={[styles.bannerTitle, { color: theme.text.primary }]}>
-                Workout complete
-              </Text>
-            </View>
-            <Pressable
-              onPress={() => router.back()}
-              style={[styles.finish, { backgroundColor: theme.action.primary }]}
-              accessibilityRole="button"
-              accessibilityLabel="Done"
-            >
-              <Text style={[styles.finishText, { color: theme.action.primaryText }]}>Done</Text>
-            </Pressable>
-          </View>
-          <Text style={[styles.meta, { color: theme.text.secondary }]} testID="banner-meta">
-            {formatSessionMeta({
-              title: sessionDate,
-              duration,
-              loggedSetCount: loggedSets,
-              personalRecordCount: sessionReadout.personalRecordCount,
-            })}
-          </Text>
-          <View style={styles.bannerTotal}>
-            <Text style={[styles.bannerTotalValue, { color: theme.text.primary }]}>
-              {totalVolume.toLocaleString('en-US')}
-            </Text>
-            <Text
-              style={[styles.bannerTotalUnit, { color: theme.text.secondary }]}
-              testID="banner-total-suffix"
-            >
-              {formatSessionTotalSuffix(sessionReadout)}
-            </Text>
-          </View>
-        </View>
+        <LoggerCompleteBanner
+          total={totalVolume.toLocaleString('en-US')}
+          totalUnit={formatSessionTotalSuffix(sessionReadout)}
+          loggedSets={loggedSets}
+          personalRecordCount={sessionReadout.personalRecordCount}
+          duration={duration}
+          onDone={() => router.back()}
+        />
       ) : (
-        <View
-          style={[
-            styles.header,
-            {
-              paddingTop: insets.top + 16,
-              backgroundColor: theme.surface.raised,
-              borderBottomColor: theme.border.subtle,
-            },
-          ]}
-        >
-          <View style={styles.headerRow}>
-            <View style={styles.titleGroup}>
-              <Pressable
-                onPress={() => router.back()}
-                accessibilityRole="button"
-                accessibilityLabel="Back to Log"
-                style={styles.back}
-              >
-                <Text style={[styles.backGlyph, { color: theme.text.secondary }]}>‹</Text>
-              </Pressable>
-              <Text style={[styles.title, { color: theme.text.primary }]} numberOfLines={1}>
-                Workout session
-              </Text>
-            </View>
-            <Pressable
-              onPress={() => finish.mutate()}
-              /* Finishing is a real round trip that then navigates away.
-                 With no pending state a second tap fired a second complete
-                 while the first was still in flight — and, since it also
-                 had no error path, a failure looked identical to a button
-                 that did nothing. */
-              disabled={finish.isPending}
-              testID="finish-workout"
-              style={[
-                styles.finish,
-                { backgroundColor: theme.action.primary, opacity: finish.isPending ? 0.7 : 1 },
-              ]}
-              accessibilityRole="button"
-              accessibilityState={{ disabled: finish.isPending }}
-            >
-              {finish.isPending ? (
-                <ActivityIndicator color={theme.action.primaryText} />
-              ) : (
-                <Text style={[styles.finishText, { color: theme.action.primaryText }]}>Finish</Text>
-              )}
-            </Pressable>
-          </View>
-          <Text style={[styles.meta, { color: theme.text.secondary }]} testID="session-meta">
-            {totalVolume.toLocaleString('en-US')} lb · {loggedSets} of {plannedSets} sets
-          </Text>
-        </View>
+        <LoggerHeader
+          totalVolume={totalVolume}
+          loggedSets={loggedSets}
+          plannedSets={plannedSets}
+          finishing={finish.isPending}
+          onBack={() => router.back()}
+          /* Straight through when everything planned is written; otherwise
+             ask. Spec §4 — unwritten rows are discarded, never zeroed. */
+          onFinish={() => (unloggedSets > 0 ? setConfirmingFinish(true) : finish.mutate())}
+        />
       )}
 
       <ScrollView
@@ -777,12 +686,17 @@ function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null>
             <EffortByExerciseCard efforts={insights.efforts} />
           </View>
         ) : null}
+        {/* An empty session is a real state now that the workout picker
+            offers "Start an empty workout"; before, `exercises.map` over
+            nothing simply rendered nothing. Not shown once the workout is
+            complete — an empty finished session is a different problem, and
+            the banner above already says the workout is over. */}
+        {exercises.length === 0 && !sessionComplete ? (
+          <EmptySessionCard onAddExercise={() => setPickerOpen(true)} />
+        ) : null}
         {exercises.map((log) => {
           const definition = getPrescriptionDefinition(log.prescription);
-          /* RPE is off by default and toggled per exercise from its ⋯
-             sheet, the only place the design offers it. */
-          const baseFields = visibleFields(definition);
-          const fields = rpeShownFor[log.id] ? ([...baseFields, 'rpe'] as const) : baseFields;
+          const fields = visibleFields(definition);
           const complete = isExerciseComplete(log.prescription, log.sets);
           const readout = complete
             ? buildCompletedExerciseReadout(
@@ -888,18 +802,21 @@ function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null>
               /* Home indicator, not a literal — matches the web build's
                  env(safe-area-inset-bottom). */
               paddingBottom: Math.max(insets.bottom, 20),
-              backgroundColor: theme.surface.raised,
-              borderTopColor: theme.border.subtle,
+              /* Dark, like the header it bookends. Left light through the
+                 first reskin pass, which put a white bar under a dark header
+                 with dark cards between them. */
+              backgroundColor: theme.inverse.surface,
+              borderTopColor: 'transparent',
             },
           ]}
         >
           <Pressable
-            style={[styles.addExercise, { backgroundColor: theme.surface.sunken }]}
+            style={[styles.addExercise, { backgroundColor: theme.inverse.raised }]}
             accessibilityRole="button"
             testID="add-exercise"
             onPress={() => setPickerOpen(true)}
           >
-            <Text style={[styles.addExerciseText, { color: theme.action.primary }]}>
+            <Text style={[styles.addExerciseText, { color: theme.inverse.accentMuted }]}>
               + Add exercise
             </Text>
           </Pressable>
@@ -923,18 +840,27 @@ function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null>
         <ExerciseActionsSheet
           exerciseName={activeActions.exercise.name}
           context={`${activeActions.sets.length} set${activeActions.sets.length === 1 ? '' : 's'} in this session`}
-          rpeVisible={!!rpeShownFor[activeActions.id]}
           onClose={() => setActionsFor(null)}
           onViewHistory={() => router.push(`/exercise-history/${activeActions.exerciseId}`)}
-          onToggleRpe={() =>
-            setRpeShownFor((prev) => ({ ...prev, [activeActions.id]: !prev[activeActions.id] }))
-          }
           onRemove={() => removeExercise.mutate(activeActions.id)}
         />
       ) : null}
 
+      <FinishConfirmSheet
+        visible={confirmingFinish}
+        unloggedCount={unloggedSets}
+        empty={exercises.length === 0}
+        busy={finish.isPending}
+        onConfirm={() => {
+          setConfirmingFinish(false);
+          finish.mutate();
+        }}
+        onKeepGoing={() => setConfirmingFinish(false)}
+      />
+
       <Modal visible={pickerOpen} animationType="slide" onRequestClose={() => setPickerOpen(false)}>
         <ExercisePickerV2
+          tone="inverse"
           exercises={catalogue}
           title="Add to this workout"
           onCancel={() => setPickerOpen(false)}
@@ -948,7 +874,7 @@ function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null>
 }
 
 /**
- * RPE is an optional extra column, off by default — the table cannot spare a
+ * The table cannot spare a
  * permanent column for a field most sets leave blank. Governs the column only:
  * `commit` still writes every field the prescription supports.
  */
@@ -982,30 +908,6 @@ function targetsFor(prescription: Prescription | null | undefined): Partial<SetR
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  header: { gap: 6, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  titleGroup: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1 },
-  back: { width: 24, height: 28, alignItems: 'center', justifyContent: 'center' },
-  backGlyph: { fontSize: 22, fontWeight: '600' },
-  title: { fontSize: 18, fontWeight: '600', flexShrink: 1 },
-  finish: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
-  finishText: { fontSize: 13, fontWeight: '600' },
-  meta: { fontSize: 12 },
-  banner: { gap: 8, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 16, borderBottomWidth: 1 },
-  bannerMark: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
-  bannerRing: {
-    width: 26,
-    height: 26,
-    borderRadius: 999,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bannerCheck: { fontSize: 14, fontWeight: '600' },
-  bannerTitle: { fontSize: 22, fontWeight: '600', flexShrink: 1 },
-  bannerTotal: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
-  bannerTotalValue: { fontSize: 32, fontWeight: '600' },
-  bannerTotalUnit: { fontSize: 13, fontWeight: '500' },
   body: { alignItems: 'center', gap: 12, padding: 16 },
   watchBlock: { width: CARD_WIDTH, gap: 12 },
   bottomBar: { paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1, alignItems: 'center' },

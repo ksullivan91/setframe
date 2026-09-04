@@ -64,13 +64,13 @@ export function WatchAttachCard({
   };
 
   return (
-    <Card style={styles.card} testID="watch-attach">
-      <Text style={[styles.title, { color: theme.text.primary }]}>
+    <Card tone="inverse" style={styles.card} testID="watch-attach">
+      <Text style={[styles.title, { color: theme.inverse.text }]}>
         {single
           ? 'Your Watch recorded a workout'
           : `Your Watch recorded ${candidates.length} workouts`}
       </Text>
-      <Text style={[styles.body, { color: theme.text.secondary }]}>
+      <Text style={[styles.body, { color: theme.inverse.textMuted }]}>
         {choosing
           ? 'Pick the ones that were part of this session.'
           : 'They overlap this session or follow it closely. Attach the ones that were part of it.'}
@@ -83,20 +83,23 @@ export function WatchAttachCard({
             <View style={styles.candidateHead}>
               <View style={styles.candidateMeta}>
                 <Text
-                  style={[styles.candidateTitle, { color: theme.text.primary }]}
+                  style={[styles.candidateTitle, { color: theme.inverse.text }]}
                   numberOfLines={1}
                 >
                   {workout.title}
                 </Text>
-                <Text style={[styles.candidateDetail, { color: theme.text.secondary }]}>
+                <Text style={[styles.candidateDetail, { color: theme.inverse.textMuted }]}>
                   {describe(workout)}
                 </Text>
               </View>
               {/* Says how it relates to the session rather than just that it
                   exists — "After" is the difference between the lift and the
                   walk home, and the user is the one who knows which counts. */}
-              <View style={[styles.badge, { backgroundColor: tint(theme.status.info, 0.14) }]}>
-                <Text style={[styles.badgeLabel, { color: theme.text.secondary }]}>
+              {/* Heavier alpha than the light card carried: a 14% wash that
+                  reads clearly over white all but disappears over
+                  `inverse.raised`. */}
+              <View style={[styles.badge, { backgroundColor: tint(theme.status.info, 0.28) }]}>
+                <Text style={[styles.badgeLabel, { color: theme.inverse.textMuted }]}>
                   {choosing ? (selected ? 'Selected' : 'Tap to pick')
                   : relation === 'overlaps' ? 'Overlaps'
                   : 'After'}
@@ -108,7 +111,7 @@ export function WatchAttachCard({
                 Watch recorded no heart rate for. */}
             <View style={styles.metrics}>
               {metrics(workout).map((metric) => (
-                <Text key={metric} style={[styles.metric, { color: theme.text.secondary }]}>
+                <Text key={metric} style={[styles.metric, { color: theme.inverse.textMuted }]}>
                   {metric}
                 </Text>
               ))}
@@ -126,17 +129,17 @@ export function WatchAttachCard({
                 onPress={() => onDismiss(workout.externalId)}
                 style={({ pressed }) => [
                   styles.dismiss,
-                  { backgroundColor: theme.surface.raised, opacity: pressed || busy ? 0.7 : 1 },
+                  { backgroundColor: theme.inverse.raised, opacity: pressed || busy ? 0.7 : 1 },
                 ]}
               >
-                <Text style={[styles.dismissLabel, { color: theme.text.secondary }]}>Dismiss</Text>
+                <Text style={[styles.dismissLabel, { color: theme.inverse.textMuted }]}>Dismiss</Text>
               </Pressable>
             ) : null}
           </>
         );
 
         const background =
-          selected ? tint(theme.status.info, 0.16) : tint(theme.status.info, 0.08);
+          selected ? tint(theme.status.info, 0.32) : tint(theme.status.info, 0.16);
 
         return choosing ? (
           <Pressable
@@ -150,7 +153,7 @@ export function WatchAttachCard({
               styles.candidate,
               {
                 backgroundColor: background,
-                borderColor: selected ? theme.action.primary : 'transparent',
+                borderColor: selected ? theme.inverse.accent : 'transparent',
                 opacity: pressed ? 0.9 : 1,
               },
             ]}
@@ -255,19 +258,19 @@ function Action({
         styles.action,
         primary ? styles.actionPrimary : styles.actionSecondary,
         {
-          backgroundColor: primary ? theme.action.primary : theme.surface.sunken,
+          backgroundColor: primary ? theme.inverse.accent : theme.inverse.surface,
           opacity: pressed || disabled ? 0.6 : 1,
         },
       ]}
     >
       {busy ? (
-        <ActivityIndicator color={primary ? theme.action.primaryText : theme.action.primary} />
+        <ActivityIndicator color={primary ? theme.inverse.text : theme.inverse.accent} />
       ) : (
         <Text
           numberOfLines={1}
           style={[
             styles.actionLabel,
-            { color: primary ? theme.action.primaryText : theme.action.primary },
+            { color: primary ? theme.inverse.text : theme.inverse.accent },
           ]}
         >
           {label}

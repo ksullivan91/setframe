@@ -353,6 +353,7 @@ export function GuidedSetupFlow({
 
       <Modal visible={pickerOpen} animationType="slide" onRequestClose={() => setPickerOpen(false)}>
         <ExercisePickerV2
+          tone="inverse"
           exercises={(catalogue.data ?? []) as PickableExercise[]}
           title={`Add to ${dayType?.name ?? 'workout'}`}
           onCancel={() => setPickerOpen(false)}
