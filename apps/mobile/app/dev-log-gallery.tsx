@@ -5,6 +5,8 @@ import { LogWeekStrip } from '../src/components/log/LogWeekStrip';
 import { LogHero } from '../src/components/log/LogHero';
 import { LogEntryRow } from '../src/components/log/LogEntryRow';
 import { TrendMetricCard } from '../src/components/log/TrendMetricCard';
+import { HeartRateZoneCard } from '../src/components/log/HeartRateZoneCard';
+import { zoneBands } from '@setframe/domain';
 import { DaySignals } from '../src/components/log/DaySignals';
 import type { DayType } from '@setframe/schemas';
 import { AddActivitySheet } from '../src/components/log/AddActivitySheet';
@@ -27,6 +29,32 @@ const PHONE = { width: 390, height: 500 };
 const HERO_PHONE = { width: 390, height: 620 };
 
 const TODAY = '2026-09-03';
+
+/* A resting rate of 54 and a max of 190 — the shape the app derives from
+   HealthKit plus an age estimate. */
+const ZONE_BANDS = zoneBands({ restingBpm: 54, maxBpm: 190 });
+
+/** A real month: a light week, a big week, then a taper. */
+const ZONE_WEEKS_30 = [
+  { label: 'Aug 10', minutes: [44, 38, 18, 8, 1] as const },
+  { label: 'Aug 17', minutes: [36, 52, 31, 16, 4] as const },
+  { label: 'Aug 24', minutes: [28, 34, 29, 24, 8] as const },
+  { label: 'Aug 31', minutes: [21, 24, 18, 23, 5] as const },
+];
+
+/** Thirteen weeks, labelled every fourth so the axis stays readable. */
+const ZONE_WEEKS_90 = Array.from({ length: 13 }, (_, i) => {
+  const d = i / 12;
+  const swell = 0.7 + 0.5 * Math.sin((i / 12) * Math.PI);
+  return {
+    label: i % 4 === 0 ? `W${i + 1}` : '',
+    minutes: [
+      Math.round((40 - 14 * d) * swell), Math.round((32 + 6 * d) * swell),
+      Math.round((20 + 8 * d) * swell), Math.round((10 + 14 * d) * swell),
+      Math.round((2 + 6 * d) * swell),
+    ] as unknown as readonly [number, number, number, number, number],
+  };
+});
 
 const PICKER_WORKOUTS = [
   { id: 'day-1', name: 'Upper A', exerciseCount: 5, plannedSetCount: 14, estimatedDurationMinutes: 52 },
@@ -336,6 +364,33 @@ export default function DevLogGallery() {
           with no way to scope it to a parent, so a `visible` sheet in the
           gallery painted over every other frame and the gallery could not be
           scrolled past it. */}
+      {/* Trends' only distribution card. Every other card is one number with
+          a change; this is five numbers a week, so it is a stacked column per
+          week rather than a line. */}
+      <Frame label="Trends · time in zones, 30 days">
+        <View style={{ paddingTop: spacing[24], paddingHorizontal: spacing[16] }}>
+          <HeartRateZoneCard bands={ZONE_BANDS} changeMinutes={38} weeks={ZONE_WEEKS_30} />
+        </View>
+      </Frame>
+
+      <Frame label="Trends · time in zones, 90 days">
+        <View style={{ paddingTop: spacing[24], paddingHorizontal: spacing[16] }}>
+          <HeartRateZoneCard bands={ZONE_BANDS} changeMinutes={84} weeks={ZONE_WEEKS_90} />
+        </View>
+      </Frame>
+
+      <Frame label="Trends · zones, nothing recorded">
+        <View style={{ paddingTop: spacing[24], paddingHorizontal: spacing[16] }}>
+          <HeartRateZoneCard bands={ZONE_BANDS} weeks={[]} unavailable="no-data" />
+        </View>
+      </Frame>
+
+      <Frame label="Trends · zones, no model">
+        <View style={{ paddingTop: spacing[24], paddingHorizontal: spacing[16] }}>
+          <HeartRateZoneCard bands={[]} weeks={[]} unavailable="no-model" />
+        </View>
+      </Frame>
+
       <Frame label="Sheet · Add activity">
         <AddActivitySheet
           visible
