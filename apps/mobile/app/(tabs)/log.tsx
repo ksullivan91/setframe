@@ -39,6 +39,7 @@ import {
   TodayAdditionalActivitySection,
   additionalActivitiesQuery,
 } from '../../src/components/TodayAdditionalActivitySection';
+import { summariseSessionDetail, type SessionDetail } from '../../src/lib/useCloseAbandonedSessions';
 import {
   addDays,
   buildCompletedSessionReadout,
@@ -366,6 +367,17 @@ export default function TodayScreen() {
      use it; the value is computed from them further down. */
   const isPageLoading = todayQuery.isLoading || additionalActivities.isLoading;
 
+  const runningSessionId = todayQuery.data?.sessions.find((x) => x.status === 'in_progress')?.id;
+  /* Only while something is open, and it reuses the summary the abandoned
+     session sweep already needed — the same question asked in two places
+     should not have two answers. */
+  const runningDetail = useQuery({
+    queryKey: ['session-detail', runningSessionId],
+    enabled: Boolean(runningSessionId),
+    queryFn: () => api.get<SessionDetail>(`/workout-sessions/${runningSessionId}`),
+  });
+  const runningSets = runningDetail.data ? summariseSessionDetail(runningDetail.data).loggedSetCount : 0;
+
   const manual = todayQuery.data?.manualEntry;
 
   useEffect(() => {
@@ -668,6 +680,18 @@ export default function TodayScreen() {
     </View>
   );
 
+  /* "Started 18 min ago" rather than a clock time: while a session is open
+     the useful fact is how long it has been running. */
+  const startedAgo = (() => {
+    const startedAt = activeSession?.startedAt;
+    if (!startedAt) return null;
+    const minutes = Math.round((Date.now() - new Date(startedAt).getTime()) / 60000);
+    if (minutes < 1) return 'Just started';
+    if (minutes < 60) return `Started ${minutes} min ago`;
+    const hours = Math.floor(minutes / 60);
+    return `Started ${hours}h ${String(minutes % 60).padStart(2, '0')}m ago`;
+  })();
+
   const heroProps: LogHeroProps = useMemo(() => {
     const dayName = todayQuery.data?.dayLabel ?? 'Training';
     /* The design splits the title across two lines, the second in the accent.
@@ -684,8 +708,13 @@ export default function TodayScreen() {
         return {
           state: 'in-progress',
           eyebrow: 'IN PROGRESS',
+          chip: startedAgo ?? undefined,
           title: head!,
           titleAccent: tail,
+          body:
+            runningSets > 0
+              ? `${runningSets} ${runningSets === 1 ? 'set' : 'sets'} logged so far.`
+              : 'Nothing logged yet — pick up where you left off.',
           primary: {
             label: 'Resume workout',
             testID: 'resume-workout',
@@ -807,6 +836,8 @@ export default function TodayScreen() {
     completedStats,
     completedDuration,
     startWorkoutMutation,
+    startedAgo,
+    runningSets,
     markRestDayMutation,
     undoRestDayMutation,
     router,

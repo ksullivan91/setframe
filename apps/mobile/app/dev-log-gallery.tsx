@@ -175,7 +175,19 @@ export default function DevLogGallery() {
           chip="Started 18 min ago"
           title="Upper Body"
           titleAccent="Push"
-          progress={{ done: 6, total: 14 }}
+          body="6 sets logged so far."
+          primary={{ label: 'Resume workout', onPress: () => {} }}
+        />
+      </HeroFrame>
+
+      <HeroFrame label="78 · Hero — in progress, nothing logged">
+        <LogHero
+          state="in-progress"
+          eyebrow="IN PROGRESS"
+          chip="Just started"
+          title="Lower Body"
+          titleAccent="Squat"
+          body="Nothing logged yet — pick up where you left off."
           primary={{ label: 'Resume workout', onPress: () => {} }}
         />
       </HeroFrame>
