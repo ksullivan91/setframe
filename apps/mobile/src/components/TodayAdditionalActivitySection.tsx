@@ -335,14 +335,9 @@ export function TodayAdditionalActivitySection({
         </View>
       ) : null}
 
-      {!query.isLoading && !query.isError && items.length === 0 ? (
-        <>
-          <Text style={{ color: theme.text.secondary, fontSize: typeScale.compactBody.fontSize }}>
-            Add walks, mobility, yoga, or anything else you do outside today&apos;s planned workout.
-          </Text>
-          <Button label="Add activity" variant="secondary" onPress={openAdd} />
-        </>
-      ) : null}
+      {/* The empty state used to be a sentence and a button. The row above
+          is now both — it says "Nothing added" and opens the same sheet — so
+          repeating it underneath was two affordances for one action. */}
 
       {items.map((activity) => {
         /* Figma 211:867. Time first, then duration, then distance — the
@@ -477,7 +472,10 @@ export function TodayAdditionalActivitySection({
       {/* Workouts are their own Apple Health permission, so "connected"
           does not imply "discoverable" — and someone who granted
           everything last week still has to grant this. */}
-      {discovery.canRead === false ? (
+      {/* Only where we actually asked. Discovery is disabled off today, and
+          reporting that as "not shared" told people their permission was
+          missing on every past day while it was granted. */}
+      {isToday && discovery.canRead === false ? (
         <View style={[styles.permission, { backgroundColor: theme.surface.raised }]} testID="workout-permission">
           <Text style={{ color: theme.text.primary, fontSize: typeScale.compactBody.fontSize, fontWeight: '600' }}>
             Your Watch workouts are not shared yet

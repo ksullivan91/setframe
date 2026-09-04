@@ -18,7 +18,9 @@ export type LogHeroState =
   | 'no-program'
   | 'program-empty'
   | 'scheduled'
-  | 'unscheduled';
+  | 'unscheduled'
+  /** A past date that holds nothing. A record, not an invitation. */
+  | 'past-empty';
 
 export interface LogHeroStat {
   value: string;

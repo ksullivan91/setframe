@@ -79,6 +79,15 @@ export function LogEntryRow({
           </View>
         )}
         </View>
+        {/* The chevron and the plus live *inside* the press target. As
+            siblings of it they looked like the button and did nothing when
+            tapped — which is the part of the row people aim at. Only Retry
+            stays outside, because it is a different action. */}
+        {readOnly || state === 'error' ? null : value ? (
+          <ChevronRight size={18} color={theme.text.secondary} />
+        ) : (
+          <Plus size={18} color={theme.action.primary} />
+        )}
       </Pressable>
 
       {state === 'error' && onRetry ? (
@@ -91,11 +100,7 @@ export function LogEntryRow({
         >
           <Text style={[styles.retry, { color: theme.action.primary }]}>Retry</Text>
         </Pressable>
-      ) : readOnly ? null : value ? (
-        <ChevronRight size={18} color={theme.text.secondary} />
-      ) : (
-        <Plus size={18} color={theme.action.primary} />
-      )}
+      ) : null}
     </View>
   );
 }
@@ -112,7 +117,13 @@ const styles = StyleSheet.create({
   },
   /* The press target fills the row so the whole card is tappable, with
      Retry sitting outside it. */
-  pressArea: { flex: 1 },
+  pressArea: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing[12],
+  },
   meta: { gap: spacing[4] },
   label: { fontSize: typeScale.compactBody.fontSize, fontWeight: '500' },
   statusLine: { flexDirection: 'row', alignItems: 'center', gap: spacing[8] },

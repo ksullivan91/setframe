@@ -149,9 +149,12 @@ afterEach(() => {
 
 /** Story 41 — Today's Additional Activity section, mobile counterpart. */
 describe('TodayAdditionalActivitySection', () => {
-  it('explains what the section is for when empty', async () => {
+  it('says the day holds nothing, on the row that adds one', async () => {
+    /* The empty state used to be a sentence plus its own button. The row is
+       both now — two affordances for one action was the bug. */
     const rendered = await renderSection();
-    expect(textNodesContaining(rendered, "Add walks, mobility, yoga").length).toBeGreaterThan(0);
+    expect(textNodesContaining(rendered, 'Nothing added').length).toBeGreaterThan(0);
+    expect(textNodesContaining(rendered, 'Add walks, mobility, yoga')).toHaveLength(0);
   });
 
   it('shows type and duration for a logged activity', async () => {
@@ -173,7 +176,7 @@ describe('TodayAdditionalActivitySection', () => {
     const rendered = await renderSection();
 
     await act(async () => {
-      pressablesByLabel(rendered, 'Add activity')[0]!.props.onPress();
+      pressablesByLabel(rendered, 'Activity. Add an activity')[0]!.props.onPress();
     });
     await flush();
 
@@ -198,7 +201,7 @@ describe('TodayAdditionalActivitySection', () => {
     const rendered = await renderSection();
 
     await act(async () => {
-      pressablesByLabel(rendered, 'Add activity')[0]!.props.onPress();
+      pressablesByLabel(rendered, 'Activity. Add an activity')[0]!.props.onPress();
     });
     await flush();
 
@@ -274,7 +277,7 @@ describe('TodayAdditionalActivitySection activity-type-driven fields', () => {
     const rendered = await renderSection();
 
     await act(async () => {
-      pressablesByLabel(rendered, 'Add activity')[0]!.props.onPress();
+      pressablesByLabel(rendered, 'Activity. Add an activity')[0]!.props.onPress();
     });
     await flush();
     expect(fieldLabels(rendered)).toContain('Distance');
@@ -292,7 +295,7 @@ describe('TodayAdditionalActivitySection activity-type-driven fields', () => {
     const rendered = await renderSection();
 
     await act(async () => {
-      pressablesByLabel(rendered, 'Add activity')[0]!.props.onPress();
+      pressablesByLabel(rendered, 'Activity. Add an activity')[0]!.props.onPress();
     });
     await flush();
     expect(fieldLabels(rendered)).not.toContain('Activity name');
@@ -329,7 +332,7 @@ describe('TodayAdditionalActivitySection activity-type-driven fields', () => {
     const rendered = await renderSection();
 
     await act(async () => {
-      pressablesByLabel(rendered, 'Add activity')[0]!.props.onPress();
+      pressablesByLabel(rendered, 'Activity. Add an activity')[0]!.props.onPress();
     });
     await flush();
 
@@ -385,7 +388,7 @@ describe('TodayAdditionalActivitySection quick activity shortcuts', () => {
     const rendered = await renderSection();
 
     await act(async () => {
-      pressablesByLabel(rendered, 'Add activity')[0]!.props.onPress();
+      pressablesByLabel(rendered, 'Activity. Add an activity')[0]!.props.onPress();
     });
     await flush();
 
@@ -397,7 +400,7 @@ describe('TodayAdditionalActivitySection quick activity shortcuts', () => {
     const rendered = await renderSection();
 
     await act(async () => {
-      pressablesByLabel(rendered, 'Add activity')[0]!.props.onPress();
+      pressablesByLabel(rendered, 'Activity. Add an activity')[0]!.props.onPress();
     });
     await flush();
 
@@ -421,7 +424,7 @@ describe('TodayAdditionalActivitySection quick activity shortcuts', () => {
     const rendered = await renderSection();
 
     await act(async () => {
-      pressablesByLabel(rendered, 'Add activity')[0]!.props.onPress();
+      pressablesByLabel(rendered, 'Activity. Add an activity')[0]!.props.onPress();
     });
     await flush();
 
@@ -446,7 +449,7 @@ describe('TodayAdditionalActivitySection quick activity shortcuts', () => {
     const rendered = await renderSection();
 
     await act(async () => {
-      pressablesByLabel(rendered, 'Add activity')[0]!.props.onPress();
+      pressablesByLabel(rendered, 'Activity. Add an activity')[0]!.props.onPress();
     });
     await flush();
 
@@ -457,7 +460,7 @@ describe('TodayAdditionalActivitySection quick activity shortcuts', () => {
     const rendered = await renderSection();
 
     await act(async () => {
-      pressablesByLabel(rendered, 'Add activity')[0]!.props.onPress();
+      pressablesByLabel(rendered, 'Activity. Add an activity')[0]!.props.onPress();
     });
     await flush();
 
@@ -489,7 +492,7 @@ describe('TodayAdditionalActivitySection quick activity shortcuts', () => {
     const rendered = await renderSection();
 
     await act(async () => {
-      pressablesByLabel(rendered, 'Add activity')[0]!.props.onPress();
+      pressablesByLabel(rendered, 'Activity. Add an activity')[0]!.props.onPress();
     });
     await flush();
 

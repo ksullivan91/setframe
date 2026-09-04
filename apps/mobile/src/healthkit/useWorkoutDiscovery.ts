@@ -62,7 +62,11 @@ export function useWorkoutDiscovery({
 
   const read = useCallback(async () => {
     if (!enabled) {
-      setCanRead(false);
+      /* `null` is "we have not asked", which is what this is — not `false`,
+         which the UI reads as "permission refused" and shows a Share
+         workouts prompt for. That made every past day claim the Watch
+         permission was missing while it was granted. */
+      setCanRead(null);
       setWorkouts([]);
       return;
     }

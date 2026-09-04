@@ -84,6 +84,14 @@ interface DashboardTodayResponse {
     activeEnergyKcal?: string | null;
     exerciseMinutes?: number | null;
     appleMoveTimeMinutes?: number | null;
+    /* The endpoint returns the whole daily_activity_summary row — its
+       response schema is `passthrough()` — and these were simply never
+       declared here. Reading them from the device hook instead is what made
+       every past day show today's steps and heart rate. */
+    steps?: number | null;
+    restingHeartRate?: string | null;
+    sleepTotalMinutes?: string | null;
+    hrvSdnnMs?: string | null;
     syncedThrough?: string | null;
     updatedAt?: string | null;
   } | null;
@@ -146,6 +154,10 @@ function formatShortDate(localDate: string) {
     day: 'numeric',
     month: 'short',
   });
+}
+
+function fmtCount(value: number | null): string {
+  return value == null ? '—' : Math.round(value).toLocaleString('en-US');
 }
 
 function formatSleep(minutes: unknown): string {
@@ -597,7 +609,20 @@ export default function TodayScreen() {
   // otherwise the card would read as done while still offering to resume.
   const workoutDone = Boolean(completedSession) || (Boolean(restDay) && !activeSession);
 
-  const todayWorkoutState: TodayWorkoutState = activeSession
+  /**
+   * A past day that holds no session is a fact, not an offer.
+   *
+   * Every "nothing yet" state — no program, empty plan, unscheduled,
+   * scheduled-but-not-started — reads as an invitation to start, and on a
+   * past date that meant starting a blank workout on a day that has already
+   * happened. There is one honest thing to say about such a day, and one
+   * thing still worth changing about it: whether it counted as rest.
+   */
+  const isPastWithNothing = isPast && !activeSession && !completedSession && !restDay;
+
+  const todayWorkoutState: TodayWorkoutState = isPastWithNothing
+    ? 'past-empty'
+    : activeSession
     ? 'in-progress'
     // A completed session for today must win over "not started yet" —
     // otherwise Today would offer Start/Resume for a workout that's
@@ -682,6 +707,18 @@ export default function TodayScreen() {
                 onPress: () => router.push(`/workout/${completedSession.id}`),
               }
             : undefined,
+        };
+      case 'past-empty':
+        return {
+          state: 'past-empty',
+          eyebrow: 'NOTHING RECORDED',
+          title: 'No training',
+          body: 'Nothing was logged on this day. If it was a rest day, you can still say so.',
+          secondary: {
+            label: 'Mark as a rest day',
+            testID: 'mark-rest-day',
+            onPress: () => markRestDayMutation.mutate(),
+          },
         };
       case 'rested':
         return {
@@ -880,22 +917,43 @@ export default function TodayScreen() {
     return String(Math.round(value * 10) / 10);
   })();
 
+  /**
+   * The day's body signals.
+   *
+   * Every value is read for the *selected* date from the server's snapshot.
+   * The device hook only ever knows about today, so using it made a past day
+   * show today's numbers — and made calories disappear whenever the server
+   * had not reconciled yet while the device had the reading.
+   *
+   * On today the device wins where it has a value, which is architecture §4:
+   * HealthKit is authoritative live, the snapshot is what a previous sync
+   * stored. On any other date there is only the snapshot.
+   */
+  const summary = todayQuery.data?.activitySummary;
+  const num = (value: unknown): number | null => {
+    if (value == null) return null;
+    const n = typeof value === 'number' ? value : Number(value);
+    return Number.isFinite(n) ? n : null;
+  };
+  const signal = (device: number | null, stored: unknown): number | null =>
+    (isToday ? device ?? num(stored) : num(stored));
+
   const daySignals = [
     {
       label: 'steps',
-      value: health.metrics.steps != null ? health.metrics.steps.toLocaleString('en-US') : '—',
+      value: fmtCount(signal(health.metrics.steps, summary?.steps)),
     },
-    { label: 'sleep', value: formatSleep(health.recovery.sleepMinutes) },
+    {
+      label: 'sleep',
+      value: formatSleep(signal(health.recovery.sleepMinutes, summary?.sleepTotalMinutes)),
+    },
     {
       label: 'cal',
-      value: syncedMetrics.activeEnergyKcal != null ? String(syncedMetrics.activeEnergyKcal) : '—',
+      value: fmtCount(signal(health.metrics.activeEnergyKcal, summary?.activeEnergyKcal)),
     },
     {
       label: 'rest HR',
-      value:
-        health.recovery.restingHeartRateBpm != null
-          ? String(Math.round(health.recovery.restingHeartRateBpm))
-          : '—',
+      value: fmtCount(signal(health.recovery.restingHeartRateBpm, summary?.restingHeartRate)),
     },
   ];
 
