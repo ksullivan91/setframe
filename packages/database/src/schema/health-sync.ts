@@ -85,6 +85,10 @@ export const dailyActivitySummary = pgTable(
     sleepTotalMinutes: numeric('sleep_total_minutes'),
     // Per-metric source app/device where practical.
     sourceProvenance: jsonb('source_provenance'),
+    /* Minutes at each heart rate during active time, for the zone trend.
+       Stored as a distribution rather than zone minutes so zones can be
+       re-sliced when the model changes — docs/design/heart-rate-zone-trends.md. */
+    activeHrHistogram: jsonb('active_hr_histogram'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

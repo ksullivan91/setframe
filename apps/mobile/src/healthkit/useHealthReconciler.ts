@@ -87,7 +87,13 @@ export function useHealthReconciler(): { reconcileNow: () => Promise<void> } {
       for (const localDate of dates) {
         try {
           const snapshot = await healthKit.getSnapshot(localDate);
-          payloads.push(toDayPayload(localDate, snapshot, { today }));
+          /* The heaviest read in the sweep — raw heart-rate samples rather
+             than a statistic — so it is a separate await that can fail on
+             its own without costing the day's other metrics. */
+          const histogram = await healthKit
+            .getActiveHeartRateHistogram(localDate)
+            .catch(() => null);
+          payloads.push(toDayPayload(localDate, snapshot, { today, histogram }));
         } catch {
           /* Report the failure rather than skipping the day, so the server
              records it as `error` and the next sweep picks it up again. A

@@ -57,6 +57,23 @@ export type AppleHealthNutrition = z.infer<typeof appleHealthNutritionSchema>;
  */
 export const appleHealthReadOutcomeSchema = z.enum(['ok', 'unavailable', 'error']);
 
+/**
+ * Minutes at each heart rate, bucketed — see
+ * docs/design/heart-rate-zone-trends.md §3 for why this rather than zone
+ * minutes.
+ */
+export const heartRateHistogramSchema = z.object({
+  bucketWidthBpm: z.number().int().positive(),
+  minBpm: z.number().int().positive(),
+  minutes: z.array(z.number().nonnegative()).min(1).max(256),
+  attribution: z.object({
+    source: z.enum(['exerciseTime', 'workouts']),
+    maxGapSeconds: z.number().int().positive(),
+    version: z.number().int().positive(),
+  }),
+});
+export type HeartRateHistogramPayload = z.infer<typeof heartRateHistogramSchema>;
+
 export const appleHealthDaySchema = z.object({
   localDate: z.string().date(),
   timezone: z.string().min(1),
@@ -74,6 +91,8 @@ export const appleHealthDaySchema = z.object({
   nutrition: appleHealthNutritionSchema.nullable().optional(),
   /** Metric key → the app or device that wrote it, where HealthKit says. */
   sources: z.record(z.string(), z.string()).optional(),
+  /** Active-minute heart-rate distribution. Absent when nothing was read. */
+  activeHeartRateHistogram: heartRateHistogramSchema.nullable().optional(),
 });
 export type AppleHealthDay = z.infer<typeof appleHealthDaySchema>;
 

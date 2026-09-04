@@ -143,6 +143,11 @@ export const appleHealthRoutes: FastifyPluginAsyncZod = async (fastify) => {
             }
           : {};
 
+        /* Stored whole rather than sliced into zones: boundaries derive from
+           resting and max heart rate, both of which drift, so zone minutes
+           written today would be frozen under today's model. */
+        const histogram = day.activeHeartRateHistogram ?? null;
+
         await upsertActivity(db, {
           userId,
           localDate: day.localDate,
@@ -151,6 +156,7 @@ export const appleHealthRoutes: FastifyPluginAsyncZod = async (fastify) => {
           syncedThrough,
           reconciledAt: now,
           sourceProvenance: sources,
+          activeHrHistogram: histogram,
           ...activityValues,
         });
 

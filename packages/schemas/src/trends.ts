@@ -24,6 +24,14 @@ export const trendMetricKeys = [
   'activeEnergy',
   'exerciseMinutes',
   'vo2Max',
+  /* Five series rather than one stacked type: it needs no change to
+     `TrendSeries`, and the client stacks them. See
+     docs/design/heart-rate-zone-trends.md §7. */
+  'zone1Minutes',
+  'zone2Minutes',
+  'zone3Minutes',
+  'zone4Minutes',
+  'zone5Minutes',
 ] as const;
 export type TrendMetricKey = (typeof trendMetricKeys)[number];
 

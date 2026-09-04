@@ -1,5 +1,13 @@
 import { Platform } from 'react-native';
 import {
+  accumulateSamples,
+  emptyHistogram,
+  roundHistogram,
+  HISTOGRAM_VERSION,
+  type HeartRateHistogram,
+  type HeartRateSample,
+} from '@setframe/domain';
+import {
   mapWorkoutType,
   workoutTitle,
   type DiscoveredWorkout,
@@ -335,6 +343,29 @@ export function hasAnyBody(body: BodyProfile): boolean {
  * anywhere west of Greenwich — the same trap the read window hit. These use
  * the device's own zone, which is the zone the day was lived in.
  */
+/** Longest gap between heart-rate samples that still counts as continuous. */
+const HISTOGRAM_MAX_GAP_SECONDS = 60;
+
+/** Join windows that touch or overlap, so an effort is one span. */
+function mergeWindows(
+  windows: readonly { startDate: Date; endDate: Date }[],
+): { startDate: Date; endDate: Date }[] {
+  const sorted = [...windows].sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+  const merged: { startDate: Date; endDate: Date }[] = [];
+  for (const window of sorted) {
+    const last = merged[merged.length - 1];
+    /* A minute's tolerance: Apple's exercise-time pieces frequently abut
+       with a second's rounding between them, and treating those as separate
+       efforts would restart the gap cap sixty times an hour. */
+    if (last && window.startDate.getTime() - last.endDate.getTime() <= 60_000) {
+      if (window.endDate > last.endDate) last.endDate = window.endDate;
+      continue;
+    }
+    merged.push({ startDate: window.startDate, endDate: window.endDate });
+  }
+  return merged;
+}
+
 function startOfLocalDayLocal(localDate: string): Date {
   const [y, m, d] = localDate.split('-').map(Number) as [number, number, number];
   return new Date(y, m - 1, d, 0, 0, 0, 0);
@@ -557,6 +588,92 @@ class HealthKitAdapter {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Minutes at each heart rate during the day's *active* time.
+   *
+   * There is no time-in-zone metric in HealthKit — Apple shows zones in the
+   * Fitness app and does not export them — so this computes the underlying
+   * distribution and the server slices it into zones at read time.
+   *
+   * Active rather than all-day: sleep and desk time dominate the clock, and
+   * an all-day chart is mostly zone 1 with the training signal buried.
+   * "Active" is Apple's own Exercise Time, whose samples carry windows that
+   * intersect with heart rate — it catches the brisk walk you never started
+   * a workout for, which a workouts-only definition drops entirely.
+   */
+  async getActiveHeartRateHistogram(localDate: string): Promise<HeartRateHistogram | null> {
+    const mod = await this.load();
+    if (!mod) return null;
+
+    const attribution = {
+      source: 'exerciseTime' as const,
+      maxGapSeconds: HISTOGRAM_MAX_GAP_SECONDS,
+      version: HISTOGRAM_VERSION,
+    };
+    const dayWindow = {
+      startDate: startOfLocalDayLocal(localDate),
+      endDate: endOfLocalDayLocal(localDate),
+    };
+
+    try {
+      const activeWindows = await this.activeWindows(mod, dayWindow);
+      if (activeWindows.length === 0) return null;
+
+      const histogram = emptyHistogram(attribution);
+      for (const window of activeWindows) {
+        const samples = await this.heartRateSamples(mod, window);
+        /* Per window rather than per day: the gap cap must not bridge two
+           workouts hours apart, which would bank the whole afternoon at
+           whatever the first one ended on. */
+        accumulateSamples(histogram, samples, HISTOGRAM_MAX_GAP_SECONDS);
+      }
+      return roundHistogram(histogram);
+    } catch {
+      return null;
+    }
+  }
+
+  /** The windows Apple counts as exercise within a day. */
+  private async activeWindows(
+    mod: NonNullable<HealthKitAdapter['module']>,
+    window: { startDate: Date; endDate: Date },
+  ): Promise<{ startDate: Date; endDate: Date }[]> {
+    const samples = await mod.queryQuantitySamples(
+      'HKQuantityTypeIdentifierAppleExerciseTime' as never,
+      { limit: 0, ascending: true, unit: 'min', filter: { date: window } } as never,
+    );
+    const windows: { startDate: Date; endDate: Date }[] = [];
+    for (const sample of samples ?? []) {
+      const start = new Date(sample?.startDate ?? '');
+      const end = new Date(sample?.endDate ?? '');
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) continue;
+      if (end <= start) continue;
+      windows.push({ startDate: start, endDate: end });
+    }
+    /* Exercise time arrives in one-minute pieces. Merged so a continuous
+       hour is one heart-rate query rather than sixty, and so the gap cap
+       applies across the whole effort rather than resetting each minute. */
+    return mergeWindows(windows);
+  }
+
+  private async heartRateSamples(
+    mod: NonNullable<HealthKitAdapter['module']>,
+    window: { startDate: Date; endDate: Date },
+  ): Promise<HeartRateSample[]> {
+    const samples = await mod.queryQuantitySamples(
+      'HKQuantityTypeIdentifierHeartRate' as never,
+      { limit: 0, ascending: true, unit: 'count/min', filter: { date: window } } as never,
+    );
+    const out: HeartRateSample[] = [];
+    for (const sample of samples ?? []) {
+      const at = new Date(sample?.startDate ?? '').getTime();
+      const bpm = Number(sample?.quantity);
+      if (!Number.isFinite(at) || !Number.isFinite(bpm) || bpm <= 0) continue;
+      out.push({ at: at / 1000, bpm });
+    }
+    return out;
   }
 
   /**

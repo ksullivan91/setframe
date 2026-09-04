@@ -158,3 +158,73 @@ describe('GET /v1/trends', () => {
     expect(res.statusCode).toBe(400);
   });
 });
+
+describe('GET /v1/trends — heart-rate zones', () => {
+  const histogram = (minutes: Record<number, number>) => ({
+    bucketWidthBpm: 5,
+    minBpm: 40,
+    minutes: Array.from({ length: 36 }, (_, i) => minutes[i] ?? 0),
+    attribution: { source: 'exerciseTime', maxGapSeconds: 60, version: 1 },
+  });
+
+  it('omits the zone series when the request carries no model', async () => {
+    /* The server has no date of birth. Without a model it would be splitting
+       the user's minutes on a guess, so it declines to. */
+    mockSelect.mockImplementation(() =>
+      selectChain([day('2026-09-01', { activeHrHistogram: histogram({ 20: 30 }) })]),
+    );
+    const app = await buildApp();
+    const res = await app.inject({ method: 'GET', url: '/v1/trends?from=2026-09-01&to=2026-09-03', headers: authHeader });
+
+    expect(seriesFor(res.json(), 'zone3Minutes').points).toEqual([]);
+  });
+
+  it('slices the stored histogram under the model it is given', async () => {
+    mockSelect.mockImplementation(() =>
+      selectChain([day('2026-09-01', { activeHrHistogram: histogram({ 20: 30 }) })]),
+    );
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/trends?from=2026-09-01&to=2026-09-03&restingBpm=54&maxBpm=190',
+      headers: authHeader,
+    });
+
+    const body = res.json();
+    const total = [1, 2, 3, 4, 5]
+      .map((z) => seriesFor(body, `zone${z}Minutes`).points[0]?.value ?? 0)
+      .reduce((a, b) => a + b, 0);
+    // Bucket 20 is 140–144 bpm; whichever zone that is, the minutes survive.
+    expect(total).toBe(30);
+  });
+
+  it('keeps a zero as a reading, unlike every other metric', async () => {
+    /* A day you trained and spent none of it in zone 5 is a real zero.
+       Dropping it would make a rest day and an easy day look the same. */
+    mockSelect.mockImplementation(() =>
+      selectChain([day('2026-09-01', { activeHrHistogram: histogram({ 12: 40 }) })]),
+    );
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/trends?from=2026-09-01&to=2026-09-03&restingBpm=54&maxBpm=190',
+      headers: authHeader,
+    });
+
+    expect(seriesFor(res.json(), 'zone5Minutes').points).toEqual([
+      { localDate: '2026-09-01', value: 0 },
+    ]);
+  });
+
+  it('skips a day with no histogram rather than plotting zeroes', async () => {
+    mockSelect.mockImplementation(() => selectChain([day('2026-09-01')]));
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/trends?from=2026-09-01&to=2026-09-03&restingBpm=54&maxBpm=190',
+      headers: authHeader,
+    });
+
+    expect(seriesFor(res.json(), 'zone2Minutes').points).toEqual([]);
+  });
+});

@@ -2,6 +2,7 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { and, asc, eq, gte, lte } from 'drizzle-orm';
 import { z } from 'zod';
 import { dailyActivitySummary, dailyManualEntry } from '@setframe/database';
+import { zoneBands, zoneMinutesFromHistogram, type HeartRateHistogram } from '@setframe/domain';
 import { trendsResponseSchema, type TrendMetricKey, type TrendPoint } from '@setframe/schemas';
 import { badRequest } from '../lib/errors.js';
 import { getDb } from '../lib/db.js';
@@ -35,7 +36,17 @@ const COLUMNS: Record<TrendMetricKey, (row: typeof dailyActivitySummary.$inferSe
   activeEnergy: (r) => r.activeEnergyKcal,
   exerciseMinutes: (r) => r.exerciseMinutes,
   vo2Max: (r) => r.vo2Max,
+  /* Zones are not columns. They are sliced from `active_hr_histogram` under
+     the model the request carries — see the zone block below — so these
+     never read a row directly. */
+  zone1Minutes: () => null,
+  zone2Minutes: () => null,
+  zone3Minutes: () => null,
+  zone4Minutes: () => null,
+  zone5Minutes: () => null,
 };
+
+const ZONE_KEYS = ['zone1Minutes', 'zone2Minutes', 'zone3Minutes', 'zone4Minutes', 'zone5Minutes'] as const;
 
 function toNumber(value: unknown): number | null {
   if (value === null || value === undefined) return null;
@@ -49,7 +60,24 @@ export const trendRoutes: FastifyPluginAsyncZod = async (fastify) => {
     {
       preHandler: requireAuth,
       schema: {
-        querystring: z.object({ from: z.string().date(), to: z.string().date() }),
+        querystring: z.object({
+          from: z.string().date(),
+          to: z.string().date(),
+          /**
+           * The heart-rate zone model, when the client has one.
+           *
+           * The server has no date of birth and no maximum-rate estimate,
+           * and should not acquire them to answer a question the device can
+           * already answer. Sent per request, so every day in the window is
+           * sliced under one current model — which is what makes a two-year
+           * chart internally comparable.
+           *
+           * Absent, the zone series are omitted rather than computed from a
+           * guess.
+           */
+          restingBpm: z.coerce.number().positive().optional(),
+          maxBpm: z.coerce.number().positive().optional(),
+        }),
         /* Only the success shape is declared. A 400 is formatted by the
            global error handler into the uniform ApiError envelope, and
            declaring a different 400 here makes serialization fail — the
@@ -112,7 +140,41 @@ export const trendRoutes: FastifyPluginAsyncZod = async (fastify) => {
       const dates = new Set(rows.map((r) => r.localDate));
       for (const localDate of manualWeights.keys()) dates.add(localDate);
 
+      /* Sliced once per request, not once per series: five keys read the
+         same histograms under the same bands. */
+      const bands =
+        request.query.restingBpm && request.query.maxBpm
+          ? zoneBands({ restingBpm: request.query.restingBpm, maxBpm: request.query.maxBpm })
+          : [];
+      const zonePoints = new Map<string, TrendPoint[]>(ZONE_KEYS.map((k) => [k, []]));
+      if (bands.length > 0) {
+        for (const row of rows) {
+          const histogram = row.activeHrHistogram as HeartRateHistogram | null;
+          if (!histogram || !Array.isArray(histogram.minutes)) continue;
+          const minutes = zoneMinutesFromHistogram(histogram, bands);
+          bands.forEach((band, index) => {
+            const value = minutes[index] ?? 0;
+            /* Zero is a reading here, unlike every other metric: a day you
+               trained and spent no time in zone 5 is a real zero, and
+               dropping it would leave a gap where a rest day looks the same
+               as an easy day. */
+            zonePoints.get(`zone${band.zone}Minutes`)?.push({ localDate: row.localDate, value });
+          });
+        }
+      }
+
       const series = (Object.keys(COLUMNS) as TrendMetricKey[]).map((key) => {
+        if ((ZONE_KEYS as readonly string[]).includes(key)) {
+          const points = zonePoints.get(key) ?? [];
+          const first = points[0];
+          const last = points[points.length - 1];
+          return {
+            key,
+            points,
+            latest: last ? last.value : null,
+            change: points.length >= 2 && first && last ? last.value - first.value : null,
+          };
+        }
         const points: TrendPoint[] = [];
         if (key === 'weight') {
           const byDate = new Map(rows.map((r) => [r.localDate, toNumber(r.weightValue)]));

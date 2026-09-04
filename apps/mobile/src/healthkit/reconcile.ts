@@ -1,5 +1,5 @@
 import type { AppleHealthDay, AppleHealthDayStatus } from '@setframe/schemas';
-import { needsResync } from '@setframe/domain';
+import { needsResync, type HeartRateHistogram } from '@setframe/domain';
 import type { HealthSnapshot } from './HealthKitAdapter';
 
 /** `YYYY-MM-DD` in the device's own zone. */
@@ -33,7 +33,9 @@ export function localTimezone(): string {
 export function toDayPayload(
   localDate: string,
   snapshot: HealthSnapshot,
-  options: { today: string; now?: Date } = { today: localDate },
+  options: { today: string; now?: Date; histogram?: HeartRateHistogram | null } = {
+    today: localDate,
+  },
 ): AppleHealthDay {
   const now = options.now ?? new Date();
   const isToday = localDate === options.today;
@@ -66,6 +68,7 @@ export function toDayPayload(
       fatG: snapshot.daily.fatG,
     },
     sources: snapshot.nutritionSource ? { caloriesKcal: snapshot.nutritionSource } : undefined,
+    activeHeartRateHistogram: options.histogram ?? null,
   };
 }
 
