@@ -874,8 +874,25 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
          * following morning. The caller passes the last logged set's
          * timestamp instead. Omitted, it means now — an ordinary Finish.
          */
+        /**
+         * Both the object and its field are optional, and the whole schema
+         * tolerates a body that is not an object at all.
+         *
+         * Finishing a workout has always been a bodyless POST — the client
+         * calls `api.post(url)` with nothing. Declaring `z.object({...})`
+         * here, even `.optional()`, made Fastify reject that request with a
+         * 400, so Finish stopped working the moment ADR 0014 needed an
+         * optional `completedAt`. `bodyless-post.test.ts` names this route
+         * in its own header comment but only ever covered
+         * /programs/:id/activate; it covers both now.
+         */
         body: z
-          .object({ completedAt: z.string().datetime().optional() })
+          .union([
+            z.object({ completedAt: z.string().datetime().optional() }),
+            z.null(),
+            z.undefined(),
+            z.literal(''),
+          ])
           .optional(),
         /* Only the success shape. A 400 goes through the global handler's
            uniform ApiError envelope; declaring a different one here makes
@@ -886,7 +903,9 @@ export const workoutSessionRoutes: FastifyPluginAsyncZod = async (fastify) => {
     async (request) => {
       const db = getDb();
       const session = await getOwnedSession(db, request.params.sessionId, request.userId!);
-      const requested = request.body?.completedAt ? new Date(request.body.completedAt) : null;
+      const body =
+        request.body && typeof request.body === 'object' ? request.body : null;
+      const requested = body?.completedAt ? new Date(body.completedAt) : null;
 
       if (requested) {
         /* A completion in the future, or before the session began, is not a

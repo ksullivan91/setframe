@@ -94,3 +94,67 @@ describe('POST with no body', () => {
     await app.close();
   });
 });
+
+describe('POST /v1/workout-sessions/:id/complete with no body', () => {
+  /* The comment at the top of this file names this route, but only
+     /programs/:id/activate was ever covered — and the gap showed the moment
+     `complete` grew an optional body schema for ADR 0014. Finishing a
+     workout is the single most important write in the app. */
+  const sessionRow = {
+    id: '33333333-3333-4333-8333-333333333333',
+    userId: userRow.id,
+    templateId: null,
+    localDate: '2026-09-04',
+    timezone: 'UTC',
+    status: 'in_progress',
+    startedAt: new Date('2026-09-04T14:00:00Z'),
+    completedAt: null,
+    notes: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  it('finishes when the client declares JSON and sends nothing', async () => {
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([sessionRow]));
+    mockUpdate.mockReturnValueOnce({
+      set: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          returning: vi
+            .fn()
+            .mockResolvedValue([{ ...sessionRow, status: 'completed', completedAt: new Date() }]),
+        }),
+      }),
+    });
+    const app = await buildApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: `/v1/workout-sessions/${sessionRow.id}/complete`,
+      headers: { authorization: 'Bearer t', 'content-type': 'application/json' },
+    });
+    expect(response.statusCode).toBe(200);
+  });
+
+  it('finishes when the client sends no content-type at all', async () => {
+    mockSelect
+      .mockReturnValueOnce(selectChain([userRow]))
+      .mockReturnValueOnce(selectChain([sessionRow]));
+    mockUpdate.mockReturnValueOnce({
+      set: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          returning: vi
+            .fn()
+            .mockResolvedValue([{ ...sessionRow, status: 'completed', completedAt: new Date() }]),
+        }),
+      }),
+    });
+    const app = await buildApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: `/v1/workout-sessions/${sessionRow.id}/complete`,
+      headers: { authorization: 'Bearer t' },
+    });
+    expect(response.statusCode).toBe(200);
+  });
+});
