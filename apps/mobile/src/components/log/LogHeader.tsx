@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { ChevronDown, UserRound } from 'lucide-react-native';
+import { UserRound } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeProvider';
 import { spacing, typeScale } from '../../theme/getTheme';
 
@@ -8,7 +8,6 @@ export interface LogHeaderProps {
   title: string;
   /** The full date, always spelled out under the title. */
   dateLabel: string;
-  onPressDate?: () => void;
   onPressAccount: () => void;
 }
 
@@ -23,24 +22,18 @@ export interface LogHeaderProps {
  * Figma frame without an authenticated session — these are first-run and
  * date-dependent states that are otherwise awkward to reach twice.
  */
-export function LogHeader({ title, dateLabel, onPressDate, onPressAccount }: LogHeaderProps) {
+export function LogHeader({ title, dateLabel, onPressAccount }: LogHeaderProps) {
   const theme = useTheme();
 
   return (
     <View style={styles.row}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${title}. Change date`}
-        testID="log-date-control"
-        onPress={onPressDate}
-        style={({ pressed }) => [styles.dateControl, { opacity: pressed && onPressDate ? 0.7 : 1 }]}
-      >
-        <View style={styles.titleRow}>
-          <Text style={[styles.title, { color: theme.text.primary }]}>{title}</Text>
-          <ChevronDown size={16} color={theme.text.secondary} />
-        </View>
+      {/* No chevron until there is a picker behind it. An affordance that
+          does nothing is worse than none: it invites a tap and answers with
+          silence. The week strip is how you change date today. */}
+      <View style={styles.dateControl} testID="log-date-control">
+        <Text style={[styles.title, { color: theme.text.primary }]}>{title}</Text>
         <Text style={[styles.date, { color: theme.text.secondary }]}>{dateLabel}</Text>
-      </Pressable>
+      </View>
       <View style={styles.actions}>
         <Pressable
           accessibilityRole="button"
@@ -62,7 +55,6 @@ export function LogHeader({ title, dateLabel, onPressDate, onPressAccount }: Log
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing[12] },
   dateControl: { flex: 1, gap: spacing[4] },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[8] },
   title: { fontSize: typeScale.pageTitle.fontSize, fontWeight: '600' },
   date: { fontSize: typeScale.label.fontSize },
   /* 44 is the iOS minimum target, and this is the only way to reach Settings

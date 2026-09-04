@@ -6,6 +6,7 @@ import { LogHero } from '../src/components/log/LogHero';
 import { LogEntryRow } from '../src/components/log/LogEntryRow';
 import { TrendMetricCard } from '../src/components/log/TrendMetricCard';
 import { DaySignals } from '../src/components/log/DaySignals';
+import { AddActivitySheet } from '../src/components/log/AddActivitySheet';
 import { useTheme } from '../src/theme/ThemeProvider';
 import { spacing } from '../src/theme/getTheme';
 
@@ -83,7 +84,6 @@ export default function DevLogGallery() {
           <LogHeader
             title="Today"
             dateLabel="Wednesday, 3 September"
-            onPressDate={() => {}}
             onPressAccount={() => {}}
           />
         </View>
@@ -94,7 +94,6 @@ export default function DevLogGallery() {
           <LogHeader
             title="Sat 30 Aug"
             dateLabel="Saturday, 30 August"
-            onPressDate={() => {}}
             onPressAccount={() => {}}
           />
         </View>
@@ -102,7 +101,7 @@ export default function DevLogGallery() {
 
       <Frame label="76 · Week — a normal week">
         <View style={{ paddingTop: FRAME_TOP, paddingHorizontal: spacing[24], gap: spacing[24] }}>
-          <LogHeader title="Today" dateLabel="Wednesday, 3 September" onPressDate={() => {}} onPressAccount={() => {}} />
+          <LogHeader title="Today" dateLabel="Wednesday, 3 September" onPressAccount={() => {}} />
           <LogWeekStrip
             days={buildLogWeek({
               selectedDate: TODAY,
@@ -117,7 +116,7 @@ export default function DevLogGallery() {
 
       <Frame label="76 · Week — a past date selected">
         <View style={{ paddingTop: FRAME_TOP, paddingHorizontal: spacing[24], gap: spacing[24] }}>
-          <LogHeader title="Sat 30 Aug" dateLabel="Saturday, 30 August" onPressDate={() => {}} onPressAccount={() => {}} />
+          <LogHeader title="Sat 30 Aug" dateLabel="Saturday, 30 August" onPressAccount={() => {}} />
           <LogWeekStrip
             days={buildLogWeek({
               selectedDate: '2026-08-30',
@@ -132,7 +131,7 @@ export default function DevLogGallery() {
 
       <Frame label="76 · Week — an earlier week (no today)">
         <View style={{ paddingTop: FRAME_TOP, paddingHorizontal: spacing[24], gap: spacing[24] }}>
-          <LogHeader title="Tue 25 Aug" dateLabel="Tuesday, 25 August" onPressDate={() => {}} onPressAccount={() => {}} />
+          <LogHeader title="Tue 25 Aug" dateLabel="Tuesday, 25 August" onPressAccount={() => {}} />
           <LogWeekStrip
             days={buildLogWeek({
               selectedDate: '2026-08-25',
@@ -147,7 +146,7 @@ export default function DevLogGallery() {
 
       <Frame label="76 · Week — nothing logged yet">
         <View style={{ paddingTop: FRAME_TOP, paddingHorizontal: spacing[24], gap: spacing[24] }}>
-          <LogHeader title="Today" dateLabel="Wednesday, 3 September" onPressDate={() => {}} onPressAccount={() => {}} />
+          <LogHeader title="Today" dateLabel="Wednesday, 3 September" onPressAccount={() => {}} />
           <LogWeekStrip
             days={buildLogWeek({ selectedDate: TODAY, today: TODAY, trainedDates: [], restDates: [] })}
             onSelect={() => {}}
@@ -311,6 +310,15 @@ export default function DevLogGallery() {
         <View style={{ paddingTop: spacing[24], paddingHorizontal: spacing[24] }}>
           <DaySignals signals={[]} health={HEALTH_NO_DATA} onOpenTrends={() => {}} />
         </View>
+      </Frame>
+
+      <Frame label="Sheet · Add activity">
+        <AddActivitySheet
+          visible
+          preferredDistanceUnit="mi"
+          onSave={() => {}}
+          onCancel={() => {}}
+        />
       </Frame>
 
       <Frame label="80 · Log rows — the three save states">
