@@ -59,6 +59,10 @@ export const lightTheme = {
     panel: colorRamps.accent[950],
     panelEdge: colorRamps.accent[800],
     success: colorRamps.status.success,
+    /* The fill-only red, which is text-safe on *this* ground: #FF647C is
+       5.0:1 on `raised` and 6.3:1 on `surface`. `status.errorText` is the
+       opposite — tuned for the light canvas, it is 1.8:1 here. */
+    danger: colorRamps.status.error,
   },
   /**
    * Data-visualisation palette. Raw observations use the accent purple and
@@ -130,6 +134,10 @@ export const darkTheme = {
     panel: colorRamps.accent[950],
     panelEdge: colorRamps.accent[800],
     success: colorRamps.status.success,
+    /* The fill-only red, which is text-safe on *this* ground: #FF647C is
+       5.0:1 on `raised` and 6.3:1 on `surface`. `status.errorText` is the
+       opposite — tuned for the light canvas, it is 1.8:1 here. */
+    danger: colorRamps.status.error,
   },
   chart: {
     raw: colorRamps.accent[300],
@@ -236,6 +244,8 @@ export interface SemanticTheme {
     panel: string;
     panelEdge: string;
     success: string;
+    /** Text-safe red for this dark ground; `status.errorText` is not. */
+    danger: string;
   };
   chart: ChartTokens;
 }

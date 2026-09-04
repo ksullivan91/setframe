@@ -8,13 +8,28 @@ import { radius, spacing } from '@setframe/design-tokens';
  * setframe-design-system.md §5's warning against "everything is a
  * floating card."
  */
-export function Card({ children, style, ...rest }: ViewProps) {
+export interface CardProps extends ViewProps {
+  /**
+   * `inverse` paints the card on the dark ground the workout logger uses.
+   *
+   * The logger's rule is that a card carrying the session's own content is
+   * dark; a light card below a dark completion banner and dark exercise
+   * tables reads as a different app. Text inside an inverse card must take
+   * its colours from `theme.inverse.*` to match.
+   */
+  tone?: 'default' | 'inverse';
+}
+
+export function Card({ children, style, tone = 'default', ...rest }: CardProps) {
   const theme = useTheme();
+  const inverse = tone === 'inverse';
   return (
     <View
       style={[
         styles.base,
-        { backgroundColor: theme.surface.raised, borderColor: theme.border.subtle },
+        inverse
+          ? { backgroundColor: theme.inverse.raised, borderColor: 'transparent' }
+          : { backgroundColor: theme.surface.raised, borderColor: theme.border.subtle },
         style,
       ]}
       {...rest}

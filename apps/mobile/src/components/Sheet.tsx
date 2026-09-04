@@ -36,6 +36,13 @@ export interface SheetProps {
    * what the gallery shows is still the real component.
    */
   inline?: boolean;
+  /**
+   * `inverse` paints the sheet on the dark ground the workout logger uses.
+   *
+   * A white sheet sliding over the dark logger reads as a different app.
+   * Content inside must take its colours from `theme.inverse.*` to match.
+   */
+  tone?: 'default' | 'inverse';
 }
 
 /**
@@ -58,6 +65,7 @@ export function Sheet({
   gap = spacing[12],
   padding = {},
   inline = false,
+  tone = 'default',
 }: SheetProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -68,7 +76,7 @@ export function Sheet({
       style={[
         styles.sheet,
         {
-          backgroundColor: theme.surface.raised,
+          backgroundColor: tone === 'inverse' ? theme.inverse.surface : theme.surface.raised,
           borderWidth: bordered ? 1 : 0,
           borderColor: theme.border.default,
           gap,
