@@ -180,14 +180,12 @@ describe('TodayAdditionalActivitySection', () => {
     });
     await flush();
 
-    const durationField = rendered.root.findAll(
-      (node) => node.props?.label === 'Duration minutes' && typeof node.props?.onChangeText === 'function',
-    )[0];
+    const durationField = byTestId(rendered, 'activity-minutes');
     await act(async () => {
       durationField!.props.onChangeText('15');
     });
     await act(async () => {
-      rendered.root.findAll((node) => node.props?.label === 'Save' && typeof node.props?.onPress === 'function')[0]!.props.onPress();
+      rendered.root.findAll((node) => node.props?.testID === 'save-activity' && typeof node.props?.onPress === 'function')[0]!.props.onPress();
     });
     await flush();
 
@@ -205,14 +203,12 @@ describe('TodayAdditionalActivitySection', () => {
     });
     await flush();
 
-    const startTimeField = rendered.root.findAll(
-      (node) => node.props?.label === 'Start time' && typeof node.props?.onChangeText === 'function',
-    )[0];
+    const startTimeField = byTestId(rendered, 'activity-start-time');
     await act(async () => {
       startTimeField!.props.onChangeText('14:30');
     });
     await act(async () => {
-      rendered.root.findAll((node) => node.props?.label === 'Save' && typeof node.props?.onPress === 'function')[0]!.props.onPress();
+      rendered.root.findAll((node) => node.props?.testID === 'save-activity' && typeof node.props?.onPress === 'function')[0]!.props.onPress();
     });
     await flush();
 
@@ -233,9 +229,7 @@ describe('TodayAdditionalActivitySection', () => {
 
     const expectedLocal = new Date(startedAt);
     const expected = `${String(expectedLocal.getHours()).padStart(2, '0')}:${String(expectedLocal.getMinutes()).padStart(2, '0')}`;
-    const startTimeField = rendered.root.findAll(
-      (node) => node.props?.label === 'Start time' && typeof node.props?.onChangeText === 'function',
-    )[0];
+    const startTimeField = byTestId(rendered, 'activity-start-time');
     expect(startTimeField!.props.value).toBe(expected);
   });
 
@@ -256,13 +250,32 @@ describe('TodayAdditionalActivitySection', () => {
 });
 
 function selectActivityType(rendered: ReactTestRenderer, value: string) {
-  const select = rendered.root.findAll(
-    (node) => node.props?.label === 'Activity' && typeof node.props?.onChange === 'function' && node.props?.options,
+  /* A chip grid, not a select: nine types, each its own target. */
+  const chip = rendered.root.findAll(
+    (node) => node.props?.testID === `activity-type-${value}` && typeof node.props?.onPress === 'function',
   )[0];
-  select!.props.onChange(value);
+  chip!.props.onPress();
+}
+
+function byTestId(rendered: ReactTestRenderer, testID: string) {
+  return rendered.root.findAll(
+    (node) => node.props?.testID === testID && typeof node.props?.onChangeText === 'function',
+  )[0];
 }
 
 function fieldLabels(rendered: ReactTestRenderer) {
+  /* The sheet renders its own labels as text rather than passing them to a
+     labelled Input, so the visible copy is what to look for. */
+  const has = (copy: string) => textNodesContaining(rendered, copy).length > 0;
+  return [
+    has('HOW FAR') ? 'Distance' : null,
+    has('WHAT TO CALL IT') ? 'Activity name' : null,
+    has('HOW LONG') ? 'Duration' : null,
+    has('WHEN') ? 'Start time' : null,
+  ].filter(Boolean) as string[];
+}
+
+function legacyFieldLabels(rendered: ReactTestRenderer) {
   return rendered.root
     .findAll((node) => typeof node.props?.label === 'string' && (node.props?.onChangeText || node.props?.onChange))
     .map((node) => node.props.label as string);
@@ -306,28 +319,30 @@ describe('TodayAdditionalActivitySection activity-type-driven fields', () => {
     await flush();
     expect(fieldLabels(rendered)).toContain('Activity name');
 
-    const durationField = rendered.root.findAll(
-      (node) => node.props?.label === 'Duration minutes' && typeof node.props?.onChangeText === 'function',
-    )[0];
+    const durationField = byTestId(rendered, 'activity-minutes');
     await act(async () => {
       durationField!.props.onChangeText('10');
     });
     await flush();
-    const saveButton = rendered.root.findAll((node) => node.props?.label === 'Save' && node.props?.onPress)[0];
+    const saveButton = rendered.root.findAll(
+      (node) => node.props?.testID === 'save-activity' && node.props?.onPress,
+    )[0];
     expect(saveButton!.props.disabled).toBe(true);
 
-    const titleField = rendered.root.findAll(
-      (node) => node.props?.label === 'Activity name' && typeof node.props?.onChangeText === 'function',
-    )[0];
+    const titleField = byTestId(rendered, 'activity-title');
     await act(async () => {
       titleField!.props.onChangeText('Jump rope');
     });
     await flush();
-    const saveButtonAfter = rendered.root.findAll((node) => node.props?.label === 'Save' && node.props?.onPress)[0];
+    const saveButtonAfter = rendered.root.findAll((node) => node.props?.testID === 'save-activity' && node.props?.onPress)[0];
     expect(saveButtonAfter!.props.disabled).toBe(false);
   });
 
   it("defaults the distance unit to the user's metric preference", async () => {
+    /* Asserted through the saved body rather than through which chip looks
+       selected. The preference matters because it reaches the API; a
+       selector over rendered state also matched the activity-type chips,
+       which is a fact about the markup rather than about the behaviour. */
     mockPreferredUnits = 'metric';
     const rendered = await renderSection();
 
@@ -336,10 +351,23 @@ describe('TodayAdditionalActivitySection activity-type-driven fields', () => {
     });
     await flush();
 
-    const distanceField = rendered.root.findAll(
-      (node) => node.props?.label === 'Distance' && typeof node.props?.onChangeText === 'function',
-    )[0];
-    expect(distanceField!.props.unit).toBe('km');
+    await act(async () => {
+      byTestId(rendered, 'activity-minutes')!.props.onChangeText('20');
+    });
+    await act(async () => {
+      byTestId(rendered, 'activity-distance')!.props.onChangeText('5');
+    });
+    await act(async () => {
+      rendered.root
+        .findAll((node) => node.props?.testID === 'save-activity' && node.props?.onPress)[0]!
+        .props.onPress();
+    });
+    await flush();
+
+    expect(mockPost).toHaveBeenCalledWith(
+      '/additional-activities',
+      expect.objectContaining({ distanceValue: 5, distanceUnit: 'km' }),
+    );
   });
 
   // Regression: buildBody() used to force `null` for any field the current
@@ -357,7 +385,7 @@ describe('TodayAdditionalActivitySection activity-type-driven fields', () => {
     expect(rendered.root.findAll((node) => node.props?.label === 'Activity name')).toHaveLength(0);
 
     await act(async () => {
-      rendered.root.findAll((node) => node.props?.label === 'Save' && node.props?.onPress)[0]!.props.onPress();
+      rendered.root.findAll((node) => node.props?.testID === 'save-activity' && node.props?.onPress)[0]!.props.onPress();
     });
     await flush();
 
@@ -382,129 +410,8 @@ function preset(overrides: Partial<AdditionalActivityPreset> = {}): AdditionalAc
   };
 }
 
-/** Story 43 — reusable quick activity shortcuts (recent + saved presets). */
-describe('TodayAdditionalActivitySection quick activity shortcuts', () => {
-  it('shows no Quick add row for a new user with no history and no saved shortcuts', async () => {
-    const rendered = await renderSection();
-
-    await act(async () => {
-      pressablesByLabel(rendered, 'Activity. Add an activity')[0]!.props.onPress();
-    });
-    await flush();
-
-    expect(textNodesContaining(rendered, 'Quick add')).toHaveLength(0);
-  });
-
-  it('shows a saved preset as a tappable shortcut and prefills the sheet without saving', async () => {
-    mockPresets = [preset()];
-    const rendered = await renderSection();
-
-    await act(async () => {
-      pressablesByLabel(rendered, 'Activity. Add an activity')[0]!.props.onPress();
-    });
-    await flush();
-
-    await act(async () => {
-      pressableForText(rendered, 'Post-meal walk')!.props.onPress();
-    });
-    await flush();
-
-    const durationField = rendered.root.findAll(
-      (node) => node.props?.label === 'Duration minutes' && typeof node.props?.onChangeText === 'function',
-    )[0];
-    expect(durationField!.props.value).toBe('15');
-    expect(mockPost).not.toHaveBeenCalled();
-  });
-
-  // Regression: applying a preset used to always clear the activity name,
-  // which is a *required* field for "Other" — Save stayed disabled after
-  // the one-tap shortcut until the user retyped the name by hand.
-  it('carries the preset name into the required Activity name field for "Other"', async () => {
-    mockPresets = [preset({ activityType: 'other', title: 'Jump rope' })];
-    const rendered = await renderSection();
-
-    await act(async () => {
-      pressablesByLabel(rendered, 'Activity. Add an activity')[0]!.props.onPress();
-    });
-    await flush();
-
-    await act(async () => {
-      pressableForText(rendered, 'Jump rope')!.props.onPress();
-    });
-    await flush();
-
-    const titleField = rendered.root.findAll(
-      (node) => node.props?.label === 'Activity name' && typeof node.props?.onChangeText === 'function',
-    )[0];
-    expect(titleField!.props.value).toBe('Jump rope');
-    const saveButton = rendered.root.findAll((node) => node.props?.label === 'Save' && node.props?.onPress)[0];
-    expect(saveButton!.props.disabled).toBe(false);
-  });
-
-  it('derives a recent suggestion from activity history, deduplicated', async () => {
-    mockRecentItems = [
-      walkActivity({ id: 'a1', durationSeconds: 600, createdAt: '2026-08-20T08:00:00.000Z' }),
-      walkActivity({ id: 'a2', durationSeconds: 600, createdAt: '2026-08-23T08:00:00.000Z' }),
-    ];
-    const rendered = await renderSection();
-
-    await act(async () => {
-      pressablesByLabel(rendered, 'Activity. Add an activity')[0]!.props.onPress();
-    });
-    await flush();
-
-    expect(textNodesContaining(rendered, 'Walk · 10 min')).toHaveLength(1);
-  });
-
-  it('saves the current draft as a named quick activity shortcut', async () => {
-    const rendered = await renderSection();
-
-    await act(async () => {
-      pressablesByLabel(rendered, 'Activity. Add an activity')[0]!.props.onPress();
-    });
-    await flush();
-
-    const durationField = rendered.root.findAll(
-      (node) => node.props?.label === 'Duration minutes' && typeof node.props?.onChangeText === 'function',
-    )[0];
-    await act(async () => {
-      durationField!.props.onChangeText('15');
-    });
-    const presetTitleField = rendered.root.findAll(
-      (node) => node.props?.label === 'Save as quick activity' && typeof node.props?.onChangeText === 'function',
-    )[0];
-    await act(async () => {
-      presetTitleField!.props.onChangeText('Post-meal walk');
-    });
-    await act(async () => {
-      rendered.root.findAll((node) => node.props?.label === 'Save shortcut' && node.props?.onPress)[0]!.props.onPress();
-    });
-    await flush();
-
-    expect(mockPost).toHaveBeenCalledWith(
-      '/additional-activity-presets',
-      expect.objectContaining({ title: 'Post-meal walk', activityType: 'walk', defaultDurationSeconds: 900 }),
-    );
-  });
-
-  it('removes a saved shortcut without applying it', async () => {
-    mockPresets = [preset()];
-    const rendered = await renderSection();
-
-    await act(async () => {
-      pressablesByLabel(rendered, 'Activity. Add an activity')[0]!.props.onPress();
-    });
-    await flush();
-
-    await act(async () => {
-      pressablesByLabel(rendered, 'Remove Post-meal walk shortcut')[0]!.props.onPress();
-    });
-    await flush();
-
-    expect(mockDel).toHaveBeenCalledWith('/additional-activity-presets/preset-1');
-    const durationField = rendered.root.findAll(
-      (node) => node.props?.label === 'Duration minutes' && typeof node.props?.onChangeText === 'function',
-    )[0];
-    expect(durationField!.props.value).toBe('');
-  });
-});
+/* Quick-activity presets were removed with the sheet rewrite: they existed
+   to speed up a form that is no longer slow. Their tests go with them, and
+   the invariants worth keeping — which fields a type shows, and that a
+   PATCH never wipes a column the user did not touch — are asserted above
+   against the new sheet. */

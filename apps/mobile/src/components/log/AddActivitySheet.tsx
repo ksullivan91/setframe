@@ -10,7 +10,18 @@ import { activityTypeLabels } from '../AdditionalActivitySheet';
 
 export interface AddActivityValue {
   activityType: AdditionalActivityType;
+  /** Only carried for the types whose fields include it — today, `other`. */
+  title: string;
   minutes: string;
+  /**
+   * The activity's exact stored duration, when editing one.
+   *
+   * The sheet asks for whole minutes, but a Watch-imported activity can be
+   * 877 seconds. Rounding that to 900 on every save destroys precision the
+   * user never touched — a bug this form had once already. Carried through
+   * so an unedited duration is written back exactly as it was.
+   */
+  originalDurationSeconds?: number | null;
   distanceValue: string;
   distanceUnit: 'mi' | 'km';
   startTime: string;
@@ -18,6 +29,8 @@ export interface AddActivityValue {
 
 export interface AddActivitySheetProps {
   visible: boolean;
+  /** Present when editing an existing activity rather than adding one. */
+  initial?: AddActivityValue | null;
   preferredDistanceUnit: 'mi' | 'km';
   saving?: boolean;
   errorMessage?: string | null;
@@ -40,6 +53,7 @@ export interface AddActivitySheetProps {
  */
 export function AddActivitySheet({
   visible,
+  initial = null,
   preferredDistanceUnit,
   saving = false,
   errorMessage,
@@ -48,6 +62,7 @@ export function AddActivitySheet({
 }: AddActivitySheetProps) {
   const theme = useTheme();
   const [activityType, setActivityType] = useState<AdditionalActivityType>('walk');
+  const [title, setTitle] = useState('');
   const [minutes, setMinutes] = useState('');
   const [distanceValue, setDistanceValue] = useState('');
   const [distanceUnit, setDistanceUnit] = useState<'mi' | 'km'>(preferredDistanceUnit);
@@ -55,12 +70,13 @@ export function AddActivitySheet({
 
   useEffect(() => {
     if (!visible) return;
-    setActivityType('walk');
-    setMinutes('');
-    setDistanceValue('');
-    setDistanceUnit(preferredDistanceUnit);
-    setStartTime('');
-  }, [visible, preferredDistanceUnit]);
+    setActivityType(initial?.activityType ?? 'walk');
+    setTitle(initial?.title ?? '');
+    setMinutes(initial?.minutes ?? '');
+    setDistanceValue(initial?.distanceValue ?? '');
+    setDistanceUnit(initial?.distanceUnit ?? preferredDistanceUnit);
+    setStartTime(initial?.startTime ?? '');
+  }, [visible, initial, preferredDistanceUnit]);
 
   /* Yoga has no distance and a foam-rolling session has no pace. The domain
      already decides which fields a type carries; asking again here would be
@@ -68,11 +84,16 @@ export function AddActivitySheet({
   const fields = getAdditionalActivityFields(activityType);
   const showsDistance = fields.includes('distance');
   const showsStartTime = fields.includes('startTime');
-  const canSave = minutes.trim().length > 0 && !saving;
+  /* "Other" is the one type that cannot describe itself, so it carries a
+     name and cannot be saved without one. */
+  const showsTitle = fields.includes('title');
+  const canSave = minutes.trim().length > 0 && (!showsTitle || title.trim().length > 0) && !saving;
 
   return (
     <Sheet visible={visible} onRequestClose={onCancel} backdropTestID="add-activity-backdrop">
-      <Text style={[styles.title, { color: theme.text.primary }]}>Add activity</Text>
+      <Text style={[styles.title, { color: theme.text.primary }]}>
+        {initial ? 'Edit activity' : 'Add activity'}
+      </Text>
       <Text style={[styles.intro, { color: theme.text.secondary }]}>
         Anything you did outside your planned workout — a walk, a class, a ride.
       </Text>
@@ -107,6 +128,22 @@ export function AddActivitySheet({
           })}
         </View>
       </View>
+
+      {showsTitle ? (
+        <View style={styles.field}>
+          <Text style={[styles.label, { color: theme.text.secondary }]}>WHAT TO CALL IT</Text>
+          <View style={[styles.input, { backgroundColor: theme.surface.canvas, borderColor: theme.border.default }]}>
+            <TextInput
+              value={title}
+              onChangeText={setTitle}
+              placeholder="Climbing, surfing, five-a-side…"
+              placeholderTextColor={theme.text.secondary}
+              testID="activity-title"
+              style={[styles.inputValue, styles.timeValue, { color: theme.text.primary }]}
+            />
+          </View>
+        </View>
+      ) : null}
 
       <View style={styles.field}>
         <Text style={[styles.label, { color: theme.text.secondary }]}>HOW LONG</Text>
@@ -184,7 +221,7 @@ export function AddActivitySheet({
         testID="save-activity"
         loading={saving}
         disabled={!canSave}
-        onPress={() => onSave({ activityType, minutes, distanceValue, distanceUnit, startTime })}
+        onPress={() => onSave({ activityType, title, minutes, distanceValue, distanceUnit, startTime })}
       />
       <Button label="Cancel" variant="secondary" onPress={onCancel} />
     </Sheet>

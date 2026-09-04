@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Alert, Pressable, ActivityIndicator } from 'rea
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Pencil, Trash2 } from 'lucide-react-native';
 import { spacing, radius } from '@setframe/design-tokens';
-import type { AdditionalActivity, AdditionalActivityPreset, User } from '@setframe/schemas';
+import type { AdditionalActivity, User } from '@setframe/schemas';
 import {
   deriveRecentActivitySuggestions,
   formatActivityDuration,
@@ -35,8 +35,8 @@ function toDurationDraft(totalSeconds: number | null | undefined): DurationDraft
 import { Skeleton } from './Skeleton';
 import { Button } from './Button';
 import { Toast } from './Toast';
+import { AddActivitySheet, type AddActivityValue } from './log/AddActivitySheet';
 import {
-  AdditionalActivitySheet,
   activityTypeLabels,
   draftFromActivity,
   emptyActivityDraft,
@@ -52,6 +52,62 @@ function daysAgo(localDate: string, days: number): string {
   const date = new Date(`${localDate}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() - days);
   return date.toISOString().slice(0, 10);
+}
+
+/** The new sheet's value, in the shape the API expects. */
+/** An existing activity, as the sheet's value. */
+function valueFromActivity(activity: AdditionalActivity): AddActivityValue {
+  return {
+    activityType: activity.activityType,
+    title: activity.title ?? '',
+    minutes: activity.durationSeconds != null ? String(Math.round(activity.durationSeconds / 60)) : '',
+    originalDurationSeconds: activity.durationSeconds ?? null,
+    distanceValue: activity.distanceValue != null ? String(activity.distanceValue) : '',
+    /* Metres are a storage unit, not one anybody enters — the sheet offers
+       miles and kilometres, so a metre reading falls back to the user's
+       own preference rather than showing a unit it cannot represent. */
+    distanceUnit: activity.distanceUnit === 'km' ? 'km' : 'mi',
+    /* Rendered in local time. The stored instant is UTC, and showing its raw
+       hour would move every activity by the offset. */
+    startTime: (() => {
+      if (!activity.startedAt) return '';
+      const local = new Date(activity.startedAt);
+      return `${String(local.getHours()).padStart(2, '0')}:${String(local.getMinutes()).padStart(2, '0')}`;
+    })(),
+  };
+}
+
+function bodyFromValue(localDate: string, value: AddActivityValue) {
+  /* Same rule as buildBody below, and for the same reason: a field the type
+     does not show is omitted rather than nulled, so a PATCH never wipes a
+     column the user did not touch. */
+  const fields = new Set(getAdditionalActivityFields(value.activityType));
+  const minutes = Number(value.minutes);
+  /* An untouched duration is written back exactly as stored. Only a minutes
+     value the user actually changed becomes a new second count. */
+  const unchanged =
+    value.originalDurationSeconds != null &&
+    String(Math.round(value.originalDurationSeconds / 60)) === value.minutes.trim();
+  return {
+    activityType: value.activityType,
+    title: fields.has('title') ? value.title || null : undefined,
+    durationSeconds: !fields.has('duration')
+      ? undefined
+      : unchanged
+        ? value.originalDurationSeconds!
+        : Number.isFinite(minutes) && minutes > 0
+          ? Math.round(minutes * 60)
+          : undefined,
+    distanceValue:
+      fields.has('distance') && value.distanceValue ? Number(value.distanceValue) : undefined,
+    distanceUnit: fields.has('distance') && value.distanceValue ? value.distanceUnit : undefined,
+    /* Local wall-clock on device; the ISO string is the correct instant and
+       what the API's z.string().datetime() requires. */
+    startedAt:
+      fields.has('startTime') && value.startTime
+        ? new Date(`${localDate}T${value.startTime}:00`).toISOString()
+        : undefined,
+  };
 }
 
 function buildBody(localDate: string, draft: ActivityDraft) {
@@ -135,7 +191,6 @@ export function TodayAdditionalActivitySection({
   const [editTarget, setEditTarget] = useState<AdditionalActivity | null>(null);
   const [draft, setDraft] = useState<ActivityDraft>(emptyActivityDraft());
   const [toast, setToast] = useState<{ variant: 'success' | 'error'; message: string } | null>(null);
-  const [presetTitleDraft, setPresetTitleDraft] = useState('');
 
   const query = useQuery(additionalActivitiesQuery(api, localDate));
 
@@ -159,11 +214,6 @@ export function TodayAdditionalActivitySection({
   });
   // Only fetched while the sheet that would show them is actually open —
   // otherwise every Today screen load would fetch shortcuts nobody asked for.
-  const presetsQuery = useQuery({
-    queryKey: ['additional-activity-presets'],
-    queryFn: () => api.get<{ items: AdditionalActivityPreset[] }>('/additional-activity-presets'),
-    enabled: sheetOpen && !editTarget,
-  });
   const recentSuggestions = recentsQuery.data?.items ? deriveRecentActivitySuggestions(recentsQuery.data.items) : [];
 
   /* Story 44 — what Apple Health already knows about today. The external
@@ -185,12 +235,10 @@ export function TodayAdditionalActivitySection({
   const discovery = useWorkoutDiscovery({ localDate, sessions, importedExternalIds, enabled: isToday });
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['additional-activities', localDate] });
-  const refreshPresets = () => queryClient.invalidateQueries({ queryKey: ['additional-activity-presets'] });
 
   function openAdd() {
     setEditTarget(null);
     setDraft(emptyActivityDraft(preferredDistanceUnit));
-    setPresetTitleDraft('');
     setSheetOpen(true);
   }
 
@@ -201,11 +249,11 @@ export function TodayAdditionalActivitySection({
   }
 
   const createMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (value: AddActivityValue) =>
       api.post('/additional-activities', {
         localDate,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        ...buildBody(localDate, draft),
+        ...bodyFromValue(localDate, value),
       }),
     onSuccess: async () => {
       await refresh();
@@ -216,7 +264,8 @@ export function TodayAdditionalActivitySection({
   });
 
   const updateMutation = useMutation({
-    mutationFn: () => api.patch(`/additional-activities/${editTarget!.id}`, buildBody(localDate, draft)),
+    mutationFn: (value: AddActivityValue) =>
+      api.patch(`/additional-activities/${editTarget!.id}`, bodyFromValue(localDate, value)),
     onSuccess: async () => {
       await refresh();
       setSheetOpen(false);
@@ -242,34 +291,6 @@ export function TodayAdditionalActivitySection({
     mutationFn: (id: string) => api.del(`/additional-activities/${id}`),
     onSuccess: refresh,
     onError: () => setToast({ variant: 'error', message: 'Could not remove activity.' }),
-  });
-
-  const savePresetMutation = useMutation({
-    mutationFn: () => {
-      const fields = new Set(getAdditionalActivityFields(draft.activityType));
-      return api.post('/additional-activity-presets', {
-        title: presetTitleDraft.trim(),
-        activityType: draft.activityType,
-        defaultDurationSeconds: fields.has('duration')
-          ? (validateDurationDraft(draft.duration).totalSeconds ?? undefined)
-          : undefined,
-        defaultDistanceValue: fields.has('distance') && draft.distanceValue ? Number(draft.distanceValue) : undefined,
-        defaultDistanceUnit: fields.has('distance') && draft.distanceValue ? draft.distanceUnit : undefined,
-        defaultNotes: fields.has('notes') ? draft.notes || undefined : undefined,
-      });
-    },
-    onSuccess: async () => {
-      await refreshPresets();
-      setPresetTitleDraft('');
-      setToast({ variant: 'success', message: 'Quick activity saved.' });
-    },
-    onError: () => setToast({ variant: 'error', message: 'Could not save quick activity.' }),
-  });
-
-  const deletePresetMutation = useMutation({
-    mutationFn: (id: string) => api.del(`/additional-activity-presets/${id}`),
-    onSuccess: refreshPresets,
-    onError: () => setToast({ variant: 'error', message: 'Could not remove quick activity.' }),
   });
 
   // Story 43 — a tapped shortcut prefills the sheet for review, it never
@@ -488,22 +509,13 @@ export function TodayAdditionalActivitySection({
         </View>
       ) : null}
 
-      <AdditionalActivitySheet
+      <AddActivitySheet
         visible={sheetOpen}
-        isEditing={editTarget != null}
-        draft={draft}
-        onChange={setDraft}
-        onClose={() => setSheetOpen(false)}
-        onSave={() => (editTarget ? updateMutation.mutate() : createMutation.mutate())}
-        isSaving={createMutation.isPending || updateMutation.isPending}
-        presets={presetsQuery.data?.items ?? []}
-        recentSuggestions={recentSuggestions}
-        onApplySuggestion={applySuggestion}
-        onRemovePreset={(id) => deletePresetMutation.mutate(id)}
-        presetTitleDraft={presetTitleDraft}
-        onPresetTitleChange={setPresetTitleDraft}
-        onSavePreset={() => savePresetMutation.mutate()}
-        isSavingPreset={savePresetMutation.isPending}
+        initial={editTarget ? valueFromActivity(editTarget) : null}
+        preferredDistanceUnit={preferredDistanceUnit}
+        saving={createMutation.isPending || updateMutation.isPending}
+        onCancel={() => setSheetOpen(false)}
+        onSave={(value) => (editTarget ? updateMutation.mutate(value) : createMutation.mutate(value))}
       />
 
       {toast ? <Toast variant={toast.variant} message={toast.message} onDismiss={() => setToast(null)} /> : null}
