@@ -144,3 +144,70 @@ describe('SetRowV2 — Figma geometry', () => {
     ).toBeGreaterThan(0);
   });
 });
+
+describe('the logger has no RPE column', () => {
+  const read = (...p: string[]) =>
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    (require('fs') as { readFileSync(f: string, e: string): string }).readFileSync(
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      (require('path') as { join(...x: string[]): string }).join(__dirname, '..', ...p),
+      'utf8',
+    );
+
+  /* Removed deliberately: RPE was an opt-in extra column, toggled per
+     exercise from the ⋯ sheet. It is off in the design now and the toggle is
+     gone, so the only way it comes back is by accident. RPE itself is still
+     a stored field and is still editable from the session summary's set
+     sheet — this is about the logger's table, not the data. */
+  it('offers no way to turn one on from the exercise actions sheet', () => {
+    const sheet = read('components', 'workout-v2', 'ExerciseActionsSheet.tsx');
+    expect(sheet).not.toMatch(/rpe/i);
+  });
+
+  it('never puts rpe in the columns the table renders', () => {
+    const screen = read('screens', 'WorkoutSessionScreenV2.tsx');
+    // `visibleFields` is what feeds ExerciseTableCard's `fields`.
+    expect(screen).toMatch(/filter\(\(field\) => field !== 'rpe'\)/);
+    expect(screen).not.toMatch(/rpeShownFor/);
+  });
+});
+
+describe('every logger mutation says something when it fails', () => {
+  const read = (...p: string[]) =>
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    (require('fs') as { readFileSync(f: string, e: string): string }).readFileSync(
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      (require('path') as { join(...x: string[]): string }).join(__dirname, '..', ...p),
+      'utf8',
+    );
+
+  /* addSet, changeSetType, deleteSet and removeExercise each rolled the
+     optimistic cache back and reported nothing, so a failure looked exactly
+     like the app undoing the action on purpose. Same class as the 14
+     mutations fixed in 4077d01. The guard is per-mutation rather than a
+     count, so adding a ninth silent one fails here. */
+  it.each([
+    'saveSet',
+    'addSet',
+    'addExercises',
+    'changeSetType',
+    'deleteSet',
+    'removeExercise',
+    'saveAsWorkout',
+    'finish',
+  ])('%s has an onError that reaches the user', (mutation) => {
+    const source = read('screens', 'WorkoutSessionScreenV2.tsx');
+    const start = source.indexOf(`const ${mutation} = useMutation({`);
+    expect(start).toBeGreaterThan(-1);
+    // The mutation's own body, up to the next mutation. Searching from
+    // `start` + a fixed offset finds this mutation's own `= useMutation({`
+    // whenever the name is long enough, which slices an empty body and
+    // passes nothing — measure from the end of its own opener instead.
+    const opener = source.indexOf('= useMutation({', start) + '= useMutation({'.length;
+    const next = source.indexOf('= useMutation({', opener);
+    const body = source.slice(start, next === -1 ? start + 2000 : next);
+    expect(body).toMatch(/onError/);
+    // saveSet marks the row itself; the rest raise a message.
+    expect(body).toMatch(mutation === 'saveSet' ? /setSync\(/ : /feedback\.report\(/);
+  });
+});

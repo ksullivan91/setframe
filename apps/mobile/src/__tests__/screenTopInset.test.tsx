@@ -45,13 +45,25 @@ describe('screens reserve the status bar', () => {
     expect(source).toMatch(/paddingTop:\s*topPadding/);
   });
 
-  it('the session screen reserves it too, via raw insets', () => {
-    /* WorkoutSessionScreenV2 predates the helper and computes
-       `insets.top + 16` inline at each of its three header variants. Named
-       here so the audit covers every self-headered screen rather than
-       silently skipping the one that solved it differently. */
+  it('the session screen reserves it too, via its own header component', () => {
+    /* The session screen used to compute `insets.top + 16` inline at each of
+       its three header variants; the redesign moved that into one shared
+       header. The guard still has to bite, so it checks both halves: the
+       component reserves the inset, *and* the screen actually renders it —
+       either alone is satisfiable while the status bar is uncovered. */
+    const header = fs.readFileSync(
+      path.join(__dirname, '..', 'components', 'workout-v2', 'LoggerHeader.tsx'),
+      'utf8',
+    );
+    expect(header).toMatch(/paddingTop:\s*insets\.top/);
+    const banner = fs.readFileSync(
+      path.join(__dirname, '..', 'components', 'workout-v2', 'LoggerCompleteBanner.tsx'),
+      'utf8',
+    );
+    expect(banner).toMatch(/paddingTop:\s*insets\.top/);
     const source = fs.readFileSync(path.join(dir, 'WorkoutSessionScreenV2.tsx'), 'utf8');
-    expect(source).toMatch(/paddingTop:\s*insets\.top/);
+    expect(source).toContain('<LoggerHeader');
+    expect(source).toContain('<LoggerCompleteBanner');
   });
 
   it('covers every screen that draws its own header', () => {

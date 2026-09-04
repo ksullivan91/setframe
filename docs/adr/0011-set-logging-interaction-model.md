@@ -153,9 +153,14 @@ jarring transition being fixed.
   a correctness one — but it needs
   debouncing on the client and should be watched on the wire during UX
   review (`review.watch()` records API traffic precisely for this).
-- The `Type` and `RPE` fields lose their permanent columns. `RPE` becomes
-  an opt-in column; `setType` moves into the `SET` chip. Neither changes
+- The `Type` and `RPE` fields lose their permanent columns. `RPE` became
+  an opt-in column and `setType` moved into the `SET` chip. Neither changed
   the schema — `workout_set` already carries both as nullable columns.
+  **Superseded in build 23:** the opt-in `RPE` column and its per-exercise
+  toggle were removed outright. The consequence recorded here still holds —
+  RPE has no permanent column — it simply has no column at all now, and the
+  ⋯ sheet no longer offers one. The field remains on `workout_set` and
+  remains editable from the session summary's set sheet.
 - The session header is **fixed to the top** and the `+ Add exercise` bar
   is **fixed to the bottom** on mobile; the header condenses from 76px to
   48px on scroll. Neither was specified by the original frames, which are

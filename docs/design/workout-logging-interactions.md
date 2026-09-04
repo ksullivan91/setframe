@@ -136,7 +136,7 @@ The user should only ever notice the first two stages.
 
 | Concern | Rule |
 |---|---|
-| What commits | Blur **and** every field the prescription marks required holding a value. Optional fields (RPE, set type) never block a write. A half-filled row is silently not written. |
+| What commits | Blur **and** every field the prescription marks required holding a value. Optional fields (set type) never block a write. A half-filled row is silently not written. |
 | Optimistic paint | Immediate, **no spinner**. A spinner on a sub-second write is more disruptive than the write. |
 | Debounce | Writes for one row coalesce over **400ms**, so weight → reps → out is one request, not two. Different rows never coalesce with each other. |
 | Slow request | After **1.5s** with no response the mark shows a quiet pending ring. This stage should normally never be seen. |
@@ -160,7 +160,7 @@ Mid-workout the keypad is up almost continuously, so the accessory bar's
 
 | Situation | Behaviour |
 |---|---|
-| Order within a row | Weight → reps → RPE (when shown). Set type is **not** in the tab order; it is a sheet. |
+| Order within a row | Weight → reps. Set type is **not** in the tab order; it is a sheet. RPE was in this order while it had a column; that column was removed in build 23 (see `workout-logging-table.md` §4). |
 | `Next`, mid-row | Advances within the row. Nothing is written — the row has not been left. |
 | `Next`, last field of a row | Leaves the row (**commits it**) and moves to the first field of the next row. Label reads "Next set". |
 | `Next`, last row of an exercise | Commits, moves to the next exercise, and scrolls it clear of both fixed regions. Label reads "Next exercise". |
@@ -196,7 +196,6 @@ Opened from the card's `⋯`. Header names the exercise and its context
 |---|---|
 | View history | Every session logged for this exercise. |
 | Add a note | Cues, setup, how it felt — kept with **this session**, not written back to the template. |
-| Show RPE column | Toggle. Adds the optional RPE field to every set in this exercise. |
 | Replace exercise | Swap the movement, keeping the sets already logged. |
 | Reorder exercises | Enters reorder mode for the session. |
 | Remove exercise | Destructive, below a divider. |

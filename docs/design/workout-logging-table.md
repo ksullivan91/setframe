@@ -187,7 +187,14 @@ width evenly.
 | `distanceDuration` | `DISTANCE` · `TIME` (minutes) |
 | `duration` | `MINUTES` — one continuous effort, so this kind alone also drops the `SET` chip and has no set type |
 
-`RPE` is an optional extra column, off by default, per exercise.
+`RPE` has **no column**. It was specified as an optional extra, off by
+default and toggled per exercise from the ⋯ sheet; that option was removed
+during the build-23 reskin. A field most sets leave blank was not worth a
+column the 390px table cannot spare, and the toggle was the only control in
+the actions sheet that changed the table's shape rather than doing something.
+
+RPE is still stored on `workout_set` and is still editable per set from the
+session summary's set sheet — this removes a column, not the data.
 
 ### 4.1 Set type in the SET chip
 
@@ -291,8 +298,11 @@ move — §1 is the current index.
 
 ### 7.2 Desktop (1280, `110:2`)
 
-Content is a centred 760px column; the table is 720px. The extra width
-buys the **RPE column**, it does not stretch LB and REPS:
+Content is a centred 760px column; the table is 720px. The extra width was
+specified to buy the **RPE column** rather than stretch LB and REPS. With
+the column removed (§4) the 130px it held is now free; desktop is a web
+target and web is being retired, so the reallocation is left unspecified
+rather than guessed at.
 
 | Column | 390 | 1280 |
 |---|---:|---:|
@@ -302,11 +312,13 @@ buys the **RPE column**, it does not stretch LB and REPS:
 | PR slot | 24 | 30 |
 | `LB` | 70 | 140 |
 | `REPS` | 70 | 140 |
-| `RPE` | — | 130 |
+| `RPE` | — | removed |
 | mark | 24 | 26 |
 | gap | 6 | 8 |
 
-`4 + (40 + 158 + 30 + 140 + 140 + 130 + 26) + (6 × 8 gaps) + 4 = 720`. Row
+`4 + (40 + 158 + 30 + 140 + 140 + 130 + 26) + (6 × 8 gaps) + 4 = 720` was
+the sum while `RPE` was in it; it no longer adds up and is kept only to show
+what the 130px was. Row
 height 48; card padding 20; a three-set exercise is 306px.
 
 ---

@@ -117,13 +117,14 @@ describe('the navigation shell', () => {
       'onboarding.tsx',
       'guided-setup.tsx',
       'health-access.tsx',
-      'dev-log-gallery.tsx',
-      'dev-onboarding-gallery.tsx',
-      'dev-watch-gallery.tsx',
     ]);
     const stranded = fs
       .readdirSync(app())
       .filter((entry) => entry.endsWith('.tsx'))
+      // Dev galleries are root routes on purpose — linked from nowhere,
+      // rendering fixtures rather than a signed-in screen. Matched by
+      // prefix so a new one does not have to be added here to pass.
+      .filter((entry) => !entry.startsWith('dev-'))
       .filter((entry) => !allowed.has(entry));
     expect(stranded).toEqual([]);
   });
