@@ -4,16 +4,16 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Pencil, Trophy } from 'lucide-react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { calculateVolume, estimateOneRepMax, visibleSessionExercises } from '@setframe/domain';
-import { countsTowardVolume, formatSessionSet, isSessionSetLogged } from '../src/lib/prescription';
+import { countsTowardVolume, formatSessionSet, isSessionSetLogged } from '../lib/prescription';
 import type { WorkoutSessionDetail, WorkoutSet } from '@setframe/schemas';
-import { Card } from '../src/components/Card';
-import { Button } from '../src/components/Button';
-import { SetRowReadOnly } from '../src/components/SetRow';
-import { SetEditSheet, type SetEditPatch } from '../src/components/SetEditSheet';
-import { Toast } from '../src/components/Toast';
-import { useApiClient } from '../src/lib/api-client';
-import { useTheme } from '../src/theme/ThemeProvider';
-import { spacing, typeScale } from '../src/theme/getTheme';
+import { Card } from '../components/Card';
+import { Button } from '../components/Button';
+import { SetRowReadOnly } from '../components/SetRow';
+import { SetEditSheet, type SetEditPatch } from '../components/SetEditSheet';
+import { Toast } from '../components/Toast';
+import { useApiClient } from '../lib/api-client';
+import { useTheme } from '../theme/ThemeProvider';
+import { spacing, typeScale } from '../theme/getTheme';
 
 function formatDuration(startedAt: string | null, completedAt: string | null) {
   if (!startedAt || !completedAt) return '—';
@@ -71,7 +71,7 @@ interface EditTarget {
   prescription: WorkoutSessionDetail['exercises'][number]['prescription'];
 }
 
-export default function SessionSummaryScreen() {
+export function SessionSummaryScreen() {
   const theme = useTheme();
   const router = useRouter();
   const api = useApiClient();

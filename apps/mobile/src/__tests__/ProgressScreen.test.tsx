@@ -242,7 +242,7 @@ describe('ExerciseCard', () => {
     // Tapping the first visible point must open the first *July* session,
     // not the first of the unfiltered series.
     press(rendered, 'chart-point');
-    expect(mockPush).toHaveBeenCalledWith({ pathname: '/session-summary', params: { sessionId: 'session-3' } });
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/progress/session-summary', params: { sessionId: 'session-3' } });
   });
 
   it('drills into the session under the finger on a dense weekly series', () => {
@@ -269,7 +269,7 @@ describe('ExerciseCard', () => {
       mockPush.mockClear();
       tapAt(hits, expectedX(target, points.length));
       expect(mockPush).toHaveBeenCalledWith({
-        pathname: '/session-summary',
+        pathname: '/progress/session-summary',
         params: { sessionId: `sess-${target}` },
       });
     }

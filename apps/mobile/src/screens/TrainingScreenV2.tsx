@@ -153,7 +153,7 @@ export function TrainingScreenV2() {
       setNamingWorkout(false);
       void queryClient.invalidateQueries({ queryKey: ['day-types'] });
       void queryClient.invalidateQueries({ queryKey: ['program-day-types'] });
-      router.push(`/workout-editor?dayTypeId=${created.id}`);
+      router.push(`/training/workout-editor?dayTypeId=${created.id}`);
     },
     onError: feedback.report('Could not create that workout. Try again.'),
   });
@@ -199,7 +199,7 @@ export function TrainingScreenV2() {
               meta={formatWorkoutMeta(dayType)}
               divided={index > 0}
               testID={`workout-row-${dayType.id}`}
-              onPress={() => router.push(`/workout-editor?dayTypeId=${dayType.id}`)}
+              onPress={() => router.push(`/training/workout-editor?dayTypeId=${dayType.id}`)}
             />
           ))}
         </Card>
@@ -255,14 +255,14 @@ export function TrainingScreenV2() {
           programName={activeProgram.name}
           meta={formatProgramMeta(progress, scheduledDays)}
           progress={progress}
-          onChange={() => router.push('/plans')}
+          onChange={() => router.push('/training/plans')}
         />
       ) : null}
 
       <Card testID="this-week-card">
         <CardHeadRow>
           <CardLabel>This week</CardLabel>
-          <CardAction label="Edit schedule" onPress={() => router.push('/schedule')} />
+          <CardAction label="Edit schedule" onPress={() => router.push('/training/schedule')} />
         </CardHeadRow>
         {/* Without this the strip reads every day as "Rest" while the slots
             load — it briefly tells a user with a full week that they have
@@ -276,7 +276,7 @@ export function TrainingScreenV2() {
              to the same place regardless of which one you pressed. The
              week strip is a readout of the schedule, so a tap belongs on
              the schedule — where that day can actually be changed. */
-          onSelectDay={() => router.push('/schedule')}
+          onSelectDay={() => router.push('/training/schedule')}
         />
         )}
       </Card>
@@ -302,7 +302,7 @@ export function TrainingScreenV2() {
               badge={nextUp?.workoutName === dayType.name ? 'Next up' : undefined}
               divided={index > 0}
               testID={`workout-row-${dayType.id}`}
-              onPress={() => router.push(`/workout-editor?dayTypeId=${dayType.id}`)}
+              onPress={() => router.push(`/training/workout-editor?dayTypeId=${dayType.id}`)}
             />
           ))
         )}

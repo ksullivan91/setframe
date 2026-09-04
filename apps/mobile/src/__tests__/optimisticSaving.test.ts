@@ -7,7 +7,7 @@ interface NodePath { join(...p: string[]): string }
 const fs = require('fs') as NodeFs;
 
 const path = require('path') as NodePath;
-const log = () => fs.readFileSync(path.join(__dirname, '..', '..', 'app', '(tabs)', 'log.tsx'), 'utf8');
+const log = () => fs.readFileSync(path.join(__dirname, '..', '..', 'app', '(tabs)', 'log', 'index.tsx'), 'utf8');
 
 /**
  * Optimistic saving, and the one place it must not roll back.

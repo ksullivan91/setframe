@@ -377,7 +377,7 @@ describe('WorkoutSessionScreen persistent session actions', () => {
     await flush(40);
 
     expect(mockPost).toHaveBeenCalledWith('/workout-sessions/session-1/complete', undefined);
-    expect(mockReplace).toHaveBeenCalledWith({ pathname: '/session-summary', params: { sessionId: 'session-1' } });
+    expect(mockReplace).toHaveBeenCalledWith({ pathname: '/progress/session-summary', params: { sessionId: 'session-1' } });
   });
 
   it('keeps training and does not complete when the confirmation is cancelled', async () => {

@@ -46,9 +46,19 @@ export default function RootLayout() {
                 {/* v2 draws its own sticky header — back, title, Finish, and
                     the running meta line — so the native stack header would
                     sit on top of it and cost ~44px of the vertical space this
-                    redesign exists to reclaim. */}
+                    redesign exists to reclaim. It stays outside the tab shell
+                    for the same reason: a tab bar under an immersive task
+                    invites tapping away from a running workout. */}
                 <Stack.Screen name="workout/[sessionId]" options={{ headerShown: false }} />
-                <Stack.Screen name="session-summary" options={{ headerShown: true, title: 'Session Summary' }} />
+                {/* Every other app screen now lives inside its tab's own
+                    stack (`app/(tabs)/<tab>/`), so the tab bar stays visible
+                    and the stack draws a back arrow. Settings, Plans,
+                    Schedule and the workout editor used to sit here instead,
+                    above the tab navigator with `headerShown: false` — no tab
+                    bar and no way back but the invisible edge-swipe.
+                    This one remains because the logger, being outside the
+                    tabs, needs history to push above it rather than jump into
+                    the Progress tab mid-workout. */}
                 <Stack.Screen
                   name="exercise-history/[exerciseId]"
                   options={{ headerShown: true, title: 'Exercise History' }}

@@ -3,7 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Exercise } from '@setframe/schemas';
 import { ThemeProvider } from '../theme/ThemeProvider';
-import { MovementPatternField } from '../../app/exercise-history/[exerciseId]';
+import { MovementPatternField } from '../screens/ExerciseHistoryScreen';
 
 const mockPatch = jest.fn(() => Promise.resolve({}));
 

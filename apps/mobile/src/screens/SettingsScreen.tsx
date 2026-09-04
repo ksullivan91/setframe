@@ -2,18 +2,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, View, Text, Switch, StyleSheet, ActivityIndicator } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
 import { useClerk, useAuth, useUser } from '@clerk/clerk-expo';
-import { DeleteAccountSheet } from '../src/components/DeleteAccountSheet';
+import { DeleteAccountSheet } from '../components/DeleteAccountSheet';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { NotificationPreference, User } from '@setframe/schemas';
-import { Card } from '../src/components/Card';
-import { Button } from '../src/components/Button';
-import { Select } from '../src/components/Select';
-import { useTheme } from '../src/theme/ThemeProvider';
-import { spacing, typeScale } from '../src/theme/getTheme';
-import { useApiClient } from '../src/lib/api-client';
-import { useHealthConnection, type HealthCardState } from '../src/healthkit/useHealthConnection';
-import { useScreenTopPadding } from '../src/lib/useScreenInsets';
-import { useActionFeedback } from '../src/lib/useActionFeedback';
+import { Card } from '../components/Card';
+import { Button } from '../components/Button';
+import { Select } from '../components/Select';
+import { useTheme } from '../theme/ThemeProvider';
+import { spacing, typeScale } from '../theme/getTheme';
+import { useApiClient } from '../lib/api-client';
+import { useHealthConnection, type HealthCardState } from '../healthkit/useHealthConnection';
+import { useActionFeedback } from '../lib/useActionFeedback';
 
 type PreferredUnits = User['preferredUnits'];
 
@@ -26,7 +25,11 @@ interface SettingsRowProps {
 function SettingsRow({ label, value, valueTone = 'default' }: SettingsRowProps) {
   const theme = useTheme();
   const valueColor =
-    valueTone === 'success' ? theme.status.success : valueTone === 'destructive' ? theme.status.error : theme.text.primary;
+    valueTone === 'success'
+      ? theme.status.successText
+      : valueTone === 'destructive'
+        ? theme.status.errorText
+        : theme.text.primary;
 
   return (
     <View style={styles.row}>
@@ -75,7 +78,7 @@ function formatRelativeTime(timestamp: string | null) {
   return date.toLocaleString();
 }
 
-export default function SettingsScreen() {
+export function SettingsScreen() {
   const feedback = useActionFeedback();
   const theme = useTheme();
   const { user } = useUser();
@@ -157,7 +160,6 @@ export default function SettingsScreen() {
   const health = useHealthConnection();
   const syncLoading = health.state === 'loading';
   const syncStatus = useMemo(() => formatHealthStatus(health.state), [health.state]);
-  const topPadding = useScreenTopPadding();
 
 
   /**
@@ -177,12 +179,11 @@ export default function SettingsScreen() {
   return (
     <ScrollView
       style={{ backgroundColor: theme.surface.canvas }}
-      contentContainerStyle={[styles.content, { paddingTop: topPadding }]}
+      contentContainerStyle={styles.content}
     >
-      {/* Web's SettingsPage leads with an <h1> and places each section
-          heading *above* its card, not inside it. Mobile had neither: it
-          opened straight into an unlabelled Account card. */}
-      <Text style={[styles.pageTitle, { color: theme.text.primary }]}>Settings</Text>
+      {/* No page title here: the stack header supplies it now, along with
+          the back arrow this screen used to lack entirely. Section headings
+          still sit above their cards, as web's SettingsPage has them. */}
 
       <Text style={[styles.sectionHeading, { color: theme.text.primary }]}>Account</Text>
       <Card>
@@ -277,7 +278,7 @@ export default function SettingsScreen() {
         )}
       </Card>
 
-      <Text style={[styles.sectionHeading, { color: theme.status.error }]}>Danger zone</Text>
+      <Text style={[styles.sectionHeading, { color: theme.status.errorText }]}>Danger zone</Text>
       <Card>
         <SettingsRow label="Delete account" value="This cannot be undone" valueTone="destructive" />
         <Button
@@ -310,12 +311,6 @@ const styles = StyleSheet.create({
   content: {
     padding: spacing[16],
     gap: spacing[16],
-  },
-  /* Web's SettingsPage opens with an <h1> at pageTitle scale, then labels
-     each card with a heading placed above it. */
-  pageTitle: {
-    fontSize: typeScale.pageTitle.fontSize,
-    fontWeight: '600',
   },
   sectionHeading: {
     fontSize: typeScale.sectionTitle.fontSize,

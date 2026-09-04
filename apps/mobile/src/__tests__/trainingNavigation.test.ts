@@ -22,7 +22,7 @@ describe('Training v2 no longer falls back to the retired editor', () => {
     const screen = read('screens', 'TrainingScreenV2.tsx');
     const code = screen.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
     expect(code).not.toContain('/training-manage');
-    expect(code).toContain('/workout-editor?dayTypeId=');
+    expect(code).toContain('/training/workout-editor?dayTypeId=');
   });
 
   it('asks for a name first, so the new workout is never unnamed', () => {
@@ -37,7 +37,7 @@ describe('Training v2 no longer falls back to the retired editor', () => {
        went to the same unrelated place. */
     const screen = read('screens', 'TrainingScreenV2.tsx');
     const strip = screen.slice(screen.indexOf('<WeekStrip'));
-    expect(strip.slice(0, 600)).toContain("router.push('/schedule')");
+    expect(strip.slice(0, 600)).toContain("router.push('/training/schedule')");
     expect(strip.slice(0, 600)).not.toContain("'/(tabs)/log'");
   });
 });

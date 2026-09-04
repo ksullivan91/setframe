@@ -621,7 +621,7 @@ export default function WorkoutSessionScreen() {
     mutationFn: () => api.post(`/workout-sessions/${resolvedSessionId}/complete`),
     onSuccess: async () => {
       await refreshSession();
-      router.replace({ pathname: '/session-summary', params: { sessionId: resolvedSessionId! } });
+      router.replace({ pathname: '/progress/session-summary', params: { sessionId: resolvedSessionId! } });
     },
     /* A silent failure here left the session `in_progress` indefinitely
        while the user believed they had finished — and Today would keep

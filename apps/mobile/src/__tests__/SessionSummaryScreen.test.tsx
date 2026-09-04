@@ -2,7 +2,7 @@ import React from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '../theme/ThemeProvider';
-import SessionSummaryScreen from '../../app/session-summary';
+import { SessionSummaryScreen } from '../screens/SessionSummaryScreen';
 import type { WorkoutSessionDetail } from '@setframe/schemas';
 
 const mockReplace = jest.fn();

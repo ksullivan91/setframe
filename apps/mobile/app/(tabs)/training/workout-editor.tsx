@@ -1,4 +1,4 @@
-import { WorkoutEditorScreen } from '../src/screens/WorkoutEditorScreen';
+import { WorkoutEditorScreen } from '../../../src/screens/WorkoutEditorScreen';
 
 /**
  * The pushed workout editor (story 79). Reached from a workout row on the

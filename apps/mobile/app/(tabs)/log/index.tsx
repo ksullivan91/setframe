@@ -21,26 +21,26 @@ import {
   UserRound,
   Utensils,
 } from 'lucide-react-native';
-import { Card } from '../../src/components/Card';
-import { LogHeader } from '../../src/components/log/LogHeader';
-import { LogWeekStrip } from '../../src/components/log/LogWeekStrip';
-import { LogHero, type LogHeroState, type LogHeroProps } from '../../src/components/log/LogHero';
-import { LogEntryRow } from '../../src/components/log/LogEntryRow';
-import { DaySignals } from '../../src/components/log/DaySignals';
-import { useCloseAbandonedSessions } from '../../src/lib/useCloseAbandonedSessions';
-import { JournalSheet, NutritionSheet, WeightSheet } from '../../src/components/log/LogEditSheets';
-import { ChooseWorkoutSheet } from '../../src/components/log/ChooseWorkoutSheet';
-import { releaseSplash, SPLASH_MAX_MS } from '../../src/lib/appReady';
-import { Button } from '../../src/components/Button';
-import { Input } from '../../src/components/Input';
-import { Checkbox } from '../../src/components/Checkbox';
-import { Skeleton, SkeletonStack } from '../../src/components/Skeleton';
-import { Toast } from '../../src/components/Toast';
+import { Card } from '../../../src/components/Card';
+import { LogHeader } from '../../../src/components/log/LogHeader';
+import { LogWeekStrip } from '../../../src/components/log/LogWeekStrip';
+import { LogHero, type LogHeroState, type LogHeroProps } from '../../../src/components/log/LogHero';
+import { LogEntryRow } from '../../../src/components/log/LogEntryRow';
+import { DaySignals } from '../../../src/components/log/DaySignals';
+import { useCloseAbandonedSessions } from '../../../src/lib/useCloseAbandonedSessions';
+import { JournalSheet, NutritionSheet, WeightSheet } from '../../../src/components/log/LogEditSheets';
+import { ChooseWorkoutSheet } from '../../../src/components/log/ChooseWorkoutSheet';
+import { releaseSplash, SPLASH_MAX_MS } from '../../../src/lib/appReady';
+import { Button } from '../../../src/components/Button';
+import { Input } from '../../../src/components/Input';
+import { Checkbox } from '../../../src/components/Checkbox';
+import { Skeleton, SkeletonStack } from '../../../src/components/Skeleton';
+import { Toast } from '../../../src/components/Toast';
 import {
   TodayAdditionalActivitySection,
   additionalActivitiesQuery,
-} from '../../src/components/TodayAdditionalActivitySection';
-import { summariseSessionDetail, type SessionDetail } from '../../src/lib/useCloseAbandonedSessions';
+} from '../../../src/components/TodayAdditionalActivitySection';
+import { summariseSessionDetail, type SessionDetail } from '../../../src/lib/useCloseAbandonedSessions';
 import {
   addDays,
   buildCompletedSessionReadout,
@@ -49,14 +49,14 @@ import {
   startOfWeek,
   visibleSessionExercises,
 } from '@setframe/domain';
-import { ApiError, useApiClient } from '../../src/lib/api-client';
-import { useLocalDate } from '../../src/lib/useLocalDate';
-import { useScreenTopPadding } from '../../src/lib/useScreenInsets';
-import { useHealthConnection } from '../../src/healthkit/useHealthConnection';
-import { useTheme } from '../../src/theme/ThemeProvider';
-import { radius, spacing, typeScale } from '../../src/theme/getTheme';
+import { ApiError, useApiClient } from '../../../src/lib/api-client';
+import { useLocalDate } from '../../../src/lib/useLocalDate';
+import { useScreenTopPadding } from '../../../src/lib/useScreenInsets';
+import { useHealthConnection } from '../../../src/healthkit/useHealthConnection';
+import { useTheme } from '../../../src/theme/ThemeProvider';
+import { radius, spacing, typeScale } from '../../../src/theme/getTheme';
 import type { DayType, WorkoutSessionDetail } from '@setframe/schemas';
-import { useActionFeedback } from '../../src/lib/useActionFeedback';
+import { useActionFeedback } from '../../../src/lib/useActionFeedback';
 
 interface DashboardSessionSummary {
   id: string;
@@ -1044,7 +1044,7 @@ export default function TodayScreen() {
       <LogHeader
         title={isToday ? 'Today' : formatShortDate(localDate)}
         dateLabel={dateLabel}
-        onPressAccount={() => router.push('/settings')}
+        onPressAccount={() => router.push('/log/settings')}
       />
       <LogWeekStrip
         days={weekDays}

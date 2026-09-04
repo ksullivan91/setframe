@@ -15,9 +15,11 @@ const app = (...p: string[]) => fs.readFileSync(path.join(__dirname, '..', '..',
  * doing nothing. These hold the parts that would fail quietly.
  */
 describe('the delete control actually deletes', () => {
-  /* Settings left the tab bar for the account avatar on Log (ADR 0013), so
-     it is a stack route now rather than a tab. */
-  const settings = () => app('settings.tsx');
+  /* Settings moved into the Log tab's stack so it keeps the tab bar and
+     gets a back arrow (ADR 0013); the screen itself now lives in
+     src/screens, with the route file a thin re-export. */
+  const settings = () =>
+    fs.readFileSync(path.join(__dirname, '..', 'screens', 'SettingsScreen.tsx'), 'utf8');
 
   it('is wired to something', () => {
     const source = settings();

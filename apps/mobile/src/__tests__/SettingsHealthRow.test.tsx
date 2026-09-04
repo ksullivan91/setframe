@@ -2,7 +2,7 @@ import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '../theme/ThemeProvider';
-import SettingsScreen from '../../app/settings';
+import { SettingsScreen } from '../screens/SettingsScreen';
 
 /**
  * The Apple Health rows on Settings.

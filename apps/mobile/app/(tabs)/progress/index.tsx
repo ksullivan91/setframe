@@ -47,7 +47,7 @@ import {
   type SeriesPoint,
 } from '@setframe/domain';
 import type { ProgressOverviewResponse } from '@setframe/schemas';
-import { Card } from '../../src/components/Card';
+import { Card } from '../../../src/components/Card';
 import {
   AdherenceChart,
   ColumnChart,
@@ -55,14 +55,14 @@ import {
   RangeSelector,
   SmallMultiples,
   StackedChart,
-} from '../../src/components/Charts';
-import { MetricInfo } from '../../src/components/MetricInfo';
-import { ProgressInsights } from '../../src/components/ProgressInsights';
-import { FadeIn, Skeleton, SkeletonStack } from '../../src/components/Skeleton';
-import { useApiClient } from '../../src/lib/api-client';
-import { useScreenTopPadding } from '../../src/lib/useScreenInsets';
-import { useTheme } from '../../src/theme/ThemeProvider';
-import { spacing, typeScale } from '../../src/theme/getTheme';
+} from '../../../src/components/Charts';
+import { MetricInfo } from '../../../src/components/MetricInfo';
+import { ProgressInsights } from '../../../src/components/ProgressInsights';
+import { FadeIn, Skeleton, SkeletonStack } from '../../../src/components/Skeleton';
+import { useApiClient } from '../../../src/lib/api-client';
+import { useScreenTopPadding } from '../../../src/lib/useScreenInsets';
+import { useTheme } from '../../../src/theme/ThemeProvider';
+import { spacing, typeScale } from '../../../src/theme/getTheme';
 
 /**
  * Progress.
@@ -941,7 +941,7 @@ export function ExerciseCard({
             // `index` is into the range-filtered series the chart was given.
             const point = visible[index];
             if (point?.meta)
-              router.push({ pathname: '/session-summary', params: { sessionId: point.meta.sessionId } });
+              router.push({ pathname: '/progress/session-summary', params: { sessionId: point.meta.sessionId } });
           }}
           testID={`exercise-chart-${exercise.exerciseId}`}
         />
@@ -958,7 +958,7 @@ export function ExerciseCard({
         accessibilityRole="button"
         accessibilityLabel={`See full history for ${exercise.exerciseName}`}
         testID="exercise-history-link"
-        onPress={() => router.push(`/exercise-history/${exercise.exerciseId}`)}
+        onPress={() => router.push(`/progress/exercise-history/${exercise.exerciseId}`)}
         style={[styles.sessionRow, { borderColor: theme.border.subtle }]}
       >
         <Text style={{ color: theme.text.primary, fontWeight: '600' }}>See full history</Text>
@@ -1278,7 +1278,7 @@ export default function ProgressScreen() {
                 accessibilityLabel={`${session.sessionName}, ${formatDate(session.localDate)}`}
                 testID="recent-session"
                 onPress={() =>
-                  router.push({ pathname: '/session-summary', params: { sessionId: session.sessionId } })
+                  router.push({ pathname: '/progress/session-summary', params: { sessionId: session.sessionId } })
                 }
                 style={[styles.sessionRow, { borderColor: theme.border.subtle }]}
               >

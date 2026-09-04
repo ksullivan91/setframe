@@ -64,7 +64,18 @@ describe('screens reserve the status bar', () => {
         const source = fs.readFileSync(path.join(dir, file), 'utf8');
         return /styles\.header\b/.test(source) || /header:\s*\{/.test(source);
       });
-    const known = [...SCREENS_WITH_OWN_HEADER, 'WorkoutSessionScreenV2.tsx', 'WorkoutSessionScreenV1.tsx'];
+    /* `styles.header` is a name match, and one screen names an in-content
+       heading that way while its chrome comes from the native stack header
+       — it has no status bar to reserve. Listed apart from the screens that
+       genuinely hand-roll a header, so this stays a false-positive list and
+       not a second allowlist. */
+    const contentHeadingNotNavHeader = ['ExerciseHistoryScreen.tsx'];
+    const known = [
+      ...SCREENS_WITH_OWN_HEADER,
+      'WorkoutSessionScreenV2.tsx',
+      'WorkoutSessionScreenV1.tsx',
+      ...contentHeadingNotNavHeader,
+    ];
     expect(withOwnHeader.filter((f) => !known.includes(f))).toEqual([]);
   });
 });

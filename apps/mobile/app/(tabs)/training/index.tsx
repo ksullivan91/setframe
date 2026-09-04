@@ -1,4 +1,4 @@
-import { TrainingScreenV2 } from '../../src/screens/TrainingScreenV2';
+import { TrainingScreenV2 } from '../../../src/screens/TrainingScreenV2';
 
 /**
  * The Training tab.
