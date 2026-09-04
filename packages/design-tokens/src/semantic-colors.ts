@@ -55,6 +55,9 @@ export const lightTheme = {
     /* Accent 600 on near-black is 2.6:1. 500 is 4.8 and still unmistakably
        the brand blue. */
     accent: colorRamps.accent[500],
+    accentMuted: colorRamps.accent[300],
+    panel: colorRamps.accent[950],
+    panelEdge: colorRamps.accent[800],
     success: colorRamps.status.success,
   },
   /**
@@ -123,6 +126,9 @@ export const darkTheme = {
     text: colorRamps.neutral[0],
     textMuted: colorRamps.neutral[300],
     accent: colorRamps.accent[400],
+    accentMuted: colorRamps.accent[300],
+    panel: colorRamps.accent[950],
+    panelEdge: colorRamps.accent[800],
     success: colorRamps.status.success,
   },
   chart: {
@@ -217,6 +223,18 @@ export interface SemanticTheme {
     /** Muted copy on the dark surface. Meets AA against `inverse.surface`. */
     textMuted: string;
     accent: string;
+    /** Small labels and eyebrows: accent 300 is 7.9:1 on the dark surface
+     *  where accent 500 is 4.9 — bright enough to read at 11px. */
+    accentMuted: string;
+    /**
+     * A purple panel on the dark surface, for the block a screen is about.
+     *
+     * Measured on accent 950: white is 17:1 and the muted step 10:1, so it
+     * carries body copy comfortably while reading as brand rather than as
+     * another neutral card.
+     */
+    panel: string;
+    panelEdge: string;
     success: string;
   };
   chart: ChartTokens;

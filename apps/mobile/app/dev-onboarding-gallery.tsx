@@ -27,14 +27,14 @@ export default function DevOnboardingGallery() {
         <OnboardingScaffold
           actions={<>
             <Button label="Get started" onPress={() => {}} />
-            <Text style={[T.note, styles.centre, { color: theme.text.secondary }]}>
+            <Text style={[T.note, styles.centre, { color: theme.inverse.textMuted }]}>
               Takes about a minute. You can skip any of it.
             </Text>
           </>}
         >
-          <Text style={[T.hero, { color: theme.text.primary }]}>Setframe</Text>
-          <Text style={[T.body, { color: theme.text.secondary }]}>Log the set. Keep the record.</Text>
-          <Text style={[T.body, { color: theme.text.secondary }]}>
+          <Text style={[T.hero, { color: theme.inverse.text }]}>Setframe</Text>
+          <Text style={[T.body, { color: theme.inverse.textMuted }]}>Log the set. Keep the record.</Text>
+          <Text style={[T.body, { color: theme.inverse.textMuted }]}>
             Everything you log builds one history — what you lifted, how you recovered, and what
             actually changed over time.
           </Text>
@@ -45,27 +45,27 @@ export default function DevOnboardingGallery() {
         <OnboardingScaffold
           actions={<>
             <Button label="Set up my training" onPress={() => {}} />
-            <Button label="Skip — just let me train" variant="secondary" onPress={() => {}} />
+            <Button label="Skip — just let me train" variant="ghostOnDark" onPress={() => {}} />
           </>}
         >
-          <Text style={[T.title, { color: theme.text.primary }]}>Turn workouts into progress</Text>
-          <Text style={[T.body, { color: theme.text.secondary }]}>
+          <Text style={[T.title, { color: theme.inverse.text }]}>Turn workouts into progress</Text>
+          <Text style={[T.body, { color: theme.inverse.textMuted }]}>
             You can train without this. Here is what changes if you set it up.
           </Text>
-          <View style={[styles.card, { backgroundColor: theme.surface.raised }]}>
-            <Text style={[T.eyebrow, { color: theme.text.disabled }]}>WITHOUT A PROGRAM</Text>
-            <Text style={[styles.item, { color: theme.text.primary }]}>
+          <View style={[styles.card, { backgroundColor: theme.inverse.raised }]}>
+            <Text style={[T.eyebrow, { color: theme.inverse.accentMuted }]}>WITHOUT A PROGRAM</Text>
+            <Text style={[styles.item, { color: theme.inverse.text }]}>
               Every set is saved, and you can see one exercise&apos;s history at a time. That is all
               — there is nothing to compare a week against.
             </Text>
-            <Text style={[T.eyebrow, { color: theme.text.disabled }]}>WITH ONE</Text>
-            <Text style={[styles.item, { color: theme.text.primary }]}>
+            <Text style={[T.eyebrow, { color: theme.inverse.accentMuted }]}>WITH ONE</Text>
+            <Text style={[styles.item, { color: theme.inverse.text }]}>
               Today knows what is next. Weeks can be compared to each other. Streaks and adherence
               mean something. And the record becomes dense enough that coaching has something real
               to read.
             </Text>
           </View>
-          <Text style={[T.note, { color: theme.text.secondary }]}>
+          <Text style={[T.note, { color: theme.inverse.textMuted }]}>
             Takes about two minutes, and you can stop anywhere — whatever you have made is kept.
           </Text>
         </OnboardingScaffold>
@@ -76,8 +76,8 @@ export default function DevOnboardingGallery() {
       </Frame>
 
       <Frame label="Delete account sheet">
-        <View style={[styles.sheetFrame, { backgroundColor: theme.surface.canvas }]}>
-          <Button label="Open the sheet" variant="secondary" onPress={() => setSheet(true)} />
+        <View style={[styles.sheetFrame, { backgroundColor: theme.inverse.surface }]}>
+          <Button label="Open the sheet" variant="ghostOnDark" onPress={() => setSheet(true)} />
           {/* A real RN Modal draws over the whole window, so leaving this
               open would hide every other frame in the gallery. */}
           <DeleteAccountSheet
@@ -96,7 +96,16 @@ function Frame({ label, children }: { label: string; children: React.ReactNode }
   return (
     <View style={styles.frame}>
       <Text style={[styles.label, { color: theme.text.disabled }]}>{label.toUpperCase()}</Text>
-      <View style={[styles.phone, { borderColor: theme.border.subtle }]}>{children}</View>
+      <View
+        style={[
+          styles.phone,
+          /* Onboarding is dark end to end now, so the frame has to be too —
+             a light frame around a dark screen reads as a bug. */
+          { borderColor: theme.border.subtle, backgroundColor: theme.inverse.surface },
+        ]}
+      >
+        {children}
+      </View>
     </View>
   );
 }
