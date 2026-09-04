@@ -230,21 +230,22 @@ export function GuidedSetupFlow({
       >
         {step === 1 ? (
           <>
-            <Text style={[styles.title, { color: theme.text.primary }]}>What should we call it?</Text>
-            <Text style={[styles.help, { color: theme.text.secondary }]}>
+            <Text style={[styles.title, { color: theme.inverse.text }]}>What should we call it?</Text>
+            <Text style={[styles.help, { color: theme.inverse.textMuted }]}>
               A plan is the whole thing you are following — the workouts in it and the days they
               land on. Most people have one at a time.
             </Text>
             <Input
+        onDark
               label="PLAN NAME"
               value={planName}
               onChangeText={setPlanName}
               placeholder="Upper / Lower 4-day"
               testID="plan-name"
             />
-            <View style={[styles.hint, { backgroundColor: theme.surface.raised }]}>
-              <Text style={[styles.hintLabel, { color: theme.text.secondary }]}>COMMON ONES</Text>
-              <Text style={[styles.hintBody, { color: theme.text.primary }]}>
+            <View style={[styles.hint, { backgroundColor: theme.inverse.raised }]}>
+              <Text style={[styles.hintLabel, { color: theme.inverse.textMuted }]}>COMMON ONES</Text>
+              <Text style={[styles.hintBody, { color: theme.inverse.text }]}>
                 Upper / Lower  ·  Push Pull Legs  ·  Full Body 3-day
               </Text>
             </View>
@@ -253,12 +254,13 @@ export function GuidedSetupFlow({
 
         {step === 2 ? (
           <>
-            <Text style={[styles.title, { color: theme.text.primary }]}>Add your first workout</Text>
-            <Text style={[styles.help, { color: theme.text.secondary }]}>
+            <Text style={[styles.title, { color: theme.inverse.text }]}>Add your first workout</Text>
+            <Text style={[styles.help, { color: theme.inverse.textMuted }]}>
               A workout is one training day you repeat — the thing you tap to start. You can add
               more after this one.
             </Text>
             <Input
+        onDark
               label="WORKOUT NAME"
               value={workoutName}
               onChangeText={setWorkoutName}
@@ -270,10 +272,10 @@ export function GuidedSetupFlow({
 
         {step === 3 ? (
           <>
-            <Text style={[styles.title, { color: theme.text.primary }]}>
+            <Text style={[styles.title, { color: theme.inverse.text }]}>
               What is in {dayType?.name ?? 'this workout'}?
             </Text>
-            <Text style={[styles.help, { color: theme.text.secondary }]}>
+            <Text style={[styles.help, { color: theme.inverse.textMuted }]}>
               Add the movements you do. Targets are optional — you can leave them blank and just
               log what you lift.
             </Text>
@@ -284,17 +286,17 @@ export function GuidedSetupFlow({
                 accessibilityRole="button"
                 accessibilityLabel={`Edit ${byId.get(row.exerciseId)?.name ?? 'exercise'}`}
                 onPress={() => setSheetFor(row.id)}
-                style={[styles.row, { backgroundColor: theme.surface.raised }]}
+                style={[styles.row, { backgroundColor: theme.inverse.raised }]}
               >
                 <View style={styles.rowMeta}>
-                  <Text numberOfLines={1} style={[styles.rowTitle, { color: theme.text.primary }]}>
+                  <Text numberOfLines={1} style={[styles.rowTitle, { color: theme.inverse.text }]}>
                     {byId.get(row.exerciseId)?.name ?? 'Exercise'}
                   </Text>
-                  <Text style={[styles.rowDetail, { color: theme.text.secondary }]}>
+                  <Text style={[styles.rowDetail, { color: theme.inverse.textMuted }]}>
                     {row.prescription ? summarizePrescription(row.prescription) : 'No target'}
                   </Text>
                 </View>
-                <Text style={[styles.rowAction, { color: theme.action.primary }]}>Edit</Text>
+                <Text style={[styles.rowAction, { color: theme.inverse.accent }]}>Edit</Text>
               </Pressable>
             ))}
             <Pressable
@@ -302,19 +304,19 @@ export function GuidedSetupFlow({
               accessibilityRole="button"
               accessibilityLabel="Add exercises"
               onPress={() => setPickerOpen(true)}
-              style={[styles.add, { borderColor: theme.border.default }]}
+              style={[styles.add, { borderColor: theme.inverse.panelEdge }]}
             >
-              <Text style={[styles.addLabel, { color: theme.action.primary }]}>+  Add exercises</Text>
+              <Text style={[styles.addLabel, { color: theme.inverse.accent }]}>+  Add exercises</Text>
             </Pressable>
           </>
         ) : null}
 
         {step === 4 ? (
           <>
-            <Text style={[styles.title, { color: theme.text.primary }]}>
+            <Text style={[styles.title, { color: theme.inverse.text }]}>
               When do you do {dayType?.name ?? 'this workout'}?
             </Text>
-            <Text style={[styles.help, { color: theme.text.secondary }]}>
+            <Text style={[styles.help, { color: theme.inverse.textMuted }]}>
               This is what lets Today tell you what is next. Leave it blank and the workout still
               exists — you just start it yourself.
             </Text>
@@ -333,11 +335,11 @@ export function GuidedSetupFlow({
                     }
                     style={[
                       styles.day,
-                      { backgroundColor: on ? theme.action.primary : theme.surface.raised },
+                      { backgroundColor: on ? theme.inverse.accent : theme.inverse.raised },
                     ]}
                   >
                     <Text
-                      style={[styles.dayLabel, { color: on ? theme.action.primaryText : theme.text.primary }]}
+                      style={[styles.dayLabel, { color: on ? theme.inverse.text : theme.inverse.text }]}
                     >
                       {label}
                     </Text>
@@ -397,7 +399,7 @@ function StepActions({
   }
   return (
     <>
-      <Button label="Add another workout" variant="secondary" onPress={onAddAnother} disabled={busy} />
+      <Button label="Add another workout" variant="ghostOnDark" onPress={onAddAnother} disabled={busy} />
       <Button label="Done" onPress={onFinish} loading={busy} disabled={busy} />
     </>
   );

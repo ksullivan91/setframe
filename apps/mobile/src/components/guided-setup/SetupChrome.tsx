@@ -58,14 +58,14 @@ export function SetupChrome({
         <Text
           style={[
             styles.sideLabel,
-            { color: onBack ? theme.action.primary : 'transparent' },
+            { color: onBack ? theme.inverse.accentMuted : 'transparent' },
           ]}
         >
           {host === 'onboarding' ? '‹' : '‹  Training'}
         </Text>
       </Pressable>
 
-      <Text numberOfLines={1} style={[styles.middle, { color: theme.text.secondary }]}>
+      <Text numberOfLines={1} style={[styles.middle, { color: theme.inverse.textMuted }]}>
         {middle}
       </Text>
 
@@ -80,7 +80,7 @@ export function SetupChrome({
         style={[styles.side, styles.right]}
         testID="setup-exit"
       >
-        <Text style={[styles.sideLabel, styles.rightLabel, { color: theme.action.primary }]}>
+        <Text style={[styles.sideLabel, styles.rightLabel, { color: theme.inverse.accentMuted }]}>
           {exit}
         </Text>
       </Pressable>

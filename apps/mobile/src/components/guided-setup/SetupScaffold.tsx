@@ -48,7 +48,7 @@ export function SetupScaffold({
   const motion = useStepTransition(step);
 
   return (
-    <View style={[styles.fill, { backgroundColor: theme.surface.canvas, paddingTop: topPadding }]}>
+    <View style={[styles.fill, { backgroundColor: theme.inverse.surface, paddingTop: topPadding }]}>
       <SetupChrome
         host={host}
         step={step}

@@ -6,6 +6,14 @@ import { typeScale } from '../theme/getTheme';
 
 export interface InputProps {
   label?: string;
+  /**
+   * Renders on a dark surface.
+   *
+   * Onboarding and guided setup are dark end to end while the rest of the
+   * app is light, and this component is shared by both — so the surface is
+   * a prop rather than a second copy of the component.
+   */
+  onDark?: boolean;
   value: string;
   onChangeText: (value: string) => void;
   placeholder?: string;
@@ -44,6 +52,7 @@ export interface InputProps {
  */
 export function Input({
   label,
+  onDark = false,
   value,
   onChangeText,
   placeholder,
@@ -65,7 +74,7 @@ export function Input({
   return (
     <View style={styles.container}>
       {visibleLabel ? (
-        <Text style={[styles.label, { color: theme.text.secondary }]}>{visibleLabel}</Text>
+        <Text style={[styles.label, { color: onDark ? theme.inverse.accentMuted : theme.text.secondary }]}>{visibleLabel}</Text>
       ) : null}
       <View
         style={[
@@ -75,8 +84,10 @@ export function Input({
               ? theme.status.error
               : focused
                 ? theme.action.primary
-                : theme.border.default,
-            backgroundColor: theme.surface.raised,
+                : onDark
+                  ? theme.inverse.panelEdge
+                  : theme.border.default,
+            backgroundColor: onDark ? theme.inverse.raised : theme.surface.raised,
           },
         ]}
       >
@@ -86,7 +97,7 @@ export function Input({
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
-          placeholderTextColor={theme.text.disabled}
+          placeholderTextColor={onDark ? theme.text.secondary : theme.text.disabled}
           keyboardType={numeric ? 'decimal-pad' : keyboardType}
           secureTextEntry={secureTextEntry}
           onFocus={() => {
@@ -97,7 +108,7 @@ export function Input({
           style={[
             styles.input,
             {
-              color: theme.text.primary,
+              color: onDark ? theme.inverse.text : theme.text.primary,
               fontSize: typeScale.body.fontSize,
             },
           ]}
@@ -105,7 +116,7 @@ export function Input({
         {/* Label already carries the unit once a label exists; this inline
             suffix only remains for the label-less compact case. */}
         {unit && !label ? (
-          <Text style={[styles.unit, { color: theme.text.secondary }]}>{unit}</Text>
+          <Text style={[styles.unit, { color: onDark ? theme.inverse.textMuted : theme.text.secondary }]}>{unit}</Text>
         ) : null}
       </View>
       {errorMessage ? (
