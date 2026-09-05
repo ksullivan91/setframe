@@ -25,10 +25,10 @@ export function EmptySessionCard({ onAddExercise }: EmptySessionCardProps) {
   return (
     <View
       testID="empty-session"
-      style={[styles.card, { backgroundColor: theme.inverse.raised }]}
+      style={[styles.card, { backgroundColor: theme.surface.raised }]}
     >
-      <Text style={[styles.title, { color: theme.inverse.text }]}>Nothing logged yet</Text>
-      <Text style={[styles.body, { color: theme.inverse.textMuted }]}>
+      <Text style={[styles.title, { color: theme.text.primary }]}>Nothing logged yet</Text>
+      <Text style={[styles.body, { color: theme.text.secondary }]}>
         This workout started empty. Add the first exercise and it will show up here, set by set.
       </Text>
       <Pressable
@@ -37,10 +37,10 @@ export function EmptySessionCard({ onAddExercise }: EmptySessionCardProps) {
         onPress={onAddExercise}
         style={({ pressed }) => [
           styles.action,
-          { backgroundColor: theme.inverse.accent, opacity: pressed ? 0.8 : 1 },
+          { backgroundColor: theme.action.primary, opacity: pressed ? 0.8 : 1 },
         ]}
       >
-        <Text style={[styles.actionLabel, { color: theme.inverse.text }]}>Add an exercise</Text>
+        <Text style={[styles.actionLabel, { color: theme.text.primary }]}>Add an exercise</Text>
       </Pressable>
     </View>
   );

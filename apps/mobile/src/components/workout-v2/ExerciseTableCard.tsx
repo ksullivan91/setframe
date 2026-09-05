@@ -58,12 +58,12 @@ export function ExerciseTableCard({
      over `inverse.raised` keeps the tone and lets white text sit on it. */
   const pillBackground =
     !complete || !resultLabel
-      ? theme.inverse.panel
+      ? theme.action.accentSubtle
       : resultTone === 'up'
-        ? theme.inverse.success + '33'
+        ? theme.status.success + '33'
         : resultTone === 'down'
           ? theme.status.caution + '33'
-          : theme.inverse.textMuted + '26';
+          : theme.text.secondary + '26';
 
   return (
     <View
@@ -71,29 +71,33 @@ export function ExerciseTableCard({
       style={[
         styles.card,
         {
-          /* Dark is the exercise you are working on. A finished one hands
-             over to CompletedExerciseCard, which is light — so across the
-             screen the dark block is always the live one, and the workout
-             reads as a stack of records with one open form in it. */
-          backgroundColor: theme.inverse.raised,
-          borderColor: complete ? theme.inverse.success + '73' : 'transparent',
+          /* Light, like the rest of the working surface. A full-dark
+             logger read as dark mode rather than as this app: the pattern
+             Log established is one dark block — there, the hero; here, the
+             session header — on a light canvas, not a dark screen.
+
+             Completed keeps the raised surface and takes a tinted border. A
+             filled card turned every card green on the workout-complete
+             screen and flattened the reward hierarchy. */
+          backgroundColor: theme.surface.raised,
+          borderColor: complete ? theme.status.success + '73' : theme.border.subtle,
         },
       ]}
     >
       <View style={styles.header}>
         <View style={styles.titleGroup}>
-          <Text style={[styles.name, { color: theme.inverse.text }]} numberOfLines={1}>
+          <Text style={[styles.name, { color: theme.text.primary }]} numberOfLines={1}>
             {exerciseName}
           </Text>
           {complete && resultLabel ? (
             <View style={[styles.pill, { backgroundColor: pillBackground }]} testID="result-pill">
               {/* Never inverse on the solid green: white on #00c48c is 2.26:1,
                   dark text on the same fill is 7.98:1. */}
-              <Text style={[styles.pillText, { color: theme.inverse.text }]}>{resultLabel}</Text>
+              <Text style={[styles.pillText, { color: theme.text.primary }]}>{resultLabel}</Text>
             </View>
           ) : planLabel ? (
-            <View style={[styles.pill, { backgroundColor: theme.inverse.panel }]} testID="plan-pill">
-              <Text style={[styles.pillText, { color: theme.inverse.accentMuted }]}>{planLabel}</Text>
+            <View style={[styles.pill, { backgroundColor: theme.action.accentSubtle }]} testID="plan-pill">
+              <Text style={[styles.pillText, { color: theme.action.primary }]}>{planLabel}</Text>
             </View>
           ) : null}
         </View>
@@ -103,7 +107,7 @@ export function ExerciseTableCard({
           accessibilityRole="button"
           accessibilityLabel={'Actions for ' + exerciseName}
         >
-          <Text style={[styles.moreGlyph, { color: theme.inverse.textMuted }]}>⋯</Text>
+          <Text style={[styles.moreGlyph, { color: theme.text.secondary }]}>⋯</Text>
         </Pressable>
       </View>
 
@@ -111,7 +115,7 @@ export function ExerciseTableCard({
         {columns.map((column) => (
           <Text
             key={column.key}
-            style={[styles.columnLabel, { width: column.width, color: theme.inverse.textMuted }]}
+            style={[styles.columnLabel, { width: column.width, color: theme.text.secondary }]}
           >
             {column.label}
           </Text>
@@ -124,10 +128,10 @@ export function ExerciseTableCard({
         onPress={onAddSet}
         /* Outlined rather than filled: it is the card's least important
            control and a second solid block competed with the set rows. */
-        style={[styles.addSet, { borderWidth: 1, borderColor: theme.inverse.textMuted + '33' }]}
+        style={[styles.addSet, { borderWidth: 1, borderColor: theme.text.secondary + '33' }]}
         accessibilityRole="button"
       >
-        <Text style={[styles.addSetText, { color: theme.inverse.accentMuted }]}>+ Add set</Text>
+        <Text style={[styles.addSetText, { color: theme.action.primary }]}>+ Add set</Text>
       </Pressable>
     </View>
   );

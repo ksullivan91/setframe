@@ -848,21 +848,18 @@ function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null>
               /* Home indicator, not a literal — matches the web build's
                  env(safe-area-inset-bottom). */
               paddingBottom: Math.max(insets.bottom, 20),
-              /* Dark, like the header it bookends. Left light through the
-                 first reskin pass, which put a white bar under a dark header
-                 with dark cards between them. */
-              backgroundColor: theme.inverse.surface,
-              borderTopColor: 'transparent',
+              backgroundColor: theme.surface.raised,
+              borderTopColor: theme.border.subtle,
             },
           ]}
         >
           <Pressable
-            style={[styles.addExercise, { backgroundColor: theme.inverse.raised }]}
+            style={[styles.addExercise, { backgroundColor: theme.surface.sunken }]}
             accessibilityRole="button"
             testID="add-exercise"
             onPress={() => setPickerOpen(true)}
           >
-            <Text style={[styles.addExerciseText, { color: theme.inverse.accentMuted }]}>
+            <Text style={[styles.addExerciseText, { color: theme.action.primary }]}>
               + Add exercise
             </Text>
           </Pressable>
@@ -906,7 +903,6 @@ function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null>
 
       <Modal visible={pickerOpen} animationType="slide" onRequestClose={() => setPickerOpen(false)}>
         <ExercisePickerV2
-          tone="inverse"
           exercises={catalogue}
           title="Add to this workout"
           onCancel={() => setPickerOpen(false)}

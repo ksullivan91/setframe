@@ -44,34 +44,33 @@ export function ExerciseActionsSheet({
       dismissOnBackdropPress
       backdropTestID="exercise-actions-scrim"
       bordered={false}
-      tone="inverse"
       gap={0}
       padding={{ top: 10, bottom: 24, left: 0, right: 0 }}
     >
         <View testID="exercise-actions-sheet">
           <View style={styles.grabberRow}>
-            <View style={[styles.grabber, { backgroundColor: theme.inverse.textMuted + '4D' }]} />
+            <View style={[styles.grabber, { backgroundColor: theme.text.secondary + '4D' }]} />
           </View>
           <View style={styles.header}>
-            <Text style={[styles.title, { color: theme.inverse.text }]}>{exerciseName}</Text>
-            <Text style={[styles.context, { color: theme.inverse.textMuted }]}>{context}</Text>
+            <Text style={[styles.title, { color: theme.text.primary }]}>{exerciseName}</Text>
+            <Text style={[styles.context, { color: theme.text.secondary }]}>{context}</Text>
           </View>
 
           <Pressable onPress={onViewHistory} testID="exercise-action-history" style={styles.action}>
             <View style={styles.actionText}>
-              <Text style={[styles.label, { color: theme.inverse.text }]}>View history</Text>
-              <Text style={[styles.sub, { color: theme.inverse.textMuted }]}>
+              <Text style={[styles.label, { color: theme.text.primary }]}>View history</Text>
+              <Text style={[styles.sub, { color: theme.text.secondary }]}>
                 Every session you have logged for this exercise
               </Text>
             </View>
-            <Text style={[styles.chevron, { color: theme.inverse.textMuted }]}>›</Text>
+            <Text style={[styles.chevron, { color: theme.text.secondary }]}>›</Text>
           </Pressable>
 
-          <View style={[styles.divider, { backgroundColor: theme.inverse.textMuted + '26' }]} />
+          <View style={[styles.divider, { backgroundColor: theme.text.secondary + '26' }]} />
           <Pressable onPress={onRemove} testID="exercise-action-remove" style={styles.action}>
             <View style={styles.actionText}>
-              <Text style={[styles.label, { color: theme.inverse.danger }]}>Remove exercise</Text>
-              <Text style={[styles.sub, { color: theme.inverse.textMuted }]}>
+              <Text style={[styles.label, { color: theme.status.errorText }]}>Remove exercise</Text>
+              <Text style={[styles.sub, { color: theme.text.secondary }]}>
                 Takes it out of today&apos;s session. Your plan is unchanged.
               </Text>
             </View>

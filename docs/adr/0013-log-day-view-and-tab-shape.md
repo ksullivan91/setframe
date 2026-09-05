@@ -59,6 +59,24 @@ what you did; Trends is what your body is doing.** Body weight moves to
 Trends — it is measured, not performed, and it already coexists with a
 HealthKit value under source precedence.
 
+> **Amended 2026-09-05: body weight and intensity live on Progress.**
+>
+> The provenance rule is a good rule and it produced a bad screen. Weight
+> is the number people opened Progress to see, and on Trends it was reduced
+> to a summary card next to resting heart rate — a worse view of the same
+> number the fuller chart already gave. Time in heart-rate zones landed in
+> Trends for the same reason and felt equally wrong: what it answers is
+> *how hard was the work*, which is a question about training.
+>
+> Both now sit on Progress, where they read against training volume — the
+> same weeks, one chart saying how much work there was and the other how
+> hard it was. Body fat stays on Trends; it has no second home.
+>
+> The provenance boundary still governs **where data comes from and who owns
+> it**. It turned out to be the wrong rule for **which screen a chart
+> belongs on**, because a reader asks "what is this telling me about my
+> training", not "where was this measured".
+
 **Past dates are read-only, except rest.** A past day shows what
 happened; the single mutable thing is whether the day counted as rest,
 which `POST`/`DELETE /v1/rest-days/:localDate` already supports for any

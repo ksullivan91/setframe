@@ -64,13 +64,13 @@ export function WatchAttachCard({
   };
 
   return (
-    <Card tone="inverse" style={styles.card} testID="watch-attach">
-      <Text style={[styles.title, { color: theme.inverse.text }]}>
+    <Card style={styles.card} testID="watch-attach">
+      <Text style={[styles.title, { color: theme.text.primary }]}>
         {single
           ? 'Your Watch recorded a workout'
           : `Your Watch recorded ${candidates.length} workouts`}
       </Text>
-      <Text style={[styles.body, { color: theme.inverse.textMuted }]}>
+      <Text style={[styles.body, { color: theme.text.secondary }]}>
         {choosing
           ? 'Pick the ones that were part of this session.'
           : 'They overlap this session or follow it closely. Attach the ones that were part of it.'}
@@ -83,12 +83,12 @@ export function WatchAttachCard({
             <View style={styles.candidateHead}>
               <View style={styles.candidateMeta}>
                 <Text
-                  style={[styles.candidateTitle, { color: theme.inverse.text }]}
+                  style={[styles.candidateTitle, { color: theme.text.primary }]}
                   numberOfLines={1}
                 >
                   {workout.title}
                 </Text>
-                <Text style={[styles.candidateDetail, { color: theme.inverse.textMuted }]}>
+                <Text style={[styles.candidateDetail, { color: theme.text.secondary }]}>
                   {describe(workout)}
                 </Text>
               </View>
@@ -99,7 +99,7 @@ export function WatchAttachCard({
                   reads clearly over white all but disappears over
                   `inverse.raised`. */}
               <View style={[styles.badge, { backgroundColor: tint(theme.status.info, 0.28) }]}>
-                <Text style={[styles.badgeLabel, { color: theme.inverse.textMuted }]}>
+                <Text style={[styles.badgeLabel, { color: theme.text.secondary }]}>
                   {choosing ? (selected ? 'Selected' : 'Tap to pick')
                   : relation === 'overlaps' ? 'Overlaps'
                   : 'After'}
@@ -111,7 +111,7 @@ export function WatchAttachCard({
                 Watch recorded no heart rate for. */}
             <View style={styles.metrics}>
               {metrics(workout).map((metric) => (
-                <Text key={metric} style={[styles.metric, { color: theme.inverse.textMuted }]}>
+                <Text key={metric} style={[styles.metric, { color: theme.text.secondary }]}>
                   {metric}
                 </Text>
               ))}
@@ -129,10 +129,10 @@ export function WatchAttachCard({
                 onPress={() => onDismiss(workout.externalId)}
                 style={({ pressed }) => [
                   styles.dismiss,
-                  { backgroundColor: theme.inverse.raised, opacity: pressed || busy ? 0.7 : 1 },
+                  { backgroundColor: theme.surface.raised, opacity: pressed || busy ? 0.7 : 1 },
                 ]}
               >
-                <Text style={[styles.dismissLabel, { color: theme.inverse.textMuted }]}>Dismiss</Text>
+                <Text style={[styles.dismissLabel, { color: theme.text.secondary }]}>Dismiss</Text>
               </Pressable>
             ) : null}
           </>
@@ -153,7 +153,7 @@ export function WatchAttachCard({
               styles.candidate,
               {
                 backgroundColor: background,
-                borderColor: selected ? theme.inverse.accent : 'transparent',
+                borderColor: selected ? theme.action.primary : 'transparent',
                 opacity: pressed ? 0.9 : 1,
               },
             ]}
@@ -258,19 +258,19 @@ function Action({
         styles.action,
         primary ? styles.actionPrimary : styles.actionSecondary,
         {
-          backgroundColor: primary ? theme.inverse.accent : theme.inverse.surface,
+          backgroundColor: primary ? theme.action.primary : theme.surface.canvas,
           opacity: pressed || disabled ? 0.6 : 1,
         },
       ]}
     >
       {busy ? (
-        <ActivityIndicator color={primary ? theme.inverse.text : theme.inverse.accent} />
+        <ActivityIndicator color={primary ? theme.text.primary : theme.action.primary} />
       ) : (
         <Text
           numberOfLines={1}
           style={[
             styles.actionLabel,
-            { color: primary ? theme.inverse.text : theme.inverse.accent },
+            { color: primary ? theme.text.primary : theme.action.primary },
           ]}
         >
           {label}

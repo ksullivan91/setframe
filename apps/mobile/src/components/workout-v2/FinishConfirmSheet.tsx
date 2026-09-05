@@ -50,7 +50,6 @@ export function FinishConfirmSheet({
     <Sheet
       visible={visible}
       inline={inline}
-      tone="inverse"
       onRequestClose={onKeepGoing}
       dismissOnBackdropPress
       backdropTestID="finish-confirm-backdrop"
@@ -58,10 +57,10 @@ export function FinishConfirmSheet({
       gap={spacing[8]}
       padding={{ top: spacing[24], bottom: spacing[24], left: spacing[16], right: spacing[16] }}
     >
-      <Text testID="finish-confirm-title" style={[styles.title, { color: theme.inverse.text }]}>
+      <Text testID="finish-confirm-title" style={[styles.title, { color: theme.text.primary }]}>
         {title}
       </Text>
-      <Text style={[styles.body, { color: theme.inverse.textMuted }]}>{body}</Text>
+      <Text style={[styles.body, { color: theme.text.secondary }]}>{body}</Text>
 
       <Pressable
         testID="finish-confirm"
@@ -70,10 +69,10 @@ export function FinishConfirmSheet({
         onPress={onConfirm}
         style={({ pressed }) => [
           styles.action,
-          { backgroundColor: theme.inverse.accent, opacity: pressed || busy ? 0.8 : 1 },
+          { backgroundColor: theme.action.primary, opacity: pressed || busy ? 0.8 : 1 },
         ]}
       >
-        <Text style={[styles.actionLabel, { color: theme.inverse.text }]}>Finish workout</Text>
+        <Text style={[styles.actionLabel, { color: theme.text.primary }]}>Finish workout</Text>
       </Pressable>
       <Pressable
         testID="finish-keep-going"
@@ -81,10 +80,10 @@ export function FinishConfirmSheet({
         onPress={onKeepGoing}
         style={({ pressed }) => [
           styles.action,
-          { backgroundColor: theme.inverse.raised, opacity: pressed ? 0.8 : 1 },
+          { backgroundColor: theme.surface.raised, opacity: pressed ? 0.8 : 1 },
         ]}
       >
-        <Text style={[styles.actionLabel, { color: theme.inverse.text }]}>Keep going</Text>
+        <Text style={[styles.actionLabel, { color: theme.text.primary }]}>Keep going</Text>
       </Pressable>
     </Sheet>
   );

@@ -33,9 +33,9 @@ export function EffortByExerciseCard({
   const easiest = efforts[efforts.length - 1];
 
   return (
-    <Card tone="inverse" style={styles.card} testID="effort-by-exercise">
-      <Text style={[styles.title, { color: theme.inverse.text }]}>Effort by exercise</Text>
-      <Text style={[styles.body, { color: theme.inverse.textMuted }]}>
+    <Card style={styles.card} testID="effort-by-exercise">
+      <Text style={[styles.title, { color: theme.text.primary }]}>Effort by exercise</Text>
+      <Text style={[styles.body, { color: theme.text.secondary }]}>
         Average heart rate while you were working each lift.
       </Text>
 
@@ -52,36 +52,36 @@ export function EffortByExerciseCard({
             style={styles.row}
           >
             <View style={styles.label}>
-              <Text style={[styles.name, { color: theme.inverse.text }]} numberOfLines={1}>
+              <Text style={[styles.name, { color: theme.text.primary }]} numberOfLines={1}>
                 {effort.exerciseName}
               </Text>
-              <Text style={[styles.value, { color: theme.inverse.textMuted }]}>
+              <Text style={[styles.value, { color: theme.text.secondary }]}>
                 {effort.avgBpm} avg · {effort.peakBpm} peak
               </Text>
             </View>
             <View style={styles.track}>
               <View
                 testID={`effort-bar-${effort.exerciseName}`}
-                style={[styles.bar, { width: barWidth, backgroundColor: theme.inverse.accent }]}
+                style={[styles.bar, { width: barWidth, backgroundColor: theme.action.primary }]}
               />
               {/* The peak, at its own position on the same axis rather than a
                   fixed offset past the bar — a tick that does not sit where
                   the number says contradicts its own label. */}
               <View style={{ width: Math.max(1, tickAt - barWidth - 2) }} />
-              <View style={[styles.tick, { backgroundColor: theme.inverse.textMuted + '80' }]} />
+              <View style={[styles.tick, { backgroundColor: theme.text.secondary + '80' }]} />
             </View>
           </Pressable>
         );
       })}
 
       {hardest && easiest && hardest !== easiest ? (
-        <Text style={[styles.note, { color: theme.inverse.textMuted }]}>
+        <Text style={[styles.note, { color: theme.text.secondary }]}>
           Bar is average, tick is peak, both from 0 bpm so the lengths compare.{' '}
           {hardest.exerciseName} cost {hardest.avgBpm - easiest.avgBpm} bpm more than{' '}
           {easiest.exerciseName.toLowerCase()} — useful when ordering a session.
         </Text>
       ) : (
-        <Text style={[styles.note, { color: theme.inverse.textMuted }]}>
+        <Text style={[styles.note, { color: theme.text.secondary }]}>
           Bar is average, tick is peak, both from 0 bpm so the lengths compare.
         </Text>
       )}

@@ -54,17 +54,16 @@ export function SetTypeSheet({
       dismissOnBackdropPress
       backdropTestID="set-type-scrim"
       bordered={false}
-      tone="inverse"
       gap={0}
       padding={{ top: 10, bottom: 24, left: 0, right: 0 }}
     >
         <View testID="set-type-sheet">
           <View style={styles.grabberRow}>
-            <View style={[styles.grabber, { backgroundColor: theme.inverse.textMuted + '4D' }]} />
+            <View style={[styles.grabber, { backgroundColor: theme.text.secondary + '4D' }]} />
           </View>
           <View style={styles.header}>
-            <Text style={[styles.title, { color: theme.inverse.text }]}>Set type</Text>
-            <Text style={[styles.context, { color: theme.inverse.textMuted }]}>
+            <Text style={[styles.title, { color: theme.text.primary }]}>Set type</Text>
+            <Text style={[styles.context, { color: theme.text.secondary }]}>
               Set {setLabel} · {exerciseName}
             </Text>
           </View>
@@ -80,29 +79,29 @@ export function SetTypeSheet({
                 style={[
                   styles.option,
                   option.value === currentType && {
-                    backgroundColor: theme.inverse.accent + '0F',
+                    backgroundColor: theme.action.primary + '0F',
                   },
                 ]}
               >
-                <View style={[styles.chip, { backgroundColor: theme.inverse.textMuted + '26' }]}>
-                  <Text style={[styles.chipLabel, { color: theme.inverse.text }]}>
+                <View style={[styles.chip, { backgroundColor: theme.text.secondary + '26' }]}>
+                  <Text style={[styles.chipLabel, { color: theme.text.primary }]}>
                     {option.chip || setLabel}
                   </Text>
                 </View>
                 <View style={styles.optionText}>
-                  <Text style={[styles.name, { color: theme.inverse.text }]}>{option.label}</Text>
-                  <Text style={[styles.desc, { color: theme.inverse.textMuted }]}>{option.desc}</Text>
+                  <Text style={[styles.name, { color: theme.text.primary }]}>{option.label}</Text>
+                  <Text style={[styles.desc, { color: theme.text.secondary }]}>{option.desc}</Text>
                 </View>
-                <Text style={[styles.check, { color: theme.inverse.accent }]}>
+                <Text style={[styles.check, { color: theme.action.primary }]}>
                   {option.value === currentType ? '✓' : ''}
                 </Text>
               </Pressable>
             ))}
           </ScrollView>
 
-          <View style={[styles.divider, { backgroundColor: theme.inverse.textMuted + '26' }]} />
+          <View style={[styles.divider, { backgroundColor: theme.text.secondary + '26' }]} />
           <Pressable onPress={onDelete} testID="set-type-delete" style={styles.delete}>
-            <Text style={[styles.deleteLabel, { color: theme.inverse.danger }]}>
+            <Text style={[styles.deleteLabel, { color: theme.status.errorText }]}>
               Delete set {setLabel}
             </Text>
           </Pressable>

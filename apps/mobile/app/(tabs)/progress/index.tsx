@@ -25,6 +25,9 @@ import {
   describeBucketValue,
   formatBucketPeriod,
   progressRangeLabel,
+  progressRanges,
+  estimateMaxHeartRate,
+  zoneBands,
   describeWeightRate,
   defaultRange,
   rangeOptions,
@@ -46,7 +49,14 @@ import {
   type ProgressMetricKey,
   type SeriesPoint,
 } from '@setframe/domain';
-import type { ProgressOverviewResponse } from '@setframe/schemas';
+import type { ProgressOverviewResponse, TrendsResponse } from '@setframe/schemas';
+import { healthKit } from '../../../src/healthkit/HealthKitAdapter';
+import { HeartRateZoneCard } from '../../../src/components/log/HeartRateZoneCard';
+import {
+  buildZoneBuckets,
+  zoneBucketUnit,
+  zoneChangeMinutes,
+} from '../../../src/lib/zoneBuckets';
 import { Card } from '../../../src/components/Card';
 import {
   AdherenceChart,
@@ -631,6 +641,77 @@ function SummaryCard({
   );
 }
 
+/**
+ * Time in heart-rate zones, on Progress rather than Trends.
+ *
+ * It sat with the measured metrics under ADR 0013's provenance rule, and
+ * felt wrong there: what it answers is "how hard was the work", which is a
+ * question about training, not about the body. Beside training volume it
+ * says something — the same weeks, one chart showing how much and the other
+ * how hard.
+ *
+ * Fetches `/trends` rather than the progress overview: the zone data lives
+ * in `daily_activity_summary` and is sliced under a model only the device
+ * holds, so it does not belong in the overview payload.
+ */
+export function IntensitySection({ localDate }: { localDate: string }) {
+  const theme = useTheme();
+  const api = useApiClient();
+  const [range, setRange] = useState<ProgressRange>('M');
+
+  const profile = useQuery({
+    queryKey: ['health-profile-for-zones'],
+    queryFn: () => healthKit.getSnapshot(),
+    staleTime: 60 * 60 * 1000,
+  });
+  const restingBpm = profile.data?.recovery.restingHeartRateBpm ?? null;
+  const maxBpm = estimateMaxHeartRate(profile.data?.body.ageYears ?? null, null);
+  const model = restingBpm && maxBpm && maxBpm > restingBpm ? { restingBpm, maxBpm } : null;
+  const bands = model ? zoneBands(model) : [];
+
+  const window = windowForRange(range, localDate);
+  const zones = useQuery({
+    queryKey: ['trends-zones', window.start, window.end, model?.restingBpm, model?.maxBpm],
+    queryFn: () =>
+      api.get<TrendsResponse>(
+        `/trends?from=${window.start}&to=${window.end}` +
+          `&restingBpm=${model!.restingBpm}&maxBpm=${model!.maxBpm}`,
+      ),
+    enabled: model != null,
+  });
+
+  const spanDays = Math.max(
+    1,
+    Math.round((Date.parse(`${window.end}T12:00:00Z`) - Date.parse(`${window.start}T12:00:00Z`)) / 86400000),
+  );
+  const buckets = buildZoneBuckets(zones.data, spanDays);
+
+  return (
+    <Card>
+      <View style={styles.sectionHeader}>
+        <View style={styles.sectionTitleRow}>
+          <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>Intensity</Text>
+          <MetricInfo
+            label="Time in zones"
+            explanation="How hard the work was, not just how much of it there was."
+            calculation="Every heart-rate reading during active minutes is placed in a zone from your resting rate and an age-estimated maximum, and owns the time until the next reading. Zones are worked out when you look, so changing your resting rate re-splits your whole history rather than leaving old weeks on old boundaries."
+            limitation="Active minutes only — Apple's own definition, which is why a walk you never recorded as a workout still counts. It needs a Watch: a phone alone records no heart rate."
+          />
+        </View>
+        <RangeSelector options={progressRanges.map((r) => ({ range: r, disabled: false }))} value={range} onChange={setRange} label="Intensity time range" />
+      </View>
+
+      <HeartRateZoneCard
+        buckets={buckets}
+        bands={bands}
+        bucketUnit={zoneBucketUnit(spanDays)}
+        changeMinutes={zoneChangeMinutes(buckets)}
+        unavailable={bands.length === 0 ? 'no-model' : buckets.length === 0 ? 'no-data' : undefined}
+      />
+    </Card>
+  );
+}
+
 export function BodyWeightSection({
   bodyWeight,
   localDate,
@@ -1211,15 +1292,24 @@ export default function ProgressScreen() {
           />
         </View>
 
-        <View onLayout={captureOffset('body_weight')}>
-          {/* Body weight moved to Trends (ADR 0013). The split is by
-              provenance: Progress is computed from sets you logged, Trends is
-              measured about you and is true whether or not you train. Weight
-              is measured, and it already coexists with a HealthKit value
-              under source precedence — so it belongs with the rest of them.
-              `BodyWeightSection` is still exported and still tested; it is
-              simply no longer rendered here. */}
-        </View>
+        {/* Back on Progress, reversing part of ADR 0013's provenance split.
+            The rule was tidy and the result was not: weight is the number
+            people came to Progress to see, and its trend line reads against
+            training volume in a way it never did beside resting heart rate.
+            It still coexists with a HealthKit value under source precedence
+            — that never depended on which screen it lived on. */}
+        {query.data ? (
+          <View onLayout={captureOffset('body_weight')}>
+            <BodyWeightSection bodyWeight={query.data.bodyWeight} localDate={localDate} />
+          </View>
+        ) : null}
+
+        {/* Directly under volume: the same weeks, one chart saying how much
+            work there was and the other how hard it was. */}
+        {/* No `captureOffset`: that feeds the insight system, whose metrics
+            are the three it can write a sentence about. Intensity is a chart
+            to read, not a claim to make. */}
+        <IntensitySection localDate={localDate} />
 
         {hasAnyVolume ? (
           <View onLayout={captureOffset('training_volume')}>

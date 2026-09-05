@@ -93,9 +93,9 @@ export function SetRowV2({
      only state that asks the user to do something. */
   const tinted =
     status === 'error'
-      ? theme.inverse.danger + '33'
+      ? theme.status.errorText + '33'
       : status === 'pr'
-        ? theme.inverse.accent + '1F'
+        ? theme.action.primary + '1F'
         : 'transparent';
 
   return (
@@ -113,12 +113,12 @@ export function SetRowV2({
            it — the badge alone is easy to miss at arm's length on a bench. */
         style={[
           styles.setChip,
-          { backgroundColor: status === 'pr' ? theme.inverse.accent : theme.inverse.raised },
+          { backgroundColor: status === 'pr' ? theme.action.primary : theme.surface.raised },
         ]}
         accessibilityRole="button"
         accessibilityLabel={'Set type for set ' + label}
       >
-        <Text style={[styles.setChipText, { color: theme.inverse.text }]}>{label}</Text>
+        <Text style={[styles.setChipText, { color: theme.text.primary }]}>{label}</Text>
       </Pressable>
 
       <Pressable
@@ -131,7 +131,7 @@ export function SetRowV2({
         <Text
           style={[
             styles.previousText,
-            { color: previous ? theme.inverse.textMuted : theme.inverse.textMuted + '80' },
+            { color: previous ? theme.text.secondary : theme.text.secondary + '80' },
           ]}
           numberOfLines={1}
         >
@@ -143,8 +143,8 @@ export function SetRowV2({
           would shove PREVIOUS, LB and REPS out of line with its neighbours. */}
       <View style={styles.prSlot}>
         {status === 'pr' ? (
-          <View style={[styles.prBadge, { backgroundColor: theme.inverse.accent }]}>
-            <Text style={[styles.prText, { color: theme.inverse.text }]}>PR</Text>
+          <View style={[styles.prBadge, { backgroundColor: theme.action.primary }]}>
+            <Text style={[styles.prText, { color: theme.text.primary }]}>PR</Text>
           </View>
         ) : null}
       </View>
@@ -167,11 +167,11 @@ export function SetRowV2({
       {status === 'error' ? (
         <Pressable
           onPress={onRetry}
-          style={[styles.mark, { borderColor: theme.inverse.danger }]}
+          style={[styles.mark, { borderColor: theme.status.errorText }]}
           accessibilityRole="button"
           accessibilityLabel={'Retry saving set ' + label}
         >
-          <Text style={[styles.markGlyph, { color: theme.inverse.danger, fontSize: 12 }]}>↻</Text>
+          <Text style={[styles.markGlyph, { color: theme.status.errorText, fontSize: 12 }]}>↻</Text>
         </Pressable>
       ) : (
         <View
@@ -180,14 +180,14 @@ export function SetRowV2({
             {
               borderColor:
                 status === 'saved' || status === 'pr'
-                  ? theme.inverse.success
-                  : theme.inverse.textMuted + '40',
+                  ? theme.status.success
+                  : theme.text.secondary + '40',
               backgroundColor: 'transparent',
             },
           ]}
         >
           {status === 'saved' || status === 'pr' ? (
-            <Text style={[styles.markGlyph, { color: theme.inverse.success }]}>✓</Text>
+            <Text style={[styles.markGlyph, { color: theme.status.successText }]}>✓</Text>
           ) : status === 'pending' ? (
             /* An in-flight save used to render the same bare ring as an
                untouched row, so the one moment the user might wonder whether
@@ -196,7 +196,7 @@ export function SetRowV2({
                frame or two, and a spinner that flashes reads as an error. */
             <View
               testID={'set-row-pending-' + setId}
-              style={[styles.pendingDot, { backgroundColor: theme.inverse.textMuted }]}
+              style={[styles.pendingDot, { backgroundColor: theme.text.secondary }]}
             />
           ) : null}
         </View>
@@ -242,7 +242,7 @@ function SetField({
       ref={ref}
       value={draft[field]}
       placeholder={targets[field] ?? ''}
-      placeholderTextColor={theme.inverse.textMuted + '80'}
+      placeholderTextColor={theme.text.secondary + '80'}
       keyboardType="decimal-pad"
       selectTextOnFocus
       onFocus={() => {
@@ -258,9 +258,9 @@ function SetField({
           /* A well sunk into the card, not a box drawn on it — at a glance
              the row should read as values, and the field edges should not
              compete with the numbers in them. */
-          backgroundColor: theme.inverse.surface,
-          borderColor: theme.inverse.textMuted + '26',
-          color: filled ? theme.inverse.text : theme.inverse.textMuted,
+          backgroundColor: theme.surface.canvas,
+          borderColor: theme.text.secondary + '26',
+          color: filled ? theme.text.primary : theme.text.secondary,
           fontWeight: filled ? '600' : '400',
         },
       ]}
