@@ -72,7 +72,7 @@ export function FinishConfirmSheet({
           { backgroundColor: theme.action.primary, opacity: pressed || busy ? 0.8 : 1 },
         ]}
       >
-        <Text style={[styles.actionLabel, { color: theme.text.primary }]}>Finish workout</Text>
+        <Text style={[styles.actionLabel, { color: theme.action.primaryText }]}>Finish workout</Text>
       </Pressable>
       <Pressable
         testID="finish-keep-going"
@@ -80,7 +80,9 @@ export function FinishConfirmSheet({
         onPress={onKeepGoing}
         style={({ pressed }) => [
           styles.action,
-          { backgroundColor: theme.surface.raised, opacity: pressed ? 0.8 : 1 },
+          /* `sunken`, not `raised`: the sheet itself is raised, so a raised
+             button on it has no edge at all. */
+          { backgroundColor: theme.surface.sunken, opacity: pressed ? 0.8 : 1 },
         ]}
       >
         <Text style={[styles.actionLabel, { color: theme.text.primary }]}>Keep going</Text>

@@ -40,7 +40,7 @@ export function EmptySessionCard({ onAddExercise }: EmptySessionCardProps) {
           { backgroundColor: theme.action.primary, opacity: pressed ? 0.8 : 1 },
         ]}
       >
-        <Text style={[styles.actionLabel, { color: theme.text.primary }]}>Add an exercise</Text>
+        <Text style={[styles.actionLabel, { color: theme.action.primaryText }]}>Add an exercise</Text>
       </Pressable>
     </View>
   );

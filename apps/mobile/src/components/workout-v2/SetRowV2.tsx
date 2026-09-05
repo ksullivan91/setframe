@@ -118,7 +118,17 @@ export function SetRowV2({
         accessibilityRole="button"
         accessibilityLabel={'Set type for set ' + label}
       >
-        <Text style={[styles.setChipText, { color: theme.text.primary }]}>{label}</Text>
+        {/* The chip turns solid accent on a PR, and dark ink on it is
+            2.96:1. `action.primaryText` is the token that exists for text on
+            this fill — 6.1:1. */}
+        <Text
+          style={[
+            styles.setChipText,
+            { color: status === 'pr' ? theme.action.primaryText : theme.text.primary },
+          ]}
+        >
+          {label}
+        </Text>
       </Pressable>
 
       <Pressable
@@ -144,7 +154,7 @@ export function SetRowV2({
       <View style={styles.prSlot}>
         {status === 'pr' ? (
           <View style={[styles.prBadge, { backgroundColor: theme.action.primary }]}>
-            <Text style={[styles.prText, { color: theme.text.primary }]}>PR</Text>
+            <Text style={[styles.prText, { color: theme.action.primaryText }]}>PR</Text>
           </View>
         ) : null}
       </View>
