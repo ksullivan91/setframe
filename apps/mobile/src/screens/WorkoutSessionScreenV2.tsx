@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SetDraftStore } from '../lib/setDraftStore';
 import {
   KeyboardAwareScrollProvider,
   useKeyboardAwareScrollProps,
@@ -72,7 +73,6 @@ import {
  * workout-logging-interactions.md. ADR 0011 has the why.
  */
 
-type RowSyncState = Record<string, 'pending' | 'error' | undefined>;
 
 const EMPTY_VALUES: SetRowValues = { weight: '', reps: '', duration: '', distance: '', rpe: '' };
 
@@ -144,7 +144,45 @@ function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null>
      web build's env(safe-area-inset-top). */
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
-  const [sync, setSync] = useState<RowSyncState>({});
+  /* Bumped whenever the draft store changes, to re-render the rows it
+     feeds. The store itself is a ref: it must survive every render, and
+     rebuilding it would drop whatever was typed. */
+  const [, bumpDrafts] = useState(0);
+
+  /* The store is built once and delegates through refs, because what it
+     needs — the prescription for a set, the api client — is defined further
+     down this component. Rebuilding it per render would drop typing. */
+  const saveImpl = useRef<(setId: string, values: SetRowValues) => Promise<void>>(
+    async () => {},
+  );
+  const writableImpl = useRef<(setId: string, values: SetRowValues) => boolean>(() => false);
+  /* Which exercise a set belongs to, so a save can find its prescription. */
+  const logForSet = useRef(new Map<string, WorkoutSessionExerciseDetail>());
+  const draftsRef = useRef<SetDraftStore | null>(null);
+  if (!draftsRef.current) {
+    draftsRef.current = new SetDraftStore(
+      (setId, values) => saveImpl.current(setId, values),
+      (setId, values) => writableImpl.current(setId, values),
+    );
+  }
+  const drafts = draftsRef.current;
+
+  useEffect(() => drafts.subscribe(() => bumpDrafts((n) => n + 1)), [drafts]);
+
+  /* Anything still unwritten goes out when the screen leaves or the app
+     backgrounds. Waiting for the next keystroke would strand the last set of
+     the workout — the one most likely to be the hardest. */
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (status) => {
+      if (status !== 'active') void drafts.flush();
+    });
+    return () => {
+      subscription.remove();
+      /* Write what is left, then stop: a pending debounce outliving the
+         screen fires into a tree that no longer exists. */
+      void drafts.flush().finally(() => drafts.dispose());
+    };
+  }, [drafts]);
 
   const query = useQuery({
     queryKey: ['workout-session', sessionId],
@@ -186,46 +224,6 @@ function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null>
     if (previous) queryClient.setQueryData(sessionKey, update(previous));
     return previous;
   };
-
-  const saveSet = useMutation({
-    mutationFn: ({ setId, body }: { setId: string; body: Record<string, unknown> }) =>
-      api.patch<WorkoutSet>(`/workout-sets/${setId}`, body),
-    onMutate: ({ setId, body }) => {
-      setSync((prev) => ({ ...prev, [setId]: 'pending' }));
-      /* The typed values land in the cache immediately, so the row keeps
-         showing them instead of reverting to the server's older copy while
-         the request is in flight. */
-      const previous = patchCachedSession((session) => ({
-        ...session,
-        exercises: session.exercises.map((log) => ({
-          ...log,
-          sets: log.sets.map((item) =>
-            item.id === setId
-              ? {
-                  ...item,
-                  weightValue: numeric(body.weightValue) ?? item.weightValue,
-                  reps: numeric(body.reps) ?? item.reps,
-                  durationSeconds: numeric(body.durationSeconds) ?? item.durationSeconds,
-                  distanceValue: numeric(body.distanceValue) ?? item.distanceValue,
-                  rpe: 'rpe' in body ? (numeric(body.rpe) ?? null) : item.rpe,
-                }
-              : item,
-          ),
-        })),
-      }));
-      return { previous };
-    },
-    onError: (_error, { setId }, context) => {
-      setSync((prev) => ({ ...prev, [setId]: 'error' }));
-      /* Put back exactly what was there — a failed save must not leave the
-         optimistic value on screen as though it had been written. */
-      if (context?.previous) queryClient.setQueryData(sessionKey, context.previous);
-    },
-    onSuccess: async (_data, { setId }) => {
-      setSync((prev) => ({ ...prev, [setId]: undefined }));
-      await invalidate();
-    },
-  });
 
   const addSet = useMutation({
     /* `clientId` is REQUIRED by createWorkoutSetSchema, and posting `{}` made
@@ -571,7 +569,8 @@ function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null>
     day: 'numeric',
   });
 
-  const commit = (log: WorkoutSessionExerciseDetail, set: WorkoutSet, values: SetRowValues) => {
+  /** The wire body for a set's typed values. */
+  const bodyFor = (log: WorkoutSessionExerciseDetail, values: SetRowValues) => {
     const definition = getPrescriptionDefinition(log.prescription);
     const body: Record<string, unknown> = {};
     for (const field of quickEntryFields(definition)) {
@@ -581,12 +580,45 @@ function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null>
          — and stored in seconds. */
       body[key] = field === 'duration' ? displayToDurationSeconds(parsed, definition) : parsed;
     }
-    /* A half-filled row is simply not written — not an error, not a nag. */
-    const wouldBeLogged = definition.requiredFields
+    return body;
+  };
+
+  /** Whether a row holds enough to write. A half-filled one is kept, not sent. */
+  const isWritable = (log: WorkoutSessionExerciseDetail, values: SetRowValues) => {
+    const definition = getPrescriptionDefinition(log.prescription);
+    const body = bodyFor(log, values);
+    return definition.requiredFields
       .filter((field) => field !== 'setType')
       .every((field) => body[wireNameFor(field)] != null);
-    if (!wouldBeLogged) return;
-    saveSet.mutate({ setId: set.id, body });
+  };
+
+  /* Which exercise a set belongs to, so the store can find its prescription
+     without the row telling it twice. */
+  saveImpl.current = async (setId, values) => {
+    const log = logForSet.current.get(setId);
+    if (!log) return;
+    await api.patch<WorkoutSet>(`/workout-sets/${setId}`, bodyFor(log, values));
+    /* Deliberately no invalidate. Refetching the whole session after every
+       set is what made fast entry unusable: each response replaced the
+       values of every row, and the rows reset themselves from them. The
+       cache is patched optimistically instead, and reconciled when the
+       workout finishes. */
+    patchCachedSession((session) => ({
+      ...session,
+      exercises: session.exercises.map((exercise) => ({
+        ...exercise,
+        sets: exercise.sets.map((item) =>
+          item.id === setId
+            ? { ...item, ...(bodyFor(log, values) as Partial<WorkoutSet>) }
+            : item,
+        ),
+      })),
+    }));
+  };
+
+  writableImpl.current = (setId, values) => {
+    const log = logForSet.current.get(setId);
+    return log ? isWritable(log, values) : false;
   };
 
   return (
@@ -737,16 +769,24 @@ function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null>
             >
               {log.sets.map((set, index) => {
                 const previousSet = log.previousSession?.sets[index];
-                const state = sync[set.id];
+                /* Status comes from the draft store now. `sync` tracked one
+                   in-flight mutation per row and knew nothing about a value
+                   still sitting in memory, so a row with unsaved typing
+                   looked identical to an untouched one. */
+                const state = drafts.statusFor(set.id);
                 const logged = isSessionSetLogged(log.prescription, set);
+                /* `queued` and `saving` both read as pending: from the
+                   lifter's side there is no difference between "about to be
+                   written" and "being written", and the row already says the
+                   number is theirs. */
                 const status: SetRowStatus =
                   state === 'error'
                     ? 'error'
-                    : state === 'pending'
+                    : state === 'queued' || state === 'saving'
                       ? 'pending'
                       : set.isPrWeight || set.isPrReps
                         ? 'pr'
-                        : logged
+                        : logged || drafts.hasDraft(set.id)
                           ? 'saved'
                           : 'empty';
 
@@ -770,22 +810,28 @@ function SessionContent({ scrollRef }: { scrollRef: RefObject<ScrollView | null>
                     status={status}
                     exerciseName={log.exercise.name}
                     fields={fields}
-                    values={{
+                    /* The draft if there is one, otherwise the server's
+                       copy. The store never lets the latter overwrite the
+                       former. */
+                    values={drafts.valuesFor(set.id, {
                       ...EMPTY_VALUES,
                       weight: set.weightValue?.toString() ?? '',
                       reps: set.reps?.toString() ?? '',
                       duration: durationToDisplay(set.durationSeconds, definition),
                       distance: set.distanceValue?.toString() ?? '',
                       rpe: set.rpe?.toString() ?? '',
-                    }}
+                    })}
                     targets={targetsFor(log.prescription)}
                     previous={
                       previousSet ? formatPreviousSetCompact(log.prescription, previousSet) : null
                     }
-                    onCommit={(values) => commit(log, set, values)}
+                    onCommit={(values) => {
+                      logForSet.current.set(set.id, log);
+                      drafts.edit(set.id, values);
+                    }}
                     onOpenSetType={() => setSetSheetFor(set.id)}
                     onCopyPrevious={() => undefined}
-                    onRetry={() => setSync((prev) => ({ ...prev, [set.id]: undefined }))}
+                    onRetry={() => void drafts.flush()}
                   />
                 );
               })}

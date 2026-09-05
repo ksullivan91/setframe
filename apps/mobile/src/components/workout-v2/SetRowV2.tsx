@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useKeepFieldVisible } from '../../lib/keyboardAwareScroll';
 import type { SessionField } from '@setframe/domain';
@@ -48,6 +48,7 @@ export interface SetRowV2Props {
   previous: string | null;
   fields: readonly Exclude<SessionField, 'setType'>[];
   exerciseName: string;
+  /** Every keystroke. The store decides what reaches the network, and when. */
   onCommit: (values: SetRowValues) => void;
   onOpenSetType: () => void;
   onCopyPrevious: () => void;
@@ -69,44 +70,22 @@ export function SetRowV2({
   onRetry,
 }: SetRowV2Props) {
   const theme = useTheme();
-  const [draft, setDraft] = useState<SetRowValues>(values);
-  const committedRef = useRef<SetRowValues>(values);
-  const focusedCount = useRef(0);
-
-  /*
-   * Keyed on the VALUES, not the object. The parent builds this prop as an
-   * inline literal, so it has a fresh identity on every render; depending on
-   * the object meant the effect fired constantly and reset the draft to
-   * whatever the server still had — the reported flicker where a field goes
-   * blank, shows the old number, then finally the new one.
-   */
-  const valuesKey = JSON.stringify(values);
-  useEffect(() => {
-    if (focusedCount.current > 0) return;
-    setDraft(values);
-    committedRef.current = values;
-
-  }, [valuesKey]);
 
   /**
-   * "Blur" here means focus has left the ROW, not a field. React Native has no
-   * DOM containment check, so the row counts its own focused inputs: moving
-   * from weight to reps takes the count 1 -> 0 -> 1 within a tick, and only a
-   * count that is still zero on the next tick is a real row blur. Committing
-   * per field would fire two writes per set and briefly paint a half-filled
-   * row as saved.
+   * Fully controlled. The row used to hold its own draft and resync it from
+   * props whenever the server's copy changed, which meant every save — and
+   * saves refetched the whole session — reset the drafts of every row not
+   * currently focused. Typing quickly erased values.
+   *
+   * The draft now lives in one place for the whole screen (`SetDraftStore`),
+   * so the row renders what it is given and reports every keystroke upward.
+   * There is nothing here left to go stale.
    */
+  const draft = values;
+  const focusedCount = useRef(0);
+
   const handleFieldBlur = () => {
     focusedCount.current = Math.max(0, focusedCount.current - 1);
-    setTimeout(() => {
-      if (focusedCount.current > 0) return;
-      const unchanged = (Object.keys(draft) as (keyof SetRowValues)[]).every(
-        (key) => draft[key] === committedRef.current[key],
-      );
-      if (unchanged) return;
-      committedRef.current = draft;
-      onCommit(draft);
-    }, 0);
   };
 
   /* The card is dark now, so a state reads as a wash over that ground
@@ -176,7 +155,7 @@ export function SetRowV2({
           field={field}
           draft={draft}
           targets={targets}
-          setDraft={setDraft}
+          onEdit={onCommit}
           focusedCount={focusedCount}
           handleFieldBlur={handleFieldBlur}
           label={label}
@@ -237,7 +216,7 @@ function SetField({
   field,
   draft,
   targets,
-  setDraft,
+  onEdit,
   focusedCount,
   handleFieldBlur,
   label,
@@ -247,7 +226,7 @@ function SetField({
   field: Exclude<SessionField, 'setType'>;
   draft: SetRowValues;
   targets: Partial<Record<Exclude<SessionField, 'setType'>, string>>;
-  setDraft: (update: (prev: SetRowValues) => SetRowValues) => void;
+  onEdit: (values: SetRowValues) => void;
   focusedCount: { current: number };
   handleFieldBlur: () => void;
   label: string;
@@ -272,7 +251,7 @@ function SetField({
         onFocusKeepVisible();
       }}
       onBlur={handleFieldBlur}
-      onChangeText={(text) => setDraft((prev) => ({ ...prev, [field]: text }))}
+      onChangeText={(text) => onEdit({ ...draft, [field]: text })}
       style={[
         styles.input,
         {

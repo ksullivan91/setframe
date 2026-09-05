@@ -187,7 +187,6 @@ describe('every logger mutation says something when it fails', () => {
      mutations fixed in 4077d01. The guard is per-mutation rather than a
      count, so adding a ninth silent one fails here. */
   it.each([
-    'saveSet',
     'addSet',
     'addExercises',
     'changeSetType',
@@ -207,7 +206,20 @@ describe('every logger mutation says something when it fails', () => {
     const next = source.indexOf('= useMutation({', opener);
     const body = source.slice(start, next === -1 ? start + 2000 : next);
     expect(body).toMatch(/onError/);
-    // saveSet marks the row itself; the rest raise a message.
-    expect(body).toMatch(mutation === 'saveSet' ? /setSync\(/ : /feedback\.report\(/);
+    expect(body).toMatch(/feedback\.report\(/);
+  });
+
+  /* Set entry is no longer a mutation. It goes through `SetDraftStore`,
+     which keeps what was typed on failure and retries, rather than rolling
+     back — losing someone's numbers because the network blinked is the
+     outcome that store exists to prevent. Its own error path is covered in
+     setDraftStore.test.ts; this checks the screen still routes through it. */
+  it('routes set entry through the draft store, not a fire-and-forget save', () => {
+    const source = read('screens', 'WorkoutSessionScreenV2.tsx');
+    expect(source).toContain('new SetDraftStore(');
+    expect(source).toContain('drafts.edit(set.id, values)');
+    expect(source).not.toMatch(/const saveSet = useMutation/);
+    /* The refetch-per-save that made fast entry unusable. */
+    expect(source).not.toMatch(/api\.patch<WorkoutSet>[\s\S]{0,400}?invalidate\(\)/);
   });
 });
